@@ -1,0 +1,35 @@
+# Trinity Agent Template
+# This file defines your agent's metadata for the Trinity platform.
+# Copy to template.yaml and customize for your agent.
+
+# Agent identifier (lowercase, hyphens only)
+name: my-agent
+
+# Human-readable name shown in UI
+display_name: My Agent
+
+# Description of what this agent does
+description: |
+  Describe your agent's purpose and capabilities here.
+  This appears in the Trinity dashboard.
+
+# Resource allocation for the agent container
+resources:
+  cpu: "2"
+  memory: "4g"
+
+# Credential configuration
+credentials:
+  # MCP servers that need credentials injected
+  # Format: server_name: [list of env vars needed]
+  mcp_servers: {}
+
+  # Environment variables to inject from .env file
+  # List variable names (not values) that the agent needs
+  env_file: []
+
+# Optional: Git repository URL (auto-detected if not specified)
+# repository: https://github.com/your-org/your-agent
+
+# Optional: Custom Docker image (uses Trinity base image if not specified)
+# image: your-custom-image:tag

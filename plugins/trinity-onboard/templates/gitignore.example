@@ -1,0 +1,55 @@
+# Trinity Agent .gitignore
+# Required exclusions for Trinity-compatible agents
+
+# ===================
+# CREDENTIALS - NEVER COMMIT
+# ===================
+.mcp.json
+.env
+*.pem
+*.key
+credentials.json
+**/secrets/
+*.credentials
+
+# ===================
+# CLAUDE CODE INTERNALS
+# ===================
+.claude/projects/
+.claude/statsig/
+.claude/todos/
+.claude/debug/
+
+# ===================
+# RUNTIME/GENERATED
+# ===================
+# Large generated content (not synced)
+content/
+
+# Session-specific work files
+session-files/
+
+# ===================
+# COMMON IGNORES
+# ===================
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# Logs
+*.log
+logs/

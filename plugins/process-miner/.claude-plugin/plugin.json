@@ -1,0 +1,13 @@
+{
+  "name": "process-miner",
+  "description": "Analyze Claude Code execution logs to discover workflow patterns and generate process definitions",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "homepage": "https://github.com/abilityai/abilities",
+  "repository": "https://github.com/abilityai/abilities",
+  "license": "MIT",
+  "keywords": ["workflow", "patterns", "logs", "analytics", "process-mining"]
+}

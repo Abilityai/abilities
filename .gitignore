@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Credentials
+.env
+*.pem
+*.key
+
+# Claude Code internals
+.claude/projects/
+.claude/statsig/
+.claude/todos/
+.claude/debug/
+
+# Build outputs
+dist/
+build/
+
+# Logs
+*.log

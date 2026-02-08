@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "trinity": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://trinity.abilityai.dev/mcp"],
+      "env": {
+        "TRINITY_API_KEY": "${TRINITY_API_KEY}"
+      }
+    }
+  }
+}

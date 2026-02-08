@@ -1,0 +1,13 @@
+{
+  "name": "trinity-onboard",
+  "description": "Onboard any Claude Code agent to Trinity Deep Agent Orchestration Platform",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "homepage": "https://trinity.abilityai.dev",
+  "repository": "https://github.com/abilityai/abilities",
+  "license": "MIT",
+  "keywords": ["trinity", "agent", "cloud", "orchestration", "deployment"]
+}
