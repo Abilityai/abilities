@@ -35,6 +35,27 @@
       "description": "Onboard any Claude Code agent to Trinity Deep Agent Orchestration Platform",
       "category": "deployment",
       "tags": ["trinity", "agent", "cloud", "orchestration"]
+    },
+    {
+      "name": "git-workflow",
+      "source": "./plugins/git-workflow",
+      "description": "Streamlined git workflow commands - commit, sync, and publish changes with safety checks",
+      "category": "developer-tools",
+      "tags": ["git", "commit", "sync", "push", "version-control"]
+    },
+    {
+      "name": "skill-builder",
+      "source": "./plugins/skill-builder",
+      "description": "Expert guide for creating Claude Code skills and following agentic best practices",
+      "category": "developer-tools",
+      "tags": ["skills", "plugins", "development", "best-practices", "meta"]
+    },
+    {
+      "name": "workspace-tools",
+      "source": "./plugins/workspace-tools",
+      "description": "File indexing and workspace organization tools - keep projects tidy and navigable",
+      "category": "developer-tools",
+      "tags": ["workspace", "organization", "files", "index", "structure"]
     }
   ]
 }

@@ -1,0 +1,93 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+This is the **Abilities Plugin Marketplace** - a curated collection of Claude Code plugins from Ability.ai. The project is **documentation-driven**: plugins are defined through YAML frontmatter and procedural markdown instructions, not traditional code.
+
+## Repository Structure
+
+```
+.claude-plugin/marketplace.json  # Central registry of all plugins
+plugins/
+  ├── process-miner/            # Workflow pattern discovery from logs
+  ├── repo-tidy/                # Repository audit and cleanup
+  ├── validate-pr/              # PR validation and security checks
+  └── trinity-onboard/          # Trinity platform deployment
+```
+
+Each plugin follows this structure:
+```
+plugins/[name]/
+  ├── .claude-plugin/plugin.json  # Plugin metadata
+  ├── README.md                   # User documentation
+  ├── skills/[skill-name]/        # Skill-based plugins
+  │   ├── SKILL.md               # Skill definition with YAML frontmatter
+  │   └── reference.md           # Technical reference
+  └── commands/[cmd].md          # Command-based plugins
+```
+
+## Plugin Installation
+
+```bash
+# Add marketplace (one-time)
+/plugin marketplace add abilityai/abilities
+
+# Install plugins
+/plugin install process-miner@abilityai
+/plugin install repo-tidy@abilityai
+/plugin install validate-pr@abilityai
+/plugin install trinity-onboard@abilityai
+
+# Manual installation from local
+/plugin add ./plugins/process-miner
+```
+
+## Skill Definition Format
+
+Skills use YAML frontmatter to declare metadata and permissions:
+
+```yaml
+---
+name: skill-name
+description: What the skill does
+allowed-tools:
+  - Read
+  - Write
+  - Bash(command:*)
+disable-model-invocation: true|false
+user-invocable: true|false
+argument-hint: "[optional args]"
+---
+# Procedural instructions follow in markdown
+```
+
+Key frontmatter fields:
+- `allowed-tools`: Tools the skill can invoke (supports glob patterns like `Bash(python*:*)`)
+- `disable-model-invocation`: If true, Claude executes steps without additional reasoning
+- `argument-hint`: Shows users expected arguments
+
+## Adding a New Plugin
+
+1. Create directory: `plugins/[plugin-name]/`
+2. Add `.claude-plugin/plugin.json`:
+   ```json
+   {
+     "name": "plugin-name",
+     "description": "...",
+     "version": "1.0.0",
+     "author": { "name": "Ability.ai", "email": "support@ability.ai" },
+     "license": "MIT"
+   }
+   ```
+3. Add skills in `skills/[skill-name]/SKILL.md` or commands in `commands/[cmd].md`
+4. Add `README.md` with usage documentation
+5. Register in `marketplace.json` under the `plugins` array
+
+## Plugin Conventions
+
+- **Report before action**: Generate audit/analysis first, then request approval for changes
+- **Archive over delete**: Move files to `archive/` preserving structure instead of deleting
+- **Safe artifacts are automatic**: `__pycache__`, `.pyc`, `.DS_Store` can be cleaned without approval
+- **Templates use placeholders**: Files ending in `.example` or `.template` use `${VAR_NAME}` syntax

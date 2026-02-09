@@ -1,0 +1,13 @@
+{
+  "name": "git-workflow",
+  "description": "Streamlined git workflow commands - commit, sync, and publish changes with safety checks",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "homepage": "https://github.com/abilityai/abilities",
+  "repository": "https://github.com/abilityai/abilities",
+  "license": "MIT",
+  "keywords": ["git", "commit", "sync", "push", "workflow", "version-control"]
+}

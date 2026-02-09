@@ -1,7 +1,7 @@
 {
   "name": "trinity-onboard",
-  "description": "Onboard any Claude Code agent to Trinity Deep Agent Orchestration Platform",
-  "version": "1.0.0",
+  "description": "Onboard any Claude Code agent to Trinity and sync credentials between local and remote agents",
+  "version": "1.1.0",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"
@@ -9,5 +9,5 @@
   "homepage": "https://trinity.abilityai.dev",
   "repository": "https://github.com/abilityai/abilities",
   "license": "MIT",
-  "keywords": ["trinity", "agent", "cloud", "orchestration", "deployment"]
+  "keywords": ["trinity", "agent", "cloud", "orchestration", "deployment", "credentials", "sync"]
 }

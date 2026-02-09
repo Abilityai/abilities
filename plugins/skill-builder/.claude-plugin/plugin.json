@@ -1,0 +1,13 @@
+{
+  "name": "skill-builder",
+  "description": "Expert guide for creating Claude Code skills and following agentic best practices",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "homepage": "https://github.com/abilityai/abilities",
+  "repository": "https://github.com/abilityai/abilities",
+  "license": "MIT",
+  "keywords": ["skills", "plugins", "development", "best-practices", "meta"]
+}
