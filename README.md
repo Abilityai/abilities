@@ -132,12 +132,28 @@ Keep projects organized and navigable.
 
 ### Trinity Onboard
 
-Deploy any Claude Code agent to the [Trinity](https://trinity.abilityai.dev) platform.
+Deploy any Claude Code agent to the [Trinity](https://github.com/abilityai/trinity) platform.
+
+**What is Trinity?** Trinity is sovereign infrastructure for autonomous AI agents. It provides:
+
+- **Autonomous operation** — Agents run 24/7 with cron-based scheduling
+- **Multi-agent orchestration** — Coordinate teams of specialized agents
+- **Human-in-the-loop** — Approval gates where decisions matter
+- **Enterprise controls** — Complete audit trails, cost tracking, Docker isolation
+- **Your infrastructure** — Self-hosted, data never leaves your perimeter
 
 ```bash
 /onboard                   # Convert workspace to Trinity agent
 /credential-sync           # Encrypt/decrypt credentials
 ```
+
+The onboarding wizard analyzes your agent, creates required configuration files (`template.yaml`, `.mcp.json`), pushes to GitHub, and deploys to Trinity.
+
+After deployment, your agent can:
+- Run autonomously on schedules
+- Collaborate with other agents via MCP
+- Persist memory across sessions
+- Be managed via web UI or API
 
 ## Contributing
 
