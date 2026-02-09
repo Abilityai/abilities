@@ -168,7 +168,7 @@ mcp__trinity__get_agent(name: "[agent-name]")
 ```
 
 Check response:
-- If 404: "Agent not found on Trinity. Run /onboard first."
+- If 404: "Agent not found on Trinity. Run /trinity-onboard first."
 - If not running: "Agent is stopped. Start it first or credentials won't persist."
 
 ### Step 3: Inject All Files to Remote
@@ -399,7 +399,7 @@ for filename, content in files.items():
 
 | Error | Resolution |
 |-------|------------|
-| Agent not found | Run /onboard first to deploy agent |
+| Agent not found | Run /trinity-onboard first to deploy agent |
 | Agent not running | Start agent via Trinity UI or MCP |
 | No .env locally | Create .env with required credentials |
 | MCP tools unavailable | Check Trinity MCP connection |
@@ -446,6 +446,17 @@ for filename, content in files.items():
 # Auto-detect agent name from current directory
 /credential-sync push
 ```
+
+## Related Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `/trinity-onboard` | Initial agent setup and Trinity adoption |
+| `/trinity-sync` | Git-based code synchronization with remote |
+| `/trinity-remote` | Remote agent operations (exec, run) |
+| `/trinity-schedules` | Scheduled task management |
+
+---
 
 ## Common Credential File Patterns
 

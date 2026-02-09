@@ -1,6 +1,6 @@
 # Trinity Onboard
 
-Zero-friction onboarding to deploy any Claude Code agent to the Trinity Deep Agent Orchestration Platform, plus credential synchronization for paired local-remote agent workflows.
+Complete Trinity platform integration for Claude Code agents. This plugin provides the canonical Trinity skills for adopting, syncing, and operating agents on the Trinity Deep Agent Orchestration Platform.
 
 ## Installation
 
@@ -9,171 +9,225 @@ Zero-friction onboarding to deploy any Claude Code agent to the Trinity Deep Age
 /plugin install trinity-onboard@abilityai
 ```
 
-## Skills
+## Skills Overview
+
+### Core Trinity Skills (Canonical)
 
 | Skill | Command | Description |
 |-------|---------|-------------|
-| **onboard** | `/onboard` | Deploy agent to Trinity platform |
-| **credential-sync** | `/credential-sync` | Sync credentials between local and remote |
+| **trinity-onboard** | `/trinity-onboard` | Convert any agent to Trinity-compatible format |
+| **trinity-compatibility** | `/trinity-compatibility` | Read-only audit of agent structure |
+| **trinity-sync** | `/trinity-sync` | Git-based synchronization with remote agent |
+| **trinity-remote** | `/trinity-remote` | Remote agent operations (exec, run, notify) |
+| **trinity-schedules** | `/trinity-schedules` | Manage scheduled autonomous executions |
 
-## Usage
+### Extended Skills (Plugin Extras)
 
-### Deploy to Trinity
-```bash
-/onboard
-```
+| Skill | Command | Description |
+|-------|---------|-------------|
+| **credential-sync** | `/credential-sync` | Push/pull credentials between local and remote |
+| **create-heartbeat** | `/create-heartbeat` | Generate polling skills for long-running tasks |
 
-### Sync Credentials
-```bash
-/credential-sync push              # Push local .env to remote agent
-/credential-sync pull              # Pull remote credentials locally
-/credential-sync status            # Check credential status on remote
-/credential-sync export            # Create encrypted backup on remote
-/credential-sync import            # Restore from encrypted backup
-```
-
-## What It Does
-
-1. **Discovery** - Analyzes your current agent structure
-2. **Compatibility Check** - Compares against Trinity requirements
-3. **User Confirmation** - Shows what will be created/changed
-4. **Create Files** - Generates required configuration files
-5. **Git Setup** - Initializes git, commits, pushes
-6. **Deploy** - Creates agent on Trinity platform
-7. **Report** - Shows completion status and next steps
-
-## Files Created
-
-| File | Purpose |
-|------|---------|
-| `template.yaml` | Agent metadata for Trinity |
-| `.gitignore` | Security-critical exclusions |
-| `.env.example` | Documents required environment variables |
-| `.mcp.json.template` | MCP server config with placeholders |
-
-## Requirements
-
-- Claude Code with plugin support
-- GitHub repository (created during onboarding if needed)
-- Trinity account with API key
-
-## Example Flow
+## Workflow
 
 ```
-$ /onboard
-
-## Trinity Onboarding Analysis
-
-### Agent: my-business-agent
-### Directory: /Users/me/agents/my-business-agent
-
-### Current State
-| Item | Status |
-|------|--------|
-| template.yaml | MISSING |
-| CLAUDE.md | EXISTS |
-| .mcp.json.template | MISSING |
-| .env.example | MISSING |
-| .gitignore | INCOMPLETE |
-| Git repository | INITIALIZED |
-| Remote origin | SET |
-
-### Actions Required
-1. Create template.yaml
-2. Create .env.example
-3. Create .mcp.json.template
-4. Update .gitignore with required entries
-
-Proceed? [Y/n]
+ADOPT → DEVELOP → SYNC → REMOTE → SCHEDULE
+  │        │        │       │        │
+  │        │        │       │        └─ /trinity-schedules
+  │        │        │       └─ /trinity-remote exec <prompt>
+  │        │        └─ /trinity-sync push
+  │        └─ Local development
+  └─ /trinity-onboard
 ```
-
-After confirmation:
-
-```
-## Trinity Onboarding Complete!
-
-### Agent Deployed
-- **Name**: my-business-agent
-- **Platform**: Trinity (https://trinity.abilityai.dev)
-- **Status**: Running
-
-### Files Created/Updated
-- [x] template.yaml
-- [x] .gitignore
-- [x] .env.example
-- [x] .mcp.json.template
-
-### Next Steps
-
-1. Configure credentials in Trinity dashboard
-2. Test remote execution
-3. Set up scheduled tasks (optional)
-```
-
-## Idempotency
-
-Both skills are safe to run multiple times:
-- Existing files are only updated if needed
-- Git commits are skipped if no changes
-- Agent deployment updates existing agent
-- Credential sync overwrites remote credentials
 
 ---
 
-## Credential Sync
+## Quick Start
 
-For paired local-remote agent workflows where you develop locally and run on Trinity.
+### 1. Check Compatibility
 
-### Workflow: Push Local to Remote
-
-```
-Local Agent                     Trinity Remote
-┌─────────────┐                 ┌─────────────┐
-│  .env       │────push────────▶│  .env       │
-│  (secrets)  │                 │  (running)  │
-└─────────────┘                 └─────────────┘
+```bash
+/trinity-compatibility
 ```
 
-1. Edit `.env` locally with your credentials
-2. Run `/credential-sync push` to inject to remote
-3. Remote agent immediately has your credentials
+Produces a read-only audit report showing what's missing.
 
-### Workflow: Encrypted Git Storage
+### 2. Adopt Trinity Methodology
 
-```
-.env ──encrypt──▶ .credentials.enc ──git──▶ Remote
-                  (safe to commit)          ──import──▶ .env
+```bash
+/trinity-onboard
 ```
 
-1. Create `.env` locally
-2. Run `/credential-sync export` to create encrypted backup on remote
-3. Commit `.credentials.enc` to git (it's encrypted)
-4. On fresh deploy, `/credential-sync import` restores credentials
+Creates required files:
+- `template.yaml` - Agent metadata
+- `.gitignore` - Security exclusions
+- `.env.example` - Document required variables
+- `.mcp.json.template` - MCP config with placeholders
+- Directory structure (`outputs/`, `scripts/`, `memory/`)
+
+### 3. Sync with Remote
+
+```bash
+/trinity-sync status    # Compare local vs remote
+/trinity-sync push      # Push local changes to remote
+/trinity-sync pull      # Pull remote changes locally
+```
+
+### 4. Remote Operations
+
+```bash
+/trinity-remote              # Check remote agent status
+/trinity-remote exec <task>  # Execute on remote (no sync)
+/trinity-remote run <task>   # Sync then execute (deploy-run)
+```
+
+### 5. Schedule Autonomous Tasks
+
+```bash
+/trinity-schedules status                          # View all schedules
+/trinity-schedules schedule my-skill "0 9 * * *"   # Schedule daily at 9am
+/trinity-schedules trigger my-skill                # Run now
+/trinity-schedules history                         # View execution history
+```
+
+---
+
+## Credential Management
+
+For paired local-remote workflows where you develop locally and run on Trinity.
+
+### Push Local Credentials to Remote
+
+```bash
+/credential-sync push              # Push .env and .mcp.json
+/credential-sync push --files=.env # Push specific files
+```
+
+### Encrypted Git Storage
+
+```bash
+/credential-sync export    # Create .credentials.enc on remote (safe to commit)
+/credential-sync import    # Restore from encrypted backup
+```
+
+### Check Status
+
+```bash
+/credential-sync status    # Show what credentials exist on remote
+```
 
 ### Helper Scripts
 
-The plugin includes Python scripts for local encryption/decryption:
-
 ```bash
-# Encrypt local credentials
+# Local encryption/decryption
 export CREDENTIAL_ENCRYPTION_KEY=<key-from-trinity>
-python ~/.claude/plugins/trinity-onboard/skills/credential-sync/scripts/encrypt_credentials.py
-
-# Decrypt credentials locally
-python ~/.claude/plugins/trinity-onboard/skills/credential-sync/scripts/decrypt_credentials.py
+python skills/credential-sync/scripts/encrypt_credentials.py
+python skills/credential-sync/scripts/decrypt_credentials.py
 ```
-
-Get the encryption key via MCP: `get_credential_encryption_key` tool
 
 ---
 
-## Files
+## Heartbeat Pattern
 
-- `skills/onboard/SKILL.md` - Main onboarding skill
-- `skills/credential-sync/SKILL.md` - Credential synchronization skill
-- `skills/credential-sync/scripts/` - Encryption/decryption helpers
-- `templates/` - Template files for new agents
-- `.mcp.json` - Trinity MCP server configuration
+For long-running or recurring tasks, create custom polling skills.
+
+### Create a Heartbeat Skill
+
+```bash
+/create-heartbeat production-monitor
+```
+
+You'll be asked:
+1. Which Trinity agent to monitor?
+2. What task to run when idle?
+3. How to check current status?
+4. What indicates completion?
+5. Check interval (default: 20 min)
+
+### How It Works
+
+```
+Local Claude Code                    Remote Trinity Agent
+┌─────────────┐                      ┌─────────────┐
+│  Heartbeat  │───status check──────▶│             │
+│   Skill     │◀──────response───────│   Agent     │
+│             │                      │             │
+│  (polling)  │───start task────────▶│  (working)  │
+│             │      (async)         │             │
+│  sleep...   │                      │             │
+└─────────────┘                      └─────────────┘
+```
+
+The generated skill runs in your local session, polling the remote agent at intervals.
+
+---
+
+## Trinity Requirements Reference
+
+### Required Files
+
+| File | Purpose |
+|------|---------|
+| `CLAUDE.md` | Agent instructions (the "brain") |
+| `template.yaml` | Trinity deployment metadata |
+| `.mcp.json.template` | MCP config with `${VAR}` placeholders |
+| `.env.example` | Document required environment variables |
+| `.gitignore` | Security-critical exclusions |
+
+### Required Directories
+
+| Directory | Commit? | Purpose |
+|-----------|---------|---------|
+| `.claude/skills/` | Yes | Agent capabilities |
+| `.claude/agents/` | Yes | Sub-agent definitions |
+| `memory/` | Yes | Persistent state, schedules |
+| `scripts/` | Yes | Automation scripts |
+| `outputs/` | Yes | Smaller deliverables |
+| `content/` | No | Large generated assets |
+| `session-files/` | No | Session-specific work |
+
+### .gitignore Must Exclude
+
+```gitignore
+# Credentials
+.mcp.json
+.env
+*.pem
+*.key
+
+# Claude Code internals
+.claude/projects/
+.claude/statsig/
+.claude/todos/
+.claude/debug/
+
+# Runtime
+content/
+session-files/
+```
+
+---
+
+## Files in This Plugin
+
+```
+skills/
+├── trinity-onboard/SKILL.md      # Onboarding workflow
+├── trinity-compatibility/SKILL.md # Compatibility audit
+├── trinity-sync/SKILL.md         # Git synchronization
+├── trinity-remote/SKILL.md       # Remote operations
+├── trinity-schedules/            # Schedule management
+│   ├── SKILL.md
+│   ├── registry-template.json
+│   ├── scripts/registry.py
+│   └── examples.md
+├── credential-sync/              # Credential management
+│   ├── SKILL.md
+│   └── scripts/
+│       ├── encrypt_credentials.py
+│       └── decrypt_credentials.py
+└── create-heartbeat/SKILL.md     # Heartbeat skill generator
+```
 
 ## Support
 

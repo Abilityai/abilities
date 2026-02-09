@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "agent_name": "",
+  "last_sync": null,
+  "schedules": {},
+  "skill_to_schedule": {},
+  "notes": {
+    "description": "This file tracks the relationship between Trinity schedules and local skills/procedures",
+    "location": "Copy to ~/.schedule-registry.json",
+    "fields": {
+      "agent_name": "Name of the Trinity agent this registry belongs to",
+      "last_sync": "ISO timestamp of last sync with remote Trinity",
+      "schedules": "Map of schedule_id -> schedule details including associated skill",
+      "skill_to_schedule": "Reverse lookup: skill_name -> schedule_id for quick lookups"
+    }
+  }
+}
