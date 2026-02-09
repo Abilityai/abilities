@@ -1,41 +1,47 @@
 # Abilities
 
-High-quality Claude Code plugins from [Ability.ai](https://ability.ai).
+A curated collection of Claude Code plugins from [Ability.ai](https://ability.ai).
 
 ## Quick Start
 
 ```bash
-# Add the abilities marketplace
+# Add the abilities marketplace (one-time)
 /plugin marketplace add abilityai/abilities
 
 # List available plugins
 /plugin list abilityai
 
 # Install a plugin
-/plugin install process-miner@abilityai
+/plugin install git-workflow@abilityai
 ```
 
 ## Available Plugins
 
-| Plugin | Description | Use Case |
-|--------|-------------|----------|
-| [process-miner](plugins/process-miner/) | Analyze Claude Code logs to discover workflow patterns | Extract repeatable processes from agent behavior |
-| [repo-tidy](plugins/repo-tidy/) | Audit and clean up repository structure | Find orphan files, outdated docs, misplaced configs |
-| [validate-pr](plugins/validate-pr/) | Validate PRs against security standards | Pre-merge security and quality checks |
-| [trinity-onboard](plugins/trinity-onboard/) | Onboard agents to Trinity platform | Deploy Claude Code agents to the cloud |
+| Plugin | Description | Skills |
+|--------|-------------|--------|
+| [git-workflow](plugins/git-workflow/) | Streamlined git with safety checks | `/commit`, `/sync`, `/publish` |
+| [skill-builder](plugins/skill-builder/) | Create Claude Code skills | `/skill-builder`, `/agentic-best-practices` |
+| [process-miner](plugins/process-miner/) | Discover workflow patterns from logs | `/process-miner` |
+| [repo-tidy](plugins/repo-tidy/) | Audit and clean up repositories | `/tidy` |
+| [validate-pr](plugins/validate-pr/) | PR validation and security checks | `/validate-pr` |
+| [workspace-tools](plugins/workspace-tools/) | File indexing and organization | `/file-indexer`, `/workspace-discipline` |
+| [trinity-onboard](plugins/trinity-onboard/) | Deploy agents to Trinity platform | `/onboard`, `/credential-sync` |
 
 ## Installation
 
-### Install from Marketplace
+### From Marketplace
 
 ```bash
 # Add marketplace (one-time)
 /plugin marketplace add abilityai/abilities
 
-# Install individual plugins
+# Install plugins
+/plugin install git-workflow@abilityai
+/plugin install skill-builder@abilityai
 /plugin install process-miner@abilityai
 /plugin install repo-tidy@abilityai
 /plugin install validate-pr@abilityai
+/plugin install workspace-tools@abilityai
 /plugin install trinity-onboard@abilityai
 ```
 
@@ -46,20 +52,43 @@ High-quality Claude Code plugins from [Ability.ai](https://ability.ai).
 git clone https://github.com/abilityai/abilities.git
 
 # Install a plugin directly
-/plugin add ./abilities/plugins/process-miner
+/plugin add ./abilities/plugins/git-workflow
 ```
 
 ## Plugin Details
 
+### Git Workflow
+
+Safe git operations with built-in guardrails.
+
+```bash
+/commit                    # Create commit with auto-generated message
+/commit fix login bug      # Create commit with custom message
+/sync                      # Pull-rebase-push workflow
+/publish                   # Push changes to remote
+```
+
+Never commits `.env`, `.mcp.json`, or credential files.
+
+### Skill Builder
+
+Expert guidance for creating Claude Code skills.
+
+```bash
+/skill-builder             # Interactive skill creation wizard
+/agentic-best-practices    # Apply best practices to complex tasks
+```
+
+Covers YAML frontmatter, skill structure, testing, and validation.
+
 ### Process Miner
 
-Analyze Claude Code execution logs to discover workflow patterns and generate process definitions.
+Analyze Claude Code execution logs to discover workflow patterns.
 
 ```bash
 /process-miner
 ```
 
-**Features:**
 - Parse JSONL transcripts from `~/.claude/projects/`
 - Discover frequent tool sequences
 - Classify user intents
@@ -70,16 +99,14 @@ Analyze Claude Code execution logs to discover workflow patterns and generate pr
 Audit and clean up repository structure safely.
 
 ```bash
-/tidy              # Full audit
-/tidy docs         # Audit docs folder only
-/tidy --report-only # Report without changes
+/tidy                      # Full audit
+/tidy docs                 # Audit docs folder only
+/tidy --report-only        # Report without changes
 ```
 
-**Features:**
-- Auto-clean safe artifacts (`__pycache__`, `.pyc`, etc.)
+- Auto-clean safe artifacts (`__pycache__`, `.pyc`, `.DS_Store`)
 - Find orphan documentation
-- Detect misplaced files
-- Archive outdated content
+- Archive outdated content (preserves history)
 
 ### Validate PR
 
@@ -90,41 +117,44 @@ Validate pull requests against security and documentation standards.
 /validate-pr https://github.com/org/repo/pull/123
 ```
 
-**Features:**
 - Security scanning (API keys, tokens, secrets)
 - Documentation update checks
 - Code quality assessment
-- Merge recommendation
+
+### Workspace Tools
+
+Keep projects organized and navigable.
+
+```bash
+/file-indexer              # Generate file indexes
+/workspace-discipline      # Enforce workspace conventions
+```
 
 ### Trinity Onboard
 
-Onboard any Claude Code agent to the Trinity Deep Agent Orchestration Platform.
+Deploy any Claude Code agent to the [Trinity](https://trinity.abilityai.dev) platform.
 
 ```bash
-/onboard
+/onboard                   # Convert workspace to Trinity agent
+/credential-sync           # Encrypt/decrypt credentials
 ```
-
-**Features:**
-- Create required Trinity config files
-- Set up git repository
-- Deploy agent to cloud
-- Zero-friction onboarding flow
 
 ## Contributing
 
-We welcome contributions! Please see our [contribution guidelines](CONTRIBUTING.md).
+We welcome contributions! See [CLAUDE.md](CLAUDE.md) for development guidelines.
 
 ### Adding a Plugin
 
 1. Create a new directory in `plugins/`
 2. Add `.claude-plugin/plugin.json` with plugin metadata
-3. Add your skills, commands, or agents
-4. Update `marketplace.json` with the new plugin
-5. Submit a pull request
+3. Add your skills in `skills/[skill-name]/SKILL.md`
+4. Add a `README.md` with usage documentation
+5. Register in `.claude-plugin/marketplace.json`
+6. Submit a pull request
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+[MIT](LICENSE)
 
 ## Support
 
