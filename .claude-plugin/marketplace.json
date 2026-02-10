@@ -32,9 +32,9 @@
     {
       "name": "trinity-onboard",
       "source": "./plugins/trinity-onboard",
-      "description": "Onboard any Claude Code agent to Trinity Deep Agent Orchestration Platform",
+      "description": "Onboard agents to Trinity, sync credentials, and create scheduled task skills with the heartbeat pattern",
       "category": "deployment",
-      "tags": ["trinity", "agent", "cloud", "orchestration"]
+      "tags": ["trinity", "agent", "cloud", "orchestration", "scheduling", "heartbeat"]
     },
     {
       "name": "git-workflow",
@@ -56,6 +56,13 @@
       "description": "File indexing and workspace organization tools - keep projects tidy and navigable",
       "category": "developer-tools",
       "tags": ["workspace", "organization", "files", "index", "structure"]
+    },
+    {
+      "name": "playbook-builder",
+      "source": "./plugins/playbook-builder",
+      "description": "Create structured, transactional playbooks with state management for autonomous, gated, or manual execution",
+      "category": "developer-tools",
+      "tags": ["playbook", "workflow", "automation", "process", "state-management", "trinity"]
     }
   ]
 }
