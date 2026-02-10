@@ -245,7 +245,7 @@ Encrypted backup created on remote: .credentials.enc
 To get credentials locally:
 
 Option A: Copy via file browser
-  1. Visit: https://trinity.abilityai.dev/agents/[agent-name]
+  1. Visit your Trinity dashboard: ${TRINITY_URL}/agents/[agent-name]
   2. Go to Files tab
   3. Download .credentials.enc
   4. Run: /credential-sync decrypt

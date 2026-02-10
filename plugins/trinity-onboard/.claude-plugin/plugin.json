@@ -6,7 +6,7 @@
     "name": "Ability.ai",
     "email": "support@ability.ai"
   },
-  "homepage": "https://trinity.abilityai.dev",
+  "homepage": "https://github.com/abilityai/abilities",
   "repository": "https://github.com/abilityai/abilities",
   "license": "MIT",
   "keywords": ["trinity", "agent", "cloud", "orchestration", "deployment", "credentials", "sync", "scheduling", "remote"]

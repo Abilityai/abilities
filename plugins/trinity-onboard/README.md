@@ -2,6 +2,79 @@
 
 Complete Trinity platform integration for Claude Code agents. This plugin provides the canonical Trinity skills for adopting, syncing, and operating agents on the Trinity Deep Agent Orchestration Platform.
 
+## Prerequisites
+
+**You need access to a Trinity instance before using this plugin.**
+
+### Option 1: Self-Host (Open Source)
+
+Trinity is open source. Deploy your own instance:
+
+1. Visit: **https://github.com/abilityai/trinity**
+2. Follow the installation instructions
+3. Generate API keys from your dashboard
+
+### Option 2: Managed by Ability AI
+
+Want us to provision and manage a Trinity instance for you?
+
+**Contact: trinity@ability.ai**
+
+### What You'll Need
+
+| Item | Description |
+|------|-------------|
+| **Trinity URL** | Your instance URL (e.g., `https://trinity.example.com`) |
+| **API Key** | From Trinity dashboard > Settings > API Keys |
+
+You'll be prompted for these when running `/trinity-onboard`.
+
+## How It Works: Local-Remote Pairing
+
+Trinity uses a **paired agent architecture**—the same agent runs both locally and remotely:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        GitHub                               │
+│           (Source of Truth for Agent State)                 │
+│                                                             │
+│    Skills, CLAUDE.md, template.yaml, memory/, scripts/      │
+└────────────────────┬────────────────────┬───────────────────┘
+                     │                    │
+                git push              git pull
+                     │                    │
+                     ▼                    ▼
+┌────────────────────────┐    ┌────────────────────────────┐
+│     LOCAL AGENT        │    │      REMOTE AGENT          │
+│   (Your Machine)       │    │       (Trinity)            │
+│                        │    │                            │
+│ • Interactive dev      │    │ • Always-on execution      │
+│ • Quick iteration      │    │ • Scheduled tasks          │
+│ • Orchestration        │    │ • Background processing    │
+└───────────┬────────────┘    └─────────────┬──────────────┘
+            │                               │
+            └───────── MCP Connection ──────┘
+```
+
+**Key concepts:**
+
+- **Same agent, two locations**: Both share identical skills and instructions, synced via Git
+- **GitHub as state management**: Your agent's identity (skills, config) lives in Git
+- **Local orchestrator**: Your local session can trigger and monitor remote execution
+- **Heartbeat pattern**: Local agent polls remote for long-running task status
+- **Credentials stay local**: `.env` and `.mcp.json` are gitignored, synced separately
+
+**When to use each:**
+
+| Local | Remote |
+|-------|--------|
+| Interactive development | Long-running batch jobs |
+| Quick testing | Scheduled daily tasks |
+| File exploration | Always-on availability |
+| Orchestrating agents | Processing while laptop closed |
+
+See the full architecture guide in `/trinity-onboard`.
+
 ## Installation
 
 ```bash
@@ -63,7 +136,6 @@ Creates required files:
 - `.gitignore` - Security exclusions
 - `.env.example` - Document required variables
 - `.mcp.json.template` - MCP config with placeholders
-- Directory structure (`outputs/`, `scripts/`, `memory/`)
 
 ### 3. Sync with Remote
 
@@ -174,18 +246,6 @@ The generated skill runs in your local session, polling the remote agent at inte
 | `.env.example` | Document required environment variables |
 | `.gitignore` | Security-critical exclusions |
 
-### Required Directories
-
-| Directory | Commit? | Purpose |
-|-----------|---------|---------|
-| `.claude/skills/` | Yes | Agent capabilities |
-| `.claude/agents/` | Yes | Sub-agent definitions |
-| `memory/` | Yes | Persistent state, schedules |
-| `scripts/` | Yes | Automation scripts |
-| `outputs/` | Yes | Smaller deliverables |
-| `content/` | No | Large generated assets |
-| `session-files/` | No | Session-specific work |
-
 ### .gitignore Must Exclude
 
 ```gitignore
@@ -231,7 +291,7 @@ skills/
 
 ## Support
 
-- **Documentation**: https://trinity.abilityai.dev/docs
+- **Documentation**: See your Trinity instance dashboard
 - **Issues**: https://github.com/abilityai/abilities/issues
 
 ## License
