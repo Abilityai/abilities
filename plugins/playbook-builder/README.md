@@ -1,22 +1,43 @@
 # Playbook Builder
 
-Create and manage structured, transactional playbooks for Claude Code agents.
+Create structured, reliable skills for Claude Code agents.
 
 ## What is a Playbook?
 
-A **playbook** is a skill that follows a disciplined pattern:
+A **playbook** is a skill that follows a specific pattern for reliability and portability:
 
 ```
 READ FRESH STATE → PROCESS → WRITE STATE → VERIFY
 ```
 
-Playbooks are:
+The term "playbook" is familiar from Ansible, runbooks, and SOPs. In Claude Code, a playbook is implemented as a SKILL.md file that follows this transactional pattern.
+
+**Why use playbooks?**
 - **Self-contained**: Don't rely on stale conversation context
 - **Portable**: Work the same locally and on Trinity
 - **Traceable**: All state changes are explicit
 - **Recoverable**: Clear what to check if something fails
 
-**Playbook = Skill** (same thing, different lens)
+## Skill Complexity Tiers
+
+Not every skill needs the full playbook ceremony. Choose based on complexity:
+
+| Tier | Type | When to Use | Required Elements |
+|------|------|-------------|-------------------|
+| 1 | **Simple Skill** | Stateless, one-shot tasks | Purpose, Process |
+| 2 | **Stateful Skill** | Reads/writes files or APIs | + State Dependencies table |
+| 3 | **Full Playbook** | Scheduled, autonomous, needs reliability | + Read/Write steps, Checklist, Recovery |
+
+**Decision tree:**
+```
+Is this stateless (no files, no APIs, no side effects)?
+├─ YES → Simple Skill (Tier 1)
+└─ NO → Does it read or write state?
+         ├─ YES → Will it run unattended or scheduled?
+         │        ├─ YES → Full Playbook (Tier 3)
+         │        └─ NO → Stateful Skill (Tier 2)
+         └─ NO → Simple Skill (Tier 1)
+```
 
 ## Installation
 
@@ -29,11 +50,19 @@ Playbooks are:
 
 | Skill | Command | Purpose |
 |-------|---------|---------|
-| **create-playbook** | `/create-playbook [name]` | Create a new playbook from scratch |
-| **adjust-playbook** | `/adjust-playbook [name]` | Modify an existing playbook |
-| **playbook-architect** | `/playbook-architect` | Audit agent and propose playbook adoption |
+| **create-playbook** | `/create-playbook [name]` | Create a new skill (any tier) |
+| **adjust-playbook** | `/adjust-playbook [name]` | Modify an existing skill |
+| **playbook-architect** | `/playbook-architect` | Audit agent and propose improvements |
 
 ## Quick Start
+
+### Create a New Skill
+
+```bash
+/create-playbook weekly-report
+```
+
+Guides you through creating a skill. Asks questions to determine the right tier (simple, stateful, or full playbook).
 
 ### Audit Your Agent
 
@@ -41,25 +70,19 @@ Playbooks are:
 /playbook-architect
 ```
 
-Reviews all your skills, commands, subagents, and instructions. Proposes how to adopt the playbook framework **without losing any existing functionality**.
+Reviews all your skills and proposes improvements **without losing any existing functionality**.
 
-### Create a New Playbook
-
-```bash
-/create-playbook weekly-report
-```
-
-Guides you through creating a playbook with proper state management.
-
-### Modify an Existing Playbook
+### Modify an Existing Skill
 
 ```bash
 /adjust-playbook weekly-report "add email notification step"
 ```
 
-Updates playbook while preserving structure.
+Updates skill while preserving structure.
 
-## Automation Levels
+## Automation Levels (Tier 3 Only)
+
+For full playbooks that run scheduled or unattended:
 
 | Level | When It Runs | Human Role | Use For |
 |-------|--------------|------------|---------|
@@ -67,22 +90,21 @@ Updates playbook while preserving structure.
 | **Gated** | Schedule/trigger | Approve at checkpoints | Content, deployments |
 | **Manual** | When invoked | Full control | Dangerous ops, migrations |
 
-## The Transactional Pattern
+## The Transactional Pattern (Tier 2-3)
 
-Every playbook must:
+Stateful skills and full playbooks should:
 
 1. **Declare state dependencies** - what it reads/writes
 2. **Read fresh state** - at the start, every time
 3. **Process** - execute steps, with optional approval gates
 4. **Write state** - explicitly save all changes
-5. **Verify** - completion checklist
+5. **Verify** - completion checklist (Tier 3 only)
 
+**Tier 2 (Stateful Skill):**
 ```yaml
 ---
-name: my-playbook
-automation: gated
+name: my-skill
 ---
-
 ## State Dependencies
 | Source | Location | Read | Write |
 |--------|----------|------|-------|
@@ -90,15 +112,22 @@ automation: gated
 | Data | data.json | ✓ | ✓ |
 
 ## Process
+[Steps that read and write state]
+```
 
+**Tier 3 (Full Playbook):**
+```yaml
+---
+name: my-playbook
+automation: gated
+---
+## State Dependencies
+[Table of reads/writes]
+
+## Process
 ### Step 1: Read Current State
-[Always first]
-
-### Step 2-N: Do Work
-[Your steps, with [APPROVAL GATE] if gated]
-
+### Step 2-N: Do Work (with [APPROVAL GATE] if gated)
 ### Final Step: Write Updated State
-[Always last]
 
 ## Completion Checklist
 - [ ] State read fresh
@@ -117,11 +146,13 @@ The `playbook-architect` skill follows a **conservative approach**:
 
 ## Templates
 
-| Template | For |
-|----------|-----|
-| [autonomous-template.md](templates/autonomous-template.md) | Scheduled, unattended |
-| [gated-template.md](templates/gated-template.md) | Approval checkpoints |
-| [manual-template.md](templates/manual-template.md) | Human-controlled |
+| Template | Tier | For |
+|----------|------|-----|
+| [simple-skill.md](templates/simple-skill.md) | 1 | Stateless, one-shot tasks |
+| [stateful-skill.md](templates/stateful-skill.md) | 2 | Skills that read/write state |
+| [autonomous-template.md](templates/autonomous-template.md) | 3 | Scheduled, unattended |
+| [gated-template.md](templates/gated-template.md) | 3 | Approval checkpoints |
+| [manual-template.md](templates/manual-template.md) | 3 | Human-controlled |
 
 ## Scheduling on Trinity
 
