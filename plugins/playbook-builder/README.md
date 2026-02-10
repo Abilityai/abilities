@@ -51,10 +51,19 @@ Is this stateless (no files, no APIs, no side effects)?
 | Skill | Command | Purpose |
 |-------|---------|---------|
 | **create-playbook** | `/create-playbook [name]` | Create a new skill (any tier) |
+| **save-playbook** | `/save-playbook [name]` | Capture current conversation as a playbook |
 | **adjust-playbook** | `/adjust-playbook [name]` | Modify an existing skill |
 | **playbook-architect** | `/playbook-architect` | Audit agent and propose improvements |
 
 ## Quick Start
+
+### Capture What You Just Did
+
+```bash
+/save-playbook deploy-workflow
+```
+
+After completing a task, capture it as a reusable playbook. Analyzes the conversation to extract steps, state dependencies, and automation level.
 
 ### Create a New Skill
 
@@ -62,7 +71,7 @@ Is this stateless (no files, no APIs, no side effects)?
 /create-playbook weekly-report
 ```
 
-Guides you through creating a skill. Asks questions to determine the right tier (simple, stateful, or full playbook).
+Guides you through creating a skill from scratch. Asks questions to determine the right tier (simple, stateful, or full playbook).
 
 ### Audit Your Agent
 
