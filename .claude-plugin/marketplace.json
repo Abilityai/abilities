@@ -9,53 +9,11 @@
   "repository": "https://github.com/abilityai/abilities",
   "plugins": [
     {
-      "name": "process-miner",
-      "source": "./plugins/process-miner",
-      "description": "Analyze Claude Code execution logs to discover workflow patterns and generate process definitions",
-      "category": "analytics",
-      "tags": ["workflow", "patterns", "logs", "analytics"]
-    },
-    {
-      "name": "repo-tidy",
-      "source": "./plugins/repo-tidy",
-      "description": "Audit and clean up repository structure - find orphan files, outdated docs, and misplaced configs",
-      "category": "developer-tools",
-      "tags": ["cleanup", "audit", "maintenance", "organization"]
-    },
-    {
-      "name": "validate-pr",
-      "source": "./plugins/validate-pr",
-      "description": "Validate pull requests against documentation and security standards before merge",
-      "category": "developer-tools",
-      "tags": ["pull-request", "validation", "security", "ci"]
-    },
-    {
       "name": "trinity-onboard",
       "source": "./plugins/trinity-onboard",
       "description": "Onboard agents to Trinity, sync credentials, and create scheduled task skills with the heartbeat pattern",
       "category": "deployment",
       "tags": ["trinity", "agent", "cloud", "orchestration", "scheduling", "heartbeat"]
-    },
-    {
-      "name": "git-workflow",
-      "source": "./plugins/git-workflow",
-      "description": "Streamlined git workflow commands - commit, sync, and publish changes with safety checks",
-      "category": "developer-tools",
-      "tags": ["git", "commit", "sync", "push", "version-control"]
-    },
-    {
-      "name": "skill-builder",
-      "source": "./plugins/skill-builder",
-      "description": "Expert guide for creating Claude Code skills and following agentic best practices",
-      "category": "developer-tools",
-      "tags": ["skills", "plugins", "development", "best-practices", "meta"]
-    },
-    {
-      "name": "workspace-tools",
-      "source": "./plugins/workspace-tools",
-      "description": "File indexing and workspace organization tools - keep projects tidy and navigable",
-      "category": "developer-tools",
-      "tags": ["workspace", "organization", "files", "index", "structure"]
     },
     {
       "name": "playbook-builder",

@@ -11,10 +11,8 @@ This is the **Abilities Plugin Marketplace** - a curated collection of Claude Co
 ```
 .claude-plugin/marketplace.json  # Central registry of all plugins
 plugins/
-  ├── process-miner/            # Workflow pattern discovery from logs
-  ├── repo-tidy/                # Repository audit and cleanup
-  ├── validate-pr/              # PR validation and security checks
-  └── trinity-onboard/          # Trinity platform deployment
+  ├── trinity-onboard/          # Trinity platform deployment
+  └── playbook-builder/         # Structured playbook creation
 ```
 
 Each plugin follows this structure:
@@ -35,13 +33,11 @@ plugins/[name]/
 /plugin marketplace add abilityai/abilities
 
 # Install plugins
-/plugin install process-miner@abilityai
-/plugin install repo-tidy@abilityai
-/plugin install validate-pr@abilityai
 /plugin install trinity-onboard@abilityai
+/plugin install playbook-builder@abilityai
 
 # Manual installation from local
-/plugin add ./plugins/process-miner
+/plugin add ./plugins/trinity-onboard
 ```
 
 ## Skill Definition Format
