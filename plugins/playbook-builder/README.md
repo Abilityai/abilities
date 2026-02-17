@@ -163,6 +163,30 @@ The `playbook-architect` skill follows a **conservative approach**:
 | [gated-template.md](templates/gated-template.md) | 3 | Approval checkpoints |
 | [manual-template.md](templates/manual-template.md) | 3 | Human-controlled |
 
+## Skill Versioning
+
+When making breaking changes, archive the current version first:
+
+```
+skills/
+  my-skill/       # Current version (always latest)
+  my-skill-v1/    # Archived version (frozen)
+  my-skill-v2/    # Archived version (frozen)
+```
+
+**Rules:**
+- `/my-skill` → runs latest (unversioned directory)
+- `/my-skill-v1` → runs frozen v1
+- Archive before breaking changes: `cp -r skills/my-skill skills/my-skill-v2`
+
+Agents can pin specific versions in playbook instructions:
+```markdown
+## Process
+1. Run `/data-export-v2` for the legacy format
+```
+
+Use `/adjust-playbook` with `--archive` to automatically version before major changes.
+
 ## Scheduling on Trinity
 
 Playbooks with `schedule:` run on Trinity:

@@ -3,12 +3,15 @@ name: adjust-playbook
 description: Modify an existing playbook based on conversation context or explicit instructions. Use when user wants to update, fix, extend, or refine a playbook they already have.
 disable-model-invocation: false
 user-invocable: true
-argument-hint: "[playbook-name] [what to change]"
+argument-hint: "[playbook-name] [what to change] [--archive]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2025-02-10
   author: Ability.ai
+  changelog:
+    - "1.1: Added --archive flag and versioning workflow for breaking changes"
+    - "1.0: Initial version"
 ---
 
 # Adjust Playbook
@@ -140,6 +143,17 @@ Everything else remains the same:
 - Functionality: [same / enhanced / modified]
 - State dependencies: [same / new reads / new writes]
 - Automation: [same / changed]
+- Breaking: [yes/no] - if yes, recommend archiving
+```
+
+**If change is breaking** (output format changes, steps removed, args changed):
+```
+⚠️  This is a breaking change.
+
+Other playbooks calling /[skill-name] may break.
+Recommend: Archive current version before modifying.
+
+Archive as [skill-name]-v[N]? [Y/n]
 ```
 
 ### Step 5: Confirm
@@ -262,6 +276,49 @@ metadata:
     - "1.1: [what changed]"
     - "1.0: Initial version"
 ```
+
+### Breaking Changes: Archive First
+
+When changes are **breaking** (incompatible with existing workflows), archive the current version before modifying:
+
+```bash
+# Archive current version
+cp -r [skill-path] [skill-path]-v[N]
+```
+
+Example:
+```
+skills/
+  data-export/       # Current (will become v3)
+  data-export-v1/    # Frozen
+  data-export-v2/    # Frozen
+```
+
+**When to archive:**
+- Changing output format
+- Removing/renaming steps that other playbooks depend on
+- Changing required arguments
+- Modifying state dependencies in incompatible ways
+
+**When NOT to archive (just increment version):**
+- Adding new optional features
+- Bug fixes
+- Improving error messages
+- Adding steps that don't affect existing behavior
+
+If user passes `--archive` or change is breaking:
+```bash
+# Determine current version from metadata or count existing versions
+CURRENT_VERSION=$(ls -d [skill-name]-v* 2>/dev/null | wc -l | tr -d ' ')
+NEXT_VERSION=$((CURRENT_VERSION + 1))
+
+# Archive
+cp -r [skill-path] [skill-path]-v${NEXT_VERSION}
+
+echo "Archived as [skill-name]-v${NEXT_VERSION}"
+```
+
+Then proceed with modifications to the main (unversioned) skill directory.
 
 ---
 

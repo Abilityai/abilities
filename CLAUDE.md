@@ -87,3 +87,29 @@ Key frontmatter fields:
 - **Archive over delete**: Move files to `archive/` preserving structure instead of deleting
 - **Safe artifacts are automatic**: `__pycache__`, `.pyc`, `.DS_Store` can be cleaned without approval
 - **Templates use placeholders**: Files ending in `.example` or `.template` use `${VAR_NAME}` syntax
+
+## Skill Versioning
+
+When making breaking changes to a skill, archive the current version before modifying:
+
+```
+skills/
+  my-skill/       # Current version (always latest)
+  my-skill-v1/    # Archived version (frozen)
+  my-skill-v2/    # Archived version (frozen)
+```
+
+**Rules:**
+- **Unversioned = latest**: `/my-skill` runs the current version
+- **Versioned = frozen**: `/my-skill-v1` runs that exact version, never changes
+- **Archive before breaking changes**: Copy skill directory with version suffix before incompatible changes
+
+**Workflow:**
+```bash
+# Archive current version before breaking changes
+cp -r skills/my-skill skills/my-skill-v2
+
+# Then modify skills/my-skill with new changes
+```
+
+Agents can pin to specific versions in their playbooks by calling `/skill-name-vN` explicitly.
