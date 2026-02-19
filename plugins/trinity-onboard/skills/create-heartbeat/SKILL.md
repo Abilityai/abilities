@@ -105,6 +105,17 @@ argument-hint: "[interval-minutes]"
 
 ---
 
+## Argument Parsing
+
+When this skill is invoked, check for an optional interval argument:
+- `/{skill_name}` → use default interval: **{interval_minutes}** minutes
+- `/{skill_name} 10` → use 10 minutes as interval
+- `/{skill_name} 30` → use 30 minutes as interval
+
+Store the resolved interval value to use in STEP 7 when setting the next timer.
+
+---
+
 ## State Tracking
 
 Track across heartbeats in `{state_file}`:
@@ -114,6 +125,7 @@ last_check: 2026-02-08T13:15:00
 last_status: "{status_description}"
 consecutive_errors: 0
 phase: "running"  # running | complete | error
+interval_minutes: {interval_minutes}  # Current interval setting
 ```
 
 ---
@@ -239,12 +251,20 @@ Actions: `STARTED`, `RUNNING`, `COMPLETE`, `ERROR`
 
 **Only if not complete and no fatal errors:**
 
+Determine the interval to use:
+1. Check if user provided an interval argument when invoking this skill (e.g., `/{skill_name} 10`)
+2. If argument provided, use that value as minutes
+3. Otherwise, use the default: **{interval_minutes}** minutes
+
+Then run this command with `run_in_background: true`:
+
 ```bash
-PERIOD=${1:-{interval_minutes}}
-sleep $((PERIOD * 60)) && echo "HEARTBEAT: {skill_name} check"
+sleep $((MINUTES * 60)) && echo "HEARTBEAT: /{skill_name}"
 ```
 
-Run with `run_in_background: true`.
+**IMPORTANT:** Replace `MINUTES` with the actual interval value (e.g., `sleep 1200` for 20 minutes).
+
+The background task will complete after the interval, outputting "HEARTBEAT: /{skill_name}" which signals it's time for the next check cycle. Respond to this output by running the skill again.
 
 ---
 
