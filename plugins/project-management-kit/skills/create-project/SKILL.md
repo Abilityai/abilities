@@ -3,11 +3,7 @@ name: create-project
 description: Create a new project folder with standard tracking structure
 user-invocable: true
 argument-hint: "<project-name>"
-allowed-tools:
-  - Read
-  - Write
-  - Bash(mkdir:*)
-  - Bash(cp:*)
+allowed-tools: Read, Write, Bash
 ---
 
 # Create Project

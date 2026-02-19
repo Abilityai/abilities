@@ -2,11 +2,7 @@
 name: setup-brain
 description: Initialize a Zettelkasten-style brain vault for knowledge management
 user-invocable: true
-allowed-tools:
-  - Read
-  - Write
-  - Bash(mkdir:*)
-  - AskUserQuestion
+allowed-tools: Read, Write, Bash, AskUserQuestion
 ---
 
 # Setup Brain Vault

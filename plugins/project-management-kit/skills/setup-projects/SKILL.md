@@ -2,11 +2,7 @@
 name: setup-projects
 description: Initialize project and session management structure with CLAUDE.md integration
 user-invocable: true
-allowed-tools:
-  - Read
-  - Write
-  - Bash(mkdir:*)
-  - AskUserQuestion
+allowed-tools: Read, Write, Bash, AskUserQuestion
 ---
 
 # Setup Projects

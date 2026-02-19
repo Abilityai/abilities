@@ -3,10 +3,7 @@ name: search-files
 description: Search the file index for files matching a pattern or keyword
 user-invocable: true
 argument-hint: "<search-term>"
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
+allowed-tools: Read, Grep, Glob
 ---
 
 # Search Files

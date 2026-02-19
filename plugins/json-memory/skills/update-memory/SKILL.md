@@ -2,12 +2,7 @@
 name: update-memory
 description: Update memory after a session with new information and actions
 user-invocable: true
-allowed-tools:
-  - Read
-  - Write
-  - Bash(jq:*)
-  - Bash(mv:*)
-  - Bash(date:*)
+allowed-tools: Read, Write, Bash
 ---
 
 # Update Memory

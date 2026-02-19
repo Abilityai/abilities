@@ -3,11 +3,7 @@ name: archive-project
 description: Archive a completed or inactive project
 user-invocable: true
 argument-hint: "<project-name>"
-allowed-tools:
-  - Read
-  - Write
-  - Bash(mkdir:*)
-  - Bash(mv:*)
+allowed-tools: Read, Write, Bash
 ---
 
 # Archive Project

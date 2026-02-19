@@ -2,9 +2,7 @@
 name: load-memory
 description: Load memory context at session start using selective queries
 user-invocable: true
-allowed-tools:
-  - Read
-  - Bash(jq:*)
+allowed-tools: Read, Bash
 ---
 
 # Load Memory

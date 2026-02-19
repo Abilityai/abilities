@@ -3,11 +3,7 @@ name: create-note
 description: Create a new permanent note in the Brain vault with proper metadata
 user-invocable: true
 argument-hint: "<note-title>"
-allowed-tools:
-  - Read
-  - Write
-  - Glob
-  - Grep
+allowed-tools: Read, Write, Glob, Grep
 ---
 
 # Create Note

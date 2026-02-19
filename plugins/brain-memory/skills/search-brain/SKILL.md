@@ -3,10 +3,7 @@ name: search-brain
 description: Search the Brain vault for notes matching a query
 user-invocable: true
 argument-hint: "<search-query>"
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
+allowed-tools: Read, Grep, Glob
 ---
 
 # Search Brain

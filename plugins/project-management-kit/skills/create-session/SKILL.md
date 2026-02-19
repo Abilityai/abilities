@@ -3,11 +3,7 @@ name: create-session
 description: Create a date-based session folder for today's work
 user-invocable: true
 argument-hint: "[topic-description]"
-allowed-tools:
-  - Read
-  - Write
-  - Bash(mkdir:*)
-  - Bash(date:*)
+allowed-tools: Read, Write, Bash
 ---
 
 # Create Session

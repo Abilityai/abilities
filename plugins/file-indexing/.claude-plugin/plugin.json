@@ -1,7 +1,7 @@
 {
   "name": "file-indexing",
   "description": "File system indexing for workspace awareness - creates and maintains a searchable file index",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"

@@ -2,11 +2,7 @@
 name: setup-memory
 description: Initialize JSON-based memory system with structured sections
 user-invocable: true
-allowed-tools:
-  - Read
-  - Write
-  - Bash(mkdir:*)
-  - AskUserQuestion
+allowed-tools: Read, Write, Bash, AskUserQuestion
 ---
 
 # Setup JSON Memory

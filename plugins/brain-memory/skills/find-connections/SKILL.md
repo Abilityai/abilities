@@ -3,11 +3,7 @@ name: find-connections
 description: Discover connections between notes in the Brain vault
 user-invocable: true
 argument-hint: "[note-name or 'all']"
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Write
+allowed-tools: Read, Grep, Glob, Write
 ---
 
 # Find Connections

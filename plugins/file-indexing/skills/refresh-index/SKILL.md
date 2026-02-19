@@ -2,12 +2,7 @@
 name: refresh-index
 description: Refresh the file index with current directory state
 user-invocable: true
-allowed-tools:
-  - Read
-  - Write
-  - Bash(ls:*)
-  - Bash(find:*)
-  - Bash(wc:*)
+allowed-tools: Read, Write, Bash
 ---
 
 # Refresh File Index

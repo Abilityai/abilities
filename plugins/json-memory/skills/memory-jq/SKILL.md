@@ -3,10 +3,7 @@ name: memory-jq
 description: Efficiently update JSON memory fields using jq patterns
 user-invocable: true
 argument-hint: "<operation> <path> <value>"
-allowed-tools:
-  - Read
-  - Bash(jq:*)
-  - Bash(mv:*)
+allowed-tools: Read, Bash
 ---
 
 # Memory JQ

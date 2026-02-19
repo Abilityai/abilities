@@ -2,12 +2,7 @@
 name: setup-index
 description: Initialize file indexing for this workspace. Creates file_index.md with directory structure.
 user-invocable: true
-allowed-tools:
-  - Read
-  - Write
-  - Bash(ls:*)
-  - Bash(find:*)
-  - AskUserQuestion
+allowed-tools: Read, Write, Bash, AskUserQuestion
 ---
 
 # Setup File Index
