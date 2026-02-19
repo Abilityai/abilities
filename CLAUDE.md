@@ -48,19 +48,15 @@ Skills use YAML frontmatter to declare metadata and permissions:
 ---
 name: skill-name
 description: What the skill does
-allowed-tools:
-  - Read
-  - Write
-  - Bash(command:*)
-disable-model-invocation: true|false
-user-invocable: true|false
+allowed-tools: Read, Write, Bash
+user-invocable: true
 argument-hint: "[optional args]"
 ---
 # Procedural instructions follow in markdown
 ```
 
 Key frontmatter fields:
-- `allowed-tools`: Tools the skill can invoke (supports glob patterns like `Bash(python*:*)`)
+- `allowed-tools`: Comma-separated list (NOT YAML array)
 - `disable-model-invocation`: If true, Claude executes steps without additional reasoning
 - `argument-hint`: Shows users expected arguments
 
@@ -89,13 +85,14 @@ Key frontmatter fields:
 {
   "name": "my-plugin",
   "source": "./plugins/my-plugin",
-  "strict": false,
   "skills": [
     "./skills/skill-one",
     "./skills/skill-two"
   ]
 }
 ```
+
+**Never use `strict: false`** - it conflicts with plugins that have their own `plugin.json` files.
 
 **When adding a new skill:**
 1. Create the skill in `plugins/[name]/skills/[skill-name]/SKILL.md`
