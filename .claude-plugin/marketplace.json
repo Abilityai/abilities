@@ -13,14 +13,86 @@
       "source": "./plugins/trinity-onboard",
       "description": "Onboard agents to Trinity, sync credentials, and create scheduled task skills with the heartbeat pattern",
       "category": "deployment",
-      "tags": ["trinity", "agent", "cloud", "orchestration", "scheduling", "heartbeat"]
+      "tags": ["trinity", "agent", "cloud", "orchestration", "scheduling", "heartbeat"],
+      "strict": false,
+      "skills": [
+        "./skills/trinity-onboard",
+        "./skills/trinity-sync",
+        "./skills/trinity-remote",
+        "./skills/trinity-schedules",
+        "./skills/trinity-compatibility",
+        "./skills/credential-sync",
+        "./skills/create-heartbeat"
+      ]
     },
     {
       "name": "playbook-builder",
       "source": "./plugins/playbook-builder",
       "description": "Create structured, transactional playbooks with state management for autonomous, gated, or manual execution",
       "category": "developer-tools",
-      "tags": ["playbook", "workflow", "automation", "process", "state-management", "trinity"]
+      "tags": ["playbook", "workflow", "automation", "process", "state-management", "trinity"],
+      "strict": false,
+      "skills": [
+        "./skills/create-playbook",
+        "./skills/adjust-playbook",
+        "./skills/save-playbook",
+        "./skills/playbook-architect"
+      ]
+    },
+    {
+      "name": "file-indexing",
+      "source": "./plugins/file-indexing",
+      "description": "File system indexing for workspace awareness - creates and maintains a searchable file index",
+      "category": "memory",
+      "tags": ["memory", "file-index", "workspace", "search", "organization"],
+      "strict": false,
+      "skills": [
+        "./skills/setup-index",
+        "./skills/refresh-index",
+        "./skills/search-files"
+      ]
+    },
+    {
+      "name": "brain-memory",
+      "source": "./plugins/brain-memory",
+      "description": "Zettelkasten-style knowledge management - atomic notes with connections and semantic search",
+      "category": "memory",
+      "tags": ["memory", "zettelkasten", "knowledge", "notes", "connections", "brain"],
+      "strict": false,
+      "skills": [
+        "./skills/setup-brain",
+        "./skills/create-note",
+        "./skills/search-brain",
+        "./skills/find-connections"
+      ]
+    },
+    {
+      "name": "json-memory",
+      "source": "./plugins/json-memory",
+      "description": "Structured JSON memory system with efficient jq-based updates and action logging",
+      "category": "memory",
+      "tags": ["memory", "json", "state", "persistence", "jq"],
+      "strict": false,
+      "skills": [
+        "./skills/setup-memory",
+        "./skills/load-memory",
+        "./skills/update-memory",
+        "./skills/memory-jq"
+      ]
+    },
+    {
+      "name": "project-management-kit",
+      "source": "./plugins/project-management-kit",
+      "description": "Project and session management - organized folders for multi-session work with tracking",
+      "category": "memory",
+      "tags": ["memory", "projects", "sessions", "organization", "tracking"],
+      "strict": false,
+      "skills": [
+        "./skills/setup-projects",
+        "./skills/create-project",
+        "./skills/create-session",
+        "./skills/archive-project"
+      ]
     }
   ]
 }
