@@ -1,0 +1,35 @@
+{
+  "metadata": {
+    "schema_version": "1.0",
+    "created": "${TIMESTAMP}",
+    "last_updated": "${TIMESTAMP}",
+    "total_interactions": 0
+  },
+  "profile": {
+    "name": null,
+    "role": null,
+    "context": null,
+    "objectives": []
+  },
+  "preferences": {
+    "communication_style": null,
+    "tools": [],
+    "notification_channels": {}
+  },
+  "memory": {
+    "key_facts": [],
+    "decisions": [],
+    "project_overviews": []
+  },
+  "context": {
+    "active_topics": [],
+    "recent_work": [],
+    "scratchpad": null
+  },
+  "entities": [],
+  "tasks": {
+    "active": [],
+    "completed": []
+  },
+  "custom": {}
+}

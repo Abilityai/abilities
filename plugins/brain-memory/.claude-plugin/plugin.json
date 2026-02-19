@@ -1,0 +1,10 @@
+{
+  "name": "brain-memory",
+  "description": "Zettelkasten-style knowledge management - atomic notes with connections and semantic search",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "license": "MIT"
+}

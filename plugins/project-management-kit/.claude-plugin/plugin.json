@@ -1,0 +1,10 @@
+{
+  "name": "project-management-kit",
+  "description": "Project and session management - organized folders for multi-session work with tracking",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,10 @@
+{
+  "name": "json-memory",
+  "description": "Structured JSON memory system with efficient jq-based updates and action logging",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "license": "MIT"
+}

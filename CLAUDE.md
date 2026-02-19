@@ -79,7 +79,28 @@ Key frontmatter fields:
    ```
 3. Add skills in `skills/[skill-name]/SKILL.md` or commands in `commands/[cmd].md`
 4. Add `README.md` with usage documentation
-5. Register in `marketplace.json` under the `plugins` array
+5. Register in `marketplace.json` under the `plugins` array with explicit `skills` array (required for skill discovery)
+
+## Marketplace Registration (Critical)
+
+**Skills must be explicitly declared in `marketplace.json`.** Claude Code does NOT auto-discover skills from the `skills/` directory - they must be listed in a `skills` array for each plugin entry:
+
+```json
+{
+  "name": "my-plugin",
+  "source": "./plugins/my-plugin",
+  "strict": false,
+  "skills": [
+    "./skills/skill-one",
+    "./skills/skill-two"
+  ]
+}
+```
+
+**When adding a new skill:**
+1. Create the skill in `plugins/[name]/skills/[skill-name]/SKILL.md`
+2. Add the skill path to the `skills` array in `marketplace.json`
+3. Bump the plugin version in `plugin.json`
 
 ## Plugin Conventions
 
@@ -87,6 +108,23 @@ Key frontmatter fields:
 - **Archive over delete**: Move files to `archive/` preserving structure instead of deleting
 - **Safe artifacts are automatic**: `__pycache__`, `.pyc`, `.DS_Store` can be cleaned without approval
 - **Templates use placeholders**: Files ending in `.example` or `.template` use `${VAR_NAME}` syntax
+- **Always bump version on changes**: When modifying any plugin file (skills, commands, etc.), increment the patch version in `.claude-plugin/plugin.json`. This ensures client installations detect and sync the update.
+
+## Version Bumping (Required)
+
+**Every change to a plugin requires a version bump.** Without this, client installations won't receive updates when running `/plugin marketplace update`.
+
+```bash
+# Before: "version": "2.0.0"
+# After:  "version": "2.0.1"
+```
+
+**Why:** Claude Code caches plugins locally at `~/.claude/plugins/cache/`. It uses the version number to detect changes. Same version = no update, even if files changed.
+
+**Workflow:**
+1. Make your changes to skills/commands/etc.
+2. Bump the patch version in `plugins/[name]/.claude-plugin/plugin.json`
+3. Commit both changes together
 
 ## Skill Versioning
 
