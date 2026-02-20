@@ -87,6 +87,16 @@
         "./skills/create-session",
         "./skills/archive-project"
       ]
+    },
+    {
+      "name": "utilities",
+      "source": "./plugins/utilities",
+      "description": "General-purpose utility skills for conversation management, session archival, and agent productivity",
+      "category": "productivity",
+      "tags": ["utilities", "conversation", "history", "archival", "productivity"],
+      "skills": [
+        "./skills/save-conversation"
+      ]
     }
   ]
 }
