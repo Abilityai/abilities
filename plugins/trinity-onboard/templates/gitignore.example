@@ -15,6 +15,7 @@ credentials.json
 # ===================
 # CLAUDE CODE INTERNALS
 # ===================
+.claude.json
 .claude/projects/
 .claude/statsig/
 .claude/todos/
