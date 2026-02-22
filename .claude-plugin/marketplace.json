@@ -21,7 +21,8 @@
         "./skills/trinity-schedules",
         "./skills/trinity-compatibility",
         "./skills/credential-sync",
-        "./skills/create-heartbeat"
+        "./skills/create-heartbeat",
+        "./skills/create-dashboard-playbook"
       ]
     },
     {

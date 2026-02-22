@@ -100,6 +100,7 @@ See the full architecture guide in `/trinity-onboard`.
 |-------|---------|-------------|
 | **credential-sync** | `/credential-sync` | Push/pull credentials between local and remote |
 | **create-heartbeat** | `/create-heartbeat` | Generate polling skills for long-running tasks |
+| **create-dashboard-playbook** | `/create-dashboard-playbook` | Generate a skill to keep dashboard.yaml updated |
 
 ## Workflow
 
@@ -286,7 +287,8 @@ skills/
 │   └── scripts/
 │       ├── encrypt_credentials.py
 │       └── decrypt_credentials.py
-└── create-heartbeat/SKILL.md     # Heartbeat skill generator
+├── create-heartbeat/SKILL.md     # Heartbeat skill generator
+└── create-dashboard-playbook/SKILL.md  # Dashboard update skill generator
 ```
 
 ## Support
