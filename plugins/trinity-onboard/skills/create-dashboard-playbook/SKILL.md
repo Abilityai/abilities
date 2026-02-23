@@ -217,6 +217,8 @@ sections:
 - `list` widget: use `items` (not `values` or `list`)
 - `link` widget: use `url` (not `href` or `link`)
 
+**Layout values:** Use `layout: list` (not `layout: single`)
+
 ---
 
 ## STEP 3: Write Dashboard
