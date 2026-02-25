@@ -11,7 +11,7 @@
     {
       "name": "trinity-onboard",
       "source": "./plugins/trinity-onboard",
-      "description": "Onboard agents to Trinity, sync credentials, and create scheduled task skills with the heartbeat pattern",
+      "description": "Onboard agents to Trinity, sync credentials, create scheduled tasks, and fork agents to client repositories",
       "category": "deployment",
       "tags": ["trinity", "agent", "cloud", "orchestration", "scheduling", "heartbeat"],
       "skills": [
@@ -22,7 +22,8 @@
         "./skills/trinity-compatibility",
         "./skills/credential-sync",
         "./skills/create-heartbeat",
-        "./skills/create-dashboard-playbook"
+        "./skills/create-dashboard-playbook",
+        "./skills/create-fork-skill"
       ]
     },
     {
