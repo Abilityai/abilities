@@ -77,6 +77,18 @@ Ask these questions to classify:
 - Approval gates (if gated): where?
 - Prerequisites
 
+### Step 4b: Self-Improvement Option
+
+Ask the user:
+
+> **Should this skill be self-improving?**
+>
+> Self-improving skills include a checklist at the end to consider tactical improvements after each run—things like clearer steps, better error handling, or more efficient flow. The skill's core purpose stays the same; only execution can improve.
+>
+> If in a git repo, improvements are committed for version control.
+
+If user confirms YES, include the Self-Improvement Checklist (see below) at the end of the generated skill.
+
 ### Step 5: Determine Location
 
 | Scope | Location | Use When |
@@ -111,6 +123,7 @@ Present summary before creating:
 **Tier**: [1/2/3] ([Simple/Stateful/Full Playbook])
 **Automation**: [autonomous/gated/manual/n/a]
 **Location**: [path]
+**Self-Improving**: [yes/no]
 
 **State Dependencies**: [list or "none"]
 **Process**: [N] steps
@@ -186,6 +199,28 @@ user-invocable: true
 ### Final Step: Write Updated State
 ## Completion Checklist
 ## Error Recovery
+```
+
+---
+
+## Self-Improvement Checklist (Appendix)
+
+When user opts into self-improving skills, append this section to the generated skill:
+
+```markdown
+## Self-Improvement
+
+After completing this skill's primary task, consider tactical improvements:
+
+- [ ] **Review execution**: Were there friction points, unclear steps, or inefficiencies?
+- [ ] **Identify improvements**: Could error handling, step ordering, or instructions be clearer?
+- [ ] **Scope check**: Only tactical/execution changes—NOT changes to core purpose or goals
+- [ ] **Apply improvement** (if identified):
+  - [ ] Edit this SKILL.md with the specific improvement
+  - [ ] Keep changes minimal and focused
+- [ ] **Version control** (if in a git repository):
+  - [ ] Stage: `git add <skill-path>/SKILL.md`
+  - [ ] Commit: `git commit -m "refactor(<skill-name>): <brief improvement description>"`
 ```
 
 ---
