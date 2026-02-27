@@ -29,6 +29,8 @@ Audit an agent's architecture and propose adoption of the playbook framework.
 - Rewriting existing logic
 - Adding complexity
 - Breaking what works
+- Creating new files (no SKILLS.md, INDEX.md, registries, or meta-documentation)
+- Suggesting "overarching" or "umbrella" documents
 
 ---
 
@@ -324,6 +326,9 @@ From the component's stated outputs and purpose:
 2. **Rewrite logic** - only restructure
 3. **Change behavior** - only add observability
 4. **Force adoption** - only propose
+5. **Suggest new files** - no SKILLS.md, INDEX.md, README.md, or other meta-files
+6. **Propose documentation** - unless explicitly requested by user
+7. **Recommend abstractions** - no "overarching" files, registries, or catalogs
 
 ### Always Do
 
