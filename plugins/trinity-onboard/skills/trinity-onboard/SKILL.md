@@ -1,15 +1,16 @@
 ---
 name: trinity-onboard
-description: Onboard this agent to Trinity platform. Creates required files, configures MCP connection, and syncs to remote.
+description: Onboard this agent to Trinity platform. Creates required files, configures MCP connection, and optionally deploys to remote.
 argument-hint: "[analyze]"
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent
 metadata:
-  version: "4.0"
+  version: "4.1"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "4.1: Added choice between full deployment and adaptation-only mode"
     - "4.0: Complete onboarding flow - files, MCP config, and remote sync"
     - "3.0: Focused scope - adoption only"
     - "2.0: Added remote execution features"
@@ -187,12 +188,22 @@ Create heartbeat skills with `/create-heartbeat` to automate this polling.
 ## Onboarding Workflow
 
 ```
-STEP 1        STEP 2         STEP 3        STEP 4         STEP 5
-Check    →    Get       →    Create   →    Configure →    Deploy
-State        Credentials     Files         MCP            to Remote
+STEP 1        STEP 1b
+Check    →    Ask Goal  → ─┬─────────────────────────────────────────────┐
+State                      │                                             │
+                           ▼ (Deploy to Trinity)                         ▼ (Adapt only)
+                    STEP 2         STEP 3        STEP 4         STEP 5   │
+                    Get       →    Create   →    Configure →    Deploy   │
+                    Credentials     Files         MCP            Remote   │
+                                                                         │
+                                   STEP 3 (partial)                      │
+                                   Create Files ──────────────────────────┘
+                                   (templates only)
 ```
 
-**Onboarding is not complete until your agent is deployed to Trinity.**
+**Two paths available:**
+- **Deploy to Trinity**: Full setup with credentials, MCP connection, and remote deployment
+- **Adapt only**: Create Trinity-compatible files without connecting to any Trinity instance
 
 ---
 
@@ -225,7 +236,36 @@ Present findings:
 
 ---
 
+## STEP 1b: Ask About Onboarding Goal
+
+After analyzing the current state, use AskUserQuestion to determine what the user wants:
+
+**Question:** "What would you like to do with this agent?"
+
+**Header:** "Goal"
+
+**Options:**
+
+1. **Deploy to Trinity** (Recommended)
+   - Description: "Make this agent Trinity-compatible AND deploy it to your Trinity instance for remote execution, scheduling, and orchestration"
+
+2. **Adapt only (no deployment)**
+   - Description: "Create Trinity-compatible files (template.yaml, .gitignore, etc.) without connecting to or deploying to a Trinity instance"
+
+**Based on the answer:**
+
+- **If "Deploy to Trinity"**: Continue with Steps 2-6 (full flow)
+- **If "Adapt only"**: Skip to Step 3, but:
+  - Skip creating `.env` with credentials (Step 3b)
+  - Skip creating `.mcp.json` with credentials (Step 4a)
+  - Skip Step 5 (Deploy) entirely
+  - Show "Adaptation Complete" instead of "Onboarding Complete"
+
+---
+
 ## STEP 2: Get Trinity Credentials
+
+**SKIP THIS STEP if user chose "Adapt only".**
 
 Ask the user for their Trinity instance details using AskUserQuestion:
 
@@ -273,6 +313,8 @@ resources:
 
 ### 3b. Create .env
 
+**SKIP THIS STEP if user chose "Adapt only".**
+
 Create `.env` with the user's credentials:
 ```
 # Trinity Platform Connection
@@ -314,6 +356,8 @@ session-files/
 ---
 
 ## STEP 4: Configure MCP Connection
+
+**SKIP THIS ENTIRE STEP if user chose "Adapt only".**
 
 ### 4a. Create .mcp.json
 
@@ -377,6 +421,8 @@ The Trinity MCP tools will then be available.
 ---
 
 ## STEP 5: Deploy to Trinity
+
+**SKIP THIS ENTIRE STEP if user chose "Adapt only" — go directly to Step 6.**
 
 ### 5a. Initialize Git (if needed)
 
@@ -458,6 +504,44 @@ Your agent is now live on Trinity.
    ```
    /trinity-schedules
    ```
+```
+
+---
+
+## STEP 6 (Alternative): Adaptation Complete
+
+**Show this instead of the above if user chose "Adapt only":**
+
+```
+## Trinity Adaptation Complete!
+
+Your agent is now Trinity-compatible and ready for deployment when you're ready.
+
+### Files Created
+- [x] template.yaml (agent metadata)
+- [x] .env.example (credential template)
+- [x] .gitignore (with Trinity patterns)
+- [x] .mcp.json.template (MCP config template)
+
+### What's NOT configured (by your choice)
+- [ ] .env (no credentials stored)
+- [ ] .mcp.json (no MCP connection)
+- [ ] Remote deployment (agent not on Trinity)
+
+### When You're Ready to Deploy
+
+Run `/trinity-onboard` again and choose "Deploy to Trinity" to:
+1. Connect to your Trinity instance
+2. Configure MCP tools
+3. Deploy this agent to the platform
+
+### Files Ready for Git
+
+You can now commit these Trinity-compatible files:
+```bash
+git add template.yaml .env.example .gitignore .mcp.json.template
+git commit -m "Add Trinity compatibility files"
+```
 ```
 
 ---
