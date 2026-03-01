@@ -219,6 +219,8 @@ sections:
 
 **Layout values:** Use `layout: list` (not `layout: single`)
 
+**Column limit:** Grid layouts support `columns: 1` to `columns: 4` maximum. If you have more than 4 widgets, use multiple rows (the grid will wrap automatically).
+
 ---
 
 ## STEP 3: Write Dashboard
