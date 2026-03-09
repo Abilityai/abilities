@@ -1,0 +1,10 @@
+{
+  "name": "workspace-kit",
+  "description": "Workspace scaffolding - organized folders, indexes, and templates for multi-session work",
+  "version": "1.1.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,10 @@
+{
+  "name": "project-planner",
+  "description": "Plan and execute large multi-session projects with scope analysis, session splitting, and state tracking",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "license": "MIT"
+}

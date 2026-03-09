@@ -78,16 +78,26 @@
       ]
     },
     {
-      "name": "project-management-kit",
-      "source": "./plugins/project-management-kit",
-      "description": "Project and session management - organized folders for multi-session work with tracking",
+      "name": "workspace-kit",
+      "source": "./plugins/workspace-kit",
+      "description": "Workspace scaffolding - organized folders, indexes, and templates for multi-session work",
       "category": "memory",
-      "tags": ["memory", "projects", "sessions", "organization", "tracking"],
+      "tags": ["memory", "workspace", "scaffolding", "sessions", "organization"],
       "skills": [
         "./skills/setup-projects",
         "./skills/create-project",
         "./skills/create-session",
         "./skills/archive-project"
+      ]
+    },
+    {
+      "name": "project-planner",
+      "source": "./plugins/project-planner",
+      "description": "Plan and execute large multi-session projects with scope analysis, session splitting, and state tracking",
+      "category": "productivity",
+      "tags": ["planning", "execution", "sessions", "state-tracking", "automation"],
+      "skills": [
+        "./skills/project-plan"
       ]
     },
     {

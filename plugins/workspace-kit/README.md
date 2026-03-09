@@ -1,25 +1,25 @@
-# Project Management Kit
+# Workspace Kit
 
-Project and session management - organized folders for multi-session work with tracking.
+Workspace scaffolding - organized folders, indexes, and templates for multi-session work.
 
 ## Installation
 
 ```bash
-/plugin install project-management-kit@abilityai
+/plugin install workspace-kit@abilityai
 ```
 
 ## Skills
 
 | Skill | Description |
 |-------|-------------|
-| `/project-management-kit:setup-projects` | Initialize the project/session structure |
-| `/project-management-kit:create-project <name>` | Create a new tracked project |
-| `/project-management-kit:create-session [topic]` | Create today's session folder |
-| `/project-management-kit:archive-project <name>` | Archive a completed project |
+| `/workspace-kit:setup-projects` | Initialize the project/session structure |
+| `/workspace-kit:create-project <name>` | Create a new tracked project |
+| `/workspace-kit:create-session [topic]` | Create today's session folder |
+| `/workspace-kit:archive-project <name>` | Archive a completed project |
 
 ## Setup
 
-Run `/project-management-kit:setup-projects` to initialize. Creates:
+Run `/workspace-kit:setup-projects` to initialize. Creates:
 
 ```
 projects/
@@ -91,7 +91,7 @@ sessions/
 ### Starting Work
 1. Check `projects/PROJECT_INDEX.md` for active projects
 2. Open project's `STATUS.md` to see next steps
-3. Create session if needed: `/create-session research`
+3. Create session if needed: `/workspace-kit:create-session research`
 
 ### During Work
 - Update project `STATUS.md` as you progress
