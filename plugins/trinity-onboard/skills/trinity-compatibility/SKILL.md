@@ -13,7 +13,7 @@ Analyze the current agent directory against Trinity Compatible Agent requirement
 
 ### Required Files (5 Essential)
 
-1. **template.yaml** - Agent metadata with: name, display_name, description, resources.cpu, resources.memory, credentials
+1. **template.yaml** - Agent metadata with: name, display_name, description, resources.cpu, resources.memory, credentials, avatar_prompt (optional)
 2. **CLAUDE.md** - Domain-specific instructions (the agent's "brain")
 3. **.mcp.json.template** - MCP server config using `${VAR}` placeholder syntax (if using MCP servers)
 4. **.env.example** - Documentation of required environment variables (no actual values)
@@ -72,6 +72,9 @@ name: lowercase-with-hyphens
 display_name: Human Readable Name
 description: |
   Multi-line purpose statement
+avatar_prompt: >
+  A vivid character description for generating the agent's portrait avatar.
+  Describe appearance, attire, expression, and mood. (optional)
 resources:
   cpu: "2"
   memory: "4g"

@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent
 metadata:
-  version: "4.1"
+  version: "4.2"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "4.2: Added avatar_prompt field to template.yaml generation"
     - "4.1: Added choice between full deployment and adaptation-only mode"
     - "4.0: Complete onboarding flow - files, MCP config, and remote sync"
     - "3.0: Focused scope - adoption only"
@@ -306,10 +307,20 @@ name: [agent-name-lowercase]
 display_name: [Agent Display Name]
 description: |
   [Description - ask user or extract from CLAUDE.md]
+avatar_prompt: [A vivid character description for generating the agent's avatar portrait - see below]
 resources:
   cpu: "2"
   memory: "4g"
 ```
+
+**avatar_prompt guidance:** This field is used by Trinity to generate a portrait avatar for the agent using AI image generation. Write a vivid, specific character description that captures the agent's personality and role. The prompt should describe a person or character as a portrait subject — appearance, attire, expression, setting, and lighting.
+
+Examples:
+- `A wise elder advisor in a tailored charcoal suit, silver-haired with knowing eyes, seated in a mahogany-paneled study surrounded by strategic frameworks and books, warm authoritative presence`
+- `A sharp-eyed explorer with binoculars and a weathered field journal, wearing a safari vest over a crisp shirt, confident and alert expression, warm golden-hour lighting`
+- `A thoughtful analyst surrounded by floating data visualizations and charts, wearing smart-casual attire with reading glasses, warm studio lighting, contemplative expression`
+
+Ask the user to describe what character or persona fits their agent, or propose one based on the agent's purpose from CLAUDE.md.
 
 ### 3b. Create .env
 
