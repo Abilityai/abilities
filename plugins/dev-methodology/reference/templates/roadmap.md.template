@@ -1,0 +1,109 @@
+# Roadmap
+
+> Prioritized task queue. Work items top-to-bottom.
+> Mark complete with: `[x] YYYY-MM-DD HH:MM:SS`
+
+---
+
+## Status Legend
+
+| Status | Meaning |
+|--------|---------|
+| `[ ]` | Not started |
+| `[~]` | In progress |
+| `[x]` | Complete (with timestamp) |
+| `[!]` | Blocked |
+
+---
+
+## Current Sprint
+
+### Bug Fixes (Priority)
+| Task | Status | Notes |
+|------|--------|-------|
+| Fix login redirect issue | [ ] | - |
+| Handle empty state in list view | [ ] | - |
+
+### Features
+| Task | Status | Notes |
+|------|--------|-------|
+| Add user profile page | [ ] | - |
+| Implement search functionality | [ ] | - |
+
+---
+
+## Phase 1: MVP
+
+### Core Features
+- [ ] User authentication (login/logout)
+- [ ] Basic CRUD operations
+- [ ] Simple dashboard
+
+### Infrastructure
+- [ ] Set up CI/CD pipeline
+- [ ] Configure production environment
+- [ ] Add monitoring/logging
+
+---
+
+## Phase 2: Enhanced Features
+
+### User Experience
+- [ ] Add dark mode support
+- [ ] Improve error messages
+- [ ] Add loading states
+
+### Features
+- [ ] Data export (CSV/JSON)
+- [ ] Email notifications
+- [ ] User preferences
+
+---
+
+## Phase 3: Advanced Features
+
+### Performance
+- [ ] Add caching layer
+- [ ] Optimize database queries
+- [ ] Implement lazy loading
+
+### Features
+- [ ] Advanced search/filtering
+- [ ] Batch operations
+- [ ] Audit logging
+
+---
+
+## Phase 4: Future Considerations
+
+Items to consider after core phases complete:
+
+- [ ] Mobile app
+- [ ] API rate limiting
+- [ ] Multi-tenancy support
+- [ ] Internationalization
+
+---
+
+## Completed Items
+
+### 2025-01
+
+- [x] 2025-01-08 10:00:00 - Set up development methodology
+- [x] 2025-01-08 09:00:00 - Initialize project repository
+
+---
+
+## Blocked Items
+
+| Item | Blocked By | Since |
+|------|------------|-------|
+| Integration with X | Waiting for API access | 2025-01-05 |
+
+---
+
+## Notes
+
+- Review roadmap weekly
+- Move completed items to "Completed" section monthly
+- Archive completed items quarterly

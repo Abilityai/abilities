@@ -21,6 +21,7 @@ A curated collection of Claude Code plugins from [Ability.ai](https://ability.ai
 |--------|-------------|--------|
 | [trinity-onboard](plugins/trinity-onboard/) | Deploy agents to Trinity platform | `/trinity-onboard`, `/credential-sync`, `/trinity-sync` |
 | [playbook-builder](plugins/playbook-builder/) | Create structured playbooks with state management | `/create-playbook`, `/save-playbook` |
+| [dev-methodology](plugins/dev-methodology/) | Documentation-driven development methodology | `/init`, `/read-docs`, `/implement`, `/validate-pr` |
 
 ## Installation
 
@@ -86,6 +87,19 @@ Create structured, transactional playbooks with state management for autonomous,
 - **Manual mode**: Step-by-step guided execution
 
 Supports state persistence, rollback capabilities, and Trinity integration.
+
+### Dev Methodology
+
+Documentation-driven development methodology for Claude Code projects. Enforces a 5-phase cycle: context loading, development, testing, documentation, and PR validation.
+
+```bash
+/dev-methodology:init              # Scaffold methodology into your project
+/read-docs                         # Load project context at session start
+/implement #42                     # End-to-end feature implementation
+/validate-pr 123                   # Validate PR against methodology
+```
+
+Includes 14 skills, 3 sub-agents (test-runner, feature-flow-analyzer, security-analyzer), and templates for project memory files (requirements, architecture, changelog, feature flows).
 
 ## Contributing
 

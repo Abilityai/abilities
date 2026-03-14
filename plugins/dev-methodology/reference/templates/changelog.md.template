@@ -1,0 +1,47 @@
+# Changelog
+
+> Timestamped history of changes. Keep ~500 lines max.
+> Oldest entries can be archived to `changelog-archive.md`.
+
+---
+
+## Emoji Guide
+
+| Emoji | Category |
+|-------|----------|
+| 🎉 | Major milestone |
+| ✨ | New feature |
+| 🔧 | Bug fix |
+| 🔄 | Refactoring |
+| 📝 | Documentation |
+| 🔒 | Security update |
+| 🚀 | Performance improvement |
+| 💾 | Data/persistence change |
+| 🐳 | Infrastructure/DevOps |
+| ⚠️ | Breaking change |
+| 🧹 | Cleanup/maintenance |
+
+---
+
+## Recent Changes
+
+### YYYY-MM-DD HH:MM:SS
+🎉 **Project Initialized**
+- Set up development methodology
+- Created memory file structure
+- Added skills and agents
+- Key files: `CLAUDE.md`, `docs/memory/*`
+
+---
+
+<!--
+Template for new entries:
+
+### YYYY-MM-DD HH:MM:SS
+[emoji] **Brief Title**
+- What was changed
+- Why it was changed
+- Key files: `path/to/file.py`, `another/file.js`
+- Impact: [if breaking change]
+
+-->

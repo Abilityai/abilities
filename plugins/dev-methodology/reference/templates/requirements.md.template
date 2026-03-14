@@ -1,0 +1,105 @@
+# Requirements
+
+> **SINGLE SOURCE OF TRUTH** for all feature requirements.
+> Update this document BEFORE implementing new features.
+
+---
+
+## Status Legend
+
+| Status | Meaning |
+|--------|---------|
+| ⏳ | Planned / Not started |
+| 🚧 | In progress |
+| ✅ | Complete |
+| ❌ | Blocked / Cancelled |
+
+## Priority Legend
+
+| Priority | Meaning |
+|----------|---------|
+| **High** | Core functionality, must have |
+| **Medium** | Important, should have |
+| **Low** | Nice to have, can defer |
+
+---
+
+## Phase 1: Core Features
+
+### 1.1 [Feature Name]
+**Status**: ⏳ Planned
+**Priority**: High
+
+> Brief description of the feature.
+
+**Acceptance Criteria**:
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+
+**Notes**: Any additional context.
+
+---
+
+### 1.2 [Feature Name]
+**Status**: ⏳ Planned
+**Priority**: Medium
+
+> Brief description of the feature.
+
+**Acceptance Criteria**:
+- [ ] Criterion 1
+- [ ] Criterion 2
+
+---
+
+## Phase 2: Enhanced Features
+
+### 2.1 [Feature Name]
+**Status**: ⏳ Planned
+**Priority**: Medium
+
+> Brief description.
+
+**Acceptance Criteria**:
+- [ ] Criterion 1
+- [ ] Criterion 2
+
+---
+
+## Phase 3: Advanced Features
+
+### 3.1 [Feature Name]
+**Status**: ⏳ Planned
+**Priority**: Low
+
+> Brief description.
+
+**Acceptance Criteria**:
+- [ ] Criterion 1
+
+---
+
+## Non-Functional Requirements
+
+### Performance
+- [ ] Page load < 3 seconds
+- [ ] API response < 500ms
+
+### Security
+- [ ] Authentication required for protected routes
+- [ ] Input validation on all forms
+- [ ] No sensitive data in logs
+
+### Accessibility
+- [ ] WCAG 2.1 AA compliance
+- [ ] Keyboard navigation support
+
+---
+
+## Out of Scope
+
+Document what is explicitly NOT included:
+
+- Feature X (will be considered in Phase 4)
+- Integration with System Y (blocked by external dependency)

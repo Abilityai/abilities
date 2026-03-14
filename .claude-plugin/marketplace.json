@@ -109,6 +109,29 @@
       "skills": [
         "./skills/save-conversation"
       ]
+    },
+    {
+      "name": "dev-methodology",
+      "source": "./plugins/dev-methodology",
+      "description": "Documentation-driven development methodology with skills, agents, and project memory templates. Enforces a 5-phase development cycle: context loading, development, testing, documentation, and PR validation.",
+      "category": "developer-tools",
+      "tags": ["methodology", "workflow", "documentation", "testing", "security", "feature-flows", "sdlc"],
+      "skills": [
+        "./skills/init",
+        "./skills/read-docs",
+        "./skills/update-docs",
+        "./skills/commit",
+        "./skills/validate-pr",
+        "./skills/implement",
+        "./skills/feature-flow-analysis",
+        "./skills/sync-feature-flows",
+        "./skills/add-testing",
+        "./skills/security-check",
+        "./skills/security-analysis",
+        "./skills/refactor-audit",
+        "./skills/tidy",
+        "./skills/roadmap"
+      ]
     }
   ]
 }

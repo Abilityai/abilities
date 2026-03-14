@@ -1,0 +1,45 @@
+# Local Configuration
+
+> **Private file** - This file is gitignored and contains environment-specific information.
+> Copy this file to `CLAUDE.local.md` and customize for your environment.
+
+## My Environment
+
+| Setting | Value |
+|---------|-------|
+| **Development URL** | http://localhost:3000 |
+| **API URL** | http://localhost:8000 |
+| **Database** | localhost:5432 |
+
+## My Identity
+
+| Setting | Value |
+|---------|-------|
+| **Name** | Your Name |
+| **Email** | your.email@example.com |
+
+## Local Ports
+
+| Service | Port |
+|---------|------|
+| Frontend | 3000 |
+| Backend API | 8000 |
+| Database | 5432 |
+
+## Deployment (Optional)
+
+| Setting | Value |
+|---------|-------|
+| **Production URL** | https://your-app.example.com |
+| **Server IP** | 0.0.0.0 |
+| **Cloud Provider** | AWS / GCP / Azure |
+
+## Quick Access
+
+- **Local UI**: http://localhost:3000
+- **Local API Docs**: http://localhost:8000/docs
+- **Production**: https://your-app.example.com
+
+## Notes
+
+Add any personal notes or reminders here.

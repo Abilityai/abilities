@@ -1,0 +1,224 @@
+# Architecture
+
+> Current system design. Keep this document under ~1000 lines.
+> Update when APIs, schemas, or integrations change.
+
+---
+
+## Overview
+
+Brief description of the system architecture and key design decisions.
+
+---
+
+## Technology Stack
+
+| Layer | Technology | Version |
+|-------|------------|---------|
+| Frontend | [Framework] | x.x.x |
+| Backend | [Framework] | x.x.x |
+| Database | [Database] | x.x.x |
+| Cache | [Cache] | x.x.x |
+| Queue | [Queue] | x.x.x |
+
+---
+
+## System Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         Client                               │
+│                     (Browser/Mobile)                         │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      Frontend                                │
+│                   (Static Files)                             │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      Backend API                             │
+│                    (REST/GraphQL)                            │
+└──────────┬──────────────┬───────────────┬───────────────────┘
+           │              │               │
+           ▼              ▼               ▼
+      ┌─────────┐    ┌─────────┐    ┌─────────┐
+      │ Database│    │  Cache  │    │  Queue  │
+      └─────────┘    └─────────┘    └─────────┘
+```
+
+---
+
+## Components
+
+### Frontend
+- **Location**: `src/frontend/`
+- **Framework**: [Framework name]
+- **Entry Point**: `src/frontend/src/main.js`
+
+Key directories:
+```
+src/frontend/
+├── src/
+│   ├── components/    # Reusable UI components
+│   ├── views/         # Page components
+│   ├── stores/        # State management
+│   ├── services/      # API clients
+│   └── utils/         # Helper functions
+```
+
+### Backend
+- **Location**: `src/backend/`
+- **Framework**: [Framework name]
+- **Entry Point**: `src/backend/main.py`
+
+Key directories:
+```
+src/backend/
+├── routes/           # API endpoint handlers
+├── services/         # Business logic
+├── models/           # Database models
+├── schemas/          # Request/response schemas
+└── utils/            # Helper functions
+```
+
+---
+
+## API Endpoints
+
+### Authentication
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/login` | User login |
+| POST | `/api/auth/logout` | User logout |
+| GET | `/api/auth/me` | Get current user |
+
+### Resources
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/resources` | List resources |
+| POST | `/api/resources` | Create resource |
+| GET | `/api/resources/:id` | Get resource |
+| PUT | `/api/resources/:id` | Update resource |
+| DELETE | `/api/resources/:id` | Delete resource |
+
+---
+
+## Database Schema
+
+### Users Table
+```sql
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Resources Table
+```sql
+CREATE TABLE resources (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    name VARCHAR(255) NOT NULL,
+    data JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+---
+
+## Authentication
+
+**Method**: JWT tokens
+
+**Flow**:
+1. User submits credentials
+2. Server validates and returns JWT
+3. Client stores JWT in httpOnly cookie
+4. Client sends JWT with each request
+5. Server validates JWT and extracts user
+
+**Token Expiry**: 24 hours
+**Refresh**: Via `/api/auth/refresh` endpoint
+
+---
+
+## External Integrations
+
+### [Service Name]
+- **Purpose**: Brief description
+- **API Docs**: [URL]
+- **Auth**: API key in header
+- **Rate Limits**: X requests/minute
+
+---
+
+## Security Boundaries
+
+```
+┌─────────────────────────────────────────┐
+│              Public Internet             │
+├─────────────────────────────────────────┤
+│    ↓ HTTPS only                         │
+├─────────────────────────────────────────┤
+│         Load Balancer / CDN              │
+├─────────────────────────────────────────┤
+│    ↓ Internal network                   │
+├─────────────────────────────────────────┤
+│         Application Servers              │
+├─────────────────────────────────────────┤
+│    ↓ Private subnet                     │
+├─────────────────────────────────────────┤
+│         Database / Cache                 │
+└─────────────────────────────────────────┘
+```
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | Database connection string | Yes |
+| `JWT_SECRET` | Secret for JWT signing | Yes |
+| `API_KEY` | External API key | No |
+
+---
+
+## Deployment
+
+### Local Development
+```bash
+# Start all services
+docker-compose up
+
+# Or manually:
+npm run dev          # Frontend
+python main.py       # Backend
+```
+
+### Production
+- **Platform**: [Cloud provider]
+- **CI/CD**: [GitHub Actions / etc]
+- **Monitoring**: [Service name]
+
+---
+
+## Key Design Decisions
+
+### Decision 1: [Title]
+**Context**: Why this decision was needed
+**Decision**: What was decided
+**Consequences**: Trade-offs and implications
+
+### Decision 2: [Title]
+**Context**: ...
+**Decision**: ...
+**Consequences**: ...
