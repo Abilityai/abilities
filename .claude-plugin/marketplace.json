@@ -23,7 +23,8 @@
         "./skills/credential-sync",
         "./skills/create-heartbeat",
         "./skills/create-dashboard-playbook",
-        "./skills/create-fork-skill"
+        "./skills/create-fork-skill",
+        "./skills/request-trinity-access"
       ]
     },
     {
@@ -122,8 +123,7 @@
       "category": "onboarding",
       "tags": ["cornelius", "install", "setup", "agent", "onboarding"],
       "skills": [
-        "./skills/install-cornelius",
-        "./skills/request-trinity-access"
+        "./skills/install-cornelius"
       ]
     },
     {
