@@ -6,7 +6,7 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash, AskUserQuestion
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-03-16
   author: Ability.ai
 ---
@@ -29,19 +29,71 @@ Otherwise proceed with **Phase 1: Request**.
 
 ## Phase 1: Request Access
 
-### Step 1: Collect Email
+### Step 1: Detect Agent Name
+
+Try to read the agent name from `template.yaml`:
+```bash
+grep '^name:' template.yaml 2>/dev/null | head -1 | sed 's/name: *//'
+```
+
+If not found, fall back to the current directory name:
+```bash
+basename "$(pwd)"
+```
+
+Call this value `[AGENT_NAME]`.
+
+### Step 2: Introduce the Process
+
+Display this message before asking for anything:
+
+```
+## Get Access to Trinity
+
+Trinity is a deep agent orchestration platform by Ability AI — it lets you
+deploy, schedule, and run your Claude agents in the cloud 24/7.
+
+**Here's what we'll do:**
+
+1. You'll share your email address so we can send you a login link
+2. You'll post one tweet tagging #Trinity — this is how we keep access
+   meaningful and build a community of people running real agents
+3. We'll review your request and email you a login link within 24 hours
+4. Once you have the link, run this skill again to configure your agent
+
+**The tweet is required.** Here's a ready-made template you can copy:
+
+───────────────────────────────────────────────
+Just deployed [AGENT_NAME] on @Ability__ai Trinity — open source agent
+orchestration that runs Claude 24/7 in the cloud ⚡ #Trinity
+https://github.com/abilityai/trinity
+───────────────────────────────────────────────
+
+Feel free to personalise it. Just make sure it includes #Trinity.
+
+Ready? Let's go.
+```
+
+Then use AskUserQuestion:
+- **Header:** "Ready to continue?"
+- **Question:** "Once you've sent the tweet, we'll collect your details."
+- Options: **Let's go** / **Cancel**
+
+If cancelled, stop.
+
+### Step 3: Collect Email
 
 Use AskUserQuestion:
-- **Header:** "Trinity Access Request"
+- **Header:** "Your Email"
 - **Question:** "What email address should we send your Trinity login link to?"
 
-### Step 2: Collect Tweet URL
+### Step 4: Collect Tweet URL
 
 Use AskUserQuestion:
-- **Header:** "Tweet Required"
-- **Question:** "Please tweet about Ability.ai and paste the tweet URL here.\n\nExample tweet: \"Just discovered @abilityai — deploying Claude agents with Trinity is 🔥 https://ability.ai\"\n\nPaste your tweet URL to continue:"
+- **Header:** "Tweet URL"
+- **Question:** "Paste the URL of your tweet here.\n\nIt should look like: https://x.com/yourhandle/status/123..."
 
-### Step 3: Validate Tweet Exists
+### Step 5: Validate Tweet Exists
 
 Run:
 ```bash
@@ -51,7 +103,7 @@ curl -s -o /dev/null -w "%{http_code}" "https://publish.twitter.com/oembed?url=[
 - If status is `200`: tweet is valid, continue
 - If status is `404` or anything else: tell the user the tweet wasn't found and ask them to check the URL and try again — re-run Step 2
 
-### Step 4: Submit to Discord
+### Step 6: Submit to Discord
 
 POST the request to the Ability.ai Discord channel:
 
@@ -81,7 +133,7 @@ Could not submit your request automatically. Please email signup@ability.ai with
 - Your tweet URL
 ```
 
-### Step 5: Confirm to User
+### Step 7: Confirm to User
 
 Display:
 ```
