@@ -22,6 +22,7 @@ A curated collection of Claude Code plugins from [Ability.ai](https://ability.ai
 | [trinity-onboard](plugins/trinity-onboard/) | Deploy agents to Trinity platform | `/trinity-onboard`, `/credential-sync`, `/trinity-sync` |
 | [playbook-builder](plugins/playbook-builder/) | Create structured playbooks with state management | `/create-playbook`, `/save-playbook` |
 | [dev-methodology](plugins/dev-methodology/) | Documentation-driven development methodology | `/init`, `/read-docs`, `/implement`, `/validate-pr` |
+| [utilities](plugins/utilities/) | Ops workflows, deployment, incident response, and conversation management | `/investigate-incident`, `/bug-report`, `/safe-deploy`, `/docker-ops`, `/sync-ops-knowledge`, `/save-conversation` |
 
 ## Installation
 
@@ -34,6 +35,7 @@ A curated collection of Claude Code plugins from [Ability.ai](https://ability.ai
 # Install plugins
 /plugin install trinity-onboard@abilityai
 /plugin install playbook-builder@abilityai
+/plugin install utilities@abilityai
 ```
 
 ### Manual Installation
@@ -100,6 +102,34 @@ Documentation-driven development methodology for Claude Code projects. Enforces 
 ```
 
 Includes 14 skills, 3 sub-agents (test-runner, feature-flow-analyzer, security-analyzer), and templates for project memory files (requirements, architecture, changelog, feature flows).
+
+### Utilities
+
+General-purpose ops and productivity skills for SSH-accessible services and daily agent workflows.
+
+```bash
+/investigate-incident              # Structured incident investigation with severity classification and root cause report
+/bug-report                        # Create a sanitized GitHub issue (redacts IPs, credentials, PII)
+/safe-deploy update                # Safe deployment: backup → pull → rebuild → restart → validate
+/safe-deploy rollback              # Revert to previous commit with optional DB restore
+/safe-deploy diagnose              # Health check: containers, errors, restarts, disk, memory
+/docker-ops logs [service]         # View logs from any service with optional error filtering
+/docker-ops restart [service|all]  # Graceful service restart with post-restart validation
+/docker-ops telemetry              # CPU, memory, disk, and container resource stats
+/docker-ops cleanup                # Prune Docker resources (dry-run by default)
+/sync-ops-knowledge                # Review recent commits and update ops docs for new env vars, schema changes, API changes
+/save-conversation                 # Save the current conversation as a structured markdown file
+```
+
+All skills connect via SSH and work with any docker-compose-based stack. Configure with a local `.env` file:
+
+```bash
+SSH_HOST=your-server-ip
+SSH_USER=ubuntu
+SSH_KEY=~/.ssh/id_rsa
+APP_PATH=~/app
+COMPOSE_FILE=docker-compose.yml
+```
 
 ## Contributing
 

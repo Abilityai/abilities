@@ -103,11 +103,16 @@
     {
       "name": "utilities",
       "source": "./plugins/utilities",
-      "description": "General-purpose utility skills for conversation management, session archival, and agent productivity",
+      "description": "General-purpose utility skills for conversation management, ops workflows, and agent productivity",
       "category": "productivity",
-      "tags": ["utilities", "conversation", "history", "archival", "productivity"],
+      "tags": ["utilities", "conversation", "ops", "docker", "deployment", "incident-response", "productivity"],
       "skills": [
-        "./skills/save-conversation"
+        "./skills/save-conversation",
+        "./skills/investigate-incident",
+        "./skills/bug-report",
+        "./skills/safe-deploy",
+        "./skills/docker-ops",
+        "./skills/sync-ops-knowledge"
       ]
     },
     {

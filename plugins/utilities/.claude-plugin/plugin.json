@@ -1,7 +1,7 @@
 {
   "name": "utilities",
   "description": "General-purpose utility skills for conversation management, session archival, and agent productivity",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"
