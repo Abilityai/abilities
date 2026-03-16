@@ -1,7 +1,7 @@
 {
   "name": "install-cornelius",
   "description": "Install Cornelius - clone the Cornelius agent repository and launch Claude Code inside it",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"

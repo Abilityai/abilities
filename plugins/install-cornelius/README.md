@@ -17,6 +17,18 @@ Install [Cornelius](https://github.com/Abilityai/cornelius) — clone the reposi
 
 ## Installation
 
+**One-liner (if you already have the abilityai marketplace):**
 ```bash
+claude plugin install install-cornelius@abilityai
+```
+
+**First time with abilityai marketplace:**
+```bash
+claude plugin add abilityai/abilities && claude plugin install install-cornelius@abilityai
+```
+
+Or from inside a Claude Code session:
+```
+/plugin marketplace add abilityai/abilities
 /plugin install install-cornelius@abilityai
 ```
