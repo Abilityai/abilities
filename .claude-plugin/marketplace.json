@@ -116,6 +116,17 @@
       ]
     },
     {
+      "name": "install-cornelius",
+      "source": "./plugins/install-cornelius",
+      "description": "Clone the Cornelius agent repository and launch Claude Code inside it",
+      "category": "onboarding",
+      "tags": ["cornelius", "install", "setup", "agent", "onboarding"],
+      "skills": [
+        "./skills/install-cornelius",
+        "./skills/request-trinity-access"
+      ]
+    },
+    {
       "name": "dev-methodology",
       "source": "./plugins/dev-methodology",
       "description": "Documentation-driven development methodology with skills, agents, and project memory templates. Enforces a 5-phase development cycle: context loading, development, testing, documentation, and PR validation.",
