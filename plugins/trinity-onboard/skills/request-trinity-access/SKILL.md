@@ -149,47 +149,39 @@ We've received your Trinity access request.
 2. You'll receive a Trinity login link at [EMAIL]
 3. Click the link to log in and set up your agent
 
-Once you have the link, run:
+Once you have the URL, run:
 
-  /request-trinity-access [your-trinity-login-url]
+  /request-trinity-access https://your-trinity-instance.com
 
 to configure your agent automatically.
 ```
 
 ---
 
-## Phase 2: Activate Trinity Login Link
+## Phase 2: Activate Trinity Instance URL
 
-The user has received their Trinity URL (e.g. `https://trinity.ability.ai/login?token=abc123`).
+The user has received their Trinity instance URL (e.g. `https://trinity.ability.ai`). Use the argument as-is.
 
-### Step 1: Extract Trinity Base URL
-
-Parse the base URL from the argument (everything up to the path):
-```bash
-echo "[ARG]" | grep -oE 'https?://[^/]+'
-```
-
-### Step 2: Ask for Confirmation
+### Step 1: Ask for Confirmation
 
 Use AskUserQuestion:
 - **Header:** "Activate Trinity Access"
-- **Question:** "Ready to configure this agent to connect to Trinity at [BASE_URL]?\n\nThis will:\n- Save your Trinity URL to .env\n- Create .mcp.json for Claude Code integration\n- You'll need to restart Claude Code after"
+- **Question:** "Ready to configure this agent to connect to Trinity at [ARG]?\n\nThis will:\n- Save your Trinity URL to .env\n- Create .mcp.json for Claude Code integration\n- You'll need to restart Claude Code after"
 
 Options: **Yes, configure it** / **Cancel**
 
 If cancelled, stop.
 
-### Step 3: Update .env
+### Step 2: Update .env
 
 Read existing `.env` if it exists, then add or replace:
 ```bash
-# Check if TRINITY_URL already exists
 grep -q "TRINITY_URL" .env 2>/dev/null && \
-  sed -i '' 's|^TRINITY_URL=.*|TRINITY_URL=[BASE_URL]|' .env || \
-  echo "TRINITY_URL=[BASE_URL]" >> .env
+  sed -i '' 's|^TRINITY_URL=.*|TRINITY_URL=[ARG]|' .env || \
+  echo "TRINITY_URL=[ARG]" >> .env
 ```
 
-### Step 4: Create .mcp.json
+### Step 3: Create .mcp.json
 
 Write `.mcp.json` (overwrite if exists):
 ```json
@@ -197,16 +189,14 @@ Write `.mcp.json` (overwrite if exists):
   "mcpServers": {
     "trinity": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "[BASE_URL]/mcp"],
+      "args": ["-y", "mcp-remote", "[ARG]/mcp"],
       "env": {}
     }
   }
 }
 ```
 
-Note: No API key needed — the login token in the URL handles auth on first use.
-
-### Step 5: Confirm and Instruct Restart
+### Step 4: Confirm and Instruct Restart
 
 Display:
 ```
