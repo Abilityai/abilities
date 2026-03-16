@@ -77,7 +77,18 @@ See the full architecture guide in `/trinity-onboard`.
 
 ## Installation
 
+**One-liner (if you already have the abilityai marketplace):**
 ```bash
+claude plugin install trinity-onboard@abilityai
+```
+
+**First time with abilityai marketplace:**
+```bash
+claude plugin add abilityai/abilities && claude plugin install trinity-onboard@abilityai
+```
+
+Or from inside a Claude Code session:
+```
 /plugin marketplace add abilityai/abilities
 /plugin install trinity-onboard@abilityai
 ```
@@ -101,6 +112,7 @@ See the full architecture guide in `/trinity-onboard`.
 | **credential-sync** | `/credential-sync` | Push/pull credentials between local and remote |
 | **create-heartbeat** | `/create-heartbeat` | Generate polling skills for long-running tasks |
 | **create-dashboard-playbook** | `/create-dashboard-playbook` | Generate a skill to keep dashboard.yaml updated |
+| **request-trinity-access** | `/request-trinity-access` | Request Trinity access via email + tweet verification |
 
 ## Workflow
 
@@ -288,7 +300,8 @@ skills/
 │       ├── encrypt_credentials.py
 │       └── decrypt_credentials.py
 ├── create-heartbeat/SKILL.md     # Heartbeat skill generator
-└── create-dashboard-playbook/SKILL.md  # Dashboard update skill generator
+├── create-dashboard-playbook/SKILL.md  # Dashboard update skill generator
+└── request-trinity-access/SKILL.md     # Access request + activation
 ```
 
 ## Support
