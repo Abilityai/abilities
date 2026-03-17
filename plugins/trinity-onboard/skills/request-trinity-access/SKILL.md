@@ -64,7 +64,7 @@ deploy, schedule, and run your Claude agents in the cloud 24/7.
 **The tweet is required.** Here's a ready-made template you can copy:
 
 ───────────────────────────────────────────────
-Just deployed [AGENT_NAME] on @Ability__ai Trinity — open source agent
+Just deployed [AGENT_NAME] on @get_trinity — open source agent
 orchestration that runs Claude 24/7 in the cloud ⚡ #Trinity
 https://github.com/abilityai/trinity
 ───────────────────────────────────────────────
