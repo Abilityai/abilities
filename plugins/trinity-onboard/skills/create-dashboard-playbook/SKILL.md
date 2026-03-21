@@ -302,6 +302,32 @@ Tailor the generated skill based on approved metrics:
   max_rows: 10
 ```
 
+**chart widget (line/bar/area)** - Include series data:
+```yaml
+- type: chart
+  chart_type: line    # line, bar, or area
+  title: "{title}"
+  height: 200         # 100-400
+  x_label: "Time"
+  y_label: "Count"
+  legend: true
+  series:
+    - label: "{series_name}"
+      color: blue
+      data: [{x: "label1", y: 10}, {x: "label2", y: 20}]
+```
+
+**chart widget (pie/donut)** - Include segment data:
+```yaml
+- type: chart
+  chart_type: pie     # or donut
+  title: "{title}"
+  height: 200
+  segments:
+    - { label: "Category A", value: 45, color: blue }
+    - { label: "Category B", value: 30, color: green }
+```
+
 ---
 
 ## STEP 6: Write and Confirm
@@ -355,7 +381,7 @@ For reference when proposing and generating widgets:
 
 | Type | Required Fields | Optional Fields |
 |------|-----------------|-----------------|
-| metric | label, value | trend, trend_value, unit, description |
+| metric | label, value | trend, trend_value, unit, description, colspan |
 | status | label, value, color | - |
 | progress | label, value | color |
 | text | content | size, color, align |
@@ -363,11 +389,17 @@ For reference when proposing and generating widgets:
 | table | columns, rows | title, max_rows |
 | list | items | title, style, max_items |
 | link | label, url | external, style, color |
+| chart | chart_type, series[] OR segments[] | title, height (100-400), x_label, y_label, legend, stacked, categories, colspan |
 | image | src, alt | caption |
 | divider | - | - |
 | spacer | - | size |
 
 **Color options:** green, red, yellow, gray, blue, orange, purple
+
+**Chart types:** line, bar, area, pie, donut
+- Line/Bar/Area use `series[]` with `label`, `color`, `data` (plain arrays or `{x, y}` objects)
+- Bar also supports `categories` for x-axis labels; bar/area support `stacked: true`
+- Pie/Donut use `segments[]` with `label`, `value`, `color`
 
 ---
 
@@ -408,7 +440,24 @@ Data sources:
 - error_log.md
 ```
 
-### Example 3: Content Agent
+### Example 3: Monitoring Agent (with charts)
+
+```
+/create-dashboard-playbook
+
+Proposed metrics:
+- API latency over time (chart: line)
+- Requests by endpoint (chart: bar)
+- Error rate breakdown (chart: donut)
+- System status (status)
+- Active alerts (list)
+
+Data sources:
+- metrics_history.json
+- alert_state.yaml
+```
+
+### Example 4: Content Agent
 
 ```
 /create-dashboard-playbook
