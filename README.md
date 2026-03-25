@@ -22,6 +22,7 @@ A curated collection of Claude Code plugins from [Ability.ai](https://ability.ai
 | [trinity-onboard](plugins/trinity-onboard/) | Deploy agents to Trinity platform | `/trinity-onboard`, `/credential-sync`, `/trinity-sync` |
 | [playbook-builder](plugins/playbook-builder/) | Create structured playbooks with state management | `/create-playbook`, `/save-playbook` |
 | [dev-methodology](plugins/dev-methodology/) | Documentation-driven development methodology | `/init`, `/read-docs`, `/implement`, `/validate-pr` |
+| [website-builder](plugins/website-builder/) | Scaffold Next.js 15 websites and deploy to Vercel via GitHub | `/create-website` |
 | [utilities](plugins/utilities/) | Ops workflows, deployment, incident response, and conversation management | `/investigate-incident`, `/bug-report`, `/safe-deploy`, `/docker-ops`, `/sync-ops-knowledge`, `/save-conversation` |
 
 ## Installation
@@ -35,6 +36,7 @@ A curated collection of Claude Code plugins from [Ability.ai](https://ability.ai
 # Install plugins
 /plugin install trinity-onboard@abilityai
 /plugin install playbook-builder@abilityai
+/plugin install website-builder@abilityai
 /plugin install utilities@abilityai
 ```
 
@@ -102,6 +104,21 @@ Documentation-driven development methodology for Claude Code projects. Enforces 
 ```
 
 Includes 14 skills, 3 sub-agents (test-runner, feature-flow-analyzer, security-analyzer), and templates for project memory files (requirements, architecture, changelog, feature flows).
+
+### Website Builder
+
+Scaffold complete, production-ready Next.js 15 websites and deploy to Vercel in minutes. Creates a GitHub repo, pushes, and deploys via Vercel MCP — all from a single skill.
+
+```bash
+/create-website my-landing-page    # Scaffold, push to GitHub, deploy to Vercel
+```
+
+- **Full stack**: Next.js 15 App Router, TypeScript, Tailwind CSS, CSS variable design system
+- **Design presets**: Minimal Clean, Bold Dark, Warm Professional, or Custom
+- **GitHub + Vercel**: Creates repo via `gh`, deploys via Vercel MCP with auto-deploy on push
+- **Production-ready**: SEO (sitemap, robots, OpenGraph), image optimization, cache headers
+
+Requires [GitHub CLI](https://cli.github.com) and optionally the [Vercel MCP server](https://vercel.com/docs/agent-resources/vercel-mcp) for one-command deployment.
 
 ### Utilities
 

@@ -1,0 +1,13 @@
+{
+  "name": "website-builder",
+  "description": "Scaffold complete, production-ready Next.js websites deployable to Vercel in minutes",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/abilityai/abilities",
+  "repository": "https://github.com/abilityai/abilities",
+  "keywords": ["website", "nextjs", "vercel", "scaffold", "tailwind", "react"]
+}
