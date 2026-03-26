@@ -62,6 +62,7 @@ Trinity uses a **paired agent architecture**—the same agent runs both locally 
 - **GitHub as state management**: Your agent's identity (skills, config) lives in Git
 - **Local orchestrator**: Your local session can trigger and monitor remote execution
 - **Heartbeat pattern**: Local agent polls remote for long-running task status
+- **Event-driven pipelines**: Agents emit events, subscribers receive automated tasks
 - **Credentials stay local**: `.env` and `.mcp.json` are gitignored, synced separately
 
 **When to use each:**
@@ -72,6 +73,7 @@ Trinity uses a **paired agent architecture**—the same agent runs both locally 
 | Quick testing | Scheduled daily tasks |
 | File exploration | Always-on availability |
 | Orchestrating agents | Processing while laptop closed |
+| Event subscription setup | Event-driven pipeline execution |
 
 See the full architecture guide in `/trinity-onboard`.
 
@@ -104,6 +106,7 @@ Or from inside a Claude Code session:
 | **trinity-sync** | `/trinity-sync` | Git-based synchronization with remote agent |
 | **trinity-remote** | `/trinity-remote` | Remote agent operations (exec, run, notify) |
 | **trinity-schedules** | `/trinity-schedules` | Manage scheduled autonomous executions |
+| **trinity-events** | `/trinity-events` | Inter-agent event subscriptions and pub/sub pipelines |
 
 ### Extended Skills (Plugin Extras)
 
@@ -117,8 +120,9 @@ Or from inside a Claude Code session:
 ## Workflow
 
 ```
-ADOPT → DEVELOP → SYNC → REMOTE → SCHEDULE
-  │        │        │       │        │
+ADOPT → DEVELOP → SYNC → REMOTE → SCHEDULE → EVENTS
+  │        │        │       │        │          │
+  │        │        │       │        │          └─ /trinity-events subscribe
   │        │        │       │        └─ /trinity-schedules
   │        │        │       └─ /trinity-remote exec <prompt>
   │        │        └─ /trinity-sync push
@@ -173,6 +177,27 @@ Creates required files:
 /trinity-schedules schedule my-skill "0 9 * * *"   # Schedule daily at 9am
 /trinity-schedules trigger my-skill                # Run now
 /trinity-schedules history                         # View execution history
+```
+
+### 6. Event-Driven Pipelines
+
+```bash
+/trinity-events list                               # View all subscriptions
+/trinity-events subscribe agent-a task.done "Process {{payload.result}}"
+/trinity-events emit report.generated {"report_id": "rpt-1"}
+/trinity-events history                            # View emitted events
+/trinity-events delete esub_abc123                 # Remove a subscription
+```
+
+**How events work:** Agents emit named events with structured payloads. Other agents subscribe to those events and automatically receive tasks when matching events fire. This enables push-based inter-agent communication — no polling required.
+
+```
+Agent A                    Trinity                    Agent B
+  │ emit("task.done",       │                          │
+  │  {result: "ok"})        │                          │
+  │─────────────────────────>│ match subscriptions      │
+  │                          │─────────────────────────>│ receives task:
+  │                          │                          │ "Process ok"
 ```
 
 ---
@@ -301,7 +326,8 @@ skills/
 │       └── decrypt_credentials.py
 ├── create-heartbeat/SKILL.md     # Heartbeat skill generator
 ├── create-dashboard-playbook/SKILL.md  # Dashboard update skill generator
-└── request-trinity-access/SKILL.md     # Access request + activation
+├── request-trinity-access/SKILL.md     # Access request + activation
+└── trinity-events/SKILL.md             # Event subscription management
 ```
 
 ## Support

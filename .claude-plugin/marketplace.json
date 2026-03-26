@@ -24,7 +24,8 @@
         "./skills/create-heartbeat",
         "./skills/create-dashboard-playbook",
         "./skills/create-fork-skill",
-        "./skills/request-trinity-access"
+        "./skills/request-trinity-access",
+        "./skills/trinity-events"
       ]
     },
     {
