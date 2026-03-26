@@ -23,7 +23,7 @@ A curated collection of Claude Code plugins from [Ability.ai](https://ability.ai
 | [playbook-builder](plugins/playbook-builder/) | Create structured playbooks with state management | `/create-playbook`, `/save-playbook` |
 | [dev-methodology](plugins/dev-methodology/) | Documentation-driven development methodology | `/init`, `/read-docs`, `/implement`, `/validate-pr` |
 | [website-builder](plugins/website-builder/) | Scaffold Next.js 15 websites and deploy to Vercel via GitHub | `/create-website` |
-| [utilities](plugins/utilities/) | Ops workflows, deployment, incident response, and conversation management | `/investigate-incident`, `/bug-report`, `/safe-deploy`, `/docker-ops`, `/sync-ops-knowledge`, `/save-conversation` |
+| [utilities](plugins/utilities/) | Ops workflows, deployment, incident response, and conversation management | `/investigate-incident`, `/bug-report`, `/safe-deploy`, `/docker-ops`, `/sync-ops-knowledge`, `/save-conversation`, `/batch-claude-loop` |
 
 ## Installation
 
@@ -136,6 +136,7 @@ General-purpose ops and productivity skills for SSH-accessible services and dail
 /docker-ops cleanup                # Prune Docker resources (dry-run by default)
 /sync-ops-knowledge                # Review recent commits and update ops docs for new env vars, schema changes, API changes
 /save-conversation                 # Save the current conversation as a structured markdown file
+/batch-claude-loop                 # Orchestrate batch headless Claude Code calls with structured output
 ```
 
 All skills connect via SSH and work with any docker-compose-based stack. Configure with a local `.env` file:

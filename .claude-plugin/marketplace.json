@@ -114,7 +114,8 @@
         "./skills/bug-report",
         "./skills/safe-deploy",
         "./skills/docker-ops",
-        "./skills/sync-ops-knowledge"
+        "./skills/sync-ops-knowledge",
+        "./skills/batch-claude-loop"
       ]
     },
     {
@@ -157,7 +158,8 @@
         "./skills/security-analysis",
         "./skills/refactor-audit",
         "./skills/tidy",
-        "./skills/roadmap"
+        "./skills/roadmap",
+        "./skills/generate-user-docs"
       ]
     }
   ]

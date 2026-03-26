@@ -1,7 +1,7 @@
 {
   "name": "dev-methodology",
   "description": "Documentation-driven development methodology with 13 skills, 3 agents, and project memory templates. Enforces a 5-phase development cycle: context loading, development, testing, documentation, and PR validation.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"
