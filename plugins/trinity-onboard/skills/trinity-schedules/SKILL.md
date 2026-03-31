@@ -8,10 +8,11 @@ description: |
 argument-hint: "[status|sync|list|schedule|trigger|history] [skill-name]"
 disable-model-invocation: false
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2025-02-05
   author: eugene
   changelog:
+    - "1.2: Added misfire handling, subscription auto-switch notes"
     - "1.1: Genericized for any agent via dynamic name detection"
     - "1.0: Initial version"
 ---
@@ -300,6 +301,35 @@ Common patterns for user convenience:
 - `0 9,17 * * *` - Daily at 9 AM and 5 PM
 
 Format: `minute hour day-of-month month day-of-week`
+
+## Scheduler Reliability
+
+### Misfire Handling (Catch-Up on Restart)
+
+Trinity's scheduler automatically detects and recovers missed jobs on restart. If the scheduler was down when a cron job was due, it fires immediately on startup — no manual re-triggering needed.
+
+**How it works:**
+- On startup, the scheduler scans all schedules for missed `next_run_at` times
+- Missed jobs within the **misfire grace window** (default: 1 hour, configurable via `MISFIRE_GRACE_TIME`) are queued for immediate execution
+- Multiple missed runs of the same schedule are **coalesced** into a single execution (prevents avalanche)
+- Misses older than the grace window are skipped (logged but not executed)
+
+**What this means for operators:**
+- Weekly cron jobs survive scheduler restarts and deployments
+- Short outages (< grace window) don't cause lost work
+- No need to manually trigger jobs after platform updates
+
+### Subscription Auto-Switch on Rate Limits
+
+If an agent hits 2+ consecutive HTTP 429 (rate-limit) errors during a scheduled execution, Trinity can automatically switch it to a different subscription with available capacity.
+
+**Requirements:**
+- The "Auto-switch subscriptions" setting must be enabled in Trinity Settings
+- Multiple subscriptions must be configured on the platform
+
+The switch is logged as an activity event and the agent owner receives a notification.
+
+---
 
 ## Integration Notes
 

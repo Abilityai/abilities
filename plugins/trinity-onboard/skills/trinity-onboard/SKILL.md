@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent
 metadata:
-  version: "4.2"
+  version: "4.3"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "4.3: Added setup.sh, voice chat, channel adapters, fan-out, per-user memory, execution query tools"
     - "4.2: Added avatar_prompt field to template.yaml generation"
     - "4.1: Added choice between full deployment and adaptation-only mode"
     - "4.0: Complete onboarding flow - files, MCP config, and remote sync"
@@ -167,9 +168,11 @@ Create heartbeat skills with `/create-heartbeat` to automate this polling.
 |------|---------|----------|
 | **Execute** | `/trinity-remote exec <task>` | Run task on remote, get response |
 | **Deploy-Run** | `/trinity-remote run <task>` | Sync changes first, then execute |
-| **Async Task** | `chat_with_agent(..., async=true)` | Fire-and-forget, check later |
+| **Fan-Out** | `/trinity-remote fan-out <task>` | Parallel self-invocation (1-50 tasks) |
+| **Async Task** | `chat_with_agent(..., async=true)` | Fire-and-forget, poll with `get_execution_result` |
 | **Scheduled** | `/trinity-schedules` | Cron-based autonomous execution |
 | **Heartbeat** | `/create-heartbeat` | Local-controlled polling loop |
+| **Events** | `/trinity-events` | Inter-agent pub/sub pipelines |
 
 ### When to Use Local vs Remote
 
@@ -183,6 +186,79 @@ Create heartbeat skills with `/create-heartbeat` to automate this polling.
 | Always-on availability | | ✓ |
 | Processing while laptop closed | | ✓ |
 | Orchestrating multiple agents | ✓ | |
+
+---
+
+## Platform Capabilities (Post-Onboarding)
+
+Once deployed to Trinity, agents gain access to these platform features. These don't require configuration during onboarding but are important to understand for full platform utilization.
+
+### Persistent Setup Script
+
+Agents can persist system-level packages (apt-get, npm -g, pip) across container restarts by placing a script at `~/.trinity/setup.sh`. This file runs automatically on every container start.
+
+```bash
+# Example: ~/.trinity/setup.sh (on the remote agent)
+#!/bin/bash
+sudo apt-get update -qq
+sudo apt-get install -y -qq ffmpeg imagemagick
+npm install -g typescript ts-node
+pip install --user opencv-python moviepy
+```
+
+**How to set up:** Install packages on the remote agent, then append each install command to `~/.trinity/setup.sh`. The `/home/developer/` volume persists across container recreations, so the script survives image updates.
+
+**Best practices:** Keep the script idempotent, use `-y` flags, minimize `apt-get` calls (each adds startup time).
+
+### Voice Chat
+
+Agents can accept real-time voice conversations via the Gemini Live API. Users click a microphone button in the Chat tab to speak naturally with the agent.
+
+**To enable:**
+1. Set `GEMINI_API_KEY` in platform environment variables
+2. Set `VOICE_ENABLED=true` in platform settings
+3. Create a voice system prompt file on the agent: `/home/developer/voice-agent-system-prompt.md`
+   - Keep it concise (< 500 tokens), personality-focused
+   - Example: "You are a helpful assistant. Keep responses under 2 sentences. Use casual, friendly language."
+
+Transcripts are automatically saved to the chat session history.
+
+### Channel Adapters (Slack & Telegram)
+
+Agents can receive and respond to messages from Slack channels and Telegram groups. Each agent gets its own dedicated channel with identity customization (name + avatar).
+
+**Slack setup** (from Trinity Settings):
+1. Configure Slack OAuth credentials (Client ID, Secret, Signing Secret)
+2. Install to workspace via OAuth flow
+3. Per-agent: Agent Detail > Sharing > "Create Slack Channel"
+
+**Telegram setup** (via agent .env):
+- Set `ANNOUNCE_TELEGRAM_TOKEN` (from BotFather)
+- Set `ANNOUNCE_TELEGRAM_UPDATES_CHANNEL` (chat ID, negative for groups)
+
+Messages from Slack/Telegram users go through the same execution pipeline as web chat, with automatic rate limiting and audit trails.
+
+### Per-User Persistent Memory
+
+Public-facing agents (shared via public link) automatically maintain per-user memory for email-verified visitors. Memory is scoped to `(agent_name, user_email)` and injected into every conversation.
+
+**No configuration needed** — this is automatic when:
+- The public link has "Require email verification" enabled
+- Users verify their email before chatting
+
+Memory is summarized every 5 messages using Claude Haiku and persists across sessions.
+
+### Execution Query Tools
+
+Three MCP tools enable programmatic monitoring and async result polling:
+
+| Tool | Purpose |
+|------|---------|
+| `list_recent_executions` | List recent executions with optional status filter |
+| `get_execution_result` | Get full result of a specific execution (including transcript) |
+| `get_agent_activity_summary` | High-level activity summary (by trigger type, agent) |
+
+These are especially useful for orchestrator agents monitoring worker fleets, and for polling async task results that exceed the 60-second MCP timeout.
 
 ---
 
@@ -515,6 +591,17 @@ Your agent is now live on Trinity.
    ```
    /trinity-schedules
    ```
+
+5. **Run parallel batch work:**
+   ```
+   /trinity-remote fan-out "Analyze each quarter" --tasks 4
+   ```
+
+6. **Enable voice chat** (optional):
+   Create `voice-agent-system-prompt.md` on the remote agent
+
+7. **Connect Slack** (optional):
+   Agent Detail > Sharing > "Create Slack Channel"
 ```
 
 ---

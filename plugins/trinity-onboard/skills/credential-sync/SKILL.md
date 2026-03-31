@@ -6,8 +6,11 @@ user-invocable: true
 argument-hint: "[push|pull|export|import|status] [agent-name] [--files=.env,.mcp.json]"
 allowed-tools: Read, Write, Bash, Glob, mcp__trinity__inject_credentials, mcp__trinity__export_credentials, mcp__trinity__import_credentials, mcp__trinity__get_credential_status, mcp__trinity__get_credential_encryption_key, mcp__trinity__list_agents, mcp__trinity__get_agent
 metadata:
-  version: "1.1"
+  version: "1.2"
   author: Ability.ai
+  changelog:
+    - "1.2: Document credential injection allowlist (security hardening)"
+    - "1.1: Initial version"
 ---
 
 # Credential Sync
@@ -26,18 +29,31 @@ When working with paired agents (local + remote on Trinity), this skill handles 
 | `import` | Restore from encrypted backup on remote |
 | `status` | Check credential status on remote |
 
+## Credential Injection Allowlist
+
+**Important:** Trinity enforces a strict allowlist on credential injection. Only these 4 file paths can be written via the injection API:
+
+| Allowed Path | Purpose |
+|-------------|---------|
+| `.env` | Environment variables |
+| `.mcp.json` | MCP server configurations |
+| `.mcp.json.template` | MCP config template |
+| `.credentials.enc` | Encrypted credential bundle |
+
+Attempts to inject files outside this allowlist will be rejected with HTTP 400. For other credential files (service accounts, SSL keys, YAML configs), bundle them into `.credentials.enc` using the export/import flow, or commit them via git.
+
 ## Supported Credential Files
 
-The skill auto-detects and syncs these credential files:
+The skill auto-detects these credential files locally. For **push**, only allowlisted files are injected directly; others are bundled into `.credentials.enc`:
 
-| File | Purpose | Auto-detect |
+| File | Purpose | Push Method |
 |------|---------|-------------|
-| `.env` | Environment variables (KEY=VALUE) | Yes |
-| `.mcp.json` | MCP server configurations | Yes |
-| `credentials.json` | Service account keys | Yes |
-| `config/secrets.yaml` | YAML-based secrets | Yes |
-| `*.pem`, `*.key` | SSL/SSH keys | Optional |
-| Custom files | Anything you specify | Via --files |
+| `.env` | Environment variables (KEY=VALUE) | Direct injection |
+| `.mcp.json` | MCP server configurations | Direct injection |
+| `credentials.json` | Service account keys | Via .credentials.enc |
+| `config/secrets.yaml` | YAML-based secrets | Via .credentials.enc |
+| `*.pem`, `*.key` | SSL/SSH keys | Via .credentials.enc |
+| Custom files | Anything you specify | Via .credentials.enc |
 
 ---
 
@@ -171,20 +187,37 @@ Check response:
 - If 404: "Agent not found on Trinity. Run /trinity-onboard first."
 - If not running: "Agent is stopped. Start it first or credentials won't persist."
 
-### Step 3: Inject All Files to Remote
+### Step 3: Inject Allowlisted Files to Remote
 
+Separate files into allowlisted (direct injection) and non-allowlisted (bundle into .credentials.enc):
+
+**Allowlisted files** — inject directly:
 ```
 mcp__trinity__inject_credentials(
   name: "[agent-name]",
   files: {
     ".env": "[content]",
-    ".mcp.json": "[content]",
-    "config/secrets.yaml": "[content]"
+    ".mcp.json": "[content]"
   }
 )
 ```
 
-The `files` parameter accepts any file paths. Files are written relative to `/home/developer/` in the agent container.
+Only `.env`, `.mcp.json`, `.mcp.json.template`, and `.credentials.enc` are accepted. Other paths will be rejected.
+
+**Non-allowlisted files** — bundle and inject as encrypted:
+If the user specified files outside the allowlist (e.g., `credentials.json`, `config/secrets.yaml`):
+
+1. Bundle them into `.credentials.enc` using local encryption (see Local Encryption section below)
+2. Inject the `.credentials.enc` file:
+   ```
+   mcp__trinity__inject_credentials(
+     name: "[agent-name]",
+     files: {
+       ".credentials.enc": "[encrypted-content]"
+     }
+   )
+   ```
+3. Then import on remote: `mcp__trinity__import_credentials(name: "[agent-name]")`
 
 ### Step 4: Verify Injection
 

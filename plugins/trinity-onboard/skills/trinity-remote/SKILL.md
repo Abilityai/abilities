@@ -4,12 +4,13 @@ description: Remote agent operations - execute prompts, deploy-run workflows, an
 argument-hint: "[exec <prompt>|run <prompt>|notify <config>|status]"
 disable-model-invocation: true
 user-invocable: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__get_agent, mcp__trinity__start_agent
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__get_agent, mcp__trinity__start_agent, mcp__trinity__get_agent_info
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2025-02-05
   author: eugene
   changelog:
+    - "1.2: Added fan-out, async execution polling, and activity summary sections"
     - "1.1: Genericized agent name detection - works with any agent"
     - "1.0: Initial version"
 ---
@@ -25,6 +26,8 @@ Collaborate with remote Trinity agents - execute prompts, sync-and-run, and conf
 | `/trinity-remote` | Show status of remote agent |
 | `/trinity-remote exec <prompt>` | Execute prompt on remote (no sync) |
 | `/trinity-remote run <prompt>` | Sync local changes, then execute (deploy-run) |
+| `/trinity-remote fan-out <prompt> [--tasks N]` | Fan out parallel tasks to self |
+| `/trinity-remote activity [hours]` | Show recent execution activity summary |
 | `/trinity-remote notify [config]` | Configure notifications |
 
 ## Arguments
@@ -201,6 +204,149 @@ Agent:
 
 ---
 
+## Fan-Out Parallel Execution (`fan-out`)
+
+Dispatch N independent tasks to this agent in parallel, collect aggregated results.
+
+**Use when:** You have independent work items (e.g., analyze 5 datasets, process multiple reports) that can run concurrently.
+
+### How It Works
+
+The `fan_out` MCP tool dispatches 1-50 tasks to the agent simultaneously, each in its own fresh context window. Results are collected with per-task status, cost, and duration.
+
+### Workflow
+
+1. **Parse tasks** from the prompt. If `--tasks N` is provided, split the prompt into N tasks. Otherwise, identify natural task boundaries.
+
+2. **Build task list** with unique IDs:
+   ```json
+   [
+     {"id": "task-1", "message": "Analyze Q1 revenue"},
+     {"id": "task-2", "message": "Analyze Q2 revenue"},
+     {"id": "task-3", "message": "Analyze Q3 revenue"}
+   ]
+   ```
+
+3. **Execute fan-out via MCP**
+   ```
+   mcp__trinity__chat_with_agent(
+     agent_name: "<agent-name>",
+     message: "fan_out",
+     tasks: [task array],
+     max_concurrency: 3,
+     timeout_seconds: 300
+   )
+   ```
+
+   **Parameters:**
+   | Param | Default | Range | Description |
+   |-------|---------|-------|-------------|
+   | `tasks` | — | 1-50 | Array of `{id, message}` objects |
+   | `max_concurrency` | 3 | 1-10 | Max simultaneous tasks |
+   | `timeout_seconds` | 600 | 10-3600 | Overall deadline |
+   | `model` | (agent default) | — | Optional model override |
+
+4. **Display aggregated results**
+   ```
+   ## Fan-Out Results
+
+   | Task | Status | Duration | Cost |
+   |------|--------|----------|------|
+   | task-1 | completed | 8.5s | $0.05 |
+   | task-2 | completed | 7.9s | $0.05 |
+   | task-3 | completed | 8.2s | $0.05 |
+
+   **Total**: 3/3 completed | $0.15 total cost
+
+   ### task-1: Q1 Revenue
+   [response text]
+
+   ### task-2: Q2 Revenue
+   [response text]
+   ...
+   ```
+
+### Constraints
+
+- **Self-only (v1)**: Agent fans out to itself, not to other agents
+- **Best-effort policy**: Partial results returned if some tasks fail or timeout
+- **Each subtask** gets its own execution record visible in the Trinity dashboard
+
+---
+
+## Async Execution & Polling
+
+For long-running tasks that exceed the MCP timeout (60s), use async execution with polling.
+
+### Workflow
+
+1. **Start async task**
+   ```
+   mcp__trinity__chat_with_agent(
+     agent_name: "<agent-name>",
+     message: "<prompt>",
+     async: true
+   )
+   ```
+   Returns: `{ status: "accepted", execution_id: "exec-abc123" }`
+
+2. **Poll for results** (repeat until status != "running")
+   ```
+   mcp__trinity__get_execution_result(
+     agent_name: "<agent-name>",
+     execution_id: "exec-abc123"
+   )
+   ```
+   Returns status, response, cost, duration, and optionally full transcript with `include_log: true`.
+
+3. **List recent executions** (for overview)
+   ```
+   mcp__trinity__list_recent_executions(
+     agent_name: "<agent-name>",
+     limit: 20,
+     status: "running"  // optional filter: pending, running, success, failed, cancelled
+   )
+   ```
+
+**Use when:** Tasks take >60 seconds, or you want fire-and-forget with later result retrieval.
+
+---
+
+## Activity Summary (`activity`)
+
+Show a high-level activity summary for monitoring and health checks.
+
+### Workflow
+
+1. **Parse hours** from arguments (default: 24, max: 168 = 7 days)
+
+2. **Query activity**
+   ```
+   mcp__trinity__get_agent_activity_summary(
+     agent_name: "<agent-name>",
+     hours: 24
+   )
+   ```
+
+3. **Display summary**
+   ```
+   ## Activity Summary: <agent-name> (Last 24h)
+
+   **Total activities**: 42
+
+   | Trigger Type | Success | Failed | Running |
+   |-------------|---------|--------|---------|
+   | Chat        | 38      | 2      | 1       |
+   | Schedule    | 35      | 1      | 0       |
+   | MCP         | 5       | 0      | 0       |
+
+   Tip: Use `/trinity-schedules history` for detailed execution logs.
+   ```
+
+   Omit `agent_name` to get fleet-wide summary across all agents (includes `by_agent` breakdown).
+
+---
+
 ## Notification Configuration (`notify`)
 
 Configure how to receive notifications from remote executions.
@@ -309,6 +455,8 @@ Webhook payload format:
 | Check remote status | `/trinity-remote` |
 | Run task on remote | `/trinity-remote exec <prompt>` |
 | Sync and run | `/trinity-remote run <prompt>` |
+| Parallel batch tasks | `/trinity-remote fan-out <prompt> --tasks 5` |
+| Recent activity | `/trinity-remote activity 24` |
 | Check notifications | `/trinity-remote notify` |
 | Set email alerts | `/trinity-remote notify email <addr>` |
 | Set webhook | `/trinity-remote notify webhook <url>` |
