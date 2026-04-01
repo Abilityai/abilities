@@ -119,6 +119,16 @@
       ]
     },
     {
+      "name": "agent-builder",
+      "source": "./plugins/agent-builder",
+      "description": "Scaffold a new Trinity-compatible Claude Code agent from scratch on any topic — creates directory, CLAUDE.md, initial skills, and Trinity files ready for development",
+      "category": "onboarding",
+      "tags": ["agent", "scaffold", "create", "trinity", "bootstrap", "onboarding"],
+      "skills": [
+        "./skills/create-agent"
+      ]
+    },
+    {
       "name": "install-cornelius",
       "source": "./plugins/install-cornelius",
       "description": "Clone the Cornelius agent repository and launch Claude Code inside it",

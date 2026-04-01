@@ -19,6 +19,7 @@ A curated collection of Claude Code plugins from [Ability.ai](https://ability.ai
 
 | Plugin | Description | Skills |
 |--------|-------------|--------|
+| [agent-builder](plugins/agent-builder/) | Scaffold a new Claude Code agent from scratch on any topic | `/create-agent` |
 | [trinity-onboard](plugins/trinity-onboard/) | Deploy agents to Trinity platform | `/trinity-onboard`, `/credential-sync`, `/trinity-sync` |
 | [playbook-builder](plugins/playbook-builder/) | Create structured playbooks with state management | `/create-playbook`, `/save-playbook` |
 | [dev-methodology](plugins/dev-methodology/) | Documentation-driven development methodology | `/init`, `/read-docs`, `/implement`, `/validate-pr` |
@@ -34,6 +35,7 @@ A curated collection of Claude Code plugins from [Ability.ai](https://ability.ai
 /plugin marketplace add abilityai/abilities
 
 # Install plugins
+/plugin install agent-builder@abilityai
 /plugin install trinity-onboard@abilityai
 /plugin install playbook-builder@abilityai
 /plugin install website-builder@abilityai
@@ -51,6 +53,24 @@ git clone https://github.com/abilityai/abilities.git
 ```
 
 ## Plugin Details
+
+### Agent Builder
+
+Scaffold a complete, Trinity-compatible Claude Code agent from scratch on any topic.
+
+```bash
+/create-agent                              # Interactive agent creation wizard
+/create-agent "PR review bot for Python"  # Start with a description
+```
+
+The wizard guides you through naming the agent, defining its purpose, choosing initial skills, and selecting plugins. It generates:
+
+- **CLAUDE.md** — Tailored identity, behavioral instructions, and plugin setup guide
+- **Initial skills** — 2-4 `.claude/skills/` playbooks based on the agent's purpose
+- **Trinity files** — `template.yaml`, `.env.example`, `.mcp.json.template`, `.gitignore`
+- **Git repo** — Initialized and committed, ready to push
+
+The generated CLAUDE.md teaches the new agent's user how to create more skills with `/create-playbook` and how to deploy to Trinity with `/trinity-onboard`.
 
 ### Trinity Onboard
 
