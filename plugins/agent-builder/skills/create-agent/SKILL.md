@@ -377,7 +377,72 @@ cd [destination] && git init && git add -A && git commit -m "Initial agent scaff
 
 ---
 
-## STEP 9: Completion
+## STEP 9: Create GitHub Repository
+
+Ask the user if they want to create a GitHub repository for this agent.
+
+Use AskUserQuestion:
+- **Question:** "Would you like me to create a GitHub repo for this agent?"
+- **Header:** "GitHub Repository"
+- **Options:**
+  1. **Yes, public** — Create a public repo
+  2. **Yes, private** — Create a private repo (recommended)
+  3. **No, I'll do it later** — Skip this step
+
+### If the user chooses to create a repo:
+
+First, verify `gh` CLI is available and authenticated:
+
+```bash
+gh auth status 2>&1
+```
+
+If not authenticated, tell the user to run `! gh auth login` and retry.
+
+Then create the repo and push:
+
+```bash
+cd [destination] && gh repo create [agent-name] --[public|private] --source=. --push --description "[Agent Display Name] — [one-line description]"
+```
+
+Report the repo URL to the user on success.
+
+**After creating the repo**, update `CLAUDE.md` to include the repository URL. Add it to the Identity section, right after the agent name line:
+
+```markdown
+## Identity
+
+You are **[Agent Display Name]** — [one-sentence purpose].
+
+**Repository:** [repo-url]
+```
+
+Then amend the initial commit to include the updated CLAUDE.md:
+
+```bash
+cd [destination] && git add CLAUDE.md && git commit --amend --no-edit && git push --force-with-lease
+```
+
+### If `gh` is not installed:
+
+Tell the user:
+> GitHub CLI (`gh`) is not installed. You can create a repo manually:
+> 1. Go to github.com/new
+> 2. Name it `[agent-name]`
+> 3. Then run:
+>    ```bash
+>    cd [destination]
+>    git remote add origin git@github.com:[username]/[agent-name].git
+>    git push -u origin main
+>    ```
+
+### If the user skips:
+
+Move on silently. The agent works fine without a remote.
+
+---
+
+## STEP 10: Completion
 
 Display this to the user:
 
