@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent
 metadata:
-  version: "4.3"
+  version: "4.4"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "4.4: CLI credential resolution (~/.trinity/config.json), deploy via `trinity deploy .`, .trinity-remote.yaml tracking, mcp_api_key from profile"
     - "4.3: Added setup.sh, voice chat, channel adapters, fan-out, per-user memory, execution query tools"
     - "4.2: Added avatar_prompt field to template.yaml generation"
     - "4.1: Added choice between full deployment and adaptation-only mode"
@@ -344,7 +345,56 @@ After analyzing the current state, use AskUserQuestion to determine what the use
 
 **SKIP THIS STEP if user chose "Adapt only".**
 
-Ask the user for their Trinity instance details using AskUserQuestion:
+Resolve credentials in this priority order:
+
+### 2a. Check environment variable
+
+If `TRINITY_API_KEY` is set in the environment, use it. Also check for `TRINITY_URL` env var.
+
+### 2b. Check Trinity CLI profile
+
+If env vars are not set, check for the Trinity CLI config file:
+
+```bash
+cat ~/.trinity/config.json 2>/dev/null
+```
+
+If the file exists, parse it:
+1. Read `current_profile` to find the active profile name
+2. Look up that profile in the `profiles` object
+3. Extract `instance_url` — use as Trinity URL
+4. Extract `token` — use as Bearer auth token / API key
+5. If `mcp_api_key` is present, save it for MCP configuration in Step 4
+
+**Example `~/.trinity/config.json`:**
+```json
+{
+  "current_profile": "production",
+  "profiles": {
+    "production": {
+      "instance_url": "https://trinity.example.com",
+      "token": "tr_abc123...",
+      "mcp_api_key": "mcp_xyz789..."
+    }
+  }
+}
+```
+
+If credentials were found from env var or CLI profile, inform the user:
+
+```
+## Credentials detected
+
+Found Trinity credentials from [environment variable / CLI profile "profile-name"]:
+- **Instance**: [instance_url]
+- **Auth**: [token prefix]...
+
+Using these for onboarding. If you'd like to use different credentials, provide them now.
+```
+
+### 2c. Prompt user interactively (fallback)
+
+If neither env var nor CLI profile is available, ask the user:
 
 ```
 ## Trinity Instance Configuration
@@ -364,7 +414,7 @@ Please provide:
    Your API key from Trinity dashboard > Settings > API Keys
 ```
 
-**IMPORTANT:** Do not proceed until the user provides both values.
+**IMPORTANT:** Do not proceed until credentials are resolved from one of the three sources.
 
 ---
 
@@ -448,7 +498,13 @@ session-files/
 
 ### 4a. Create .mcp.json
 
-Create `.mcp.json` with the actual Trinity URL and API key:
+Determine the MCP API key to use, in this priority order:
+1. `TRINITY_API_KEY` environment variable (explicit override)
+2. `mcp_api_key` from the active CLI profile (if found in Step 2b)
+3. `token` from the active CLI profile (if `mcp_api_key` is not present)
+4. User-provided API key (from Step 2c)
+
+Create `.mcp.json` with the actual Trinity URL and resolved API key:
 
 ```json
 {
@@ -457,14 +513,14 @@ Create `.mcp.json` with the actual Trinity URL and API key:
       "command": "npx",
       "args": ["-y", "mcp-remote", "[TRINITY_URL]/mcp"],
       "env": {
-        "API_KEY": "[TRINITY_API_KEY]"
+        "API_KEY": "[MCP_API_KEY]"
       }
     }
   }
 }
 ```
 
-Replace `[TRINITY_URL]` and `[TRINITY_API_KEY]` with the actual values from the user.
+Replace `[TRINITY_URL]` with the instance URL and `[MCP_API_KEY]` with the resolved MCP key.
 
 ### 4b. Create .mcp.json.template
 
@@ -521,9 +577,43 @@ if [ ! -d .git ]; then
 fi
 ```
 
-### 5b. Deploy Agent
+### 5b. Check for existing tracking file
 
-Use the Trinity MCP tool to deploy:
+Check if `.trinity-remote.yaml` exists:
+
+```bash
+cat .trinity-remote.yaml 2>/dev/null
+```
+
+If it exists:
+- Read the `agent` name and `instance` URL from it
+- If the `instance` differs from the current Trinity URL, warn the user:
+  ```
+  ⚠ The tracking file (.trinity-remote.yaml) points to a different instance:
+    Tracking file: [instance from file]
+    Current credentials: [current instance URL]
+  
+  Do you want to deploy to the current instance (will update tracking file)?
+  ```
+- Use the `agent` name from the tracking file for redeployment unless the user overrides
+
+### 5c. Deploy Agent
+
+Check if the Trinity CLI is installed:
+
+```bash
+which trinity 2>/dev/null
+```
+
+**If `trinity` CLI is available:** Deploy using the CLI command:
+
+```bash
+trinity deploy .
+```
+
+This handles archiving, uploading, versioning, stopping previous versions, and writing `.trinity-remote.yaml` automatically.
+
+**If `trinity` CLI is NOT available:** Fall back to MCP-based deploy:
 
 ```
 mcp__trinity__deploy_local_agent(
@@ -538,7 +628,19 @@ tar -czf /tmp/agent.tar.gz --exclude='.git' --exclude='node_modules' --exclude='
 base64 -i /tmp/agent.tar.gz
 ```
 
-### 5c. Verify Deployment
+After MCP-based deploy succeeds, write the tracking file manually:
+
+```yaml
+# Auto-generated by trinity deploy — do not edit
+instance: [TRINITY_URL]
+agent: [agent-name]
+profile: [CLI profile name if used, or "default"]
+deployed_at: [ISO 8601 timestamp]
+```
+
+Save this as `.trinity-remote.yaml` in the agent directory.
+
+### 5d. Verify Deployment
 
 ```
 mcp__trinity__get_agent(name: "[agent-name]")
@@ -569,6 +671,7 @@ Your agent is now live on Trinity.
 - [x] .gitignore
 - [x] .mcp.json (with your credentials)
 - [x] .mcp.json.template (template)
+- [x] .trinity-remote.yaml (deployment tracking)
 
 ### Next Steps
 

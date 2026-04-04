@@ -27,7 +27,12 @@ Want us to provision and manage a Trinity instance for you?
 | **Trinity URL** | Your instance URL (e.g., `https://trinity.example.com`) |
 | **API Key** | From Trinity dashboard > Settings > API Keys |
 
-You'll be prompted for these when running `/trinity-onboard`.
+Credentials are resolved automatically in this order:
+1. `TRINITY_API_KEY` / `TRINITY_URL` environment variables
+2. Trinity CLI profile (`~/.trinity/config.json`) — if you've run `trinity init`
+3. Interactive prompt (fallback)
+
+If the Trinity CLI is installed, `/trinity-onboard` will also use `trinity deploy .` for deployment, which handles versioning and tracking automatically.
 
 ## How It Works: Local-Remote Pairing
 
@@ -153,6 +158,7 @@ Creates required files:
 - `.gitignore` - Security exclusions
 - `.env.example` - Document required variables
 - `.mcp.json.template` - MCP config with placeholders
+- `.trinity-remote.yaml` - Deployment tracking (shared with Trinity CLI)
 
 ### 3. Sync with Remote
 
