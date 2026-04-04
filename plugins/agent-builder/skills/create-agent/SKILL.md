@@ -191,6 +191,53 @@ To run this agent remotely (scheduled tasks, always-on, API access):
   memory/                # Persistent state (if using memory plugin)
 ```
 
+## Artifact Dependency Graph
+
+This agent's workspace contains artifacts that depend on each other. When one changes, others may need updating. The **source** is authoritative — when source and target disagree, update the target.
+
+```yaml
+artifacts:
+  CLAUDE.md:
+    mode: prescriptive
+    direction: source
+    description: "Agent identity and behavior — single source of truth"
+
+  [artifact-1]:
+    mode: [prescriptive|descriptive]
+    direction: [source|target]
+    sources: [list of artifacts this derives from]
+    description: "[what this artifact represents]"
+
+  [artifact-2]:
+    mode: [prescriptive|descriptive]
+    direction: [source|target]
+    sources: [list of artifacts this derives from]
+    description: "[what this artifact represents]"
+
+sync_skills:
+  - skill: /[skill-name]
+    source: [source artifacts]
+    target: [target artifacts]
+    trigger: [when to run]
+```
+
+**Direction rules:**
+- **Source wins**: When two artifacts conflict, the source is correct, the target is stale
+- **Prescriptive** artifacts define intent (what *should* be true) — implementation conforms to them
+- **Descriptive** artifacts reflect reality (what *is* true) — they conform to implementation
+- Artifacts can transition: a new spec starts prescriptive, then becomes descriptive after implementation
+
+## Recommended Schedules
+
+Skills that should run on a recurring basis once the agent is deployed to Trinity:
+
+| Skill | Schedule | Purpose |
+|-------|----------|---------|
+| `/[skill-name]` | [cron expression or human interval] | [why it runs on this cadence] |
+| `/[skill-name]` | [cron expression or human interval] | [why it runs on this cadence] |
+
+*To activate schedules after deploying to Trinity, use `/trinity-schedules`.*
+
 ## Guidelines
 
 [2-4 domain-specific guidelines for how this agent should behave. Examples:]
@@ -225,6 +272,21 @@ Usage: Memory loads automatically at session start. Use `/json-memory:update-mem
 If the user selected utilities, include relevant skills for the agent's domain.
 
 If no additional plugins were selected, remove the placeholder entirely.
+
+**Artifact Dependency Graph guidance:** Populate the graph based on the agent's actual artifacts and skills. Every agent has at minimum:
+- `CLAUDE.md` as a prescriptive source (defines the agent)
+- Each skill's `SKILL.md` as a prescriptive source (defines behavior)
+- Any generated outputs (reports, docs, configs) as descriptive targets
+
+Map the agent's skills as `sync_skills` entries — each skill that produces or updates an artifact should be listed with its source, target, and trigger. This gives the agent structured reasoning about its workspace instead of ad-hoc update rules.
+
+**Recommended Schedules guidance:** Based on the agent's skills and purpose, suggest which skills benefit from running on a schedule. Consider:
+- **Monitoring/health** skills → frequent (every 15m–1h)
+- **Sync/update** skills → moderate (every 1–6h or daily)
+- **Report/summary** skills → daily or weekly
+- **Cleanup/maintenance** skills → weekly
+
+Only include skills that make sense as automated recurring tasks. Interactive or on-demand skills should not be scheduled. Use human-readable intervals (e.g., "every 6 hours", "daily at 9am UTC") alongside cron expressions.
 
 ---
 

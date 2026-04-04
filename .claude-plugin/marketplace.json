@@ -125,7 +125,8 @@
       "category": "onboarding",
       "tags": ["agent", "scaffold", "create", "trinity", "bootstrap", "onboarding"],
       "skills": [
-        "./skills/create-agent"
+        "./skills/create-agent",
+        "./skills/adjust-agent"
       ]
     },
     {

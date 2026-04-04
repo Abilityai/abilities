@@ -19,7 +19,7 @@ A curated collection of Claude Code plugins from [Ability.ai](https://ability.ai
 
 | Plugin | Description | Skills |
 |--------|-------------|--------|
-| [agent-builder](plugins/agent-builder/) | Scaffold a new Claude Code agent from scratch on any topic | `/create-agent` |
+| [agent-builder](plugins/agent-builder/) | Scaffold and improve Claude Code agents | `/create-agent`, `/adjust-agent` |
 | [trinity-onboard](plugins/trinity-onboard/) | Deploy agents to Trinity platform | `/trinity-onboard`, `/credential-sync`, `/trinity-sync` |
 | [playbook-builder](plugins/playbook-builder/) | Create structured playbooks with state management | `/create-playbook`, `/save-playbook` |
 | [dev-methodology](plugins/dev-methodology/) | Documentation-driven development methodology | `/init`, `/read-docs`, `/implement`, `/validate-pr` |
@@ -61,16 +61,18 @@ Scaffold a complete, Trinity-compatible Claude Code agent from scratch on any to
 ```bash
 /create-agent                              # Interactive agent creation wizard
 /create-agent "PR review bot for Python"  # Start with a description
+/adjust-agent                              # Review and improve an existing agent
+/adjust-agent ~/my-agent                   # Review agent at a specific path
 ```
 
-The wizard guides you through naming the agent, defining its purpose, choosing initial skills, and selecting plugins. It generates:
+**`/create-agent`** guides you through naming, purpose, initial skills, and plugin selection. It generates:
 
-- **CLAUDE.md** — Tailored identity, behavioral instructions, and plugin setup guide
+- **CLAUDE.md** — Tailored identity, behavioral instructions, artifact dependency graph, recommended schedules, and plugin setup guide
 - **Initial skills** — 2-4 `.claude/skills/` playbooks based on the agent's purpose
 - **Trinity files** — `template.yaml`, `.env.example`, `.mcp.json.template`, `.gitignore`
 - **Git repo** — Initialized and committed, ready to push
 
-The generated CLAUDE.md teaches the new agent's user how to create more skills with `/create-playbook` and how to deploy to Trinity with `/trinity-onboard`.
+**`/adjust-agent`** audits an existing agent against best practices across 9 areas (identity, capabilities, artifact dependency graph, recommended schedules, guidelines, skill docs, skill quality, Trinity readiness, project hygiene). It proposes specific before/after diffs, lets you pick which to apply, and makes the edits.
 
 ### Trinity Onboard
 
