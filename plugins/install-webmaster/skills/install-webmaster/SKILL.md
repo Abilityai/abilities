@@ -62,39 +62,39 @@ Ask these 3 questions to customize the agent. Each answer directly shapes the ge
 ### Q1: Site Types
 
 Use AskUserQuestion:
-- **Question:** "What kind of websites do you typically build?"
+- **Question:** "What kind of websites will you build with this agent? This sets the default page templates and component library — you can always create other site types later."
 - **Header:** "Site Types"
 - **multiSelect: true**
 - **Options:**
-  1. **SaaS landing pages** — Product marketing sites with hero, features, pricing, CTA
-  2. **Agency / company sites** — Multi-page corporate sites with services, team, case studies
-  3. **Portfolios** — Personal or creative showcase sites
-  4. **Documentation / blogs** — Content-heavy sites with dynamic routes
+  1. **SaaS landing pages** — Hero → features → pricing → CTA. Best for product marketing and signups.
+  2. **Agency / company sites** — Services, team bios, case studies. Best for businesses that need a multi-page presence.
+  3. **Portfolios** — Visual showcase with minimal chrome. Best for designers, photographers, freelancers.
+  4. **Documentation / blogs** — Article-driven with dynamic routes. Best for content-first sites and knowledge bases.
 
 Store the answer — it customizes: homepage templates in /create-website, default page suggestions, component library focus.
 
 ### Q2: Default Design Direction
 
 Use AskUserQuestion:
-- **Question:** "What's your go-to design style? (Can be overridden per project)"
+- **Question:** "Pick a default design style. This becomes the starting point when you run /create-website — you can still override it per project."
 - **Header:** "Design"
 - **Options:**
-  1. **Minimal Clean** — White/light backgrounds, subtle borders, Swiss-inspired. Inter font.
-  2. **Bold Dark** — Dark backgrounds, vivid accents, glassmorphism cards. Inter font.
-  3. **Warm Professional** — Warm neutrals, rounded shapes, friendly. DM Sans font.
-  4. **Always ask** — Prompt for design direction on every project
+  1. **Minimal Clean** — Light backgrounds, subtle borders, lots of whitespace. Think Stripe, Linear. Good for SaaS and professional sites.
+  2. **Bold Dark** — Dark backgrounds, vivid accent colors, glassmorphism cards. Think Vercel, Raycast. Good for dev tools and modern products.
+  3. **Warm Professional** — Soft neutrals, rounded shapes, approachable feel. Think Notion, Mailchimp. Good for friendly brands.
+  4. **Always ask** — No default — the agent will ask you each time you create a site.
 
 Store the answer — it customizes: default design preset in /create-website skill, CSS variable defaults in reference material.
 
 ### Q3: Deployment Setup
 
 Use AskUserQuestion:
-- **Question:** "How do you deploy your sites?"
+- **Question:** "How should the agent handle deployment? This controls whether /create-website pushes to GitHub and deploys automatically, or just builds locally."
 - **Header:** "Deploy"
 - **Options:**
-  1. **Vercel + GitHub** — Full pipeline: GitHub repo → Vercel auto-deploy (recommended)
-  2. **GitHub only** — Push to GitHub, deploy separately
-  3. **Manual** — No automation, I'll handle deployment myself
+  1. **Vercel + GitHub (Recommended)** — Creates a GitHub repo, pushes code, and deploys to Vercel with auto-deploy on every push. Fastest path to a live site.
+  2. **GitHub only** — Creates a GitHub repo and pushes, but you handle hosting yourself (Netlify, Cloudflare, etc.)
+  3. **Manual** — No repo or deploy automation. Just builds the site locally and you take it from there.
 
 Store the answer — it customizes: which deployment steps are included in /create-website, .env.example, onboarding steps.
 
