@@ -37,6 +37,7 @@ The fastest way to get started is `/create` — a single entry point that shows 
 
 | Plugin | Command | What it creates |
 |--------|---------|-----------------|
+| [install-chiefofstaff](plugins/install-chiefofstaff/) | `/install-chiefofstaff` | Executive chief of staff — daily briefings, meeting prep, decision tracking |
 | [install-prospector](plugins/install-prospector/) | `/install-prospector` | B2B SaaS sales research agent — Apollo, LinkedIn, company research, ICP scoring |
 | [install-webmaster](plugins/install-webmaster/) | `/install-webmaster` | Website management agent — scaffolds and deploys Next.js 15 sites to Vercel |
 | [clone-cornelius](plugins/clone-cornelius/) | `/clone-cornelius` | Pre-built general-purpose agent (clone, not wizard) |
@@ -49,6 +50,7 @@ The fastest way to get started is `/create` — a single entry point that shows 
 | Plugin | Description | Skills |
 |--------|-------------|--------|
 | [agent-builder](plugins/agent-builder/) | Scaffold and improve Claude Code agents | `/create`, `/create-agent`, `/adjust-agent` |
+| [install-chiefofstaff](plugins/install-chiefofstaff/) | Executive chief of staff wizard | `/install-chiefofstaff` |
 | [install-prospector](plugins/install-prospector/) | B2B SaaS sales research agent wizard | `/install-prospector` |
 | [install-webmaster](plugins/install-webmaster/) | Website management agent wizard | `/install-webmaster` |
 | [clone-cornelius](plugins/clone-cornelius/) | Clone the Cornelius agent | `/clone-cornelius` |
@@ -132,6 +134,13 @@ Scaffold a complete, Trinity-compatible Claude Code agent from scratch on any to
 ### Install Wizards
 
 Domain-specific guided flows that ask the right questions and output a fully customized agent with an onboarding tracker.
+
+**Install Chief of Staff** — Executive support agent:
+```bash
+/install-chiefofstaff                  # Guided wizard
+/install-chiefofstaff ~/my-agents/cos  # Custom destination
+```
+Asks about your tools (Google Workspace, Slack, Notion, Linear), team size, briefing priorities, and decision tracking workflow. Creates `/daily-briefing`, `/prep-meeting`, `/track-decision`, and `/weekly-digest` skills. Designed for Trinity — schedule your morning briefing at 7am and weekly digest on Fridays.
 
 **Install Prospector** — B2B SaaS sales research agent:
 ```bash

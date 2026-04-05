@@ -151,6 +151,16 @@
       ]
     },
     {
+      "name": "install-chiefofstaff",
+      "source": "./plugins/install-chiefofstaff",
+      "description": "Create an executive chief of staff agent — daily briefings, meeting prep, decision tracking, and weekly digests",
+      "category": "onboarding",
+      "tags": ["chiefofstaff", "install", "setup", "agent", "onboarding", "wizard", "executive", "briefing", "decisions"],
+      "skills": [
+        "./skills/install-chiefofstaff"
+      ]
+    },
+    {
       "name": "install-webmaster",
       "source": "./plugins/install-webmaster",
       "description": "Create a website management agent — guided wizard that scaffolds a Trinity-compatible webmaster agent for building and deploying Next.js sites",

@@ -38,9 +38,9 @@ Use AskUserQuestion:
 - **Header:** "Create"
 - **Options:**
 
-  1. **Sales research agent** — Guided wizard for B2B SaaS prospecting with Apollo, LinkedIn, and more (`/install-prospector`)
-  2. **Website management agent** — An agent that builds and deploys Next.js sites — for teams that create many sites (`/install-webmaster`)
-  3. **Single website** — Just scaffold one Next.js site, no agent wrapper (`/create-website` from website-builder)
+  1. **Chief of Staff** — Daily briefings, meeting prep, decision tracking, and weekly digests for executives (`/install-chiefofstaff`)
+  2. **Sales research agent** — B2B SaaS prospecting with Apollo, LinkedIn, company research, ICP scoring (`/install-prospector`)
+  3. **Website management agent** — Build and deploy Next.js sites to Vercel (`/install-webmaster`). For a single site without an agent, use `/create-website` instead.
   4. **Custom agent from scratch** — Blank canvas, you define everything (`/create-agent`)
 
 ### Step 3: Launch
