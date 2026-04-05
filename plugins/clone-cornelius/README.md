@@ -1,12 +1,12 @@
-# install-cornelius
+# clone-cornelius
 
-Install [Cornelius](https://github.com/Abilityai/cornelius) — clone the repository and get set up in one step.
+Clone [Cornelius](https://github.com/Abilityai/cornelius) — clone the repository and get set up in one step.
 
 ## Usage
 
 ```
-/install-cornelius
-/install-cornelius ~/my-agents/cornelius
+/clone-cornelius
+/clone-cornelius ~/my-agents/cornelius
 ```
 
 ## What It Does
@@ -19,16 +19,16 @@ Install [Cornelius](https://github.com/Abilityai/cornelius) — clone the reposi
 
 **One-liner (if you already have the abilityai marketplace):**
 ```bash
-claude plugin install install-cornelius@abilityai
+claude plugin install clone-cornelius@abilityai
 ```
 
 **First time with abilityai marketplace:**
 ```bash
-claude plugin add abilityai/abilities && claude plugin install install-cornelius@abilityai
+claude plugin add abilityai/abilities && claude plugin install clone-cornelius@abilityai
 ```
 
 Or from inside a Claude Code session:
 ```
 /plugin marketplace add abilityai/abilities
-/plugin install install-cornelius@abilityai
+/plugin install clone-cornelius@abilityai
 ```

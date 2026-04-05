@@ -1,5 +1,5 @@
 ---
-name: install-cornelius
+name: clone-cornelius
 description: Clone the Cornelius agent repository and guide the user to open Claude Code inside it
 argument-hint: "[destination-path]"
 disable-model-invocation: false
@@ -11,7 +11,7 @@ metadata:
   author: Ability.ai
 ---
 
-# Install Cornelius
+# Clone Cornelius
 
 Clone [Cornelius](https://github.com/Abilityai/cornelius) and launch Claude Code inside the repository.
 

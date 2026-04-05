@@ -15,16 +15,67 @@ A curated collection of Claude Code plugins from [Ability.ai](https://ability.ai
 /plugin install trinity-onboard@abilityai
 ```
 
-## Available Plugins
+## Creating Agents
+
+The fastest way to get started is `/create` — a single entry point that shows all available creation paths:
+
+```
+/create
+```
+
+### Three-Tier System
+
+| Prefix | What it does | Example |
+|--------|-------------|---------|
+| **`/install-*`** | Guided wizard — asks domain questions, scaffolds a customized agent | `/install-prospector` |
+| **`/clone-*`** | Clones a pre-built agent repository as-is | `/clone-cornelius` |
+| **`/create-*`** | Generic scaffolder — blank canvas for any domain | `/create-agent` |
+
+**`/install-*` wizards** are the recommended path. Each one is a domain expert that asks the right questions and builds a fully configured, Trinity-compatible agent with an onboarding tracker that guides you from local setup through deployment.
+
+### Available Wizards
+
+| Plugin | Command | What it creates |
+|--------|---------|-----------------|
+| [install-prospector](plugins/install-prospector/) | `/install-prospector` | B2B SaaS sales research agent — Apollo, LinkedIn, company research, ICP scoring |
+| [install-webmaster](plugins/install-webmaster/) | `/install-webmaster` | Website management agent — scaffolds and deploys Next.js 15 sites to Vercel |
+| [clone-cornelius](plugins/clone-cornelius/) | `/clone-cornelius` | Pre-built general-purpose agent (clone, not wizard) |
+| [agent-builder](plugins/agent-builder/) | `/create-agent` | Custom agent from scratch — you define everything |
+
+## All Plugins
+
+### Agent Creation & Onboarding
 
 | Plugin | Description | Skills |
 |--------|-------------|--------|
-| [agent-builder](plugins/agent-builder/) | Scaffold and improve Claude Code agents | `/create-agent`, `/adjust-agent` |
+| [agent-builder](plugins/agent-builder/) | Scaffold and improve Claude Code agents | `/create`, `/create-agent`, `/adjust-agent` |
+| [install-prospector](plugins/install-prospector/) | B2B SaaS sales research agent wizard | `/install-prospector` |
+| [install-webmaster](plugins/install-webmaster/) | Website management agent wizard | `/install-webmaster` |
+| [clone-cornelius](plugins/clone-cornelius/) | Clone the Cornelius agent | `/clone-cornelius` |
+
+### Development & Deployment
+
+| Plugin | Description | Skills |
+|--------|-------------|--------|
 | [trinity-onboard](plugins/trinity-onboard/) | Deploy agents to Trinity platform | `/trinity-onboard`, `/credential-sync`, `/trinity-sync` |
 | [playbook-builder](plugins/playbook-builder/) | Create structured playbooks with state management | `/create-playbook`, `/save-playbook` |
 | [dev-methodology](plugins/dev-methodology/) | Documentation-driven development methodology | `/init`, `/read-docs`, `/implement`, `/validate-pr` |
-| [website-builder](plugins/website-builder/) | Scaffold Next.js 15 websites and deploy to Vercel via GitHub | `/create-website` |
-| [utilities](plugins/utilities/) | Ops workflows, deployment, incident response, and conversation management | `/investigate-incident`, `/bug-report`, `/safe-deploy`, `/docker-ops`, `/sync-ops-knowledge`, `/save-conversation`, `/batch-claude-loop` |
+
+### Memory & Workspace
+
+| Plugin | Description | Skills |
+|--------|-------------|--------|
+| [brain-memory](plugins/brain-memory/) | Zettelkasten-style knowledge management | `/setup-brain`, `/create-note`, `/search-brain` |
+| [json-memory](plugins/json-memory/) | Structured JSON state with jq-based updates | `/setup-memory`, `/load-memory`, `/update-memory` |
+| [file-indexing](plugins/file-indexing/) | Workspace file awareness and search | `/setup-index`, `/refresh-index`, `/search-files` |
+| [workspace-kit](plugins/workspace-kit/) | Project folder scaffolding and tracking | `/create-project`, `/create-session` |
+
+### Productivity & Ops
+
+| Plugin | Description | Skills |
+|--------|-------------|--------|
+| [utilities](plugins/utilities/) | Ops workflows, deployment, incident response | `/investigate-incident`, `/safe-deploy`, `/docker-ops` |
+| [project-planner](plugins/project-planner/) | Multi-session project execution | `/project-plan` |
 
 ## Installation
 
@@ -36,9 +87,10 @@ A curated collection of Claude Code plugins from [Ability.ai](https://ability.ai
 
 # Install plugins
 /plugin install agent-builder@abilityai
+/plugin install install-prospector@abilityai
+/plugin install install-webmaster@abilityai
 /plugin install trinity-onboard@abilityai
 /plugin install playbook-builder@abilityai
-/plugin install website-builder@abilityai
 /plugin install utilities@abilityai
 ```
 
@@ -59,11 +111,13 @@ git clone https://github.com/abilityai/abilities.git
 Scaffold a complete, Trinity-compatible Claude Code agent from scratch on any topic.
 
 ```bash
-/create-agent                              # Interactive agent creation wizard
+/create                                # Discovery — shows all creation paths
+/create-agent                          # Interactive agent creation wizard
 /create-agent "PR review bot for Python"  # Start with a description
-/adjust-agent                              # Review and improve an existing agent
-/adjust-agent ~/my-agent                   # Review agent at a specific path
+/adjust-agent                          # Review and improve an existing agent
 ```
+
+**`/create`** is the recommended starting point — it lists all available wizards, clones, and scaffolders so you can pick the right one.
 
 **`/create-agent`** guides you through naming, purpose, initial skills, and plugin selection. It generates:
 
@@ -73,6 +127,28 @@ Scaffold a complete, Trinity-compatible Claude Code agent from scratch on any to
 - **Git repo** — Initialized and committed, ready to push
 
 **`/adjust-agent`** audits an existing agent against best practices across 9 areas (identity, capabilities, artifact dependency graph, recommended schedules, guidelines, skill docs, skill quality, Trinity readiness, project hygiene). It proposes specific before/after diffs, lets you pick which to apply, and makes the edits.
+
+### Install Wizards
+
+Domain-specific guided flows that ask the right questions and output a fully customized agent with an onboarding tracker.
+
+**Install Prospector** — B2B SaaS sales research agent:
+```bash
+/install-prospector                    # Guided wizard
+/install-prospector ~/my-agents/scout  # Custom destination
+```
+Asks about your ICP, research tools (Apollo, LinkedIn, Crunchbase, ZoomInfo), CRM, and research priorities. Creates `/research-company` and `/score-fit` skills.
+
+**Install Webmaster** — Website management agent:
+```bash
+/install-webmaster                     # Guided wizard
+/install-webmaster ~/my-agents/web     # Custom destination
+```
+Asks about site types, design direction, and deployment setup. Creates `/create-website` skill with full 20-step scaffolding workflow (Next.js 15, Tailwind, Vercel).
+
+Every wizard-created agent includes:
+- **`/onboarding`** — Persistent checklist that tracks setup progress across sessions (local setup → Trinity deployment → scheduled tasks)
+- **`onboarding.json`** — State file that survives between conversations
 
 ### Trinity Onboard
 
@@ -127,49 +203,26 @@ Documentation-driven development methodology for Claude Code projects. Enforces 
 
 Includes 14 skills, 3 sub-agents (test-runner, feature-flow-analyzer, security-analyzer), and templates for project memory files (requirements, architecture, changelog, feature flows).
 
-### Website Builder
-
-Scaffold complete, production-ready Next.js 15 websites and deploy to Vercel in minutes. Creates a GitHub repo, pushes, and deploys via Vercel MCP — all from a single skill.
-
-```bash
-/create-website my-landing-page    # Scaffold, push to GitHub, deploy to Vercel
-```
-
-- **Full stack**: Next.js 15 App Router, TypeScript, Tailwind CSS, CSS variable design system
-- **Design presets**: Minimal Clean, Bold Dark, Warm Professional, or Custom
-- **GitHub + Vercel**: Creates repo via `gh`, deploys via Vercel MCP with auto-deploy on push
-- **Production-ready**: SEO (sitemap, robots, OpenGraph), image optimization, cache headers
-
-Requires [GitHub CLI](https://cli.github.com) and optionally the [Vercel MCP server](https://vercel.com/docs/agent-resources/vercel-mcp) for one-command deployment.
-
 ### Utilities
 
 General-purpose ops and productivity skills for SSH-accessible services and daily agent workflows.
 
 ```bash
-/investigate-incident              # Structured incident investigation with severity classification and root cause report
+/investigate-incident              # Structured incident investigation with severity classification
 /bug-report                        # Create a sanitized GitHub issue (redacts IPs, credentials, PII)
 /safe-deploy update                # Safe deployment: backup → pull → rebuild → restart → validate
 /safe-deploy rollback              # Revert to previous commit with optional DB restore
 /safe-deploy diagnose              # Health check: containers, errors, restarts, disk, memory
-/docker-ops logs [service]         # View logs from any service with optional error filtering
-/docker-ops restart [service|all]  # Graceful service restart with post-restart validation
-/docker-ops telemetry              # CPU, memory, disk, and container resource stats
+/docker-ops logs [service]         # View logs with optional error filtering
+/docker-ops restart [service|all]  # Graceful service restart with validation
+/docker-ops telemetry              # CPU, memory, disk, and container stats
 /docker-ops cleanup                # Prune Docker resources (dry-run by default)
-/sync-ops-knowledge                # Review recent commits and update ops docs for new env vars, schema changes, API changes
-/save-conversation                 # Save the current conversation as a structured markdown file
-/batch-claude-loop                 # Orchestrate batch headless Claude Code calls with structured output
+/sync-ops-knowledge                # Review commits, update ops docs for env/schema/API changes
+/save-conversation                 # Save conversation as structured markdown
+/batch-claude-loop                 # Batch headless Claude Code calls with structured output
 ```
 
-All skills connect via SSH and work with any docker-compose-based stack. Configure with a local `.env` file:
-
-```bash
-SSH_HOST=your-server-ip
-SSH_USER=ubuntu
-SSH_KEY=~/.ssh/id_rsa
-APP_PATH=~/app
-COMPOSE_FILE=docker-compose.yml
-```
+All skills connect via SSH and work with any docker-compose-based stack.
 
 ## Contributing
 
@@ -183,6 +236,16 @@ We welcome contributions! See [CLAUDE.md](CLAUDE.md) for development guidelines.
 4. Add a `README.md` with usage documentation
 5. Register in `.claude-plugin/marketplace.json`
 6. Submit a pull request
+
+### Creating Install Wizards
+
+Install wizards are domain-specific agent creation flows. To create one, use [Lilu](https://github.com/vybe/lilu) — the wizard manager:
+
+```bash
+/create-wizard "description of the domain"
+```
+
+Lilu designs the question flow, generates the complete plugin package, and registers it in the marketplace.
 
 ## License
 

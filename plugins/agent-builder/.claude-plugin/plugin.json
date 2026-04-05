@@ -1,7 +1,7 @@
 {
   "name": "agent-builder",
   "description": "Scaffold a new Trinity-compatible Claude Code agent from scratch on any topic",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"

@@ -125,28 +125,39 @@
       "category": "onboarding",
       "tags": ["agent", "scaffold", "create", "trinity", "bootstrap", "onboarding"],
       "skills": [
+        "./skills/create",
         "./skills/create-agent",
         "./skills/adjust-agent"
       ]
     },
     {
-      "name": "install-cornelius",
-      "source": "./plugins/install-cornelius",
+      "name": "clone-cornelius",
+      "source": "./plugins/clone-cornelius",
       "description": "Clone the Cornelius agent repository and launch Claude Code inside it",
       "category": "onboarding",
-      "tags": ["cornelius", "install", "setup", "agent", "onboarding"],
+      "tags": ["cornelius", "clone", "setup", "agent", "onboarding"],
       "skills": [
-        "./skills/install-cornelius"
+        "./skills/clone-cornelius"
       ]
     },
     {
-      "name": "website-builder",
-      "source": "./plugins/website-builder",
-      "description": "Scaffold complete, production-ready Next.js 15 websites deployable to Vercel in minutes — with design system, components, pages, SEO, and content management",
-      "category": "developer-tools",
-      "tags": ["website", "nextjs", "vercel", "scaffold", "tailwind", "react", "typescript"],
+      "name": "install-prospector",
+      "source": "./plugins/install-prospector",
+      "description": "Create a B2B SaaS sales research agent — guided wizard that scaffolds a Trinity-compatible agent customized to your sales stack",
+      "category": "onboarding",
+      "tags": ["prospector", "install", "setup", "agent", "onboarding", "wizard", "sales", "research", "b2b"],
       "skills": [
-        "./skills/create-website"
+        "./skills/install-prospector"
+      ]
+    },
+    {
+      "name": "install-webmaster",
+      "source": "./plugins/install-webmaster",
+      "description": "Create a website management agent — guided wizard that scaffolds a Trinity-compatible webmaster agent for building and deploying Next.js sites",
+      "category": "onboarding",
+      "tags": ["webmaster", "install", "setup", "agent", "onboarding", "wizard", "website", "nextjs", "vercel"],
+      "skills": [
+        "./skills/install-webmaster"
       ]
     },
     {
