@@ -39,8 +39,8 @@ Use AskUserQuestion:
 - **Options:**
 
   1. **Sales research agent** — Guided wizard for B2B SaaS prospecting with Apollo, LinkedIn, and more (`/install-prospector`)
-  2. **Website** — Production-ready Next.js site with design system, SEO, and Vercel deployment (`/install-webmaster`)
-  3. **Clone Cornelius** — Pre-built general-purpose agent, cloned and ready to use (`/clone-cornelius`)
+  2. **Website management agent** — An agent that builds and deploys Next.js sites — for teams that create many sites (`/install-webmaster`)
+  3. **Single website** — Just scaffold one Next.js site, no agent wrapper (`/create-website` from website-builder)
   4. **Custom agent from scratch** — Blank canvas, you define everything (`/create-agent`)
 
 ### Step 3: Launch

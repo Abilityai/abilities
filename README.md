@@ -57,6 +57,7 @@ The fastest way to get started is `/create` — a single entry point that shows 
 
 | Plugin | Description | Skills |
 |--------|-------------|--------|
+| [website-builder](plugins/website-builder/) | Scaffold a single Next.js 15 website (no agent, just a site) | `/create-website` |
 | [trinity-onboard](plugins/trinity-onboard/) | Deploy agents to Trinity platform | `/trinity-onboard`, `/credential-sync`, `/trinity-sync` |
 | [playbook-builder](plugins/playbook-builder/) | Create structured playbooks with state management | `/create-playbook`, `/save-playbook` |
 | [dev-methodology](plugins/dev-methodology/) | Documentation-driven development methodology | `/init`, `/read-docs`, `/implement`, `/validate-pr` |
@@ -144,7 +145,7 @@ Asks about your ICP, research tools (Apollo, LinkedIn, Crunchbase, ZoomInfo), CR
 /install-webmaster                     # Guided wizard
 /install-webmaster ~/my-agents/web     # Custom destination
 ```
-Asks about site types, design direction, and deployment setup. Creates `/create-website` skill with full 20-step scaffolding workflow (Next.js 15, Tailwind, Vercel).
+Asks about site types, design direction, and deployment setup. Creates a website management agent with `/create-website` skill — build multiple sites from one agent. For building a single site without an agent, use `/create-website` from the **website-builder** plugin instead.
 
 Every wizard-created agent includes:
 - **`/onboarding`** — Persistent checklist that tracks setup progress across sessions (local setup → Trinity deployment → scheduled tasks)
