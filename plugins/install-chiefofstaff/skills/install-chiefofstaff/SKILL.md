@@ -6,7 +6,7 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-04
   author: Ability.ai
 ---
@@ -121,6 +121,7 @@ mkdir -p [destination]/.claude/skills/prep-meeting
 mkdir -p [destination]/.claude/skills/track-decision
 mkdir -p [destination]/.claude/skills/weekly-digest
 mkdir -p [destination]/.claude/skills/onboarding
+mkdir -p [destination]/.claude/skills/update-dashboard
 mkdir -p [destination]/decisions
 ```
 
@@ -168,6 +169,7 @@ You think like a world-class chief of staff: concise, anticipatory, and opiniona
 | `/prep-meeting` | Pre-meeting brief — attendees, context, open items, suggested talking points |
 | `/track-decision` | Log a decision, assign follow-ups, set deadlines |
 | `/weekly-digest` | End-of-week summary — decisions made, commitments tracked, next week's priorities |
+| `/update-dashboard` | Refresh Trinity dashboard metrics from agent data |
 
 ## Data Sources
 
@@ -235,6 +237,7 @@ chiefofstaff/
   CLAUDE.md              # This file — agent identity and instructions
   template.yaml          # Trinity metadata
   onboarding.json        # Setup progress tracker
+  dashboard.yaml         # Trinity dashboard metrics
   .env.example           # Required environment variables
   .gitignore             # Git exclusions
   .mcp.json.template     # MCP server config template
@@ -246,6 +249,7 @@ chiefofstaff/
       track-decision/SKILL.md    # Decision logging
       weekly-digest/SKILL.md     # Weekly summary
       onboarding/SKILL.md        # Setup tracker
+      update-dashboard/SKILL.md  # Dashboard metrics updater
 ` ` `
 
 ## Artifact Dependency Graph
@@ -289,6 +293,12 @@ artifacts:
     sources: [onboarding/SKILL.md]
     description: "Persistent onboarding state — updated by /onboarding skill"
 
+  dashboard.yaml:
+    mode: descriptive
+    direction: target
+    sources: [update-dashboard/SKILL.md]
+    description: "Trinity dashboard layout and metrics — updated by /update-dashboard"
+
   template.yaml:
     mode: prescriptive
     direction: source
@@ -301,6 +311,7 @@ artifacts:
 |-------|----------|---------|
 | `/daily-briefing` | `0 7 * * 1-5` (weekdays 7am) | Morning briefing ready before you start |
 | `/weekly-digest` | `0 16 * * 5` (Friday 4pm) | Week-closing summary |
+| `/update-dashboard` | `0 */6 * * *` (every 6 hours) | Keep Trinity dashboard metrics current |
 
 ## Guidelines
 
@@ -783,7 +794,137 @@ Write `[destination]/.claude/skills/onboarding/SKILL.md` following the standard 
 
 ---
 
-## STEP 7: Generate Supporting Files
+## STEP 7: Generate Dashboard
+
+### 7a. Generate dashboard.yaml
+
+Write `[destination]/dashboard.yaml`:
+
+```yaml
+title: "Chief of Staff"
+refresh: 300
+updated: "[today's date ISO]"
+
+sections:
+  - title: "Status"
+    layout: grid
+    columns: 3
+    widgets:
+      - type: status
+        label: "Agent Status"
+        value: "Active"
+        color: green
+      - type: metric
+        label: "Last Briefing"
+        value: "—"
+        description: "Most recent /daily-briefing run"
+      - type: metric
+        label: "Decisions Tracked"
+        value: "0"
+        description: "Total in decisions/"
+
+  - title: "Operations"
+    layout: grid
+    columns: 3
+    widgets:
+      - type: metric
+        label: "Pending Decisions"
+        value: "0"
+        description: "Open follow-ups awaiting action"
+      - type: metric
+        label: "Open Blockers"
+        value: "0"
+        description: "Overdue commitments"
+        color: red
+      - type: metric
+        label: "Upcoming Meetings"
+        value: "0"
+        description: "Meeting preps this week"
+
+  - title: "Quick Links"
+    layout: list
+    widgets:
+      - type: link
+        label: "Trinity Dashboard"
+        url: "https://ability.ai"
+        external: true
+```
+
+### 7b. Generate /update-dashboard skill
+
+Write `[destination]/.claude/skills/update-dashboard/SKILL.md`:
+
+```yaml
+---
+name: update-dashboard
+description: Refresh dashboard.yaml with current metrics from chief of staff agent data
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+user-invocable: true
+metadata:
+  version: "1.0"
+  created: 2026-04-06
+  author: chiefofstaff
+---
+```
+
+```markdown
+# Update Dashboard
+
+Refresh `dashboard.yaml` with current metrics gathered from chief of staff agent data.
+
+## Process
+
+### Step 1: Gather Metrics
+
+Read the agent's data sources:
+- `decisions/` — count total decision files, count open follow-ups (status: Open), count overdue items
+- `briefings/` — find most recent briefing date
+- `meetings/` — count meeting preps from the current week
+
+Calculate:
+- Total decisions tracked (count of files in `decisions/`)
+- Last briefing date (most recent file in `briefings/`)
+- Pending decisions (count of open follow-ups across all decision files)
+- Open blockers (count of overdue follow-ups — past due date with status Open)
+- Upcoming meetings (count of meeting prep files from current week)
+
+### Step 2: Update Dashboard
+
+Read the current `dashboard.yaml`, update widget values:
+
+- "Last Briefing" → most recent briefing date
+- "Decisions Tracked" → total decision count
+- "Pending Decisions" → open follow-up count
+- "Open Blockers" → overdue count (color: red if >0, gray if 0)
+- "Upcoming Meetings" → meeting prep count this week
+- `updated` → current ISO timestamp
+
+Write the updated `dashboard.yaml`.
+
+### Step 3: Confirm
+
+```
+Dashboard refreshed:
+- Decisions tracked: [N]
+- Pending decisions: [N]
+- Open blockers: [N]
+- Last updated: [timestamp]
+```
+
+## Notes
+
+- On Trinity remote, the dashboard path is `/home/developer/dashboard.yaml`
+- This skill is designed to run on a schedule (every 6 hours recommended)
+- Keep execution fast — read local files only, no web searches
+
+## Outputs
+
+- Updated `dashboard.yaml` with current metrics
+```
+
+---
+
+## STEP 8: Generate Supporting Files
 
 ### 7a. template.yaml
 
@@ -873,7 +1014,7 @@ Write `[destination]/.mcp.json.template`:
 
 ---
 
-## STEP 8: Initialize Git
+## STEP 9: Initialize Git
 
 ```bash
 cd [destination] && git init && git add -A && git commit -m "Initial agent scaffold: chiefofstaff"
@@ -881,7 +1022,7 @@ cd [destination] && git init && git add -A && git commit -m "Initial agent scaff
 
 ---
 
-## STEP 9: Offer GitHub Repo Creation
+## STEP 10: Offer GitHub Repo Creation
 
 Use AskUserQuestion:
 - **Question:** "Want to create a GitHub repository for Chief of Staff?"
@@ -895,7 +1036,7 @@ If `gh` is not available, show manual instructions.
 
 ---
 
-## STEP 10: Completion
+## STEP 11: Completion
 
 Display:
 
@@ -914,7 +1055,9 @@ Your executive support agent is ready.
 | `.claude/skills/track-decision/SKILL.md` | Decision log with follow-up tracking |
 | `.claude/skills/weekly-digest/SKILL.md` | Friday summary and next-week preview |
 | `.claude/skills/onboarding/SKILL.md` | Setup progress tracker |
+| `.claude/skills/update-dashboard/SKILL.md` | Dashboard metrics updater |
 | `onboarding.json` | Persistent onboarding checklist |
+| `dashboard.yaml` | Trinity dashboard with executive metrics |
 | `decisions/` | Decision log directory |
 | `template.yaml` | Trinity deployment metadata |
 | `.env.example` | API key template for [tools] |

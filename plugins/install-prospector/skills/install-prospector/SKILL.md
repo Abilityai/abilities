@@ -6,7 +6,7 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-04
   author: Ability.ai
 ---
@@ -118,6 +118,7 @@ Store the answer — it customizes: which data points get top billing in researc
 ```bash
 mkdir -p [destination]/.claude/skills/research-company
 mkdir -p [destination]/.claude/skills/score-fit
+mkdir -p [destination]/.claude/skills/update-dashboard
 ```
 
 ---
@@ -161,6 +162,7 @@ You think like a top-performing SDR who does their homework. Every piece of rese
 |-------|---------|
 | `/research-company` | Deep-dive company research — [priority from Q4], plus supporting data |
 | `/score-fit` | Score a company against your [ICP from Q1] criteria |
+| `/update-dashboard` | Refresh Trinity dashboard with current prospecting metrics |
 
 ## Research Sources
 
@@ -209,14 +211,16 @@ Learn more at [ability.ai](https://ability.ai)
 ```
 prospector/
   CLAUDE.md              # This file — agent identity and instructions
+  dashboard.yaml         # Trinity dashboard metrics
   template.yaml          # Trinity metadata
   .env.example           # Required environment variables
   .gitignore             # Git exclusions
   .mcp.json.template     # MCP server config template
   .claude/
     skills/
-      research-company/SKILL.md  # Company research skill
-      score-fit/SKILL.md         # ICP fit scoring skill
+      research-company/SKILL.md    # Company research skill
+      score-fit/SKILL.md           # ICP fit scoring skill
+      update-dashboard/SKILL.md    # Dashboard metrics updater
 ```
 
 ## Artifact Dependency Graph
@@ -237,6 +241,12 @@ artifacts:
     mode: prescriptive
     direction: source
     description: "ICP scoring criteria and methodology"
+
+  dashboard.yaml:
+    mode: descriptive
+    direction: target
+    sources: [update-dashboard/SKILL.md]
+    description: "Trinity dashboard layout and metrics — updated by /update-dashboard"
 
   template.yaml:
     mode: prescriptive
@@ -262,6 +272,7 @@ artifacts:
 |-------|----------|---------|
 | `/research-company` | On-demand | Run before calls, demos, or outreach sequences |
 | `/score-fit` | On-demand | Score new inbound leads or prospect lists |
+| `/update-dashboard` | `0 */6 * * *` (every 6 hours) | Keep Trinity dashboard metrics current |
 
 ## Guidelines
 
@@ -518,9 +529,136 @@ Append or write the scorecard to `research/[company-name-slugified]-score.md`.
 
 ---
 
-## STEP 6: Generate Supporting Files
+## STEP 6: Generate Dashboard
 
-### 6a. template.yaml
+### 6a. Generate dashboard.yaml
+
+Write `[destination]/dashboard.yaml`:
+
+```yaml
+title: "Prospector"
+refresh: 300
+updated: "[today's date ISO]"
+
+sections:
+  - title: "Status"
+    layout: grid
+    columns: 3
+    widgets:
+      - type: status
+        label: "Agent Status"
+        value: "Active"
+        color: green
+      - type: metric
+        label: "Last Activity"
+        value: "—"
+        description: "Most recent research or scoring run"
+      - type: metric
+        label: "Prospects Researched"
+        value: "0"
+        description: "Total company briefs generated"
+
+  - title: "Pipeline"
+    layout: grid
+    columns: 3
+    widgets:
+      - type: metric
+        label: "Companies Researched"
+        value: "0"
+        description: "Total in research/"
+      - type: metric
+        label: "ICP Fit Scores"
+        value: "0"
+        description: "Companies scored"
+      - type: list
+        title: "Recent Research"
+        items: []
+        max_items: 5
+
+  - title: "Quick Links"
+    layout: list
+    widgets:
+      - type: link
+        label: "Trinity Dashboard"
+        url: "https://ability.ai"
+        external: true
+```
+
+### 6b. Generate /update-dashboard skill
+
+Write `[destination]/.claude/skills/update-dashboard/SKILL.md`:
+
+```yaml
+---
+name: update-dashboard
+description: Refresh dashboard.yaml with current metrics from prospecting data
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+user-invocable: true
+metadata:
+  version: "1.0"
+  created: 2026-04-04
+  author: prospector
+---
+```
+
+```markdown
+# Update Dashboard
+
+Refresh `dashboard.yaml` with current metrics gathered from prospecting data.
+
+## Process
+
+### Step 1: Gather Metrics
+
+Read the agent's data sources:
+- `research/*.md` (excluding `*-score.md`) — count company briefs, find most recent by file modification date
+- `research/*-score.md` — count ICP fit scorecards
+- Recent git activity: `git log --oneline -5`
+
+Calculate:
+- Total companies researched (count of non-score .md files in research/)
+- Total ICP scores (count of *-score.md files in research/)
+- Last activity date (most recent file modification in research/)
+- Latest 5 research entries for the activity list
+
+### Step 2: Update Dashboard
+
+Read the current `dashboard.yaml`, update widget values:
+
+- "Last Activity" → most recent file date in research/
+- "Prospects Researched" → count of research briefs
+- "Companies Researched" → same count
+- "ICP Fit Scores" → count of score files
+- "Recent Research" → last 5 research briefs (company name + date)
+- `updated` → current ISO timestamp
+
+Write the updated `dashboard.yaml`.
+
+### Step 3: Confirm
+
+```
+Dashboard refreshed:
+- Companies researched: [N]
+- ICP scores: [N]
+- Last updated: [timestamp]
+```
+
+## Notes
+
+- On Trinity remote, the dashboard path is `/home/developer/dashboard.yaml`
+- This skill is designed to run on a schedule (every 6 hours recommended)
+- Keep execution fast — read local files only, no web searches
+
+## Outputs
+
+- Updated `dashboard.yaml` with current metrics
+```
+
+---
+
+## STEP 7: Generate Supporting Files
+
+### 7a. template.yaml
 
 Write `[destination]/template.yaml`:
 
@@ -537,7 +675,7 @@ resources:
   memory: "4g"
 ```
 
-### 6b. .env.example
+### 7b. .env.example
 
 Write `[destination]/.env.example`:
 
@@ -569,7 +707,7 @@ ZOOMINFO_PASSWORD=
 # Add API keys here as you integrate more tools
 ```
 
-### 6c. .gitignore
+### 7c. .gitignore
 
 Write `[destination]/.gitignore`:
 
@@ -589,7 +727,7 @@ Thumbs.db
 .claude/settings.local.json
 ```
 
-### 6d. .mcp.json.template
+### 7d. .mcp.json.template
 
 Write `[destination]/.mcp.json.template`:
 
@@ -603,7 +741,7 @@ Note: MCP server entries should be added here as the user integrates specific to
 
 ---
 
-## STEP 7: Initialize Git
+## STEP 8: Initialize Git
 
 ```bash
 cd [destination] && git init && git add -A && git commit -m "Initial agent scaffold: prospector"
@@ -611,7 +749,7 @@ cd [destination] && git init && git add -A && git commit -m "Initial agent scaff
 
 ---
 
-## STEP 8: Offer GitHub Repo Creation
+## STEP 9: Offer GitHub Repo Creation
 
 Use AskUserQuestion:
 - **Question:** "Want to create a GitHub repository for Prospector?"
@@ -625,7 +763,7 @@ If option 1 or 2, run the command. If `gh` is not available, show manual instruc
 
 ---
 
-## STEP 9: Completion
+## STEP 10: Completion
 
 Display this summary:
 
@@ -641,6 +779,8 @@ Your B2B SaaS sales research agent is ready.
 | `CLAUDE.md` | Agent identity — customized for [ICP] research |
 | `.claude/skills/research-company/SKILL.md` | Deep-dive company research |
 | `.claude/skills/score-fit/SKILL.md` | ICP fit scoring |
+| `.claude/skills/update-dashboard/SKILL.md` | Dashboard metrics updater |
+| `dashboard.yaml` | Trinity dashboard with prospecting metrics |
 | `template.yaml` | Trinity deployment metadata |
 | `.env.example` | API key template for [tools] |
 | `.gitignore` | Excludes credentials and OS files |

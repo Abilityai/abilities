@@ -1,7 +1,7 @@
 {
   "name": "install-prospector",
   "description": "Create a B2B SaaS sales research agent — guided wizard that scaffolds a Trinity-compatible prospector agent customized to your sales stack",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"

@@ -6,7 +6,7 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-04
   author: Ability.ai
 ---
@@ -105,6 +105,7 @@ Store the answer — it customizes: which deployment steps are included in /crea
 ```bash
 mkdir -p [destination]/.claude/skills/create-website
 mkdir -p [destination]/.claude/skills/onboarding
+mkdir -p [destination]/.claude/skills/update-dashboard
 ```
 
 ---
@@ -144,6 +145,7 @@ You think like a senior frontend developer who values clean architecture, semant
 | Skill | Purpose |
 |-------|---------|
 | `/create-website` | Scaffold a complete Next.js 15 site — design system, components, pages, SEO, deployment |
+| `/update-dashboard` | Refresh Trinity dashboard metrics from site and project data |
 
 ## How to Work With This Agent
 
@@ -194,6 +196,7 @@ webmaster/
   CLAUDE.md              # This file — agent identity and instructions
   template.yaml          # Trinity metadata
   onboarding.json        # Setup progress tracker
+  dashboard.yaml         # Trinity dashboard metrics
   .env.example           # Required environment variables
   .gitignore             # Git exclusions
   .mcp.json.template     # MCP server config template
@@ -204,6 +207,8 @@ webmaster/
         reference.md      # Design system patterns and component templates
       onboarding/
         SKILL.md          # Setup progress tracker
+      update-dashboard/
+        SKILL.md          # Dashboard metrics updater
 ` ` `
 
 ## Artifact Dependency Graph
@@ -231,6 +236,12 @@ artifacts:
     sources: [onboarding/SKILL.md]
     description: "Persistent onboarding state — updated by /onboarding skill"
 
+  dashboard.yaml:
+    mode: descriptive
+    direction: target
+    sources: [update-dashboard/SKILL.md]
+    description: "Trinity dashboard layout and metrics — updated by /update-dashboard"
+
   template.yaml:
     mode: prescriptive
     direction: source
@@ -242,6 +253,7 @@ artifacts:
 | Skill | Schedule | Purpose |
 |-------|----------|---------|
 | `/create-website` | On-demand | Run when starting a new web project |
+| `/update-dashboard` | `0 */6 * * *` (every 6 hours) | Keep Trinity dashboard metrics current |
 
 ## Guidelines
 
@@ -432,6 +444,149 @@ Write `[destination]/.claude/skills/onboarding/SKILL.md` following the standard 
 
 ---
 
+## STEP 6c: Generate Dashboard
+
+### 6c-i. Generate dashboard.yaml
+
+Write `[destination]/dashboard.yaml`:
+
+```yaml
+title: "Webmaster"
+refresh: 300
+updated: "[today's date ISO]"
+
+sections:
+  - title: "Status"
+    layout: grid
+    columns: 3
+    widgets:
+      - type: status
+        label: "Agent Status"
+        value: "Active"
+        color: green
+      - type: metric
+        label: "Last Activity"
+        value: "—"
+        description: "Most recent git commit"
+      - type: metric
+        label: "Sites Managed"
+        value: "0"
+        description: "Total projects tracked"
+
+  - title: "Portfolio"
+    layout: grid
+    columns: 3
+    widgets:
+      - type: metric
+        label: "Live"
+        value: "0"
+        description: "Deployed to production"
+        color: green
+      - type: metric
+        label: "Development"
+        value: "0"
+        description: "In active development"
+        color: blue
+      - type: metric
+        label: "Recent Deployments"
+        value: "0"
+        description: "Deployed in last 7 days"
+
+  - title: "Recent Activity"
+    layout: list
+    widgets:
+      - type: list
+        title: "Latest Changes"
+        items: []
+        max_items: 5
+
+  - title: "Quick Links"
+    layout: list
+    widgets:
+      - type: link
+        label: "Trinity Dashboard"
+        url: "https://ability.ai"
+        external: true
+```
+
+### 6c-ii. Generate /update-dashboard skill
+
+Write `[destination]/.claude/skills/update-dashboard/SKILL.md`:
+
+```yaml
+---
+name: update-dashboard
+description: Refresh dashboard.yaml with current metrics from site and project data
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+user-invocable: true
+metadata:
+  version: "1.0"
+  created: 2026-04-06
+  author: webmaster
+---
+```
+
+```markdown
+# Update Dashboard
+
+Refresh `dashboard.yaml` with current metrics gathered from site directories and project data.
+
+## Process
+
+### Step 1: Gather Metrics
+
+Scan the agent's working area for site projects:
+- List directories that contain `package.json` with `next` as a dependency (these are managed sites)
+- For each site directory, check:
+  - Does it have a `.git` directory? Check `git log --oneline -1` for last commit date
+  - Does it have a `vercel.json` or `.vercel/` directory? (indicates live deployment)
+  - Check `git log --oneline --since="7 days ago"` for recent activity
+- Check recent git activity in the agent root: `git log --oneline -5`
+
+Calculate:
+- Total sites managed (count of Next.js project directories)
+- Sites by status: live (has Vercel config or remote deployment), development (has git but no deploy config)
+- Recent deployments (sites with commits in last 7 days that have deploy config)
+- Last activity date (most recent commit across all projects)
+- Latest 5 changes for the activity list
+
+### Step 2: Update Dashboard
+
+Read the current `dashboard.yaml`, update widget values:
+
+- "Sites Managed" → total count of site directories
+- "Last Activity" → most recent commit date across all projects
+- "Live" → count of sites with deployment config (color: green)
+- "Development" → count of sites without deployment config (color: blue)
+- "Recent Deployments" → count of deployed sites with commits in last 7 days
+- "Latest Changes" → last 5 commits across all site projects
+- `updated` → current ISO timestamp
+
+Write the updated `dashboard.yaml`.
+
+### Step 3: Confirm
+
+```
+Dashboard refreshed:
+- Sites managed: [N]
+- Live: [N], Development: [N]
+- Recent deployments: [N]
+- Last updated: [timestamp]
+```
+
+## Notes
+
+- On Trinity remote, the dashboard path is `/home/developer/dashboard.yaml`
+- This skill is designed to run on a schedule (every 6 hours recommended)
+- Keep execution fast — read local files only, no web requests
+
+## Outputs
+
+- Updated `dashboard.yaml` with current metrics
+```
+
+---
+
 ## STEP 7: Generate Supporting Files
 
 ### 7a. template.yaml
@@ -542,7 +697,9 @@ Your website management agent is ready.
 | `.claude/skills/create-website/SKILL.md` | Full website scaffolding workflow (20 steps) |
 | `.claude/skills/create-website/reference.md` | Design system patterns and component templates |
 | `.claude/skills/onboarding/SKILL.md` | Setup progress tracker |
+| `.claude/skills/update-dashboard/SKILL.md` | Dashboard metrics updater |
 | `onboarding.json` | Persistent onboarding checklist |
+| `dashboard.yaml` | Trinity dashboard with site metrics |
 | `template.yaml` | Trinity deployment metadata |
 | `.env.example` | Environment variable template |
 | `.gitignore` | Git exclusions |
