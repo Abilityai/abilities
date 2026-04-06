@@ -171,6 +171,16 @@
       ]
     },
     {
+      "name": "install-recon",
+      "source": "./plugins/install-recon",
+      "description": "Create a competitive intelligence agent — guided wizard that scaffolds a Trinity-compatible agent for tracking competitors, monitoring changes, and producing actionable intelligence",
+      "category": "onboarding",
+      "tags": ["recon", "install", "setup", "agent", "onboarding", "wizard", "competitive-intelligence", "competitor-analysis", "market-research", "battlecards"],
+      "skills": [
+        "./skills/install-recon"
+      ]
+    },
+    {
       "name": "website-builder",
       "source": "./plugins/website-builder",
       "description": "Scaffold a single production-ready Next.js 15 website and deploy to Vercel — no agent, just a site",

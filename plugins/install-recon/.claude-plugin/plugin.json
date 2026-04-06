@@ -1,0 +1,13 @@
+{
+  "name": "install-recon",
+  "description": "Create a competitive intelligence agent — guided wizard that scaffolds a Trinity-compatible agent for tracking competitors, monitoring changes, and producing actionable intelligence",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "homepage": "https://github.com/abilityai/abilities",
+  "repository": "https://github.com/abilityai/abilities",
+  "license": "MIT",
+  "keywords": ["recon", "install", "setup", "agent", "onboarding", "wizard", "competitive-intelligence", "competitor-analysis", "market-research", "battlecards", "monitoring"]
+}
