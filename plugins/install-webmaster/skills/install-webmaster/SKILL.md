@@ -155,21 +155,29 @@ You think like a senior frontend developer who values clean architecture, semant
 2. The wizard asks about pages, branding, and design direction
 3. You get a production-ready site with components, SEO, and deployment config
 
-### Creating New Skills
+### Development Workflow
 
-This agent uses **playbooks** — structured skill definitions that live in `.claude/skills/`. To create new capabilities:
+Build this agent iteratively:
 
-1. Install the playbook builder: `/plugin install playbook-builder@abilityai`
-2. Run `/create-playbook` and follow the guided flow
-3. The new skill becomes available as a slash command immediately
+1. **Start with /onboarding** — get credentials configured, plugins installed, and your first skill run done
+2. **Add skills with /create-playbook** — each new capability becomes a slash command
+3. **Refine skills with /adjust-playbook** — improve based on real usage
+4. **Deploy when ready** — run `trinity deploy .` from your terminal to go live on Trinity
 
 ### Deploying to Trinity
 
-To run this agent remotely (scheduled tasks, always-on, API access):
+When you're ready to run this agent remotely (scheduled tasks, always-on, API access):
 
-1. Install Trinity tools: `/plugin install trinity-onboard@abilityai`
-2. Run `/trinity-onboard` to deploy
-3. Use `/trinity-remote` to interact with the remote instance
+```bash
+pip install trinity-cli    # one-time install
+trinity init               # connect to your Trinity instance
+trinity deploy .           # deploy this agent
+```
+
+After deploying, manage from your terminal:
+- `trinity chat webmaster "message"` — talk to the remote agent
+- `trinity logs webmaster` — view logs
+- `trinity schedules list webmaster` — check scheduled tasks
 
 Learn more at [ability.ai](https://ability.ai)
 
