@@ -181,6 +181,16 @@
       ]
     },
     {
+      "name": "install-receptionist",
+      "source": "./plugins/install-receptionist",
+      "description": "Create an email gateway agent — guided wizard that scaffolds a Trinity-compatible receptionist agent for public-facing email communication and request routing",
+      "category": "onboarding",
+      "tags": ["receptionist", "install", "setup", "agent", "onboarding", "wizard", "email", "gateway", "gatekeeper", "routing", "gmail", "security"],
+      "skills": [
+        "./skills/install-receptionist"
+      ]
+    },
+    {
       "name": "website-builder",
       "source": "./plugins/website-builder",
       "description": "Scaffold a single production-ready Next.js 15 website and deploy to Vercel — no agent, just a site",
