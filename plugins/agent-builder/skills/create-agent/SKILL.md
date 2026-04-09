@@ -6,8 +6,9 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-01
+  updated: 2026-04-09
   author: Ability.ai
 ---
 
@@ -106,9 +107,12 @@ If it exists and is non-empty, warn the user and ask whether to:
 ## STEP 3: Create Directory Structure
 
 ```bash
-mkdir -p [destination]
 mkdir -p [destination]/.claude/skills
+mkdir -p [destination]/.claude/skills/onboarding
+mkdir -p [destination]/.claude/skills/update-dashboard
 ```
+
+Create subdirectories for each skill from Step 1d as well.
 
 ---
 
@@ -176,6 +180,25 @@ After deploying, manage from your terminal:
 - `trinity logs [agent-name]` — view logs
 - `trinity schedules list [agent-name]` — check scheduled tasks
 
+Learn more at [ability.ai](https://ability.ai)
+
+## Onboarding
+
+This agent tracks your setup progress in `onboarding.json`. Run `/onboarding` to see
+your checklist and continue where you left off.
+
+On conversation start, if `onboarding.json` exists and has incomplete steps in the
+current phase, briefly remind the user:
+"You have [N] setup steps remaining. Run `/onboarding` to continue."
+
+Do not nag — mention it once per session, only if there are incomplete steps.
+
+### Installed Plugins
+
+These plugins are installed during onboarding (`/onboarding` handles this automatically):
+
+[PLUGIN_INSTALL_COMMANDS]
+
 [ADDITIONAL_PLUGIN_INSTRUCTIONS]
 
 ## Project Structure
@@ -183,6 +206,8 @@ After deploying, manage from your terminal:
 ```
 [agent-name]/
   CLAUDE.md              # This file — agent identity and instructions
+  onboarding.json        # Setup progress tracker
+  dashboard.yaml         # Trinity dashboard metrics
   template.yaml          # Trinity metadata
   .env.example           # Required environment variables
   .gitignore             # Git exclusions
@@ -191,6 +216,8 @@ After deploying, manage from your terminal:
     skills/              # Agent capabilities (playbooks)
       [skill-1]/SKILL.md
       [skill-2]/SKILL.md
+      onboarding/SKILL.md     # Setup progress tracker
+      update-dashboard/SKILL.md  # Dashboard metrics updater
   memory/                # Persistent state (if using memory plugin)
 ```
 
@@ -204,6 +231,18 @@ artifacts:
     mode: prescriptive
     direction: source
     description: "Agent identity and behavior — single source of truth"
+
+  onboarding.json:
+    mode: descriptive
+    direction: target
+    sources: [onboarding/SKILL.md]
+    description: "Persistent onboarding state — updated by /onboarding skill"
+
+  dashboard.yaml:
+    mode: descriptive
+    direction: target
+    sources: [update-dashboard/SKILL.md]
+    description: "Trinity dashboard layout and metrics — updated by /update-dashboard skill"
 
   [artifact-1]:
     mode: [prescriptive|descriptive]
@@ -250,7 +289,17 @@ Skills that should run on a recurring basis once the agent is deployed to Trinit
 [- For an ops agent: "Never run destructive commands without explicit approval. Always show a dry-run first."]
 ```
 
-**IMPORTANT:** The `[ADDITIONAL_PLUGIN_INSTRUCTIONS]` placeholder should be replaced with setup instructions for any extra plugins the user selected in Step 1e. Format as:
+**IMPORTANT:** The `[PLUGIN_INSTALL_COMMANDS]` placeholder should be replaced with install commands for **each plugin selected in Step 1e**. Always include playbook-builder and trinity-onboard. Format as:
+
+```markdown
+```
+/plugin install playbook-builder@abilityai   # Create new skills
+/plugin install trinity-onboard@abilityai    # Deploy to Trinity
+/plugin install [plugin]@abilityai           # [domain-specific reason]
+```
+```
+
+The `[ADDITIONAL_PLUGIN_INSTRUCTIONS]` placeholder should be replaced with setup instructions for any extra plugins the user selected in Step 1e. Format as:
 
 ```markdown
 ### [Plugin Name]
@@ -290,6 +339,8 @@ Map the agent's skills as `sync_skills` entries — each skill that produces or 
 - **Cleanup/maintenance** skills → weekly
 
 Only include skills that make sense as automated recurring tasks. Interactive or on-demand skills should not be scheduled. Use human-readable intervals (e.g., "every 6 hours", "daily at 9am UTC") alongside cron expressions.
+
+**Always include `/update-dashboard`** with a schedule appropriate to how frequently the agent's metrics change (e.g., `*/15 * * * *` for active agents, `0 */6 * * *` for less active ones).
 
 ---
 
@@ -365,7 +416,319 @@ metadata:
 
 ---
 
-## STEP 7: Generate Supporting Files
+## STEP 7: Generate Onboarding System
+
+Every agent includes a persistent onboarding tracker — a checklist that guides the user from local setup through Trinity deployment and scheduling.
+
+### 7a. Generate onboarding.json
+
+Write `[destination]/onboarding.json`. Customize the `local` phase based on the agent's domain and skills.
+
+```json
+{
+  "phase": "local",
+  "started": "[today's date]",
+  "steps": {
+    "local": {
+      "env_configured": { "done": false, "label": "Configure environment variables (.env)" },
+      "first_skill_run": { "done": false, "label": "[Run /primary-skill — customized to this agent's first skill]" },
+      "plugins_installed": { "done": false, "label": "Install plugins ([list plugin names from Step 1e])" }
+    },
+    "trinity": {
+      "onboarded": { "done": false, "label": "Deploy to Trinity (trinity deploy .)" },
+      "credentials_synced": { "done": false, "label": "Sync credentials to remote (/credential-sync push)" },
+      "first_remote_run": { "done": false, "label": "Run a skill remotely via trinity chat" }
+    },
+    "schedules": {
+      "schedules_configured": { "done": false, "label": "Set up scheduled tasks (/trinity-schedules)" },
+      "first_scheduled_run": { "done": false, "label": "Verify first scheduled execution completed" }
+    }
+  }
+}
+```
+
+**Customization rules for `local` steps:**
+- If the agent needs no API keys, remove `env_configured` and make the first step domain-specific (e.g., reviewing a config, running the primary skill)
+- Add 1-2 domain-specific steps between `env_configured` and `plugins_installed` that reflect the most important first actions for this agent
+- The `first_skill_run` label should reference the agent's primary skill by name
+
+### 7b. Generate /onboarding skill
+
+Write `[destination]/.claude/skills/onboarding/SKILL.md`:
+
+```yaml
+---
+name: onboarding
+description: Track your setup progress — shows what's done, what's next, and walks you through each step
+allowed-tools: Read, Write, Edit, Bash, AskUserQuestion
+user-invocable: true
+metadata:
+  version: "1.0"
+  created: [today's date]
+  author: [agent-name]
+---
+```
+
+```markdown
+# Onboarding
+
+Track and continue your setup progress. This skill reads `onboarding.json`, shows your current status, and walks you through the next incomplete step.
+
+## Process
+
+### Step 1: Load State
+
+Read `onboarding.json` from the agent root directory. If it doesn't exist, inform the user that onboarding is complete or the file was removed.
+
+### Step 2: Show Progress
+
+Display a checklist grouped by phase. Mark the current phase with an arrow. Use checkboxes:
+
+```
+## [Agent Name] — Setup Progress
+
+### Phase 1: Local Setup  ← current
+- [x] Configure environment variables (.env)
+- [ ] [Domain-specific step]
+- [ ] Install recommended plugins
+
+### Phase 2: Trinity Deployment
+- [ ] Deploy to Trinity
+- [ ] Sync credentials to remote
+- [ ] Run a skill remotely
+
+### Phase 3: Schedules
+- [ ] Set up scheduled tasks
+- [ ] Verify first scheduled execution
+
+**Progress: 1/8 complete**
+```
+
+### Step 3: Guide Next Step
+
+Identify the first incomplete step in the current phase. Based on which step it is, provide specific guidance:
+
+**For `env_configured`:**
+- Check if `.env` exists. If not, guide: `cp .env.example .env` then fill in values.
+- List the required variables from `.env.example` and what each one is for.
+- After user confirms, mark done.
+
+**For domain-specific steps (e.g., `first_skill_run`):**
+- Tell the user exactly which command to run.
+- After they run it successfully, mark done.
+
+**For `plugins_installed`:**
+- Run the install commands for each plugin selected in Step 1e:
+  ```
+  /plugin install [plugin-name]@abilityai
+  ```
+- Run each install command via Bash. Note successes and failures.
+- After all attempted, mark done.
+
+**For `onboarded` (Trinity phase):**
+- Guide the user to deploy: `trinity deploy .`
+- After completion, mark done and advance phase.
+
+**For `credentials_synced`:**
+- Tell user to run `/credential-sync push`.
+- After completion, mark done.
+
+**For `first_remote_run`:**
+- Tell user to run `trinity chat [agent-name] "/[primary-skill]"`.
+- After completion, mark done and advance phase.
+
+**For `schedules_configured`:**
+- Tell user to run `/trinity-schedules` and suggest which skills benefit from scheduling.
+- Reference the recommended schedules from CLAUDE.md.
+- After completion, mark done.
+
+**For `first_scheduled_run`:**
+- Tell user to check `/trinity-schedules` for execution confirmation.
+- After verified, mark done.
+
+### Step 4: Update State
+
+After each step is completed, update `onboarding.json`:
+- Set the step's `done` to `true`
+- If all steps in current phase are done, advance `phase` to the next phase
+- If all phases complete, congratulate the user
+
+### Step 5: Phase Transitions
+
+When all steps in a phase are complete:
+
+**Local → Trinity:**
+```
+## Local Setup Complete!
+
+Your [agent-name] agent is fully configured and working locally.
+
+Ready for the next level? Trinity gives you:
+- Remote execution (run skills from anywhere)
+- Scheduling (automate recurring tasks)
+- Multi-agent coordination
+
+Run /onboarding again when you're ready to set up Trinity.
+```
+
+**Trinity → Schedules:**
+```
+## Trinity Deployment Complete!
+
+Your agent is live on Trinity. Now let's set up automation.
+
+Run /onboarding to configure scheduled tasks.
+```
+
+**All Complete:**
+```
+## Onboarding Complete!
+
+Your [agent-name] agent is fully set up:
+- ✓ Local environment configured
+- ✓ Deployed to Trinity
+- ✓ Schedules running
+
+You're all set. The onboarding.json file can be kept as a record or deleted.
+```
+
+## Outputs
+
+- Updated `onboarding.json` with progress
+- Step-by-step guidance for the current task
+- Phase transition messages at milestones
+```
+
+**Customize the onboarding skill** based on the agent's actual skills and plugins:
+- Replace `[agent-name]` with the real agent name
+- Replace `[primary-skill]` references with the agent's first skill
+- Adjust the `env_configured` guidance to list the actual env vars from `.env.example`
+- Adjust `plugins_installed` to list the actual plugins from Step 1e
+
+---
+
+## STEP 8: Generate Dashboard
+
+Every agent includes a starter `dashboard.yaml` and an `/update-dashboard` skill for Trinity.
+
+### 8a. Generate dashboard.yaml
+
+Write `[destination]/dashboard.yaml`. Customize sections and widgets based on the agent's purpose and skills.
+
+```yaml
+title: "[Agent Display Name]"
+refresh: 300
+updated: "[today's date ISO]"
+
+sections:
+  - title: "Status"
+    layout: grid
+    columns: 3
+    widgets:
+      - type: status
+        label: "Agent Status"
+        value: "Active"
+        color: green
+      - type: metric
+        label: "Last Activity"
+        value: "—"
+        description: "Updated by /update-dashboard"
+      - type: metric
+        label: "[Domain-Specific Metric]"
+        value: "0"
+
+  - title: "[Domain Section]"
+    layout: grid
+    columns: 2
+    widgets:
+      - type: metric
+        label: "[Metric from primary skill]"
+        value: "—"
+      - type: list
+        title: "Recent Activity"
+        items: []
+        max_items: 5
+
+  - title: "Quick Links"
+    layout: list
+    widgets:
+      - type: link
+        label: "Trinity Dashboard"
+        url: "https://ability.ai"
+        external: true
+```
+
+**Widget types:** metric (label/value/trend/unit), status (label/value/color), progress (label/value 0-100), text (content), markdown (content), table (columns/rows), list (items/max_items), link (label/url), chart (chart_type/series), divider, spacer.
+
+**Colors:** green, yellow, red, gray, blue, orange, purple.
+
+**Customization:** Choose 2-3 sections with 3-6 widgets that reflect the agent's actual domain and skills. Keep it focused — `/update-dashboard` fills in real values later.
+
+### 8b. Generate /update-dashboard skill
+
+Write `[destination]/.claude/skills/update-dashboard/SKILL.md`:
+
+```yaml
+---
+name: update-dashboard
+description: Refresh dashboard.yaml with current metrics from agent data sources
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+user-invocable: true
+metadata:
+  version: "1.0"
+  created: [today's date]
+  author: [agent-name]
+---
+```
+
+```markdown
+# Update Dashboard
+
+Refresh `dashboard.yaml` with current metrics gathered from this agent's data sources and state files.
+
+## Process
+
+### Step 1: Gather Metrics
+
+Read the agent's data sources to collect current values:
+- Read state/tracking files (*.json, *.yaml in agent root)
+- Check recent git activity: `git log --oneline -10`
+- Count items in data directories
+- Check skill execution artifacts
+
+[Customize this list based on the agent's actual data sources and skills]
+
+### Step 2: Update Dashboard
+
+Read `dashboard.yaml`, update widget values with fresh data:
+- Update the `updated` timestamp to now
+- Update metric values from gathered data
+- Update status colors based on health thresholds
+- Update activity lists with recent items
+
+Write the updated `dashboard.yaml`.
+
+### Step 3: Confirm
+
+Report what was updated:
+```
+Dashboard refreshed:
+- [metric]: [old] → [new]
+- Last updated: [timestamp]
+```
+
+Note: On Trinity remote, the dashboard path is `/home/developer/dashboard.yaml`.
+
+## Outputs
+
+- Updated `dashboard.yaml` with current metrics
+```
+
+**Customize** the "Gather Metrics" step to reference the specific data sources this agent uses.
+
+---
+
+## STEP 9: Generate Supporting Files
 
 ### 7a. Create .env.example
 
@@ -434,7 +797,7 @@ Write `[destination]/.mcp.json.template`:
 
 ---
 
-## STEP 8: Initialize Git
+## STEP 10: Initialize Git
 
 ```bash
 cd [destination] && git init && git add -A && git commit -m "Initial agent scaffold: [agent-name]"
@@ -442,7 +805,7 @@ cd [destination] && git init && git add -A && git commit -m "Initial agent scaff
 
 ---
 
-## STEP 9: Create GitHub Repository
+## STEP 11: Create GitHub Repository
 
 Ask the user if they want to create a GitHub repository for this agent.
 
@@ -507,49 +870,46 @@ Move on silently. The agent works fine without a remote.
 
 ---
 
-## STEP 10: Completion
+## STEP 12: Completion
 
 Display this to the user:
 
 ```
 ## Agent Created: [Agent Display Name]
 
-Your agent is scaffolded and ready for development.
-
-### What was created
+### What Was Created
 
 | File | Purpose |
 |------|---------|
 | `CLAUDE.md` | Agent identity and instructions |
+| `.claude/skills/[skill-1]/SKILL.md` | [skill description] |
+| `.claude/skills/[skill-2]/SKILL.md` | [skill description] |
+| `.claude/skills/onboarding/SKILL.md` | Setup progress tracker |
+| `.claude/skills/update-dashboard/SKILL.md` | Dashboard metrics updater |
+| `onboarding.json` | Persistent onboarding checklist |
+| `dashboard.yaml` | Trinity dashboard with domain metrics |
 | `template.yaml` | Trinity metadata |
 | `.env.example` | Environment variable template |
 | `.gitignore` | Git exclusions |
 | `.mcp.json.template` | MCP config template |
-| `.claude/skills/[skill-1]/SKILL.md` | [skill description] |
-| `.claude/skills/[skill-2]/SKILL.md` | [skill description] |
 
-### Next: Open the agent
+### Get Started
 
-Exit this session and start Claude Code in the agent directory:
+1. Open your new agent:
+   ```
+   cd [destination] && claude
+   ```
 
-  cd [destination]
-  claude
+2. Run the setup wizard:
+   ```
+   /onboarding
+   ```
 
-### First things to do inside the agent
-
-1. **Try your skills** — Run `/[skill-1]` or `/[skill-2]` to test them
-2. **Install plugins** — Run the plugin install commands from CLAUDE.md
-3. **Create more skills** — Use `/create-playbook` after installing playbook-builder
-4. **Deploy to Trinity** — Use `/trinity-onboard` when ready for remote execution
-
-### Growing the agent
-
-Your agent learns new capabilities through **playbooks** — structured skill files.
-The pattern is: identify a workflow → create a skill → refine through use.
-
-Use `/create-playbook` for guided creation, or write SKILL.md files directly
-in `.claude/skills/[name]/`.
+   This will walk you through configuring your environment,
+   running your first skill, and (when you're ready) deploying to Trinity.
 ```
+
+**Do not list manual steps like "install plugins" or "try /skill-name" here.** The `/onboarding` skill handles all of that in a tracked, resumable flow.
 
 ---
 
