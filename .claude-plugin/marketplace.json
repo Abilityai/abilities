@@ -191,6 +191,16 @@
       ]
     },
     {
+      "name": "install-ghostwriter",
+      "source": "./plugins/install-ghostwriter",
+      "description": "Create a content writer agent — guided wizard that scaffolds a Trinity-compatible ghostwriter agent that knows your brand voice and writes platform-specific content",
+      "category": "onboarding",
+      "tags": ["ghostwriter", "install", "setup", "agent", "onboarding", "wizard", "content", "writing", "voice", "brand"],
+      "skills": [
+        "./skills/install-ghostwriter"
+      ]
+    },
+    {
       "name": "website-builder",
       "source": "./plugins/website-builder",
       "description": "Scaffold a single production-ready Next.js 15 website and deploy to Vercel — no agent, just a site",
