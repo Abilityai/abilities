@@ -338,7 +338,22 @@ else
 fi
 ```
 
-After the copy, **overwrite** `resources/brain-graph/brain_graph_config.yaml` with the domain-customized version generated in STEP 13. Also clear `resources/brain-graph/data/` of any cornelius-specific enrichments (keep directory, drop files).
+After the copy, clean up cornelius-specific artifacts:
+
+```bash
+# Remove cornelius-specific reports (we'll generate fresh ones)
+rm -rf "$destination/resources/brain-graph/reports/"
+
+# Remove Python cache
+rm -rf "$destination/resources/brain-graph/__pycache__/"
+
+# Clear data directory of cornelius enrichments (keep directory structure)
+rm -f "$destination/resources/brain-graph/data/"*.json 2>/dev/null
+rm -f "$destination/resources/brain-graph/data/"*.faiss 2>/dev/null
+rm -f "$destination/resources/brain-graph/data/"*.npy 2>/dev/null
+```
+
+Then **overwrite** `resources/brain-graph/brain_graph_config.yaml` with the domain-customized version generated in STEP 13.
 
 Record which path was used (A, B, or stub) in the completion summary.
 
