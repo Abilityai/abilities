@@ -1,0 +1,25 @@
+{
+  "name": "install-kb-agent",
+  "description": "Create a knowledge-base agent — guided wizard that scaffolds a Cornelius-shaped, Trinity-compatible KB agent for any domain (community manager, CS researcher, clinical research, legal analyst, personal KB, custom)",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "homepage": "https://github.com/abilityai/abilities",
+  "repository": "https://github.com/abilityai/abilities",
+  "license": "MIT",
+  "keywords": [
+    "kb-agent",
+    "knowledge-base",
+    "install",
+    "setup",
+    "agent",
+    "onboarding",
+    "wizard",
+    "cornelius",
+    "brain-dependency-graph",
+    "ontology",
+    "zettelkasten"
+  ]
+}

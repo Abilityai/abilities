@@ -201,6 +201,16 @@
       ]
     },
     {
+      "name": "install-kb-agent",
+      "source": "./plugins/install-kb-agent",
+      "description": "Create a knowledge-base agent — guided wizard that scaffolds a Cornelius-shaped, Trinity-compatible KB agent for any domain (community manager, CS researcher, clinical research, legal analyst, personal KB, or custom)",
+      "category": "onboarding",
+      "tags": ["kb-agent", "knowledge-base", "install", "setup", "agent", "onboarding", "wizard", "cornelius", "brain-dependency-graph", "ontology", "zettelkasten"],
+      "skills": [
+        "./skills/install-kb-agent"
+      ]
+    },
+    {
       "name": "website-builder",
       "source": "./plugins/website-builder",
       "description": "Scaffold a single production-ready Next.js 15 website and deploy to Vercel — no agent, just a site",
