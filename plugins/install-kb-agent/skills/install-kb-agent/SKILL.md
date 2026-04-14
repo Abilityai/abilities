@@ -6,8 +6,9 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-13
+  updated: 2026-04-14
   author: Ability.ai
 ---
 
@@ -19,7 +20,7 @@ Create a **Cornelius-shaped knowledge-base agent** powered by Claude Code, custo
 
 - A Brain Dependency Graph ontology (`<agent>-graph.yaml`) tuned to the domain
 - A 7-layer vault scaffold (signals → impressions → insights → frameworks → lenses → syntheses → indices)
-- The cornelius brain-graph Python machinery cloned in — coherence engine, lifecycle scoring, staleness propagation
+- The cornelius local-brain-search Python machinery cloned in — FAISS vector search, spreading activation, coherence engine
 - Domain-appropriate subagents (vault-manager + extractors + discovery + synthesis)
 - KB-core scheduled skills: `/coherence-sweep`, `/compute-lifecycle`, `/detect-tensions`, `/refresh-index`, `/propagate-change`
 - Domain-specific skills tailored to the preset (or blank if custom)
@@ -42,7 +43,7 @@ Every KB agent shares the same skeleton. What differs across domains is how six 
 
 If you elicit these correctly, storage schema, subagents, propagation rules, skills, and scheduled jobs all fall out mechanically. This wizard runs that interview and generates the cascade.
 
-The reference implementation is Cornelius — see `resources/brain-graph/BRAIN-DEPENDENCY-GRAPH-ARCHITECTURE.md` in the cornelius repo for the full architecture spec, and `resources/universal-kb-agent-wizard.md` for the design rationale behind this wizard.
+The reference implementation is Cornelius — see `resources/local-brain-search/BRAIN-DEPENDENCY-GRAPH-ARCHITECTURE.md` in the cornelius repo for the full architecture spec, and `resources/universal-kb-agent-wizard.md` for the design rationale behind this wizard.
 
 ---
 
@@ -150,7 +151,7 @@ Also confirm the 7-layer vault mapping. The cornelius convention is:
 | 6 Synthesis | `04-Output/` | Composed output |
 | 7 Index | `05-Meta/` | Meta-structural |
 
-If the user's entity types don't map cleanly, extend `vault_paths` in the graph config. Do NOT rename layers — the cornelius brain-graph code expects layer 1-7.
+If the user's entity types don't map cleanly, extend `vault_paths` in the graph config. Do NOT rename layers — the cornelius local-brain-search code expects layer 1-7.
 
 ---
 
@@ -228,7 +229,7 @@ This determines: (a) scheduled jobs that compute signals, (b) lifecycle promotio
 Always-included plugins for KB agents:
 - `playbook-builder` — create new skills
 - `trinity-onboard` — deploy remotely
-- `brain-memory` — KB infrastructure (may be obviated by the cornelius brain-graph we clone; leave it in as optional support)
+- `brain-memory` — KB infrastructure (may be obviated by the cornelius local-brain-search we clone; leave it in as optional support)
 
 Use AskUserQuestion to confirm + add any of:
 - `file-indexing` (recommended if vault is expected to exceed 1000 notes)
@@ -277,7 +278,7 @@ $atomic_unit.name — $atomic_unit.description
 - .claude/agents/: vault-manager, connection-finder, auto-discovery, [N extractors]
 - .claude/skills/: coherence-sweep, compute-lifecycle, detect-tensions, refresh-index,
   propagate-change, recall, find-connections, onboarding, update-dashboard, [domain skills]
-- resources/brain-graph/ (cloned from cornelius)
+- resources/local-brain-search/ (cloned from cornelius)
 - 7-layer vault (00-Inbox through 05-Meta)
 - .env.example, .gitignore, .mcp.json.template
 ```
@@ -297,7 +298,7 @@ Only proceed to STEP 11 on Generate.
 mkdir -p "$destination"
 mkdir -p "$destination/.claude/agents"
 mkdir -p "$destination/.claude/skills"
-mkdir -p "$destination/resources/brain-graph/data"
+mkdir -p "$destination/resources/local-brain-search/data"
 mkdir -p "$destination/00-Inbox"
 mkdir -p "$destination/01-Sources"
 mkdir -p "$destination/02-Permanent"
@@ -312,28 +313,28 @@ Additionally create a skill directory per KB-core skill and per domain skill (se
 
 ---
 
-## STEP 12: Clone Brain-Graph Machinery from Cornelius
+## STEP 12: Clone Local-Brain-Search Machinery from Cornelius
 
-The coherence engine (classification, lifecycle scoring, staleness propagation, tension detection) lives in cornelius' `resources/brain-graph/` Python package. Clone it in:
+The local vector search system (FAISS + sentence-transformers + NetworkX) lives in cornelius' `resources/local-brain-search/` Python package. **Fully local — no cloud API needed.** Clone it in:
 
 ```bash
 # Option A: sparse checkout from public cornelius repo
 TMPDIR=$(mktemp -d)
 git clone --depth 1 --filter=blob:none --sparse https://github.com/Abilityai/cornelius "$TMPDIR/cornelius"
-cd "$TMPDIR/cornelius" && git sparse-checkout set resources/brain-graph && cd -
-cp -r "$TMPDIR/cornelius/resources/brain-graph/"* "$destination/resources/brain-graph/"
+cd "$TMPDIR/cornelius" && git sparse-checkout set resources/local-brain-search && cd -
+cp -r "$TMPDIR/cornelius/resources/local-brain-search/"* "$destination/resources/local-brain-search/"
 rm -rf "$TMPDIR"
 ```
 
-If the public cornelius repo does not include `resources/brain-graph/` (check first with `git ls-remote`), fall back to:
+If the public cornelius repo does not include `resources/local-brain-search/` (check first with `git ls-remote`), fall back to:
 
 ```bash
-# Option B: copy from local cornelius-internal (developer-only path)
-if [ -d "$HOME/Dropbox/Agents/cornelius-internal/resources/brain-graph" ]; then
-  cp -r "$HOME/Dropbox/Agents/cornelius-internal/resources/brain-graph/"* \
-        "$destination/resources/brain-graph/"
+# Option B: copy from local cornelius directory
+if [ -d "$HOME/Dropbox/Agents/cornelius/resources/local-brain-search" ]; then
+  cp -r "$HOME/Dropbox/Agents/cornelius/resources/local-brain-search/"* \
+        "$destination/resources/local-brain-search/"
 else
-  echo "WARNING: brain-graph source not found. Scaffolding stubs only."
+  echo "WARNING: local-brain-search source not found. Scaffolding stubs only."
   # Create stub README pointing at cornelius repo for manual install
 fi
 ```
@@ -342,18 +343,18 @@ After the copy, clean up cornelius-specific artifacts:
 
 ```bash
 # Remove cornelius-specific reports (we'll generate fresh ones)
-rm -rf "$destination/resources/brain-graph/reports/"
+rm -rf "$destination/resources/local-brain-search/reports/"
 
 # Remove Python cache
-rm -rf "$destination/resources/brain-graph/__pycache__/"
+rm -rf "$destination/resources/local-brain-search/__pycache__/"
 
 # Clear data directory of cornelius enrichments (keep directory structure)
-rm -f "$destination/resources/brain-graph/data/"*.json 2>/dev/null
-rm -f "$destination/resources/brain-graph/data/"*.faiss 2>/dev/null
-rm -f "$destination/resources/brain-graph/data/"*.npy 2>/dev/null
+rm -f "$destination/resources/local-brain-search/data/"*.json 2>/dev/null
+rm -f "$destination/resources/local-brain-search/data/"*.faiss 2>/dev/null
+rm -f "$destination/resources/local-brain-search/data/"*.npy 2>/dev/null
 ```
 
-Then **overwrite** `resources/brain-graph/brain_graph_config.yaml` with the domain-customized version generated in STEP 13.
+Then **overwrite** `resources/local-brain-search/memory_config.py` with the domain-customized version generated in STEP 13 (or create a separate `agent_config.yaml` that the memory_config.py imports).
 
 Record which path was used (A, B, or stub) in the completion summary.
 
@@ -361,7 +362,7 @@ Record which path was used (A, B, or stub) in the completion summary.
 
 ## STEP 13: Generate `<agent>-graph.yaml`
 
-This is the **load-bearing ontology file**. Write it both as `$destination/${agent_name}-graph.yaml` (user-facing) and as `$destination/resources/brain-graph/brain_graph_config.yaml` (where the Python machinery reads from). Keep them in sync — the cornelius code expects the latter filename; the former is a symlink or identical copy for visibility.
+This is the **load-bearing ontology file**. Write it as `$destination/${agent_name}-graph.yaml`. The local-brain-search machinery reads from `memory_config.py` — ensure the BRAIN_PATH and other settings align with this agent's vault structure.
 
 Template structure (fill from wizard answers):
 
@@ -538,7 +539,7 @@ ${preset.persona_paragraph}
 
 ## Core Architecture: Brain Dependency Graph
 
-This agent runs on the Brain Dependency Graph (BDG) — a typed, mode-aware, direction-aware graph that functions as a coherence engine rather than a retrieval engine. See `resources/brain-graph/BRAIN-DEPENDENCY-GRAPH-ARCHITECTURE.md` for the full spec.
+This agent runs on the Brain Dependency Graph (BDG) — a typed, mode-aware, direction-aware graph that functions as a coherence engine rather than a retrieval engine. See `resources/local-brain-search/BRAIN-DEPENDENCY-GRAPH-ARCHITECTURE.md` for the full spec.
 
 **Key concepts you must internalize:**
 
@@ -668,8 +669,8 @@ ${agent_name}/
     agents/                  # Subagents (${num_subagents} total)
     skills/                  # Skills (${num_skills} total)
   resources/
-    brain-graph/             # Cloned from cornelius — coherence engine
-      brain_graph_config.yaml  # (synced with ${agent_name}-graph.yaml)
+    local-brain-search/      # Cloned from cornelius — FAISS + sentence-transformers
+      memory_config.py         # Config for embeddings, graph, spreading activation
       *.py                   # Python machinery
       data/                  # Graph enrichments (populated at runtime)
   00-Inbox/                  # Layer 2
@@ -695,13 +696,13 @@ artifacts:
     direction: source
     description: "Ontology — load-bearing. All skills and subagents derive behavior from this."
 
-  resources/brain-graph/brain_graph_config.yaml:
+  resources/local-brain-search/memory_config.py:
     mode: descriptive
     direction: target
     sources: [${agent_name}-graph.yaml]
     description: "Python-facing copy of the ontology. Must stay in sync."
 
-  resources/brain-graph/data/graph_enrichments.json:
+  resources/local-brain-search/data/graph_enrichments.json:
     mode: descriptive
     direction: target
     sources: [vault notes, compute-lifecycle skill]
@@ -736,7 +737,7 @@ ${event_schedules_if_hybrid_or_event_driven}
 - **Every new note instantiates the atomic unit.** If it doesn't, redirect the user.
 - **Never edit someone else's voice.** When extracting insights, preserve the user's phrasing.
 - **Contradictions get flagged, not resolved.** Surface tensions; let the user decide.
-- **Sidecar, not frontmatter.** Never write lifecycle scores or staleness flags into note frontmatter. They live in `resources/brain-graph/data/graph_enrichments.json`.
+- **Sidecar, not frontmatter.** Never write lifecycle scores or staleness flags into note frontmatter. They live in `resources/local-brain-search/data/graph_enrichments.json`.
 - **Changelogs are mandatory.** Every subagent session ends with a dated changelog in `05-Meta/Changelogs/`.
 - **Refine ontology after 2-3 weeks.** Schedule a review to revisit ${agent_name}-graph.yaml once you have real usage data.
 ```
@@ -755,7 +756,7 @@ CRUD operations on vault notes. Modeled on cornelius' vault-manager. Must enforc
 
 ### 15b. `.claude/agents/connection-finder.md`
 
-Discover hidden connections around a specific note. Reads graph enrichments, invokes FAISS semantic search via `resources/brain-graph/`, surfaces high-strength-low-distance candidates.
+Discover hidden connections around a specific note. Reads graph enrichments, invokes FAISS semantic search via `resources/local-brain-search/`, surfaces high-strength-low-distance candidates.
 
 ### 15c. `.claude/agents/auto-discovery.md`
 
@@ -820,11 +821,11 @@ ${instructions}
 
 ## STEP 16: Generate KB-Core Skills
 
-Every KB agent gets these seven skills. They are templated to the agent's ontology (graph.yaml). Each references the cloned brain-graph Python package in `resources/brain-graph/`.
+Every KB agent gets these seven skills. They are templated to the agent's ontology (graph.yaml). Each references the cloned local-brain-search Python package in `resources/local-brain-search/`.
 
 ### 16a. `/coherence-sweep`
 
-Runs full graph coherence analysis. Invokes `resources/brain-graph/coherence.py`. Reports: staleness flags, lifecycle transitions detected, structural health metrics (hubs, orphans, cluster sizes), tension candidates.
+Runs full graph coherence analysis. Invokes `resources/local-brain-search/coherence.py`. Reports: staleness flags, lifecycle transitions detected, structural health metrics (hubs, orphans, cluster sizes), tension candidates.
 
 Output: `05-Meta/Coherence-Reports/${YYYY-MM-DD}.md`.
 
@@ -832,25 +833,25 @@ Scheduled: `0 6 * * 1` (weekly Monday 6am).
 
 ### 16b. `/compute-lifecycle`
 
-Recomputes lifecycle scores for all insights and frameworks based on the signals from STEP 8. Invokes `resources/brain-graph/lifecycle.py`. Updates `resources/brain-graph/data/graph_enrichments.json`.
+Recomputes lifecycle scores for all insights and frameworks based on the signals from STEP 8. Invokes `resources/local-brain-search/lifecycle.py`. Updates `resources/local-brain-search/data/graph_enrichments.json`.
 
 Scheduled: `0 7 * * 1` (weekly Monday 7am).
 
 ### 16c. `/detect-tensions`
 
-Finds productive contradictions: pairs of notes with high semantic similarity but opposing conclusions. Invokes `resources/brain-graph/tension.py`. Emits candidate tension edges for user review.
+Finds productive contradictions: pairs of notes with high semantic similarity but opposing conclusions. Invokes `resources/local-brain-search/tension.py`. Emits candidate tension edges for user review.
 
 Scheduled: `0 8 * * 1` (weekly Monday 8am).
 
 ### 16d. `/refresh-index`
 
-Rebuilds the FAISS vector index over all vault notes. Invokes `resources/brain-graph/` (specific path varies — check cornelius' cli.py for the command).
+Rebuilds the FAISS vector index over all vault notes. Invokes `resources/local-brain-search/` (specific path varies — check cornelius' cli.py for the command).
 
 Scheduled: `0 5 * * *` (daily 5am).
 
 ### 16e. `/propagate-change`
 
-Given a note path + change magnitude, propagates staleness along typed edges according to decay rules. Invokes `resources/brain-graph/propagation.py`. Typically invoked on-demand after substantive edits (or by a file watcher in edit-driven mode).
+Given a note path + change magnitude, propagates staleness along typed edges according to decay rules. Invokes `resources/local-brain-search/propagation.py`. Typically invoked on-demand after substantive edits (or by a file watcher in edit-driven mode).
 
 ### 16f. `/recall <query>`
 
@@ -884,14 +885,14 @@ ${purpose}
 ## Process
 
 ### Step 1: Load ontology
-Read `${agent_name}-graph.yaml` (or `resources/brain-graph/brain_graph_config.yaml`) to get current ontology: entity types, edge types, propagation rules, lifecycle thresholds.
+Read `${agent_name}-graph.yaml` to get current ontology: entity types, edge types, propagation rules, lifecycle thresholds.
 
 ### Step 2: ${action}
-Invoke the corresponding module in `resources/brain-graph/`:
+Invoke the corresponding module in `resources/local-brain-search/`:
 \`\`\`bash
-cd resources/brain-graph && python -m cli ${command} ${args}
+cd resources/local-brain-search && python search.py ${args}
 \`\`\`
-(Exact command depends on cornelius' CLI — see `resources/brain-graph/cli.py`.)
+(Exact command depends on cornelius' CLI — see `resources/local-brain-search/cli.py`.)
 
 ### Step 3: Interpret and report
 ${reporting pattern — how to present results to user}
@@ -900,7 +901,7 @@ ${reporting pattern — how to present results to user}
 ${output location and format}
 ```
 
-For each of the 7 skills, flesh out the Step 2 + Step 3 content based on what that skill does. Use cornelius' `resources/brain-graph/cli.py` as the canonical reference for invocation syntax — it's in the cloned package.
+For each of the 7 skills, flesh out the Step 2 + Step 3 content based on what that skill does. Use cornelius' `resources/local-brain-search/cli.py` as the canonical reference for invocation syntax — it's in the cloned package.
 
 ---
 
@@ -935,7 +936,7 @@ For **Personal KB**, prefer copying the exact skill prose from cornelius' `.clau
   "steps": {
     "local": {
       "env_configured": { "done": false, "label": "Configure environment variables (.env)" },
-      "brain_graph_ready": { "done": false, "label": "Verify brain-graph machinery (cd resources/brain-graph && ./run_brain_graph.sh --help)" },
+      "local_brain_search_ready": { "done": false, "label": "Verify local-brain-search (cd resources/local-brain-search && python index_brain.py --help)" },
       "first_extraction": { "done": false, "label": "Run your first extraction (/${primary-domain-skill})" },
       "first_coherence_sweep": { "done": false, "label": "Run /coherence-sweep to see the graph" },
       "plugins_installed": { "done": false, "label": "Install plugins (${plugin_list})" }
@@ -1012,7 +1013,7 @@ sections:
 
 ### 19b. `.claude/skills/update-dashboard/SKILL.md`
 
-Standard update-dashboard, with metrics gathering adapted to read `resources/brain-graph/data/graph_enrichments.json` for edge/node counts, lifecycle distribution, staleness flags. Enumerate `05-Meta/Changelogs/` for recent activity.
+Standard update-dashboard, with metrics gathering adapted to read `resources/local-brain-search/data/graph_enrichments.json` for edge/node counts, lifecycle distribution, staleness flags. Enumerate `05-Meta/Changelogs/` for recent activity.
 
 ---
 
@@ -1024,8 +1025,9 @@ Standard update-dashboard, with metrics gathering adapted to read `resources/bra
 # Core
 AGENT_NAME=${agent_name}
 
-# Brain-graph machinery (required for embedding)
-OPENAI_API_KEY=
+# Local brain search (fully local — no cloud API needed)
+# BRAIN_PATH is auto-detected; override if vault lives elsewhere
+# BRAIN_PATH=
 
 # Trinity (optional until deployment)
 TRINITY_API_KEY=
@@ -1039,9 +1041,9 @@ ${preset_specific_env_vars}
 .env
 .mcp.json
 .claude/temp/
-resources/brain-graph/__pycache__/
-resources/brain-graph/data/*.faiss
-resources/brain-graph/data/*.npy
+resources/local-brain-search/__pycache__/
+resources/local-brain-search/data/*.faiss
+resources/local-brain-search/data/*.npy
 node_modules/
 ```
 
@@ -1103,7 +1105,7 @@ Display:
 |------|------|
 | Agent identity | CLAUDE.md |
 | Ontology (load-bearing) | ${agent_name}-graph.yaml |
-| Coherence engine | resources/brain-graph/ (${source}) |
+| Coherence engine | resources/local-brain-search/ (${source}) |
 | Subagents (${N}) | .claude/agents/ |
 | KB-core skills (7) | .claude/skills/ |
 | Domain skills (${M}) | .claude/skills/ |
@@ -1123,7 +1125,7 @@ Display:
    /onboarding
    \`\`\`
 
-   This walks you through: configuring env vars, verifying the brain-graph
+   This walks you through: configuring env vars, verifying the local-brain-search
    machinery, your first extraction, your first coherence sweep, and — when
    you're ready — deploying to Trinity with scheduled jobs.
 
