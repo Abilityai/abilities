@@ -70,6 +70,7 @@ The fastest way to get started is `/create` — a single entry point that shows 
 | [install-webmaster](plugins/install-webmaster/) | `/install-webmaster` | Website management — scaffolds and deploys Next.js 15 sites to Vercel |
 | [install-recon](plugins/install-recon/) | `/install-recon` | Competitive intelligence — competitor tracking, market research, battlecards |
 | [install-receptionist](plugins/install-receptionist/) | `/install-receptionist` | Email gateway — public-facing email communication and request routing |
+| [install-kb-agent](plugins/install-kb-agent/) | `/install-kb-agent` | Knowledge-base agent — Cornelius-shaped KB with local vector search, no cloud APIs |
 | [clone-cornelius](plugins/clone-cornelius/) | `/clone-cornelius` | Pre-built general-purpose agent (clone, not wizard) |
 | [agent-builder](plugins/agent-builder/) | `/create-agent` | Custom agent from scratch — you define everything |
 
@@ -93,6 +94,7 @@ Every wizard-created agent includes:
 | [install-webmaster](plugins/install-webmaster/) | Website management wizard | `/install-webmaster` |
 | [install-recon](plugins/install-recon/) | Competitive intelligence wizard | `/install-recon` |
 | [install-receptionist](plugins/install-receptionist/) | Email gateway wizard | `/install-receptionist` |
+| [install-kb-agent](plugins/install-kb-agent/) | Knowledge-base agent wizard | `/install-kb-agent` |
 | [clone-cornelius](plugins/clone-cornelius/) | Clone the Cornelius agent | `/clone-cornelius` |
 
 ### Development & Deployment
@@ -214,6 +216,13 @@ Asks about your industry, competitors, intelligence priorities, and delivery pre
 /install-receptionist ~/my-agents/rx   # Custom destination
 ```
 Asks about your email workflow, routing rules, and response policies. Creates an agent that handles public-facing email communication, filters requests, and routes to the right people or agents.
+
+**Install KB Agent** — Knowledge-base agent (Cornelius-shaped):
+```bash
+/install-kb-agent                      # Guided wizard
+/install-kb-agent ~/my-agents/scholar  # Custom destination
+```
+Asks a structured 6-question interview about your domain's ontology: atomic unit, entity types, edge types, mode model, trigger topology, and lifecycle signals. Creates a fully local KB agent with FAISS + sentence-transformers vector search, NetworkX graph, spreading activation retrieval, and 7-layer vault structure. **No cloud APIs** — all embeddings computed locally with `all-MiniLM-L6-v2`. Presets for personal KB, community manager, CS researcher, clinical research, legal analyst, or custom domains.
 
 ### Trinity Onboard
 
