@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent
 metadata:
-  version: "4.5"
+  version: "4.6"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "4.6: Add GitHub PAT troubleshooting guide for private repo deployment"
     - "4.5: Prefer GitHub repository deployment over local files when remote exists"
     - "4.4: CLI credential resolution (~/.trinity/config.json), deploy via `trinity deploy .`, .trinity-remote.yaml tracking, mcp_api_key from profile"
     - "4.3: Added setup.sh, voice chat, channel adapters, fan-out, per-user memory, execution query tools"
@@ -792,6 +793,58 @@ Only perform Steps 1-2 (check state and gather info), then present a report with
 | MCP tools not available | Restart Claude Code after creating .mcp.json |
 | Deployment failed | Check Trinity URL and API key are correct |
 | Agent already exists | Will update existing agent |
+| Git clone/pull fails on remote | Configure GitHub PAT in Trinity (see below) |
+
+---
+
+## Troubleshooting: GitHub PAT for Private Repos
+
+If Trinity fails to clone or pull from your GitHub repository after deployment, the most common cause is a missing or incorrectly configured GitHub Personal Access Token (PAT).
+
+### When is a PAT Required?
+
+- **Private repositories** — Always required
+- **Public repositories** — Not required, but recommended to avoid rate limits
+
+### Creating a Fine-Grained PAT
+
+1. Go to **GitHub Settings > Developer settings > Personal access tokens > Fine-grained tokens**
+2. Click **Generate new token**
+3. Configure the token:
+   - **Token name**: `Trinity` (or similar)
+   - **Expiration**: Choose based on your security policy
+   - **Repository access**: Select "Only select repositories" and choose the repos Trinity needs
+   - **Permissions**: Under "Repository permissions", set **Contents** to **Read-only**
+4. Click **Generate token** and copy the token (starts with `github_pat_`)
+
+### Configuring the PAT in Trinity
+
+**Option 1: Via Trinity Settings UI (Recommended)**
+
+1. Log in to your Trinity dashboard
+2. Go to **Settings**
+3. Find the **GitHub PAT** field
+4. Paste your token and save
+
+**Option 2: Via Environment Variable**
+
+Add to your Trinity `.env` file:
+```bash
+GITHUB_PAT=github_pat_your_token_here
+```
+
+Then restart Trinity services.
+
+### Verifying the PAT Works
+
+After configuring, test by:
+1. Creating a new agent from your GitHub template, or
+2. Triggering a git sync on an existing agent
+
+If the pull still fails, verify:
+- The PAT has not expired
+- The PAT has access to the specific repository
+- The PAT has the **Contents: Read** permission
 
 ---
 
