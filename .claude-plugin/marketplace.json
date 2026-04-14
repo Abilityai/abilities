@@ -256,6 +256,16 @@
         "./skills/close-work",
         "./skills/work-loop"
       ]
+    },
+    {
+      "name": "install-github-backlog",
+      "source": "./plugins/install-github-backlog",
+      "description": "Add GitHub Issues backlog workflow to any agent — creates skills in the agent directory for task management",
+      "category": "onboarding",
+      "tags": ["github", "backlog", "issues", "install", "setup", "workflow", "tasks", "autonomous"],
+      "skills": [
+        "./skills/install-github-backlog"
+      ]
     }
   ]
 }
