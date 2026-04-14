@@ -6,9 +6,13 @@ user-invocable: true
 argument-hint: "[report|adopt skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2025-02-10
+  updated: 2026-04-14
   author: Ability.ai
+  changelog:
+    - "1.1: Add No-Gates Rule validation — detect autonomous playbooks with approval gates"
+    - "1.0: Initial version"
 ---
 
 # Playbook Architect
@@ -122,6 +126,13 @@ For each component, assess:
 | Read State step | Does it read fresh state at start? |
 | Write State step | Does it write state explicitly at end? |
 | Completion Checklist | Is there a verification checklist? |
+| **No-Gates Rule** | If `automation: autonomous`, are there zero `[APPROVAL GATE]` markers? |
+
+**⚠️ Gate/Autonomous Conflict Detection**: When auditing, always check for this invalid state:
+```bash
+grep -l "automation: autonomous" [path]/SKILL.md && grep -c "\[APPROVAL GATE\]" [path]/SKILL.md
+```
+If autonomous AND gates > 0 → flag as compliance violation that will break execution.
 
 ### Classification
 
@@ -294,11 +305,14 @@ Show the updated component and confirm nothing was lost.
 
 | If component... | Then automation = |
 |-----------------|-------------------|
-| Has scheduling/cron references | `autonomous` |
+| Has scheduling/cron references AND no approval gates | `autonomous` |
 | Has "confirm", "review", "approve" language | `gated` |
+| Has `[APPROVAL GATE]` markers | `gated` (NEVER autonomous) |
 | Has dangerous operations (delete, deploy, publish) | `gated` or `manual` |
 | Is simple utility | `manual` |
 | Default | `manual` |
+
+**⚠️ The No-Gates Rule**: Autonomous playbooks CANNOT have `[APPROVAL GATE]` markers. If a component has scheduling references BUT also has approval gates, it must be `gated`, not `autonomous`. An approval gate in an autonomous playbook will cause execution to hang indefinitely.
 
 ### Inferring State Dependencies
 

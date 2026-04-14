@@ -6,10 +6,12 @@ user-invocable: true
 argument-hint: "[playbook-name] [what to change] [--archive]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2025-02-10
+  updated: 2026-04-14
   author: Ability.ai
   changelog:
+    - "1.2: Add autonomous validation — cannot add gates to autonomous or change to autonomous with gates"
     - "1.1: Added --archive flag and versioning workflow for breaking changes"
     - "1.0: Initial version"
 ---
@@ -209,6 +211,29 @@ Insert in the Process section at appropriate position.
 
 ### Add Approval Gate
 
+**⚠️ First, check if playbook is autonomous:**
+
+```bash
+grep "automation:" [path]/SKILL.md
+```
+
+If `automation: autonomous`, **STOP** — cannot add approval gates:
+
+```
+⚠️  Cannot add approval gate — playbook is autonomous.
+
+Autonomous playbooks run unattended and would hang waiting for approval 
+that never comes.
+
+Options:
+1. Change to `automation: gated` (then add the gate)
+2. Cancel — keep autonomous without this gate
+
+Which would you prefer?
+```
+
+**If gated or manual, proceed:**
+
 ```markdown
 [APPROVAL GATE] - [Description of what needs approval]
 
@@ -225,10 +250,41 @@ Update frontmatter:
 automation: gated  # was: manual
 ```
 
-If changing to autonomous, verify:
-- No approval gates remain (or remove them)
-- Error handling is robust
-- Notifications configured
+**⚠️ If changing TO autonomous:**
+
+Autonomous playbooks run unattended — there is no human to approve gates. Before changing to autonomous, verify using the Autonomous Validation Checklist:
+
+- [ ] **No approval gates** — grep for `[APPROVAL GATE]` — must return zero matches
+- [ ] **No human decision points** — no "ask user", "wait for confirmation", "present options"
+- [ ] **Complete error handling** — all failure paths handled without human intervention
+- [ ] **Notifications on failure** — errors must alert via Slack, email, or logging
+- [ ] **Under 45 minutes** — execution time within agent reliability window
+- [ ] **Idempotent or safe to retry** — can re-run without causing duplicate effects
+
+If existing playbook has approval gates, you MUST either:
+1. Remove all `[APPROVAL GATE]` sections (and their associated user interaction steps)
+2. OR keep the playbook as `gated`/`manual`
+
+```bash
+# Check for approval gates
+grep -c "\[APPROVAL GATE\]" [path]/SKILL.md
+# Must return 0 to proceed with autonomous
+```
+
+If gates exist, warn:
+```
+⚠️  Cannot change to autonomous — playbook contains [N] approval gate(s).
+
+Autonomous playbooks cannot have approval gates — they run unattended and would 
+hang waiting for approval that never comes.
+
+Options:
+1. Remove the approval gates (will skip those review steps)
+2. Keep as gated (human reviews at scheduled time)
+3. Cancel change
+
+Which would you prefer?
+```
 
 ### Change Schedule
 

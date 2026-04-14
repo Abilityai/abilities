@@ -4,10 +4,31 @@ Use this template for playbooks that run on schedule without human intervention.
 
 **Characteristics:**
 - Safe to run completely unattended
-- No approval gates
+- **NO approval gates** — this is critical, see below
 - Must handle all errors gracefully
 - Should notify on failure (email, Slack, etc.)
 - **Must complete in under 45 minutes** — agent reliability degrades exponentially beyond this point
+
+---
+
+## ⚠️ The No-Gates Rule
+
+**Autonomous playbooks CANNOT contain `[APPROVAL GATE]` markers.**
+
+Why: Autonomous playbooks run unattended on a schedule. There is no human present to approve gates. An approval gate will cause execution to hang indefinitely, breaking the scheduled run and potentially blocking subsequent runs.
+
+**Before using this template, verify:**
+
+- [ ] **No approval gates** — workflow has zero steps requiring human judgment mid-execution
+- [ ] **No human decision points** — no "ask user", "wait for confirmation", "present options"
+- [ ] **All errors handled** — every failure path has automated recovery or notification
+- [ ] **Notifications configured** — failures alert via Slack, email, or logging
+- [ ] **Under 45 minutes** — execution time within agent reliability window
+- [ ] **Idempotent or safe to retry** — re-running won't cause duplicate effects
+
+**If any check fails**, use the `gated-template.md` instead.
+
+---
 
 **Design for the 45-minute limit:**
 - If a task takes longer, break it into multiple scheduled playbooks

@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.1"
+  version: "2.2"
   created: 2025-02-10
   updated: 2026-04-14
   author: Ability.ai
   changelog:
+    - "2.2: Add No-Gates Rule — autonomous playbooks cannot have approval gates (breaks execution)"
     - "2.1: Add 45-minute rule to Design Constraints — autonomous playbooks must complete within this limit"
 ---
 
@@ -55,9 +56,12 @@ Ask these questions to classify:
 - YES → Continue to Q3
 
 **Q3: What automation level?**
-- Safe to run completely unattended → `autonomous`
+- Safe to run completely unattended, **no approval needed at any point** → `autonomous`
 - Needs human approval at checkpoints → `gated`
 - Human monitors entire execution → `manual`
+
+⚠️ **Critical**: If user says "autonomous" but also mentions approval/review steps, clarify:
+> "Autonomous playbooks cannot have approval gates — they run unattended and would hang waiting for approval that never comes. Should this be `gated` instead?"
 
 → **Tier 3: Full Playbook**
 
@@ -77,7 +81,7 @@ Ask these questions to classify:
 - Automation level (autonomous/gated/manual)
 - Schedule (if autonomous or gated): cron expression
 - Process steps
-- Approval gates (if gated): where?
+- Approval gates (if gated): where? ⚠️ **Not allowed for autonomous — see No-Gates Rule**
 - Prerequisites
 
 ### Step 4b: Self-Improvement Option
@@ -238,6 +242,27 @@ After completing this skill's primary task, consider tactical improvements:
 - Long processes → multiple scheduled tasks with handoff via state files
 
 When gathering requirements for Tier 3 playbooks, ask: "Can this complete in under 45 minutes? If not, how should we chunk it?"
+
+**The No-Gates Rule for Autonomous Playbooks**: Autonomous playbooks run unattended on a schedule — there is no human to approve gates. An `[APPROVAL GATE]` in an autonomous playbook will cause execution to hang indefinitely, breaking the scheduled run.
+
+- Autonomous playbooks MUST NOT contain any `[APPROVAL GATE]` markers
+- If the workflow needs human approval at any point, it MUST be `gated` or `manual`, not `autonomous`
+- When user requests autonomous + approval gates, explain the incompatibility and ask them to choose
+
+---
+
+## Autonomous Playbook Validation Checklist
+
+Before generating any autonomous playbook, verify:
+
+- [ ] **No approval gates** — grep the content for `[APPROVAL GATE]` — must return zero matches
+- [ ] **No human decision points** — no "ask user", "wait for confirmation", "present options"
+- [ ] **Complete error handling** — all failure paths handled without human intervention
+- [ ] **Notifications on failure** — errors must alert via Slack, email, or logging
+- [ ] **Under 45 minutes** — execution time within agent reliability window
+- [ ] **Idempotent or safe to retry** — can re-run without causing duplicate effects
+
+If any check fails, the playbook cannot be autonomous. Recommend `gated` instead.
 
 ---
 

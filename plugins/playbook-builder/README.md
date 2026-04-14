@@ -99,6 +99,14 @@ For full playbooks that run scheduled or unattended:
 | **Gated** | Schedule/trigger | Approve at checkpoints | Content, deployments |
 | **Manual** | When invoked | Full control | Dangerous ops, migrations |
 
+### ⚠️ The No-Gates Rule
+
+**Autonomous playbooks CANNOT have `[APPROVAL GATE]` markers.**
+
+Why: Autonomous playbooks run unattended. There is no human to approve gates. An approval gate will cause execution to hang indefinitely, breaking the scheduled run.
+
+If your workflow needs human approval at any point, use `gated` — not `autonomous`.
+
 ## The Transactional Pattern (Tier 2-3)
 
 Stateful skills and full playbooks should:

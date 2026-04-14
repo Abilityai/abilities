@@ -6,9 +6,13 @@ user-invocable: true
 argument-hint: "[playbook-name]"
 allowed-tools: Read, Write, Bash, Glob, AskUserQuestion
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2025-02-10
+  updated: 2026-04-14
   author: Ability.ai
+  changelog:
+    - "1.1: Add autonomous validation — cannot generate autonomous playbook if conversation had decision points"
+    - "1.0: Initial version"
 ---
 
 # Save Playbook
@@ -79,9 +83,27 @@ If Tier 3, classify:
 
 | If the workflow... | Automation = |
 |-------------------|--------------|
-| Could run completely unattended | `autonomous` |
+| Could run completely unattended, **no approval needed** | `autonomous` |
 | Had decision points needing human judgment | `gated` |
 | Required human oversight throughout | `manual` |
+
+**⚠️ Critical Autonomous Validation:**
+
+If you identified decision points in Step 1 (#6), the playbook CANNOT be autonomous. Autonomous playbooks run unattended — there is no human to approve gates. An approval gate in an autonomous playbook will cause execution to hang indefinitely.
+
+Before classifying as autonomous, verify:
+- [ ] **No approval gates needed** — conversation had zero decision points requiring human judgment
+- [ ] **No human decision points** — no "ask user", "wait for confirmation", "present options" in extracted steps
+- [ ] **Complete error handling** — all failure paths can be handled without human intervention
+- [ ] **Under 45 minutes** — workflow completed within agent reliability window
+
+If any check fails, recommend `gated` instead:
+```
+The workflow had [N] decision point(s) where you asked for approval.
+Autonomous playbooks cannot have approval gates — they run unattended.
+
+Recommend: `automation: gated` instead of `autonomous`
+```
 
 ### Step 5: Extract State Dependencies (Tier 2-3)
 
