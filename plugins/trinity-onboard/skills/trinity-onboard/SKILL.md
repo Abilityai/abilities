@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent
 metadata:
-  version: "4.4"
+  version: "4.5"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "4.5: Prefer GitHub repository deployment over local files when remote exists"
     - "4.4: CLI credential resolution (~/.trinity/config.json), deploy via `trinity deploy .`, .trinity-remote.yaml tracking, mcp_api_key from profile"
     - "4.3: Added setup.sh, voice chat, channel adapters, fan-out, per-user memory, execution query tools"
     - "4.2: Added avatar_prompt field to template.yaml generation"
@@ -605,13 +606,41 @@ Check if the Trinity CLI is installed:
 which trinity 2>/dev/null
 ```
 
-**If `trinity` CLI is available:** Deploy using the CLI command:
+**If `trinity` CLI is available:**
+
+First, check for a GitHub remote:
+
+```bash
+git remote get-url origin 2>/dev/null
+```
+
+**If a GitHub remote exists** (URL contains `github.com`):
+
+1. Check for uncommitted changes: `git status --porcelain`
+2. Check for unpushed commits: `git log origin/$(git branch --show-current)..HEAD --oneline 2>/dev/null`
+
+If there are uncommitted or unpushed changes, ask the user:
+```
+You have local changes not pushed to GitHub. Deploy options:
+1. Push changes first, then deploy from GitHub (recommended)
+2. Deploy from local files instead
+```
+
+If clean (no uncommitted/unpushed changes), deploy from GitHub:
+
+```bash
+trinity deploy <github-url>
+```
+
+Where `<github-url>` is the remote origin URL (e.g., `https://github.com/user/repo`).
+
+**If no GitHub remote exists**, deploy from local directory:
 
 ```bash
 trinity deploy .
 ```
 
-This handles archiving, uploading, versioning, stopping previous versions, and writing `.trinity-remote.yaml` automatically.
+Both methods handle archiving, uploading, versioning, stopping previous versions, and writing `.trinity-remote.yaml` automatically.
 
 **If `trinity` CLI is NOT available:** Fall back to MCP-based deploy:
 
