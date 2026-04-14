@@ -7,6 +7,13 @@ Use this template for playbooks that run on schedule without human intervention.
 - No approval gates
 - Must handle all errors gracefully
 - Should notify on failure (email, Slack, etc.)
+- **Must complete in under 45 minutes** — agent reliability degrades exponentially beyond this point
+
+**Design for the 45-minute limit:**
+- If a task takes longer, break it into multiple scheduled playbooks
+- Build natural checkpoints where state is saved
+- Use the schedule to reset context (e.g., process 50 items per run, not all items)
+- Long-running processes should emit progress to logs so failures are diagnosable
 
 ---
 

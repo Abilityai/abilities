@@ -6,9 +6,12 @@ user-invocable: true
 argument-hint: "[skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.0"
+  version: "2.1"
   created: 2025-02-10
+  updated: 2026-04-14
   author: Ability.ai
+  changelog:
+    - "2.1: Add 45-minute rule to Design Constraints — autonomous playbooks must complete within this limit"
 ---
 
 # Create Playbook
@@ -222,6 +225,19 @@ After completing this skill's primary task, consider tactical improvements:
   - [ ] Stage: `git add <skill-path>/SKILL.md`
   - [ ] Commit: `git commit -m "refactor(<skill-name>): <brief improvement description>"`
 ```
+
+---
+
+## Design Constraints
+
+**The 45-Minute Rule**: Agent reliability degrades exponentially after ~45 minutes of continuous execution. Design playbooks accordingly:
+
+- Autonomous playbooks must complete in under 45 minutes
+- If a task is larger, break it into multiple scheduled runs (e.g., "process 50 items" not "process all items")
+- Build checkpoints where state is saved — if interrupted, the next run can resume
+- Long processes → multiple scheduled tasks with handoff via state files
+
+When gathering requirements for Tier 3 playbooks, ask: "Can this complete in under 45 minutes? If not, how should we chunk it?"
 
 ---
 
