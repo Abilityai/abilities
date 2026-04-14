@@ -1,0 +1,10 @@
+{
+  "name": "github-backlog",
+  "description": "Manage agent tasks via GitHub Issues — view backlog, pick work, update status, run autonomous work loops",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "license": "MIT"
+}

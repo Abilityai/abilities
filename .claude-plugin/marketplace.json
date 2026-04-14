@@ -243,6 +243,19 @@
         "./skills/roadmap",
         "./skills/generate-user-docs"
       ]
+    },
+    {
+      "name": "github-backlog",
+      "source": "./plugins/github-backlog",
+      "description": "Manage agent tasks via GitHub Issues — view backlog, pick work, update status, run autonomous work loops",
+      "category": "productivity",
+      "tags": ["github", "issues", "backlog", "tasks", "automation", "work-loop", "heartbeat"],
+      "skills": [
+        "./skills/backlog",
+        "./skills/pick-work",
+        "./skills/close-work",
+        "./skills/work-loop"
+      ]
     }
   ]
 }
