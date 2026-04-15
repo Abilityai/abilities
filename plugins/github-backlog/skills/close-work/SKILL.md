@@ -5,7 +5,7 @@ argument-hint: "\"summary of what was done\""
 allowed-tools: Bash, Read
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-14
   author: Ability.ai
 ---
@@ -20,6 +20,11 @@ Complete the current in-progress task. Adds a summary comment, updates status, a
 |--------|----------|------|-------|-------------|
 | GitHub Issues | Current repo | Yes | Yes | Close issue |
 | GitHub Labels | status:* | Yes | Yes | Update status |
+
+## Prerequisites
+
+- `gh` CLI installed and authenticated (`gh auth status`)
+- Repository has required labels (run `/backlog` to check/create)
 
 ## Process
 

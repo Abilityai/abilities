@@ -5,7 +5,7 @@ argument-hint: "[all|in-progress|blocked]"
 allowed-tools: Bash, Read
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-14
   author: Ability.ai
 ---
@@ -122,3 +122,12 @@ View full backlog: [Issues →](https://github.com/owner/repo/issues)
 - Formatted backlog summary
 - Link to GitHub Issues page
 - Label setup guidance if labels missing
+
+## Error Handling
+
+| Error | Action |
+|-------|--------|
+| gh not authenticated | Tell user to run `! gh auth login` |
+| Not in a git repo | Report "Not in a GitHub repository" |
+| No labels configured | Offer to create them (show commands) |
+| API rate limited | Report error, suggest waiting |

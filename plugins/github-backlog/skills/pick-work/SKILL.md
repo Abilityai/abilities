@@ -5,7 +5,7 @@ argument-hint: "[issue-number]"
 allowed-tools: Bash, Read
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-14
   author: Ability.ai
 ---
@@ -20,6 +20,11 @@ Select the next task from the GitHub Issues backlog and mark it as in-progress.
 |--------|----------|------|-------|-------------|
 | GitHub Issues | Current repo | Yes | Yes | Task backlog |
 | GitHub Labels | status:*, priority:* | Yes | Yes | Update status |
+
+## Prerequisites
+
+- `gh` CLI installed and authenticated (`gh auth status`)
+- Repository has required labels (run `/backlog` to check/create)
 
 ## Process
 

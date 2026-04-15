@@ -3,10 +3,10 @@ name: work-loop
 description: Autonomous work loop — process backlog issues until empty or time limit reached
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent, Skill
 automation: autonomous
-schedule: "0 */4 * * *"
+schedule: "0 9 * * *"  # Daily at 9am — adjust as needed
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-14
   author: Ability.ai
 ---
@@ -155,14 +155,15 @@ If elapsed >= MAX_DURATION:
 - Completion summaries on closed issues
 - Blocked issues flagged with reasons
 
-## Error Handling
+## Error Recovery
 
 | Error | Recovery |
 |-------|----------|
-| `gh` not authenticated | Log error, exit |
+| `gh` not authenticated | Log error, exit — user must run `! gh auth login` |
 | Issue update fails | Log error, continue to next issue |
-| Task execution fails | Mark issue as blocked with error details |
-| Time limit reached | Graceful exit with status comment |
+| Task execution fails | Mark issue as blocked with error details, continue to next |
+| Time limit reached | Graceful exit with status comment on any in-progress issue |
+| Network failure | Retry once, then log and exit |
 
 ## Completion Checklist
 
