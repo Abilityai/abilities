@@ -1,7 +1,7 @@
 {
   "name": "install-kb-agent",
-  "description": "Create a knowledge-base agent — guided wizard that scaffolds a Cornelius-shaped, Trinity-compatible KB agent for any domain (community manager, CS researcher, clinical research, legal analyst, personal KB, custom)",
-  "version": "1.1.0",
+  "description": "Create a knowledge-base agent — guided wizard that scaffolds a Cornelius-shaped, Trinity-compatible KB agent with GitHub Issues task management for any domain (community manager, CS researcher, clinical research, legal analyst, personal KB, custom)",
+  "version": "1.2.0",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"
@@ -20,6 +20,8 @@
     "cornelius",
     "brain-dependency-graph",
     "ontology",
-    "zettelkasten"
+    "zettelkasten",
+    "github-backlog",
+    "task-management"
   ]
 }

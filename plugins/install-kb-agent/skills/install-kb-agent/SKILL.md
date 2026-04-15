@@ -6,7 +6,7 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-04-13
   updated: 2026-04-14
   author: Ability.ai
@@ -230,6 +230,9 @@ Always-included plugins for KB agents:
 - `playbook-builder` — create new skills
 - `trinity-onboard` — deploy remotely
 - `brain-memory` — KB infrastructure (may be obviated by the cornelius local-brain-search we clone; leave it in as optional support)
+- `github-backlog` — task and project management via GitHub Issues (**generated directly as skills, not a plugin dependency**)
+
+The github-backlog skills (`/backlog`, `/pick-work`, `/close-work`, `/work-loop`) are generated directly into the agent's `.claude/skills/` directory during wizard execution — no external plugin install required. This gives the KB agent a complete task management workflow out of the box.
 
 Use AskUserQuestion to confirm + add any of:
 - `file-indexing` (recommended if vault is expected to exceed 1000 notes)
@@ -278,6 +281,7 @@ $atomic_unit.name — $atomic_unit.description
 - .claude/agents/: vault-manager, connection-finder, auto-discovery, [N extractors]
 - .claude/skills/: coherence-sweep, compute-lifecycle, detect-tensions, refresh-index,
   propagate-change, recall, find-connections, onboarding, update-dashboard, [domain skills]
+- .claude/skills/: backlog, pick-work, close-work, work-loop (GitHub backlog workflow)
 - resources/local-brain-search/ (cloned from cornelius)
 - 7-layer vault (00-Inbox through 05-Meta)
 - .env.example, .gitignore, .mcp.json.template
@@ -597,6 +601,41 @@ ${domain_edges_list}
 | `/find-connections <note>` | Discover hidden edges around a specific note | On-demand |
 ${domain_skills_table}
 
+## Task Management
+
+This agent manages its work via GitHub Issues in this repository.
+
+**Workflow:**
+1. Create issues with clear requirements and priority labels
+2. Agent picks highest priority `status:todo` issue
+3. Moves to `status:in-progress` while working
+4. Closes with summary when complete
+5. Repeats until backlog is empty
+
+**Skills:**
+| Skill | Purpose |
+|-------|---------|
+| `/backlog` | View current workload by priority |
+| `/pick-work` | Grab next task, mark in-progress |
+| `/close-work "summary"` | Complete current task |
+| `/work-loop` | Autonomous processing (schedulable) |
+
+**Labels:**
+- `status:todo` / `status:in-progress` / `status:blocked` / `status:done`
+- `priority:p0` (do now) / `priority:p1` (do soon) / `priority:p2` (do eventually)
+
+**Creating Issues for this Agent:**
+- Clear title describing the task
+- Body with requirements/acceptance criteria
+- Add appropriate priority label
+- Leave as `status:todo` (or no status — defaults to todo)
+
+**Autonomous Mode (Trinity):**
+Schedule `/work-loop` to run periodically. The agent will process its backlog automatically:
+```bash
+trinity schedules create work-loop --cron "0 */4 * * *"
+```
+
 ## Subagents
 
 ${subagents_table}
@@ -652,6 +691,9 @@ These plugins are installed during onboarding (`/onboarding` handles automatical
 - `/plugin install trinity-onboard@abilityai` — deploy to Trinity
 - `/plugin install brain-memory@abilityai` — supporting KB infrastructure
 ${extra_plugin_installs}
+
+**Built-in (no install needed):**
+- GitHub Backlog — task management via GitHub Issues (`/backlog`, `/pick-work`, `/close-work`, `/work-loop`)
 
 ## Project Structure
 
@@ -730,6 +772,7 @@ artifacts:
 | `/compute-lifecycle` | `0 7 * * 1` | Weekly lifecycle score recompute (Monday 7am) |
 | `/detect-tensions` | `0 8 * * 1` | Weekly tension detection (Monday 8am) |
 | `/update-dashboard` | `0 */4 * * *` | Dashboard metrics refresh (every 4 hours) |
+| `/work-loop` | `0 */4 * * *` | Process GitHub Issues backlog (every 4 hours) |
 ${event_schedules_if_hybrid_or_event_driven}
 
 ## Guidelines
@@ -860,6 +903,101 @@ Given a note path + change magnitude, propagates staleness along typed edges acc
 ### 16g. `/find-connections <note-path>`
 
 Connection discovery around a single note. Combines low-similarity-high-strength heuristic (auto-discovery style) with typed-edge traversal to surface non-obvious neighbors.
+
+### 16h-16k. GitHub Backlog Skills (Task Management)
+
+Every KB agent gets the GitHub backlog workflow for task and project management. These skills let the agent manage work via GitHub Issues — pick tasks, track progress, close with summaries, and run autonomous work loops.
+
+Generate these 4 skills directly (adapted from the `install-github-backlog` wizard pattern):
+
+**16h. `/backlog`**
+
+View current workload from GitHub Issues by priority and status. Shows in-progress work, next up (P0 todos), and queued (P1/P2).
+
+```yaml
+---
+name: backlog
+description: Show current GitHub Issues backlog — what's in progress, what's next, priorities
+argument-hint: "[all|in-progress|blocked]"
+allowed-tools: Bash, Read
+user-invocable: true
+---
+```
+
+Process:
+1. Parse argument (default: overview, or `all`/`in-progress`/`blocked`)
+2. Verify `gh auth status`
+3. Query issues with status/priority labels
+4. Format output as priority-grouped table
+
+**16i. `/pick-work`**
+
+Select the next task and mark it in-progress.
+
+```yaml
+---
+name: pick-work
+description: Pick the next task from the backlog — selects highest priority todo, moves to in-progress
+argument-hint: "[issue-number]"
+allowed-tools: Bash, Read
+user-invocable: true
+---
+```
+
+Process:
+1. Check if any issue is already in-progress
+2. If argument provided, use that issue; otherwise find highest priority todo (P0→P1→P2)
+3. Move to in-progress: `gh issue edit $N --remove-label "status:todo" --add-label "status:in-progress"`
+4. Add start comment and display the issue for work
+
+**16j. `/close-work`**
+
+Complete current work with summary.
+
+```yaml
+---
+name: close-work
+description: Mark current work done — adds summary comment, updates labels, closes issue
+argument-hint: "\"summary of what was done\""
+allowed-tools: Bash, Read
+user-invocable: true
+---
+```
+
+Process:
+1. Find in-progress issue
+2. Validate summary argument (require if empty)
+3. Add completion comment with summary
+4. Update labels and close: `gh issue edit $N --remove-label "status:in-progress" --add-label "status:done" && gh issue close $N`
+
+**16k. `/work-loop`**
+
+Autonomous work processing — schedulable on Trinity.
+
+```yaml
+---
+name: work-loop
+description: Autonomous work loop — process backlog issues until empty or time limit reached
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent, Skill
+automation: autonomous
+schedule: "0 */4 * * *"
+user-invocable: true
+---
+```
+
+Process:
+1. Initialize, record start time (40-minute limit for reliability)
+2. Check for in-progress work; if found, continue it
+3. If none, pick highest priority todo
+4. Execute task based on issue content (invoke skills, direct execution, or spawn Agent)
+5. Close with summary when complete
+6. Loop back to step 2 if under 40 minutes
+
+**GitHub Labels Setup:**
+
+The `/backlog` skill creates these labels on first run if missing:
+- `status:todo`, `status:in-progress`, `status:blocked`, `status:done`
+- `priority:p0` (do now), `priority:p1` (do soon), `priority:p2` (do eventually)
 
 **Skill file template for each:**
 
@@ -1108,6 +1246,7 @@ Display:
 | Coherence engine | resources/local-brain-search/ (${source}) |
 | Subagents (${N}) | .claude/agents/ |
 | KB-core skills (7) | .claude/skills/ |
+| Task management (4) | .claude/skills/backlog, pick-work, close-work, work-loop |
 | Domain skills (${M}) | .claude/skills/ |
 | 7-layer vault | 00-Inbox/ through 05-Meta/ |
 | Trinity files | template.yaml, dashboard.yaml, onboarding.json |
