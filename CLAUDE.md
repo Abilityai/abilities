@@ -11,8 +11,11 @@ This is the **Abilities Plugin Marketplace** - a curated collection of Claude Co
 ```
 .claude-plugin/marketplace.json  # Central registry of all plugins
 plugins/
-  ├── trinity-onboard/          # Trinity platform deployment
-  └── playbook-builder/         # Structured playbook creation
+  ├── create-agent/             # Create new agents (domain wizards + custom)
+  ├── agent-dev/                # Develop agents (skills, memory, backlog, planning)
+  ├── trinity/                  # Deploy to Trinity platform
+  ├── dev-methodology/          # Documentation-driven development
+  └── utilities/                # General-purpose utility skills
 ```
 
 Each plugin follows this structure:
@@ -33,11 +36,14 @@ plugins/[name]/
 /plugin marketplace add abilityai/abilities
 
 # Install plugins
-/plugin install trinity-onboard@abilityai
-/plugin install playbook-builder@abilityai
+/plugin install create-agent@abilityai    # Create new agents
+/plugin install agent-dev@abilityai       # Add skills, memory, backlog
+/plugin install trinity@abilityai         # Deploy to Trinity
+/plugin install dev-methodology@abilityai # Documentation-driven dev
+/plugin install utilities@abilityai       # General utilities
 
 # Manual installation from local
-/plugin add ./plugins/trinity-onboard
+/plugin add ./plugins/trinity
 ```
 
 ## Skill Definition Format
