@@ -36,8 +36,8 @@
       "category": "developer-tools",
       "tags": ["agent", "development", "skills", "memory", "backlog", "github", "planning", "workflow"],
       "skills": [
-        "./skills/add-skill",
-        "./skills/adjust-skill",
+        "./skills/create-playbook",
+        "./skills/adjust-playbook",
         "./skills/add-memory",
         "./skills/add-backlog",
         "./skills/backlog",

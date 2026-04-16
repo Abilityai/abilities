@@ -13,8 +13,8 @@ Develop and extend existing Claude Code agents with skills, memory systems, back
 ### Adding Capabilities
 
 ```
-/agent-dev:add-skill          # Create a new skill for the agent
-/agent-dev:adjust-skill       # Modify an existing skill
+/agent-dev:create-playbook    # Create a new skill/playbook for the agent
+/agent-dev:adjust-playbook    # Modify an existing skill/playbook
 /agent-dev:add-memory         # Add a memory system (file-index, brain, json-state, workspace)
 /agent-dev:add-backlog        # Add GitHub Issues backlog workflow
 ```
@@ -42,8 +42,8 @@ Once backlog is installed, use these skills to manage work:
 
 | Skill | Description |
 |-------|-------------|
-| **add-skill** | Create a new skill/playbook for the agent (guided wizard) |
-| **adjust-skill** | Modify an existing skill — update logic, add steps, change triggers |
+| **create-playbook** | Create a new skill/playbook for the agent (guided wizard) |
+| **adjust-playbook** | Modify an existing skill — update logic, add steps, change triggers |
 | **add-memory** | Add one of four memory systems to the agent |
 | **add-backlog** | Add GitHub Issues workflow for task management |
 
@@ -85,7 +85,7 @@ When you run `/agent-dev:add-memory`:
 ## Source
 
 This plugin consolidates:
-- playbook-builder (add-skill, adjust-skill)
+- playbook-builder (create-playbook, adjust-playbook)
 - file-indexing, brain-memory, json-memory, workspace-kit (memory templates)
 - github-backlog (backlog workflow)
 - install-github-backlog (add-backlog)
