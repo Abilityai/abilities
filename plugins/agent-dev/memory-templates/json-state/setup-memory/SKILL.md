@@ -117,12 +117,12 @@ Add memory configuration:
 JSON-based persistent memory in `memory/` folder.
 
 ### Loading Memory
-Use `/json-memory:load-memory` to load context at session start.
+Use `/load-memory` to load context at session start.
 Load selectively - don't read entire memory_index.json.
 
 ### Updating Memory
-Use `/json-memory:memory-jq` for efficient field updates.
-Use `/json-memory:update-memory` after significant changes.
+Use `/memory-jq` for efficient field updates.
+Use `/update-memory` after significant changes.
 
 ### Memory Sections
 - `profile` - User/agent identity
@@ -141,5 +141,5 @@ Newest entries at top. Load last 50 lines for context.
 
 Report:
 - Memory system created at `memory/`
-- Use `/json-memory:load-memory` to load context
-- Use `/json-memory:update-memory` to save changes
+- Use `/load-memory` to load context
+- Use `/update-memory` to save changes

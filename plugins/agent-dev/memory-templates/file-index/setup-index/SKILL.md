@@ -80,12 +80,12 @@ Last updated: [ISO timestamp]
 
 Tell the user:
 - File index created at `memory/file_index.md`
-- Use `/file-indexing:refresh-index` to update
-- Use `/file-indexing:search-files` to search
+- Use `/refresh-index` to update
+- Use `/search-files` to search
 
 Add to CLAUDE.md if it exists:
 ```markdown
 ## File Index
 - Index location: `memory/file_index.md`
-- Refresh with: `/file-indexing:refresh-index`
+- Refresh with: `/refresh-index`
 ```

@@ -68,5 +68,5 @@ Found X notes:
 ## Step 5: Suggest Actions
 
 Based on results:
-- "No results? Try `/brain-memory:create-note $ARGUMENTS`"
-- "Want to see connections? Run `/brain-memory:find-connections <note-name>`"
+- "No results? Try `/create-note $ARGUMENTS`"
+- "Want to see connections? Run `/find-connections <note-name>`"

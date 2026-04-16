@@ -90,4 +90,4 @@ Append to `Brain/CHANGELOG.md`:
 
 Tell user:
 - Note created at [path]
-- Suggest running `/brain-memory:find-connections` to discover links
+- Suggest running `/find-connections` to discover links

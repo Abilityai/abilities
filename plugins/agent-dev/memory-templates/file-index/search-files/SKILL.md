@@ -41,5 +41,5 @@ Output:
 - Sizes if available from index
 
 If no matches in index, suggest:
-- Running `/file-indexing:refresh-index` if index might be stale
+- Running `/refresh-index` if index might be stale
 - Using Glob directly for real-time search

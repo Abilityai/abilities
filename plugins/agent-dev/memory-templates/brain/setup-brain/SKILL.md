@@ -108,9 +108,9 @@ All notes MUST have YAML frontmatter:
 - tags (array)
 
 ### Commands
-- `/brain-memory:create-note` - Create a new permanent note
-- `/brain-memory:search-brain` - Search the vault
-- `/brain-memory:find-connections` - Discover note relationships
+- `/create-note` - Create a new permanent note
+- `/search-brain` - Search the vault
+- `/find-connections` - Discover note relationships
 ```
 
 ## Step 5: Confirm Setup
@@ -118,4 +118,4 @@ All notes MUST have YAML frontmatter:
 Report to user:
 - Brain vault created at `Brain/`
 - X directories created
-- Ready to add notes with `/brain-memory:create-note`
+- Ready to add notes with `/create-note`

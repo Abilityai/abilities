@@ -170,9 +170,9 @@ For temporary work, drafts, and daily artifacts:
 - Scratch files and experiments
 
 ### Commands
-- `/workspace-kit:create-project <name>` - New project
-- `/workspace-kit:create-session [topic]` - Today's session folder
-- `/workspace-kit:archive-project <name>` - Archive completed project
+- `/create-project <name>` - New project
+- `/create-session [topic]` - Today's session folder
+- `/archive-project <name>` - Archive completed project
 
 ### Rules
 1. NEVER store project files in sessions/ - they belong in projects/
@@ -188,4 +188,4 @@ Report:
 - `projects/` ready for project folders
 - `sessions/` ready for date-based work
 - CLAUDE.md updated with management instructions
-- Use `/workspace-kit:create-project <name>` to start
+- Use `/create-project <name>` to start
