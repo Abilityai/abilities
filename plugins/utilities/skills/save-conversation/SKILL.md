@@ -263,6 +263,5 @@ Extracted:
 
 | Skill | Purpose |
 |-------|---------|
-| [save-playbook](../../playbook-builder/skills/save-playbook/) | Save as reusable workflow, not just record |
-| [json-memory:update-memory](../../json-memory/skills/update-memory/) | Update persistent agent memory |
-| [brain-memory:create-note](../../brain-memory/skills/create-note/) | Create atomic knowledge note |
+| [/agent-dev:create-playbook](../../agent-dev/skills/create-playbook/) | Save as reusable workflow, not just record |
+| [/agent-dev:add-memory](../../agent-dev/skills/add-memory/) | Add persistent agent memory |

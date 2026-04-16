@@ -143,7 +143,7 @@ Check for:
 - Table with Skill, Schedule, Purpose columns
 - Only automatable skills listed (not interactive ones)
 - Sensible cadences for each skill type
-- Reference to `/trinity-schedules`
+- Reference to `mcp__trinity__create_schedule`
 
 If missing, analyze skills and propose schedules:
 - Monitoring/health → every 15m–1h
@@ -315,5 +315,5 @@ Quick reference for the full audit — all items that a well-structured agent sh
 | Skill | Purpose |
 |-------|---------|
 | [/create-agent](../create-agent/) | Scaffold a new agent from scratch |
-| [/adjust-playbook](../../playbook-builder/skills/adjust-playbook/) | Modify a single skill/playbook |
-| [/playbook-architect](../../playbook-builder/skills/playbook-architect/) | Audit and bulk skill adoption |
+| [/agent-dev:adjust-playbook](../../agent-dev/skills/adjust-playbook/) | Modify a single skill/playbook |
+| [/agent-dev:playbook-architect](../../agent-dev/skills/playbook-architect/) | Audit and bulk skill adoption |

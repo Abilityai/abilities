@@ -225,9 +225,8 @@ Learn more at [ability.ai](https://ability.ai)
 ### Recommended Plugins
 
 ` ` `
-/plugin install playbook-builder@abilityai   # Create new skills
-/plugin install trinity-onboard@abilityai    # Deploy to Trinity
-/plugin install json-memory@abilityai        # Persist decisions and state across sessions
+/plugin install agent-dev@abilityai   # Create new skills, add memory
+/plugin install trinity@abilityai     # Deploy to Trinity
 ` ` `
 
 ## Onboarding
@@ -774,16 +773,15 @@ Write `[destination]/onboarding.json`:
       "env_configured": { "done": false, "label": "Configure environment variables (.env)" },
       "first_briefing": { "done": false, "label": "Run your first daily briefing (/daily-briefing)" },
       "first_decision": { "done": false, "label": "Log your first decision (/track-decision)" },
-      "plugins_installed": { "done": false, "label": "Install recommended plugins (json-memory, playbook-builder)" }
+      "plugins_installed": { "done": false, "label": "Install recommended plugins (agent-dev, trinity)" }
     },
     "trinity": {
-      "onboarded": { "done": false, "label": "Deploy to Trinity (/trinity-onboard)" },
-      "credentials_synced": { "done": false, "label": "Sync credentials to remote (/credential-sync push)" },
-      "first_remote_run": { "done": false, "label": "Run a skill remotely via /trinity-remote" }
+      "onboarded": { "done": false, "label": "Deploy to Trinity (/trinity:onboard)" },
+      "first_remote_run": { "done": false, "label": "Run a skill remotely via MCP (mcp__trinity__chat_with_agent)" }
     },
     "schedules": {
-      "schedules_configured": { "done": false, "label": "Schedule daily briefing for 7am weekdays (/trinity-schedules)" },
-      "weekly_digest_scheduled": { "done": false, "label": "Schedule weekly digest for Friday 4pm (/trinity-schedules)" },
+      "schedules_configured": { "done": false, "label": "Schedule daily briefing for 7am weekdays (use MCP schedule tools)" },
+      "weekly_digest_scheduled": { "done": false, "label": "Schedule weekly digest for Friday 4pm (use MCP schedule tools)" },
       "first_scheduled_run": { "done": false, "label": "Verify first scheduled briefing ran successfully" }
     }
   }

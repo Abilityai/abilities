@@ -204,8 +204,6 @@ Next steps:
 1. Restart Claude Code to load the MCP server
 2. Run /trinity:onboard to deploy an agent
 3. Use mcp__trinity__list_agents to see your agents
-
-Trinity CLI is also available: trinity agents list
 ```
 
 ## Error Handling

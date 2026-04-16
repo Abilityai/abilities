@@ -366,9 +366,9 @@ Do not nag — mention it once per session, only if there are incomplete steps.
 These plugins are installed during onboarding (`/onboarding` handles this automatically):
 
 ```
-/plugin install playbook-builder@abilityai   # Create new skills
-/plugin install trinity-onboard@abilityai    # Deploy to Trinity
-/plugin install utilities@abilityai          # Ops workflows and incident response
+/plugin install agent-dev@abilityai   # Create new skills
+/plugin install trinity@abilityai     # Deploy to Trinity
+/plugin install utilities@abilityai   # Ops workflows and incident response
 ```
 
 ## Project Structure
@@ -872,9 +872,8 @@ Display a checklist grouped by phase:
 - [ ] Install recommended plugins
 
 ### Phase 2: Trinity Deployment
-- [ ] Deploy to Trinity (/trinity-onboard)
-- [ ] Sync credentials to remote (/credential-sync push)
-- [ ] Run a skill remotely via /trinity-remote
+- [ ] Deploy to Trinity (/trinity:onboard)
+- [ ] Run a skill remotely via MCP (mcp__trinity__chat_with_agent)
 
 ### Phase 3: Schedules
 - [ ] Set up /process-inbox on schedule (every 5 minutes)
@@ -915,14 +914,14 @@ Identify the first incomplete step in the current phase. Based on which step it 
 **For `plugins_installed`:**
 - Run the install commands for each plugin:
   ```
-  /plugin install playbook-builder@abilityai
-  /plugin install trinity-onboard@abilityai
+  /plugin install agent-dev@abilityai
+  /plugin install trinity@abilityai
   /plugin install utilities@abilityai
   ```
 - After all plugins are attempted, show results and mark done.
 
 **For Trinity and Schedules phases:**
-- Follow standard onboarding guidance (trinity-onboard, credential-sync, trinity-remote, trinity-schedules).
+- Follow standard onboarding guidance (trinity:onboard, MCP tools for remote execution and schedules).
 
 ### Step 4: Update State
 
@@ -1094,12 +1093,11 @@ Write `[destination]/onboarding.json`:
       "mcp_authenticated": { "done": false, "label": "Set up Google Workspace MCP authentication" },
       "routing_configured": { "done": false, "label": "Configure routing rules (config.json)" },
       "first_route_test": { "done": false, "label": "Run /route-request to test a manual route" },
-      "plugins_installed": { "done": false, "label": "Install plugins (playbook-builder, trinity-onboard, utilities)" }
+      "plugins_installed": { "done": false, "label": "Install plugins (agent-dev, trinity, utilities)" }
     },
     "trinity": {
-      "onboarded": { "done": false, "label": "Deploy to Trinity (/trinity-onboard)" },
-      "credentials_synced": { "done": false, "label": "Sync credentials to remote (/credential-sync push)" },
-      "first_remote_run": { "done": false, "label": "Run a skill remotely via /trinity-remote" }
+      "onboarded": { "done": false, "label": "Deploy to Trinity (/trinity:onboard)" },
+      "first_remote_run": { "done": false, "label": "Run a skill remotely via MCP (mcp__trinity__chat_with_agent)" }
     },
     "schedules": {
       "schedules_configured": { "done": false, "label": "Set up /process-inbox on schedule (every 5 minutes)" },

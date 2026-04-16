@@ -227,17 +227,12 @@ This determines: (a) scheduled jobs that compute signals, (b) lifecycle promotio
 ## STEP 9: Plugin Selection
 
 Always-included plugins for KB agents:
-- `playbook-builder` — create new skills
-- `trinity-onboard` — deploy remotely
-- `brain-memory` — KB infrastructure (may be obviated by the cornelius local-brain-search we clone; leave it in as optional support)
-- `github-backlog` — task and project management via GitHub Issues (**generated directly as skills, not a plugin dependency**)
+- `agent-dev` — create new skills, memory infrastructure
+- `trinity` — deploy remotely
 
 The github-backlog skills (`/backlog`, `/pick-work`, `/close-work`, `/work-loop`) are generated directly into the agent's `.claude/skills/` directory during wizard execution — no external plugin install required. This gives the KB agent a complete task management workflow out of the box.
 
 Use AskUserQuestion to confirm + add any of:
-- `file-indexing` (recommended if vault is expected to exceed 1000 notes)
-- `project-planner` (if the agent will drive multi-session projects)
-- `workspace-kit` (if the agent will run in multiple workspaces)
 - `utilities` (ops/incident skills; rarely needed for KB)
 
 Store as `$plugins`.
@@ -687,9 +682,8 @@ Do not nag — mention once per session.
 
 These plugins are installed during onboarding (`/onboarding` handles automatically):
 
-- `/plugin install playbook-builder@abilityai` — create new skills
-- `/plugin install trinity-onboard@abilityai` — deploy to Trinity
-- `/plugin install brain-memory@abilityai` — supporting KB infrastructure
+- `/plugin install agent-dev@abilityai` — create new skills
+- `/plugin install trinity@abilityai` — deploy to Trinity
 ${extra_plugin_installs}
 
 **Built-in (no install needed):**
@@ -1080,9 +1074,8 @@ For **Personal KB**, prefer copying the exact skill prose from cornelius' `.clau
       "plugins_installed": { "done": false, "label": "Install plugins (${plugin_list})" }
     },
     "trinity": {
-      "onboarded": { "done": false, "label": "Deploy to Trinity (trinity deploy .)" },
-      "credentials_synced": { "done": false, "label": "Sync credentials to remote (/credential-sync push)" },
-      "first_remote_run": { "done": false, "label": "Run a skill remotely via /trinity-remote" }
+      "onboarded": { "done": false, "label": "Deploy to Trinity (/trinity:onboard)" },
+      "first_remote_run": { "done": false, "label": "Run a skill remotely via mcp__trinity__chat_with_agent" }
     },
     "schedules": {
       "coherence_scheduled": { "done": false, "label": "Schedule /coherence-sweep, /compute-lifecycle, /detect-tensions, /refresh-index" },
@@ -1189,7 +1182,7 @@ Note: `graph_enrichments.json` **is** committed (it's the graph sidecar and trav
 
 ### `.mcp.json.template`
 
-Start with an empty template. If any selected plugin (brain-memory, etc.) provides an MCP server, add the placeholder entry here.
+Start with an empty template. If any selected plugin provides an MCP server, add the placeholder entry here.
 
 ### `template.yaml`
 

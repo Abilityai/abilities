@@ -308,8 +308,8 @@ Do not nag — mention it once per session, only if there are incomplete steps.
 These plugins are installed during onboarding (`/onboarding` handles this automatically):
 
 ```
-/plugin install playbook-builder@abilityai   # Create new skills
-/plugin install trinity-onboard@abilityai    # Deploy to Trinity
+/plugin install agent-dev@abilityai   # Create new skills
+/plugin install trinity@abilityai     # Deploy to Trinity
 ```
 
 ## Project Structure
@@ -875,15 +875,14 @@ Write `[destination]/onboarding.json`:
     "local": {
       "voice_reviewed": { "done": false, "label": "Review and refine your voice profile (/set-voice)" },
       "first_post": { "done": false, "label": "Write your first post (/write)" },
-      "plugins_installed": { "done": false, "label": "Install plugins (playbook-builder, trinity-onboard)" }
+      "plugins_installed": { "done": false, "label": "Install plugins (agent-dev, trinity)" }
     },
     "trinity": {
-      "onboarded": { "done": false, "label": "Deploy to Trinity (/trinity-onboard)" },
-      "credentials_synced": { "done": false, "label": "Sync credentials to remote (/credential-sync push)" },
-      "first_remote_run": { "done": false, "label": "Run a skill remotely via /trinity-remote" }
+      "onboarded": { "done": false, "label": "Deploy to Trinity (/trinity:onboard)" },
+      "first_remote_run": { "done": false, "label": "Run a skill remotely via MCP (mcp__trinity__chat_with_agent)" }
     },
     "schedules": {
-      "schedules_configured": { "done": false, "label": "Set up scheduled tasks (/trinity-schedules)" },
+      "schedules_configured": { "done": false, "label": "Set up scheduled tasks (use MCP schedule tools)" },
       "first_scheduled_run": { "done": false, "label": "Verify first scheduled execution completed" }
     }
   }
@@ -932,7 +931,7 @@ Display a checklist grouped by phase:
 ### Phase 1: Local Setup  ← current
 - [ ] Review and refine your voice profile (/set-voice)
 - [ ] Write your first post (/write)
-- [ ] Install plugins (playbook-builder, trinity-onboard)
+- [ ] Install plugins (agent-dev, trinity)
 
 ### Phase 2: Trinity Deployment
 - [ ] Deploy to Trinity
@@ -962,31 +961,27 @@ Identify the first incomplete step in the current phase. Provide specific guidan
 **For `plugins_installed`:**
 - Run the install commands:
   ```
-  /plugin install playbook-builder@abilityai
-  /plugin install trinity-onboard@abilityai
+  /plugin install agent-dev@abilityai
+  /plugin install trinity@abilityai
   ```
 - Run each via Bash. Note successes and failures.
 - After all attempted, mark done.
 
 **For `onboarded` (Trinity phase):**
-- Tell user to run `/trinity-onboard` or `trinity deploy .` from terminal.
+- Tell user to run `/trinity:onboard` or `trinity deploy .` from terminal.
 - After completion, mark done and advance phase.
 
-**For `credentials_synced`:**
-- Tell user to run `/credential-sync push`.
-- After completion, mark done.
-
 **For `first_remote_run`:**
-- Tell user to run `/trinity-remote write`.
+- Tell user to run a skill remotely using `mcp__trinity__chat_with_agent`.
 - After completion, mark done and advance phase.
 
 **For `schedules_configured`:**
-- Tell user to run `/trinity-schedules`.
+- Tell user to use MCP schedule tools (`mcp__trinity__create_schedule`).
 - Suggest scheduling `/update-dashboard` every 6 hours.
 - After completion, mark done.
 
 **For `first_scheduled_run`:**
-- Tell user to check `/trinity-schedules` for execution confirmation.
+- Tell user to check scheduled executions via MCP (`mcp__trinity__list_schedules`).
 - After verified, mark done.
 
 ### Step 4: Update State

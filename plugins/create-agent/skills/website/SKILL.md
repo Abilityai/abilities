@@ -449,4 +449,4 @@ Display:
 
 | Skill | Purpose |
 |-------|---------|
-| [create-playbook](../../../playbook-builder/skills/create-playbook/) | Create operational skills for the website |
+| [/agent-dev:create-playbook](../../../agent-dev/skills/create-playbook/) | Create operational skills for the website |

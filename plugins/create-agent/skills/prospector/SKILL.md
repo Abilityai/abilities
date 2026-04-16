@@ -209,9 +209,8 @@ Learn more at [ability.ai](https://ability.ai)
 ### Recommended Plugins
 
 ```
-/plugin install playbook-builder@abilityai   # Create new skills
-/plugin install trinity-onboard@abilityai    # Deploy to Trinity
-/plugin install brain-memory@abilityai       # Remember research across sessions
+/plugin install agent-dev@abilityai   # Create new skills, add memory
+/plugin install trinity@abilityai     # Deploy to Trinity
 ```
 
 ## Project Structure
@@ -813,14 +812,13 @@ Your B2B SaaS sales research agent is ready.
 
 4. **Install recommended plugins:**
    ```
-   /plugin install playbook-builder@abilityai
-   /plugin install trinity-onboard@abilityai
-   /plugin install brain-memory@abilityai
+   /plugin install agent-dev@abilityai
+   /plugin install trinity@abilityai
    ```
 
 5. **Deploy to Trinity** (when ready):
    ```
-   /trinity-onboard
+   /trinity:onboard
    ```
 
 Happy prospecting!

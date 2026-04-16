@@ -73,13 +73,11 @@ These will become the agent's first skills.
 Present the available plugins from the Ability.ai marketplace that are relevant to this agent's purpose. Let the user choose which to include in the agent's setup instructions.
 
 **Always recommend:**
-- **playbook-builder** — For creating and managing skills (the agent's primary way to grow)
-- **trinity-onboard** — For deploying to Trinity when ready
+- **agent-dev** — For creating and managing skills (the agent's primary way to grow)
+- **trinity** — For deploying to Trinity when ready
 
 **Recommend based on purpose:**
-- **json-memory** — If the agent needs to remember things across sessions
 - **utilities** — If the agent manages infrastructure or ops tasks
-- **project-planner** — If the agent handles multi-session projects
 
 Use AskUserQuestion:
 - **Question:** "Which plugins should this agent use? I'll include setup instructions in the agent's CLAUDE.md."
@@ -278,7 +276,7 @@ Skills that should run on a recurring basis once the agent is deployed to Trinit
 | `/[skill-name]` | [cron expression or human interval] | [why it runs on this cadence] |
 | `/[skill-name]` | [cron expression or human interval] | [why it runs on this cadence] |
 
-*To activate schedules after deploying to Trinity, use `/trinity-schedules`.*
+*To activate schedules after deploying to Trinity, use `mcp__trinity__create_schedule`.*
 
 ## Guidelines
 
@@ -289,13 +287,13 @@ Skills that should run on a recurring basis once the agent is deployed to Trinit
 [- For an ops agent: "Never run destructive commands without explicit approval. Always show a dry-run first."]
 ```
 
-**IMPORTANT:** The `[PLUGIN_INSTALL_COMMANDS]` placeholder should be replaced with install commands for **each plugin selected in Step 1e**. Always include playbook-builder and trinity-onboard. Format as:
+**IMPORTANT:** The `[PLUGIN_INSTALL_COMMANDS]` placeholder should be replaced with install commands for **each plugin selected in Step 1e**. Always include agent-dev and trinity. Format as:
 
 ```markdown
 ```
-/plugin install playbook-builder@abilityai   # Create new skills
-/plugin install trinity-onboard@abilityai    # Deploy to Trinity
-/plugin install [plugin]@abilityai           # [domain-specific reason]
+/plugin install agent-dev@abilityai   # Create new skills
+/plugin install trinity@abilityai     # Deploy to Trinity
+/plugin install [plugin]@abilityai    # [domain-specific reason]
 ```
 ```
 
@@ -308,17 +306,6 @@ The `[ADDITIONAL_PLUGIN_INSTRUCTIONS]` placeholder should be replaced with setup
 
 Install: `/plugin install [plugin-name]@abilityai`
 Setup: `/[setup-skill-name]`
-```
-
-If the user selected json-memory, include:
-```markdown
-### Memory System
-
-Persistent memory across sessions using structured JSON.
-
-Install: `/plugin install json-memory@abilityai`
-Setup: `/json-memory:setup-memory`
-Usage: Memory loads automatically at session start. Use `/json-memory:update-memory` to save changes.
 ```
 
 If the user selected utilities, include relevant skills for the agent's domain.
@@ -435,12 +422,11 @@ Write `[destination]/onboarding.json`. Customize the `local` phase based on the 
       "plugins_installed": { "done": false, "label": "Install plugins ([list plugin names from Step 1e])" }
     },
     "trinity": {
-      "onboarded": { "done": false, "label": "Deploy to Trinity (trinity deploy .)" },
-      "credentials_synced": { "done": false, "label": "Sync credentials to remote (/credential-sync push)" },
-      "first_remote_run": { "done": false, "label": "Run a skill remotely via trinity chat" }
+      "onboarded": { "done": false, "label": "Deploy to Trinity (/trinity:onboard)" },
+      "first_remote_run": { "done": false, "label": "Run a skill remotely via mcp__trinity__chat_with_agent" }
     },
     "schedules": {
-      "schedules_configured": { "done": false, "label": "Set up scheduled tasks (/trinity-schedules)" },
+      "schedules_configured": { "done": false, "label": "Set up scheduled tasks (mcp__trinity__create_schedule)" },
       "first_scheduled_run": { "done": false, "label": "Verify first scheduled execution completed" }
     }
   }
@@ -526,24 +512,20 @@ Identify the first incomplete step in the current phase. Based on which step it 
 - After all attempted, mark done.
 
 **For `onboarded` (Trinity phase):**
-- Guide the user to deploy: `trinity deploy .`
+- Guide the user to run `/trinity:onboard`.
 - After completion, mark done and advance phase.
 
-**For `credentials_synced`:**
-- Tell user to run `/credential-sync push`.
-- After completion, mark done.
-
 **For `first_remote_run`:**
-- Tell user to run `trinity chat [agent-name] "/[primary-skill]"`.
+- Tell user to run `mcp__trinity__chat_with_agent` with the agent name and skill.
 - After completion, mark done and advance phase.
 
 **For `schedules_configured`:**
-- Tell user to run `/trinity-schedules` and suggest which skills benefit from scheduling.
+- Tell user to use `mcp__trinity__create_schedule` and suggest which skills benefit from scheduling.
 - Reference the recommended schedules from CLAUDE.md.
 - After completion, mark done.
 
 **For `first_scheduled_run`:**
-- Tell user to check `/trinity-schedules` for execution confirmation.
+- Tell user to check `mcp__trinity__list_schedules` for execution confirmation.
 - After verified, mark done.
 
 ### Step 4: Update State

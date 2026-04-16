@@ -184,8 +184,8 @@ Learn more at [ability.ai](https://ability.ai)
 ### Recommended Plugins
 
 ` ` `
-/plugin install playbook-builder@abilityai   # Create new skills
-/plugin install trinity-onboard@abilityai    # Deploy to Trinity
+/plugin install agent-dev@abilityai   # Create new skills
+/plugin install trinity@abilityai     # Deploy to Trinity
 [If Vercel + GitHub: /plugin install vercel-mcp                  # Vercel deployment from Claude Code]
 ` ` `
 
@@ -424,17 +424,16 @@ Write `[destination]/onboarding.json`:
     "local": {
       "env_configured": { "done": false, "label": "Configure environment variables (.env)" },
       "first_site_created": { "done": false, "label": "Build your first website (/create-website)" },
-      "plugins_installed": { "done": false, "label": "Install recommended plugins (playbook-builder)" }
+      "plugins_installed": { "done": false, "label": "Install recommended plugins (agent-dev)" }
       [If Vercel + GitHub, add:]
       , "vercel_mcp_connected": { "done": false, "label": "Connect Vercel MCP (claude mcp add --transport http vercel https://mcp.vercel.com)" }
     },
     "trinity": {
-      "onboarded": { "done": false, "label": "Deploy to Trinity (/trinity-onboard)" },
-      "credentials_synced": { "done": false, "label": "Sync credentials to remote (/credential-sync push)" },
-      "first_remote_run": { "done": false, "label": "Run a skill remotely via /trinity-remote" }
+      "onboarded": { "done": false, "label": "Deploy to Trinity (/trinity:onboard)" },
+      "first_remote_run": { "done": false, "label": "Run a skill remotely via MCP (mcp__trinity__chat_with_agent)" }
     },
     "schedules": {
-      "schedules_configured": { "done": false, "label": "Set up scheduled tasks (/trinity-schedules)" },
+      "schedules_configured": { "done": false, "label": "Set up scheduled tasks (use MCP schedule tools)" },
       "first_scheduled_run": { "done": false, "label": "Verify first scheduled execution completed" }
     }
   }
