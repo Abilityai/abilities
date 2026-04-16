@@ -9,215 +9,54 @@
   "repository": "https://github.com/abilityai/abilities",
   "plugins": [
     {
-      "name": "trinity-onboard",
-      "source": "./plugins/trinity-onboard",
-      "description": "Onboard agents to Trinity, sync credentials, create scheduled tasks, and fork agents to client repositories",
-      "category": "deployment",
-      "tags": ["trinity", "agent", "cloud", "orchestration", "scheduling", "heartbeat"],
-      "skills": [
-        "./skills/trinity-onboard",
-        "./skills/trinity-sync",
-        "./skills/trinity-remote",
-        "./skills/trinity-schedules",
-        "./skills/trinity-compatibility",
-        "./skills/credential-sync",
-        "./skills/create-heartbeat",
-        "./skills/create-dashboard-playbook",
-        "./skills/create-fork-skill",
-        "./skills/request-trinity-access",
-        "./skills/trinity-events"
-      ]
-    },
-    {
-      "name": "playbook-builder",
-      "source": "./plugins/playbook-builder",
-      "description": "Create structured, transactional playbooks with state management for autonomous, gated, or manual execution",
-      "category": "developer-tools",
-      "tags": ["playbook", "workflow", "automation", "process", "state-management", "trinity"],
-      "skills": [
-        "./skills/create-playbook",
-        "./skills/adjust-playbook",
-        "./skills/save-playbook",
-        "./skills/playbook-architect"
-      ]
-    },
-    {
-      "name": "file-indexing",
-      "source": "./plugins/file-indexing",
-      "description": "File system indexing for workspace awareness - creates and maintains a searchable file index",
-      "category": "memory",
-      "tags": ["memory", "file-index", "workspace", "search", "organization"],
-      "skills": [
-        "./skills/setup-index",
-        "./skills/refresh-index",
-        "./skills/search-files"
-      ]
-    },
-    {
-      "name": "brain-memory",
-      "source": "./plugins/brain-memory",
-      "description": "Zettelkasten-style knowledge management - atomic notes with connections and semantic search",
-      "category": "memory",
-      "tags": ["memory", "zettelkasten", "knowledge", "notes", "connections", "brain"],
-      "skills": [
-        "./skills/setup-brain",
-        "./skills/create-note",
-        "./skills/search-brain",
-        "./skills/find-connections"
-      ]
-    },
-    {
-      "name": "json-memory",
-      "source": "./plugins/json-memory",
-      "description": "Structured JSON memory system with efficient jq-based updates and action logging",
-      "category": "memory",
-      "tags": ["memory", "json", "state", "persistence", "jq"],
-      "skills": [
-        "./skills/setup-memory",
-        "./skills/load-memory",
-        "./skills/update-memory",
-        "./skills/memory-jq"
-      ]
-    },
-    {
-      "name": "workspace-kit",
-      "source": "./plugins/workspace-kit",
-      "description": "Workspace scaffolding - organized folders, indexes, and templates for multi-session work",
-      "category": "memory",
-      "tags": ["memory", "workspace", "scaffolding", "sessions", "organization"],
-      "skills": [
-        "./skills/setup-projects",
-        "./skills/create-project",
-        "./skills/create-session",
-        "./skills/archive-project"
-      ]
-    },
-    {
-      "name": "project-planner",
-      "source": "./plugins/project-planner",
-      "description": "Plan and execute large multi-session projects with scope analysis, session splitting, and state tracking",
-      "category": "productivity",
-      "tags": ["planning", "execution", "sessions", "state-tracking", "automation"],
-      "skills": [
-        "./skills/project-plan"
-      ]
-    },
-    {
-      "name": "utilities",
-      "source": "./plugins/utilities",
-      "description": "General-purpose utility skills for conversation management, ops workflows, and agent productivity",
-      "category": "productivity",
-      "tags": ["utilities", "conversation", "ops", "docker", "deployment", "incident-response", "productivity"],
-      "skills": [
-        "./skills/save-conversation",
-        "./skills/investigate-incident",
-        "./skills/bug-report",
-        "./skills/safe-deploy",
-        "./skills/docker-ops",
-        "./skills/sync-ops-knowledge",
-        "./skills/batch-claude-loop"
-      ]
-    },
-    {
-      "name": "agent-builder",
-      "source": "./plugins/agent-builder",
-      "description": "Scaffold a new Trinity-compatible Claude Code agent from scratch on any topic — creates directory, CLAUDE.md, initial skills, and Trinity files ready for development",
+      "name": "create-agent",
+      "source": "./plugins/create-agent",
+      "description": "Create new Claude Code agents — domain-specific wizards or custom. Consolidates all install-* wizards.",
       "category": "onboarding",
-      "tags": ["agent", "scaffold", "create", "trinity", "bootstrap", "onboarding"],
+      "tags": ["agent", "create", "wizard", "onboarding", "scaffold", "prospector", "chiefofstaff", "webmaster", "recon", "receptionist", "ghostwriter", "kb-agent"],
       "skills": [
         "./skills/create",
-        "./skills/create-agent",
-        "./skills/adjust-agent"
+        "./skills/prospector",
+        "./skills/chief-of-staff",
+        "./skills/webmaster",
+        "./skills/website",
+        "./skills/recon",
+        "./skills/receptionist",
+        "./skills/ghostwriter",
+        "./skills/kb-agent",
+        "./skills/custom",
+        "./skills/clone",
+        "./skills/adjust"
       ]
     },
     {
-      "name": "clone-cornelius",
-      "source": "./plugins/clone-cornelius",
-      "description": "Clone the Cornelius agent repository and launch Claude Code inside it",
-      "category": "onboarding",
-      "tags": ["cornelius", "clone", "setup", "agent", "onboarding"],
-      "skills": [
-        "./skills/clone-cornelius"
-      ]
-    },
-    {
-      "name": "install-prospector",
-      "source": "./plugins/install-prospector",
-      "description": "Create a B2B SaaS sales research agent — guided wizard that scaffolds a Trinity-compatible agent customized to your sales stack",
-      "category": "onboarding",
-      "tags": ["prospector", "install", "setup", "agent", "onboarding", "wizard", "sales", "research", "b2b"],
-      "skills": [
-        "./skills/install-prospector"
-      ]
-    },
-    {
-      "name": "install-chiefofstaff",
-      "source": "./plugins/install-chiefofstaff",
-      "description": "Create an executive chief of staff agent — daily briefings, meeting prep, decision tracking, and weekly digests",
-      "category": "onboarding",
-      "tags": ["chiefofstaff", "install", "setup", "agent", "onboarding", "wizard", "executive", "briefing", "decisions"],
-      "skills": [
-        "./skills/install-chiefofstaff"
-      ]
-    },
-    {
-      "name": "install-webmaster",
-      "source": "./plugins/install-webmaster",
-      "description": "Create a website management agent — guided wizard that scaffolds a Trinity-compatible webmaster agent for building and deploying Next.js sites",
-      "category": "onboarding",
-      "tags": ["webmaster", "install", "setup", "agent", "onboarding", "wizard", "website", "nextjs", "vercel"],
-      "skills": [
-        "./skills/install-webmaster"
-      ]
-    },
-    {
-      "name": "install-recon",
-      "source": "./plugins/install-recon",
-      "description": "Create a competitive intelligence agent — guided wizard that scaffolds a Trinity-compatible agent for tracking competitors, monitoring changes, and producing actionable intelligence",
-      "category": "onboarding",
-      "tags": ["recon", "install", "setup", "agent", "onboarding", "wizard", "competitive-intelligence", "competitor-analysis", "market-research", "battlecards"],
-      "skills": [
-        "./skills/install-recon"
-      ]
-    },
-    {
-      "name": "install-receptionist",
-      "source": "./plugins/install-receptionist",
-      "description": "Create an email gateway agent — guided wizard that scaffolds a Trinity-compatible receptionist agent for public-facing email communication and request routing",
-      "category": "onboarding",
-      "tags": ["receptionist", "install", "setup", "agent", "onboarding", "wizard", "email", "gateway", "gatekeeper", "routing", "gmail", "security"],
-      "skills": [
-        "./skills/install-receptionist"
-      ]
-    },
-    {
-      "name": "install-ghostwriter",
-      "source": "./plugins/install-ghostwriter",
-      "description": "Create a content writer agent — guided wizard that scaffolds a Trinity-compatible ghostwriter agent that knows your brand voice and writes platform-specific content",
-      "category": "onboarding",
-      "tags": ["ghostwriter", "install", "setup", "agent", "onboarding", "wizard", "content", "writing", "voice", "brand"],
-      "skills": [
-        "./skills/install-ghostwriter"
-      ]
-    },
-    {
-      "name": "install-kb-agent",
-      "source": "./plugins/install-kb-agent",
-      "description": "Create a knowledge-base agent — guided wizard that scaffolds a Cornelius-shaped, Trinity-compatible KB agent for any domain (community manager, CS researcher, clinical research, legal analyst, personal KB, or custom)",
-      "category": "onboarding",
-      "tags": ["kb-agent", "knowledge-base", "install", "setup", "agent", "onboarding", "wizard", "cornelius", "brain-dependency-graph", "ontology", "zettelkasten"],
-      "skills": [
-        "./skills/install-kb-agent"
-      ]
-    },
-    {
-      "name": "website-builder",
-      "source": "./plugins/website-builder",
-      "description": "Scaffold a single production-ready Next.js 15 website and deploy to Vercel — no agent, just a site",
+      "name": "agent-dev",
+      "source": "./plugins/agent-dev",
+      "description": "Develop and extend existing agents — add skills, memory systems, GitHub backlog workflow, and planning tools",
       "category": "developer-tools",
-      "tags": ["website", "nextjs", "vercel", "scaffold", "tailwind", "react", "typescript"],
+      "tags": ["agent", "development", "skills", "memory", "backlog", "github", "planning", "workflow"],
       "skills": [
-        "./skills/create-website"
+        "./skills/add-skill",
+        "./skills/adjust-skill",
+        "./skills/add-memory",
+        "./skills/add-backlog",
+        "./skills/backlog",
+        "./skills/pick-work",
+        "./skills/close-work",
+        "./skills/work-loop",
+        "./skills/plan"
+      ]
+    },
+    {
+      "name": "trinity",
+      "source": "./plugins/trinity",
+      "description": "Connect, deploy, and sync agents to Trinity platform — the deep agent orchestration system",
+      "category": "deployment",
+      "tags": ["trinity", "deploy", "sync", "orchestration", "mcp", "remote", "cloud", "scheduling"],
+      "skills": [
+        "./skills/connect",
+        "./skills/onboard",
+        "./skills/sync"
       ]
     },
     {
@@ -245,26 +84,19 @@
       ]
     },
     {
-      "name": "github-backlog",
-      "source": "./plugins/github-backlog",
-      "description": "Manage agent tasks via GitHub Issues — view backlog, pick work, update status, run autonomous work loops",
+      "name": "utilities",
+      "source": "./plugins/utilities",
+      "description": "General-purpose utility skills for conversation management, ops workflows, and agent productivity",
       "category": "productivity",
-      "tags": ["github", "issues", "backlog", "tasks", "automation", "work-loop", "heartbeat"],
+      "tags": ["utilities", "conversation", "ops", "docker", "deployment", "incident-response", "productivity"],
       "skills": [
-        "./skills/backlog",
-        "./skills/pick-work",
-        "./skills/close-work",
-        "./skills/work-loop"
-      ]
-    },
-    {
-      "name": "install-github-backlog",
-      "source": "./plugins/install-github-backlog",
-      "description": "Add GitHub Issues backlog workflow to any agent — creates skills in the agent directory for task management",
-      "category": "onboarding",
-      "tags": ["github", "backlog", "issues", "install", "setup", "workflow", "tasks", "autonomous"],
-      "skills": [
-        "./skills/install-github-backlog"
+        "./skills/save-conversation",
+        "./skills/investigate-incident",
+        "./skills/bug-report",
+        "./skills/safe-deploy",
+        "./skills/docker-ops",
+        "./skills/sync-ops-knowledge",
+        "./skills/batch-claude-loop"
       ]
     }
   ]

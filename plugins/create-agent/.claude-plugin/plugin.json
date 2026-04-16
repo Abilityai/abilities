@@ -1,0 +1,18 @@
+{
+  "name": "create-agent",
+  "description": "Create new Claude Code agents — domain-specific wizards or custom. Consolidates all install-* wizards into a single plugin.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "homepage": "https://github.com/abilityai/abilities",
+  "repository": "https://github.com/abilityai/abilities",
+  "license": "MIT",
+  "keywords": [
+    "agent", "create", "wizard", "onboarding", "scaffold",
+    "prospector", "chiefofstaff", "webmaster", "recon", "receptionist",
+    "ghostwriter", "kb-agent", "trinity", "sales", "executive",
+    "competitive-intelligence", "email", "content", "knowledge-base"
+  ]
+}

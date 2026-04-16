@@ -1,0 +1,16 @@
+{
+  "name": "trinity",
+  "description": "Connect, deploy, and sync agents to Trinity platform — the deep agent orchestration system",
+  "version": "2.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "homepage": "https://github.com/abilityai/abilities",
+  "repository": "https://github.com/abilityai/abilities",
+  "license": "MIT",
+  "keywords": [
+    "trinity", "deploy", "sync", "orchestration", "mcp",
+    "remote", "cloud", "scheduling", "agent", "platform"
+  ]
+}

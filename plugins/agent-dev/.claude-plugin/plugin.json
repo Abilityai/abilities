@@ -1,0 +1,17 @@
+{
+  "name": "agent-dev",
+  "description": "Develop and extend existing agents — add skills, memory systems, GitHub backlog workflow, and planning tools",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "homepage": "https://github.com/abilityai/abilities",
+  "repository": "https://github.com/abilityai/abilities",
+  "license": "MIT",
+  "keywords": [
+    "agent", "development", "skills", "playbook", "memory",
+    "backlog", "github", "issues", "workflow", "planning",
+    "file-index", "zettelkasten", "json-state", "workspace"
+  ]
+}

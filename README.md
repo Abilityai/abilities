@@ -29,53 +29,49 @@
 # List available plugins
 /plugin list abilityai
 
-# Install a plugin
-/plugin install trinity-onboard@abilityai
+# Install the core plugins
+/plugin install create-agent@abilityai
+/plugin install agent-dev@abilityai
+/plugin install trinity@abilityai
 ```
 
 Or from the terminal:
 
 ```bash
 claude plugin add abilityai/abilities
-claude plugin install install-ghostwriter@abilityai
+claude plugin install create-agent@abilityai
 ```
 
 ---
 
 ## Creating Agents
 
-The fastest way to get started is `/create` — a single entry point that shows all available creation paths:
+The fastest way to get started is `/create-agent:create` — a single entry point that shows all available creation paths:
 
 ```
-/create
+/create-agent:create
 ```
-
-### Three-Tier System
-
-| Prefix | What it does | Example |
-|--------|-------------|---------|
-| **`/install-*`** | Guided wizard — asks domain questions, scaffolds a customized agent | `/install-ghostwriter` |
-| **`/clone-*`** | Clones a pre-built agent repository as-is | `/clone-cornelius` |
-| **`/create-*`** | Generic scaffolder — blank canvas for any domain | `/create-agent` |
-
-**`/install-*` wizards** are the recommended path. Each one is a domain expert that asks the right questions and builds a fully configured, [Trinity](https://github.com/abilityai/trinity)-compatible agent with an onboarding tracker that guides you from local setup through deployment.
 
 ### Available Wizards
 
-| Plugin | Command | What it creates |
+All agent creation wizards are consolidated into the **create-agent** plugin. Use `/create-agent:[wizard]` syntax:
+
+| Wizard | Command | What it creates |
 |--------|---------|-----------------|
-| [install-ghostwriter](plugins/install-ghostwriter/) | `/install-ghostwriter` | Content writer — brand voice profiles, platform-specific writing, zero API keys |
-| [install-chiefofstaff](plugins/install-chiefofstaff/) | `/install-chiefofstaff` | Executive chief of staff — daily briefings, meeting prep, decision tracking |
-| [install-prospector](plugins/install-prospector/) | `/install-prospector` | B2B SaaS sales research — company research, ICP scoring, CRM integration |
-| [install-webmaster](plugins/install-webmaster/) | `/install-webmaster` | Website management — scaffolds and deploys Next.js 15 sites to Vercel |
-| [install-recon](plugins/install-recon/) | `/install-recon` | Competitive intelligence — competitor tracking, market research, battlecards |
-| [install-receptionist](plugins/install-receptionist/) | `/install-receptionist` | Email gateway — public-facing email communication and request routing |
-| [install-kb-agent](plugins/install-kb-agent/) | `/install-kb-agent` | Knowledge-base agent — Cornelius-shaped KB with local vector search, no cloud APIs |
-| [clone-cornelius](plugins/clone-cornelius/) | `/clone-cornelius` | Pre-built general-purpose agent (clone, not wizard) |
-| [agent-builder](plugins/agent-builder/) | `/create-agent` | Custom agent from scratch — you define everything |
+| **prospector** | `/create-agent:prospector` | B2B SaaS sales research — company research, ICP scoring, CRM integration |
+| **chief-of-staff** | `/create-agent:chief-of-staff` | Executive assistant — daily briefings, meeting prep, decision tracking |
+| **webmaster** | `/create-agent:webmaster` | Website management — scaffolds and deploys Next.js 15 sites to Vercel |
+| **recon** | `/create-agent:recon` | Competitive intelligence — competitor tracking, market research, battlecards |
+| **receptionist** | `/create-agent:receptionist` | Email gateway — public-facing email communication and request routing |
+| **ghostwriter** | `/create-agent:ghostwriter` | Content writer — brand voice profiles, platform-specific writing |
+| **kb-agent** | `/create-agent:kb-agent` | Knowledge-base agent — Cornelius-shaped KB with local vector search |
+| **website** | `/create-agent:website` | Single website scaffold (no agent, just a site) |
+| **custom** | `/create-agent:custom` | Custom agent from scratch — you define everything |
+| **clone** | `/create-agent:clone` | Clone an existing agent repository as starting point |
+| **adjust** | `/create-agent:adjust` | Review and improve an existing agent |
 
 Every wizard-created agent includes:
-- **`/onboarding`** — Persistent checklist that tracks setup progress across sessions (local setup → Trinity deployment → scheduled tasks)
+- **`/onboarding`** — Persistent checklist that tracks setup progress across sessions
 - **`dashboard.yaml`** — Domain-specific metrics dashboard for [Trinity](https://github.com/abilityai/trinity)
 - **`/update-dashboard`** — Schedulable skill that keeps dashboard metrics current
 
@@ -83,44 +79,114 @@ Every wizard-created agent includes:
 
 ## All Plugins
 
-### Agent Creation & Onboarding
+The abilities marketplace contains 5 focused plugins:
 
-| Plugin | Description | Skills |
-|--------|-------------|--------|
-| [agent-builder](plugins/agent-builder/) | Scaffold and improve Claude Code agents | `/create`, `/create-agent`, `/adjust-agent` |
-| [install-ghostwriter](plugins/install-ghostwriter/) | Content writer with brand voice | `/install-ghostwriter` |
-| [install-chiefofstaff](plugins/install-chiefofstaff/) | Executive chief of staff wizard | `/install-chiefofstaff` |
-| [install-prospector](plugins/install-prospector/) | B2B SaaS sales research wizard | `/install-prospector` |
-| [install-webmaster](plugins/install-webmaster/) | Website management wizard | `/install-webmaster` |
-| [install-recon](plugins/install-recon/) | Competitive intelligence wizard | `/install-recon` |
-| [install-receptionist](plugins/install-receptionist/) | Email gateway wizard | `/install-receptionist` |
-| [install-kb-agent](plugins/install-kb-agent/) | Knowledge-base agent wizard | `/install-kb-agent` |
-| [clone-cornelius](plugins/clone-cornelius/) | Clone the Cornelius agent | `/clone-cornelius` |
+### create-agent
 
-### Development & Deployment
+Create new Claude Code agents with domain-specific wizards or from scratch.
 
-| Plugin | Description | Skills |
-|--------|-------------|--------|
-| [playbook-builder](plugins/playbook-builder/) | Create structured playbooks with state management | `/create-playbook`, `/adjust-playbook`, `/save-playbook` |
-| [trinity-onboard](plugins/trinity-onboard/) | Deploy agents to [Trinity](https://github.com/abilityai/trinity) platform | `/trinity-onboard`, `/credential-sync`, `/trinity-schedules` |
-| [website-builder](plugins/website-builder/) | Scaffold a single Next.js 15 website (no agent, just a site) | `/create-website` |
-| [dev-methodology](plugins/dev-methodology/) | Documentation-driven development methodology | `/init`, `/read-docs`, `/implement`, `/validate-pr` |
+```bash
+/plugin install create-agent@abilityai
+```
 
-### Memory & Workspace
+| Skill | Description |
+|-------|-------------|
+| `/create-agent:create` | Entry point — shows all available wizards |
+| `/create-agent:prospector` | B2B SaaS sales research agent |
+| `/create-agent:chief-of-staff` | Executive assistant agent |
+| `/create-agent:webmaster` | Website management agent |
+| `/create-agent:recon` | Competitive intelligence agent |
+| `/create-agent:receptionist` | Email gateway agent |
+| `/create-agent:ghostwriter` | Content writer agent |
+| `/create-agent:kb-agent` | Knowledge-base agent |
+| `/create-agent:website` | Single website (no agent) |
+| `/create-agent:custom` | Blank canvas agent |
+| `/create-agent:clone` | Clone existing agent |
+| `/create-agent:adjust` | Modify existing agent |
 
-| Plugin | Description | Skills |
-|--------|-------------|--------|
-| [brain-memory](plugins/brain-memory/) | Zettelkasten-style knowledge management | `/setup-brain`, `/create-note`, `/search-brain` |
-| [json-memory](plugins/json-memory/) | Structured JSON state with jq-based updates | `/setup-memory`, `/load-memory`, `/update-memory` |
-| [file-indexing](plugins/file-indexing/) | Workspace file awareness and search | `/setup-index`, `/refresh-index`, `/search-files` |
-| [workspace-kit](plugins/workspace-kit/) | Project folder scaffolding and tracking | `/create-project`, `/create-session` |
+### agent-dev
 
-### Productivity & Ops
+Develop and extend existing agents with skills, memory systems, and workflows.
 
-| Plugin | Description | Skills |
-|--------|-------------|--------|
-| [utilities](plugins/utilities/) | Ops workflows, deployment, incident response | `/investigate-incident`, `/safe-deploy`, `/docker-ops` |
-| [project-planner](plugins/project-planner/) | Multi-session project execution | `/project-plan` |
+```bash
+/plugin install agent-dev@abilityai
+```
+
+| Skill | Description |
+|-------|-------------|
+| `/agent-dev:add-skill` | Create a new skill for the agent |
+| `/agent-dev:adjust-skill` | Modify an existing skill |
+| `/agent-dev:add-memory` | Add memory system (file-index, brain, json-state, workspace) |
+| `/agent-dev:add-backlog` | Add GitHub Issues backlog workflow |
+| `/agent-dev:backlog` | View GitHub Issues backlog |
+| `/agent-dev:pick-work` | Pick next issue to work on |
+| `/agent-dev:close-work` | Close current issue |
+| `/agent-dev:work-loop` | Run autonomous work loop |
+| `/agent-dev:plan` | Plan multi-session work |
+
+**Memory systems** (installed via `/agent-dev:add-memory`):
+- **file-index** — Workspace file awareness and search
+- **brain** — Zettelkasten-style knowledge graph
+- **json-state** — Structured JSON state with jq updates
+- **workspace** — Multi-session project tracking
+
+### trinity
+
+Connect, deploy, and sync agents to the [Trinity](https://github.com/abilityai/trinity) platform.
+
+```bash
+/plugin install trinity@abilityai
+```
+
+| Skill | Description |
+|-------|-------------|
+| `/trinity:connect` | One-time: authenticate and configure MCP connection |
+| `/trinity:onboard` | Per-agent: compatibility check, file creation, deploy |
+| `/trinity:sync` | Ongoing: sync changes between local and remote |
+
+After connection, Trinity MCP tools are available directly:
+- `mcp__trinity__list_agents` — List all remote agents
+- `mcp__trinity__chat_with_agent` — Send messages to remote agents
+- `mcp__trinity__deploy_local_agent` — Deploy agent to Trinity
+
+### dev-methodology
+
+Documentation-driven development methodology for any codebase.
+
+```bash
+/plugin install dev-methodology@abilityai
+```
+
+| Skill | Description |
+|-------|-------------|
+| `/dev-methodology:init` | Scaffold methodology into your project |
+| `/dev-methodology:read-docs` | Load project context at session start |
+| `/dev-methodology:implement` | End-to-end feature implementation |
+| `/dev-methodology:validate-pr` | Validate PR against methodology |
+| `/dev-methodology:commit` | Create well-formatted commits |
+| `/dev-methodology:security-check` | Quick security scan |
+| `/dev-methodology:security-analysis` | Deep security analysis |
+| `/dev-methodology:add-testing` | Add tests to existing code |
+| `/dev-methodology:tidy` | Clean up code |
+| `/dev-methodology:roadmap` | Generate project roadmap |
+
+### utilities
+
+General-purpose ops and productivity skills.
+
+```bash
+/plugin install utilities@abilityai
+```
+
+| Skill | Description |
+|-------|-------------|
+| `/utilities:save-conversation` | Save conversation as structured markdown |
+| `/utilities:investigate-incident` | Structured incident investigation |
+| `/utilities:bug-report` | Create sanitized GitHub issue |
+| `/utilities:safe-deploy` | Safe deployment with backup/rollback |
+| `/utilities:docker-ops` | Docker container management |
+| `/utilities:sync-ops-knowledge` | Update ops docs from commits |
+| `/utilities:batch-claude-loop` | Batch headless Claude Code calls |
 
 ---
 
@@ -129,182 +195,100 @@ Every wizard-created agent includes:
 Abilities supports a four-step workflow for building agents that appreciate over time:
 
 ```
-1. Scaffold          2. Develop           3. Deploy            4. Iterate
-/install-*           /create-playbook     trinity deploy .     trinity sync
-/create-agent        /adjust-playbook     /trinity-onboard     git push
-                                                               /adjust-agent
+1. Scaffold              2. Develop               3. Deploy              4. Iterate
+/create-agent:*          /agent-dev:add-skill     /trinity:onboard       /trinity:sync
+                         /agent-dev:add-memory    trinity deploy .       git push
+                         /agent-dev:add-backlog                          /create-agent:adjust
 ```
 
-**Scaffold** — Use an install wizard or `/create-agent` to get a fully configured agent with CLAUDE.md, skills, Trinity files, and an onboarding tracker.
+**Scaffold** — Use a wizard like `/create-agent:prospector` or `/create-agent:custom` to get a fully configured agent with CLAUDE.md, skills, Trinity files, and an onboarding tracker.
 
-**Develop** — Use `/create-playbook` to add capabilities and `/adjust-playbook` to refine them. Each playbook is a structured skill with explicit steps, state management, and approval gates.
+**Develop** — Use `/agent-dev:add-skill` to add capabilities, `/agent-dev:add-memory` to add persistence, and `/agent-dev:add-backlog` for task management.
 
-**Deploy** — Install the [Trinity CLI](https://pypi.org/project/trinity-cli/) (`pip install trinity-cli`), connect to your instance (`trinity init`), and deploy (`trinity deploy .`). Your agent is live with scheduling, multi-agent coordination, and a dashboard.
+**Deploy** — Run `/trinity:connect` once to authenticate, then `/trinity:onboard` for each agent. Or use the [Trinity CLI](https://pypi.org/project/trinity-cli/): `trinity deploy .`
 
-**Iterate** — Push changes with `git push` or `trinity sync`. The remote agent pulls updates and is immediately running the new version. Use `/adjust-agent` to audit and improve.
+**Iterate** — Push changes with `git push` or `/trinity:sync`. Use `/create-agent:adjust` to audit and improve.
 
 ---
 
 ## Plugin Details
 
-### Agent Builder
+### create-agent
 
-Scaffold a complete, Trinity-compatible Claude Code agent from scratch on any topic.
+Consolidated plugin containing all agent creation wizards. Each wizard is a domain expert that asks the right questions and builds a fully configured, Trinity-compatible agent.
 
 ```bash
-/create                                # Discovery — shows all creation paths
-/create-agent                          # Interactive agent creation wizard
-/create-agent "PR review bot for Python"  # Start with a description
-/adjust-agent                          # Review and improve an existing agent
+/create-agent:create                    # Discovery — shows all wizards
+/create-agent:prospector                # B2B sales research wizard
+/create-agent:chief-of-staff            # Executive assistant wizard
+/create-agent:custom                    # Blank canvas wizard
+/create-agent:adjust                    # Improve existing agent
 ```
 
-**`/create`** is the recommended starting point — it lists all available wizards, clones, and scaffolders so you can pick the right one.
+**Generated agents include:**
+- **CLAUDE.md** — Identity, behavioral instructions, artifact dependency graph
+- **Initial skills** — 2-4 `.claude/skills/` playbooks based on purpose
+- **Onboarding system** — `onboarding.json` + `/onboarding` skill
+- **Dashboard** — `dashboard.yaml` + `/update-dashboard` skill
+- **Trinity files** — `template.yaml`, `.env.example`, `.mcp.json.template`
+- **Git repo** — Initialized and committed
 
-**`/create-agent`** guides you through naming, purpose, initial skills, and plugin selection. It generates:
+### agent-dev
 
-- **CLAUDE.md** — Tailored identity, behavioral instructions, artifact dependency graph, recommended schedules, and plugin setup guide
-- **Initial skills** — 2-4 `.claude/skills/` playbooks based on the agent's purpose
-- **Onboarding system** — `onboarding.json` + `/onboarding` skill for tracked setup progress
-- **Dashboard** — `dashboard.yaml` + `/update-dashboard` skill for Trinity metrics
-- **Trinity files** — `template.yaml`, `.env.example`, `.mcp.json.template`, `.gitignore`
-- **Git repo** — Initialized and committed, ready to push
+Development tools for extending existing agents. Memory systems are copied directly into agents — no plugin dependency at runtime.
 
-**`/adjust-agent`** audits an existing agent against best practices across 9 areas (identity, capabilities, artifact dependency graph, recommended schedules, guidelines, skill docs, skill quality, Trinity readiness, project hygiene). It proposes specific before/after diffs, lets you pick which to apply, and makes the edits.
-
-### Install Wizards
-
-Domain-specific guided flows that ask the right questions and output a fully customized agent with an onboarding tracker.
-
-**Install Ghostwriter** — Content writer with brand voice:
 ```bash
-/install-ghostwriter                   # Guided wizard
-/install-ghostwriter ~/my-agents/gw    # Custom destination
+/agent-dev:add-skill                    # Create new skill
+/agent-dev:add-memory                   # Add memory system
+/agent-dev:add-backlog                  # Add GitHub Issues workflow
+/agent-dev:work-loop                    # Autonomous work loop
 ```
-Asks about your platforms (Twitter, LinkedIn, Newsletter, Blog), writing style, content pillars, and anti-patterns. Creates `/write`, `/set-voice`, `/repurpose`, `/hooks`, and `/library` skills. **Zero API keys required** — Claude does all the writing natively. Voice profiles stored as local files.
 
-**Install Chief of Staff** — Executive support agent:
+**Memory options:**
+- **file-index** — Agent needs awareness of workspace files
+- **brain** — Connected notes, knowledge graph (Zettelkasten)
+- **json-state** — Structured state, counters, config
+- **workspace** — Multi-session project tracking
+
+### trinity
+
+Simplified deployment to the [Trinity](https://github.com/abilityai/trinity) platform — 3 skills covering the complete workflow.
+
 ```bash
-/install-chiefofstaff                  # Guided wizard
-/install-chiefofstaff ~/my-agents/cos  # Custom destination
+/trinity:connect                        # One-time authentication
+/trinity:onboard                        # Deploy agent to Trinity
+/trinity:sync                           # Sync local/remote changes
 ```
-Asks about your tools (Google Workspace, Slack, Notion, Linear), team size, briefing priorities, and decision tracking workflow. Creates `/daily-briefing`, `/prep-meeting`, `/track-decision`, and `/weekly-digest` skills. Designed for Trinity — schedule your morning briefing at 7am and weekly digest on Fridays.
 
-**Install Prospector** — B2B SaaS sales research agent:
-```bash
-/install-prospector                    # Guided wizard
-/install-prospector ~/my-agents/scout  # Custom destination
-```
-Asks about your ICP, research tools (Apollo, LinkedIn, Crunchbase, ZoomInfo), CRM, and research priorities. Creates `/research-company` and `/score-fit` skills.
-
-**Install Webmaster** — Website management agent:
-```bash
-/install-webmaster                     # Guided wizard
-/install-webmaster ~/my-agents/web     # Custom destination
-```
-Asks about site types, design direction, and deployment setup. Creates a website management agent with `/create-website` skill — build multiple sites from one agent. For building a single site without an agent, use `/create-website` from the **website-builder** plugin instead.
-
-**Install Recon** — Competitive intelligence agent:
-```bash
-/install-recon                         # Guided wizard
-/install-recon ~/my-agents/recon       # Custom destination
-```
-Asks about your industry, competitors, intelligence priorities, and delivery preferences. Creates skills for competitor tracking, market monitoring, and battlecard generation.
-
-**Install Receptionist** — Email gateway agent:
-```bash
-/install-receptionist                  # Guided wizard
-/install-receptionist ~/my-agents/rx   # Custom destination
-```
-Asks about your email workflow, routing rules, and response policies. Creates an agent that handles public-facing email communication, filters requests, and routes to the right people or agents.
-
-**Install KB Agent** — Knowledge-base agent (Cornelius-shaped):
-```bash
-/install-kb-agent                      # Guided wizard
-/install-kb-agent ~/my-agents/scholar  # Custom destination
-```
-Asks a structured 6-question interview about your domain's ontology: atomic unit, entity types, edge types, mode model, trigger topology, and lifecycle signals. Creates a fully local KB agent with FAISS + sentence-transformers vector search, NetworkX graph, spreading activation retrieval, and 7-layer vault structure. **No cloud APIs** — all embeddings computed locally with `all-MiniLM-L6-v2`. Presets for personal KB, community manager, CS researcher, clinical research, legal analyst, or custom domains.
-
-### Trinity Onboard
-
-Deploy any Claude Code agent to the [Trinity](https://github.com/abilityai/trinity) platform.
-
-**What is Trinity?** Trinity is sovereign infrastructure for autonomous AI agents. It provides:
-
+**What is Trinity?** Sovereign infrastructure for autonomous AI agents:
 - **Autonomous operation** — Agents run 24/7 with cron-based scheduling
 - **Multi-agent orchestration** — Coordinate teams of specialized agents
 - **Human-in-the-loop** — Approval gates where decisions matter
-- **Enterprise controls** — Complete audit trails, cost tracking, Docker isolation
+- **Enterprise controls** — Audit trails, cost tracking, Docker isolation
 - **Your infrastructure** — Self-hosted, data never leaves your perimeter
 
-The recommended deployment path is the [Trinity CLI](https://pypi.org/project/trinity-cli/):
+### dev-methodology
+
+Documentation-driven development for any codebase. Enforces a 5-phase cycle: context loading, development, testing, documentation, and PR validation.
 
 ```bash
-pip install trinity-cli    # one-time install
-trinity init               # connect to your Trinity instance
-trinity deploy .           # deploy this agent
+/dev-methodology:init                   # Scaffold methodology
+/dev-methodology:read-docs              # Load context at session start
+/dev-methodology:implement #42          # End-to-end feature implementation
+/dev-methodology:validate-pr 123        # Validate PR
 ```
 
-Or use the plugin for in-session deployment:
+### utilities
+
+General-purpose ops and productivity skills for SSH-accessible services and daily workflows.
 
 ```bash
-/plugin install trinity-onboard@abilityai
-/trinity-onboard                       # Convert workspace to Trinity agent
-/credential-sync push                  # Sync credentials to remote
-/trinity-schedules                     # Manage scheduled tasks
+/utilities:investigate-incident         # Structured incident investigation
+/utilities:safe-deploy update           # Safe deployment with backup
+/utilities:safe-deploy rollback         # Revert to previous commit
+/utilities:docker-ops logs [service]    # View container logs
+/utilities:save-conversation            # Save conversation as markdown
 ```
-
-After deployment, your agent can run autonomously on schedules, collaborate with other agents via MCP, persist memory across sessions, and be managed via web UI, CLI, or API.
-
-### Playbook Builder
-
-Create structured, transactional playbooks with state management for autonomous, gated, or manual execution.
-
-```bash
-/create-playbook           # Interactive playbook creation wizard
-/adjust-playbook           # Refine an existing playbook
-/save-playbook             # Capture workflow from conversation
-/playbook-architect        # Audit agent and propose playbook adoption
-```
-
-- **Autonomous mode**: Full automation with checkpoints
-- **Gated mode**: Human approval at critical steps
-- **Manual mode**: Step-by-step guided execution
-
-Supports state persistence, rollback capabilities, and Trinity integration.
-
-### Dev Methodology
-
-Documentation-driven development methodology for Claude Code projects. Enforces a 5-phase cycle: context loading, development, testing, documentation, and PR validation.
-
-```bash
-/dev-methodology:init              # Scaffold methodology into your project
-/read-docs                         # Load project context at session start
-/implement #42                     # End-to-end feature implementation
-/validate-pr 123                   # Validate PR against methodology
-```
-
-Includes 14 skills, 3 sub-agents (test-runner, feature-flow-analyzer, security-analyzer), and templates for project memory files (requirements, architecture, changelog, feature flows).
-
-### Utilities
-
-General-purpose ops and productivity skills for SSH-accessible services and daily agent workflows.
-
-```bash
-/investigate-incident              # Structured incident investigation with severity classification
-/bug-report                        # Create a sanitized GitHub issue (redacts IPs, credentials, PII)
-/safe-deploy update                # Safe deployment: backup → pull → rebuild → restart → validate
-/safe-deploy rollback              # Revert to previous commit with optional DB restore
-/safe-deploy diagnose              # Health check: containers, errors, restarts, disk, memory
-/docker-ops logs [service]         # View logs with optional error filtering
-/docker-ops restart [service|all]  # Graceful service restart with validation
-/docker-ops telemetry              # CPU, memory, disk, and container stats
-/docker-ops cleanup                # Prune Docker resources (dry-run by default)
-/sync-ops-knowledge                # Review commits, update ops docs for env/schema/API changes
-/save-conversation                 # Save conversation as structured markdown
-/batch-claude-loop                 # Batch headless Claude Code calls with structured output
-```
-
-All ops skills connect via SSH and work with any docker-compose-based stack.
 
 ---
 
@@ -317,11 +301,10 @@ All ops skills connect via SSH and work with any docker-compose-based stack.
 /plugin marketplace add abilityai/abilities
 
 # Install plugins
-/plugin install agent-builder@abilityai
-/plugin install install-ghostwriter@abilityai
-/plugin install install-prospector@abilityai
-/plugin install trinity-onboard@abilityai
-/plugin install playbook-builder@abilityai
+/plugin install create-agent@abilityai
+/plugin install agent-dev@abilityai
+/plugin install trinity@abilityai
+/plugin install dev-methodology@abilityai
 /plugin install utilities@abilityai
 ```
 
@@ -332,7 +315,7 @@ All ops skills connect via SSH and work with any docker-compose-based stack.
 git clone https://github.com/abilityai/abilities.git
 
 # Install a plugin directly
-/plugin add ./abilities/plugins/trinity-onboard
+/plugin add ./abilities/plugins/create-agent
 ```
 
 ---
@@ -352,13 +335,12 @@ We welcome contributions! See [CLAUDE.md](CLAUDE.md) for development guidelines.
 
 ### Creating Install Wizards
 
-Install wizards are domain-specific agent creation flows. To create one, use [Lilu](https://github.com/vybe/lilu) — the wizard manager:
+To add a new agent creation wizard:
 
-```bash
-/create-wizard "description of the domain"
-```
-
-Lilu designs the question flow, generates the complete plugin package, and registers it in the marketplace.
+1. Create a skill directory in `plugins/create-agent/skills/[wizard-name]/`
+2. Add a `SKILL.md` with the guided question flow
+3. Update the `/create` entry point skill to include the new wizard
+4. Update `marketplace.json` to register the new skill
 
 ---
 
