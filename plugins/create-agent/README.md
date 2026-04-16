@@ -61,7 +61,7 @@ All generated agents work locally first — Trinity deployment is the natural up
 
 ## Next Steps After Creating an Agent
 
-1. **Add capabilities**: `/agent-dev:add-skill` — add new skills
+1. **Add capabilities**: `/agent-dev:create-playbook` — add new skills/playbooks
 2. **Add memory**: `/agent-dev:add-memory` — choose appropriate memory system
 3. **Deploy to Trinity**: `/trinity:onboard` — deploy for remote execution
 

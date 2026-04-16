@@ -114,8 +114,8 @@ Develop and extend existing agents with skills, memory systems, and workflows.
 
 | Skill | Description |
 |-------|-------------|
-| `/agent-dev:add-skill` | Create a new skill for the agent |
-| `/agent-dev:adjust-skill` | Modify an existing skill |
+| `/agent-dev:create-playbook` | Create a new skill/playbook for the agent |
+| `/agent-dev:adjust-playbook` | Modify an existing skill/playbook |
 | `/agent-dev:add-memory` | Add memory system (file-index, brain, json-state, workspace) |
 | `/agent-dev:add-backlog` | Add GitHub Issues backlog workflow |
 | `/agent-dev:backlog` | View GitHub Issues backlog |
@@ -195,15 +195,15 @@ General-purpose ops and productivity skills.
 Abilities supports a four-step workflow for building agents that appreciate over time:
 
 ```
-1. Scaffold              2. Develop               3. Deploy              4. Iterate
-/create-agent:*          /agent-dev:add-skill     /trinity:onboard       /trinity:sync
-                         /agent-dev:add-memory    trinity deploy .       git push
-                         /agent-dev:add-backlog                          /create-agent:adjust
+1. Scaffold              2. Develop                    3. Deploy              4. Iterate
+/create-agent:*          /agent-dev:create-playbook    /trinity:onboard       /trinity:sync
+                         /agent-dev:add-memory         trinity deploy .       git push
+                         /agent-dev:add-backlog                               /create-agent:adjust
 ```
 
 **Scaffold** — Use a wizard like `/create-agent:prospector` or `/create-agent:custom` to get a fully configured agent with CLAUDE.md, skills, Trinity files, and an onboarding tracker.
 
-**Develop** — Use `/agent-dev:add-skill` to add capabilities, `/agent-dev:add-memory` to add persistence, and `/agent-dev:add-backlog` for task management.
+**Develop** — Use `/agent-dev:create-playbook` to add capabilities, `/agent-dev:add-memory` to add persistence, and `/agent-dev:add-backlog` for task management.
 
 **Deploy** — Run `/trinity:connect` once to authenticate, then `/trinity:onboard` for each agent. Or use the [Trinity CLI](https://pypi.org/project/trinity-cli/): `trinity deploy .`
 
@@ -238,7 +238,8 @@ Consolidated plugin containing all agent creation wizards. Each wizard is a doma
 Development tools for extending existing agents. Memory systems are copied directly into agents — no plugin dependency at runtime.
 
 ```bash
-/agent-dev:add-skill                    # Create new skill
+/agent-dev:create-playbook              # Create new skill/playbook
+/agent-dev:adjust-playbook              # Modify existing skill/playbook
 /agent-dev:add-memory                   # Add memory system
 /agent-dev:add-backlog                  # Add GitHub Issues workflow
 /agent-dev:work-loop                    # Autonomous work loop
