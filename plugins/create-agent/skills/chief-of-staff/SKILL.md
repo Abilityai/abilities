@@ -6,7 +6,7 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-04-04
   author: Ability.ai
 ---
@@ -1083,6 +1083,11 @@ Your executive support agent is ready.
    This will walk you through connecting your tools,
    running your first briefing, and (when you're ready)
    scheduling automatic daily briefings via Trinity.
+
+3. **Add cross-session durability** (recommended):
+   ```
+   /agent-dev:add-git-sync
+   ```
 ```
 
 ---

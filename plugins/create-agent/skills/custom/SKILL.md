@@ -6,9 +6,9 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-04-01
-  updated: 2026-04-09
+  updated: 2026-04-21
   author: Ability.ai
 ---
 
@@ -889,6 +889,11 @@ Display this to the user:
 
    This will walk you through configuring your environment,
    running your first skill, and (when you're ready) deploying to Trinity.
+
+3. **Add cross-session durability** (recommended):
+   ```
+   /agent-dev:add-git-sync
+   ```
 ```
 
 **Do not list manual steps like "install plugins" or "try /skill-name" here.** The `/onboarding` skill handles all of that in a tracked, resumable flow.

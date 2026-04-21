@@ -6,7 +6,7 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-08
   author: Ability.ai
 ---
@@ -1378,6 +1378,11 @@ Your email gateway agent is ready.
 
    This will walk you through configuring Gmail, setting up routing rules,
    running your first test, and (when you're ready) deploying to Trinity.
+
+3. **Add cross-session durability** (recommended):
+   ```
+   /agent-dev:add-git-sync
+   ```
 ```
 
 **Do not list manual steps here.** The `/onboarding` skill handles all of that.

@@ -6,7 +6,7 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-04-04
   author: Ability.ai
 ---
@@ -819,6 +819,11 @@ Your B2B SaaS sales research agent is ready.
 5. **Deploy to Trinity** (when ready):
    ```
    /trinity:onboard
+   ```
+
+6. **Add cross-session durability** (recommended):
+   ```
+   /agent-dev:add-git-sync
    ```
 
 Happy prospecting!

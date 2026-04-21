@@ -6,7 +6,7 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-09
   author: Ability.ai
 ---
@@ -1284,6 +1284,11 @@ Your voice profile has been created from your wizard answers.
 
    This will walk you through reviewing your voice, writing your first post,
    and (when you're ready) deploying to Trinity.
+
+3. **Add cross-session durability** (recommended):
+   ```
+   /agent-dev:add-git-sync
+   ```
 ```
 
 ---

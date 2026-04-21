@@ -6,9 +6,9 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-04-13
-  updated: 2026-04-14
+  updated: 2026-04-21
   author: Ability.ai
 ---
 
@@ -1260,6 +1260,8 @@ Display:
    This walks you through: configuring env vars, verifying the local-brain-search
    machinery, your first extraction, your first coherence sweep, and — when
    you're ready — deploying to Trinity with scheduled jobs.
+
+3. Add cross-session durability: run \`/agent-dev:add-git-sync\` (auto-commits on session end, rebases on start — essential for scheduled Trinity runs).
 
 ### Remember
 
