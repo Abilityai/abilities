@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent
 metadata:
-  version: "4.6"
+  version: "4.7"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "4.7: Add /agent-dev:add-git-sync follow-up prompt in both completion paths"
     - "4.6: Add GitHub PAT troubleshooting guide for private repo deployment"
     - "4.5: Prefer GitHub repository deployment over local files when remote exists"
     - "4.4: CLI credential resolution (~/.trinity/config.json), deploy via `trinity deploy .`, .trinity-remote.yaml tracking, mcp_api_key from profile"
@@ -671,6 +672,12 @@ Your agent is now live on Trinity.
 3. **Set up scheduled tasks:**
    Use `mcp__trinity__create_schedule` with agent name, skill, and cron expression.
 
+4. **Add cross-session durability** (recommended):
+   ```
+   /agent-dev:add-git-sync
+   ```
+   Installs three hooks that auto-commit on session end, rebase on session start, and snapshot before compaction — keeps local and remote state consistent without manual pushes. Ideal for Trinity-deployed agents running scheduled tasks.
+
 6. **Enable voice chat** (optional):
    Create `voice-agent-system-prompt.md` on the remote agent
 
@@ -706,6 +713,10 @@ Run `/trinity:onboard` again and choose "Deploy to Trinity" to:
 1. Connect to your Trinity instance
 2. Configure MCP tools
 3. Deploy this agent to the platform
+
+### Add Cross-Session Durability (Optional)
+
+Run `/agent-dev:add-git-sync` to install git-sync hooks — auto-commits on session end, rebases on session start. Recommended before deploying to Trinity so local and remote stay in sync automatically.
 
 ### Files Ready for Git
 
