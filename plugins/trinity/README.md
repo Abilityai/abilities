@@ -14,6 +14,7 @@ Connect, deploy, and sync Claude Code agents to the Trinity Deep Agent Orchestra
 /trinity:connect              # One-time: authenticate and configure MCP
 /trinity:onboard              # Per-agent: make compatible and deploy
 /trinity:sync                 # Ongoing: sync changes between local and remote
+/trinity:create-dashboard     # Add dashboard to existing agent
 ```
 
 ## Skills
@@ -23,6 +24,7 @@ Connect, deploy, and sync Claude Code agents to the Trinity Deep Agent Orchestra
 | **connect** | Authenticate with Trinity instance, configure MCP server connection |
 | **onboard** | Full onboarding flow — compatibility check, file creation, deploy to remote |
 | **sync** | Synchronize local/remote changes, supports multiple remotes |
+| **create-dashboard** | Generate an `/update-dashboard` skill for existing agents |
 
 ## User Flow
 
@@ -73,10 +75,10 @@ The following features from the old `trinity-onboard` plugin are now handled dif
 | `trinity-events` | Use MCP directly or Trinity dashboard |
 | `credential-sync` | Absorbed into `/trinity:onboard` and `/trinity:sync` |
 | `create-heartbeat` | Generated during `/trinity:onboard` |
-| `create-dashboard-playbook` | Generated during `/trinity:onboard` |
+| `create-dashboard-playbook` | Restored as `/trinity:create-dashboard` |
 | `create-fork-skill` | Generated during `/trinity:onboard` if requested |
 | `request-trinity-access` | Absorbed into `/trinity:connect` |
 
 ## Source
 
-This plugin is a simplified version of `trinity-onboard`, reducing 11 skills to 3 core workflows.
+This plugin is a simplified version of `trinity-onboard`, reducing 11 skills to 4 core workflows.
