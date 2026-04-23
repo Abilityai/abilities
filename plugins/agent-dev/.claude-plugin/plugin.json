@@ -1,7 +1,7 @@
 {
   "name": "agent-dev",
   "description": "Develop and extend existing agents — add skills, memory systems, GitHub backlog workflow, git-sync hooks, and planning tools",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"

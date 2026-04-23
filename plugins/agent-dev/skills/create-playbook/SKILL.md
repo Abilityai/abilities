@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.2"
+  version: "2.3"
   created: 2025-02-10
-  updated: 2026-04-14
+  updated: 2026-04-23
   author: Ability.ai
   changelog:
+    - "2.3: Note project-specific vs official frontmatter; list newer official fields (model, context, paths, hooks) for Tier 3"
     - "2.2: Add No-Gates Rule — autonomous playbooks cannot have approval gates (breaks execution)"
     - "2.1: Add 45-minute rule to Design Constraints — autonomous playbooks must complete within this limit"
 ---
@@ -191,8 +192,8 @@ user-invocable: true
 ---
 name: playbook-name
 description: What it does
-automation: gated
-schedule: "0 9 * * 1"  # optional
+automation: gated        # project convention (see note below)
+schedule: "0 9 * * 1"    # project convention, optional
 allowed-tools: [tools]
 user-invocable: true
 ---
@@ -207,6 +208,30 @@ user-invocable: true
 ## Completion Checklist
 ## Error Recovery
 ```
+
+---
+
+## Frontmatter: Official vs Project Conventions
+
+Skills here use a mix of official Claude Code frontmatter and project-specific fields.
+
+**Official Claude Code fields** (https://code.claude.com/docs/en/skills.md):
+- `name`, `description`, `allowed-tools`, `argument-hint`
+- `user-invocable`, `disable-model-invocation`
+- `model`, `effort` — override model/effort level for the skill
+- `context: fork` + `agent:` — run the skill in a subagent
+- `paths:` — glob patterns to scope auto-activation
+- `hooks:` — skill-scoped lifecycle hooks
+- `arguments:` — named `$name` substitution
+
+**Project-specific (not official Claude Code)**:
+- `metadata:` block with `version`, `changelog`, `author`
+- `automation: autonomous | gated | manual`
+- `schedule: "<cron>"`
+
+The project fields are load-bearing for the `agent-dev` plugin's playbook model. They work locally but won't be recognized by tooling that only reads official Claude Code frontmatter. Anthropic's official path for scheduled/unattended execution is **Routines / Remote Tasks**, not a skill field.
+
+When generating Tier 3 playbooks, keep the project fields (the rest of the plugin depends on them) and optionally add official fields like `model:`, `context: fork`, or `paths:` when they fit.
 
 ---
 
