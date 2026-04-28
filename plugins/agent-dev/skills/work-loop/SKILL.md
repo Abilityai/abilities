@@ -6,8 +6,9 @@ automation: autonomous
 schedule: "0 9 * * *"  # Daily at 9am — adjust as needed
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-04-14
+  updated: 2026-04-28
   author: Ability.ai
 ---
 
@@ -24,7 +25,7 @@ Run on a schedule (or manually) to autonomously work through the agent's task ba
 | Source | Location | Read | Write | Description |
 |--------|----------|------|-------|-------------|
 | GitHub Issues | Current repo | Yes | Yes | Task backlog |
-| GitHub Labels | status:*, priority:* | Yes | Yes | Track status |
+| GitHub Labels | status:*, priority:*, skill:* | Yes | Yes | Track status and route by skill |
 | Agent Skills | .claude/skills/ | Yes | No | Available capabilities |
 | CLAUDE.md | ./CLAUDE.md | Yes | No | Agent identity and guidelines |
 
@@ -98,9 +99,19 @@ Parse the issue body to understand requirements. The issue should contain:
 
 **Determine execution approach:**
 
-1. **Skill invocation**: If the issue references a specific skill (e.g., "run /deploy" or "execute /generate-report"), invoke that skill
-2. **Direct execution**: If the task is clear enough, execute it directly using available tools
-3. **Sub-agent delegation**: For complex tasks, spawn an Agent to handle it
+Check for a `skill:*` label on the issue first:
+
+- **`skill:*` label present**: This issue requires modifying or creating a skill file — it needs human input via `/sprint`. Mark it blocked:
+  ```bash
+  gh issue edit $NUMBER --remove-label "status:in-progress" --add-label "status:blocked"
+  gh issue comment $NUMBER --body "Blocked: skill development issue — requires human sprint (/sprint #$NUMBER)"
+  ```
+  Continue to the next issue.
+
+- **No skill label (project-level)**: Determine approach:
+  1. **Skill invocation**: If the issue references a specific skill (e.g., "run /groom" or "run /roadmap"), invoke that skill
+  2. **Direct execution**: If the task is clear and doesn't require wizard tools, execute directly
+  3. **Sub-agent delegation**: For complex research or analysis tasks, spawn an Agent
 
 **Add progress comments** as work proceeds:
 

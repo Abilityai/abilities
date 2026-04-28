@@ -1,6 +1,6 @@
 # agent-dev
 
-Develop and extend existing Claude Code agents with skills, memory systems, backlog workflows, and planning tools.
+Develop and extend existing Claude Code agents with skills, memory systems, a full GitHub Issues development workflow, and planning tools.
 
 ## Installation
 
@@ -16,24 +16,40 @@ Develop and extend existing Claude Code agents with skills, memory systems, back
 /agent-dev:create-playbook    # Create a new skill/playbook for the agent
 /agent-dev:adjust-playbook    # Modify an existing skill/playbook
 /agent-dev:add-memory         # Add a memory system (file-index, brain, json-state, workspace)
-/agent-dev:add-backlog        # Add GitHub Issues backlog workflow
+/agent-dev:add-backlog        # Install the full GitHub Issues development workflow
+/agent-dev:add-git-sync       # Install auto-commit hooks for durable state
 ```
 
-### Backlog Workflow
+### Development Workflow
 
-Once backlog is installed, use these skills to manage work:
+Once backlog is installed, the full cycle looks like:
 
 ```
-/agent-dev:backlog            # View GitHub Issues backlog
-/agent-dev:pick-work          # Pick next issue to work on
-/agent-dev:close-work         # Close current issue
-/agent-dev:work-loop          # Run autonomous work loop
+/agent-dev:groom              # Tag issues with skill:* labels, set priorities
+/agent-dev:roadmap            # View issues grouped by affected skill
+/agent-dev:claim              # Claim the next issue, mark in-progress
+/agent-dev:autoplan           # Analyze the issue against the current SKILL.md
+# → /agent-dev:adjust-playbook or /agent-dev:create-playbook
+/agent-dev:commit             # Stage skill files, write commit, close issue
+```
+
+Or run the full guided cycle in one command:
+
+```
+/agent-dev:sprint             # roadmap → claim → autoplan → implement → commit
+```
+
+For autonomous processing of project-level issues:
+
+```
+/agent-dev:work-loop          # Autonomous loop — skill issues are deferred to /sprint
 ```
 
 ### Planning
 
 ```
 /agent-dev:plan               # Plan multi-session work
+/agent-dev:backlog            # Priority-ordered view of open issues
 ```
 
 ## Skills
@@ -42,10 +58,38 @@ Once backlog is installed, use these skills to manage work:
 
 | Skill | Description |
 |-------|-------------|
-| **create-playbook** | Create a new skill/playbook for the agent (guided wizard) |
-| **adjust-playbook** | Modify an existing skill — update logic, add steps, change triggers |
-| **add-memory** | Add one of four memory systems to the agent |
-| **add-backlog** | Add GitHub Issues workflow for task management |
+| **create-playbook** | Scaffold a new skill/playbook (guided wizard) |
+| **adjust-playbook** | Modify an existing skill — steps, logic, triggers, interface |
+| **add-memory** | Copy a memory system into the agent |
+| **add-backlog** | Install the full GitHub Issues development workflow |
+| **add-git-sync** | Install auto-commit hooks for durable cross-session state |
+
+### Development Workflow
+
+Installed into the agent by `/add-backlog`. The units of work are skills; issues track what needs changing and why.
+
+| Skill | Description |
+|-------|-------------|
+| **backlog** | Priority-ordered view of open issues |
+| **roadmap** | Issues grouped by `skill:*` label — shows which skills have the most open work |
+| **groom** | Tag untagged issues with `skill:*` labels, set missing priorities, flag stale in-progress |
+| **claim** | Claim the next issue — surfaces the affected skill file to open |
+| **autoplan** | Read the affected SKILL.md and produce a targeted change plan before touching files |
+| **close** | Close an issue without a git commit (for project-level tasks) |
+| **commit** | Stage changed skill files, write `[skill-name]: ... (closes #N)` commit, close issue |
+| **sprint** | Human-supervised full cycle: roadmap → claim → autoplan → implement → commit |
+| **work-loop** | Autonomous loop — processes project-level issues, defers `skill:*` issues to sprint |
+
+**Label scheme:**
+- `status:todo` / `status:in-progress` / `status:blocked` / `status:done`
+- `priority:p0` (do now) / `priority:p1` (do soon) / `priority:p2` (do eventually)
+- `skill:<name>` — which skill this issue affects (created dynamically by `/groom`)
+
+### Planning
+
+| Skill | Description |
+|-------|-------------|
+| **plan** | Plan large multi-session projects with scope analysis and approval gates |
 
 ### Memory Systems
 
@@ -58,29 +102,11 @@ The `/add-memory` skill copies memory skills directly into the agent (no plugin 
 | **json-state** | Structured state, counters, config | setup-memory, load-memory, update-memory, memory-jq |
 | **workspace** | Multi-session project tracking | setup-projects, create-project, create-session, archive-project |
 
-### Backlog Workflow
+## How It Works
 
-| Skill | Description |
-|-------|-------------|
-| **backlog** | View GitHub Issues assigned to the agent |
-| **pick-work** | Select next issue and update status |
-| **close-work** | Mark current issue as complete |
-| **work-loop** | Autonomous loop: pick → work → close → repeat |
+**Skill development is the unit of work.** When you create an issue like "improve claim flow to show skill file path", `/groom` tags it `skill:claim`. `/roadmap` surfaces it alongside all other `skill:claim` work. `/autoplan` reads `.claude/skills/claim/SKILL.md`, identifies what changes, and flags risks. `/commit` writes `[claim]: show skill file path on claim (closes #N)`.
 
-### Planning
-
-| Skill | Description |
-|-------|-------------|
-| **plan** | Plan large multi-session projects with scope analysis |
-
-## How Memory Installation Works
-
-When you run `/agent-dev:add-memory`:
-
-1. Asks what kind of memory the agent needs
-2. COPIES the memory skills into `[agent]/.claude/skills/`
-3. Updates the agent's CLAUDE.md with documentation
-4. Agent becomes self-contained — no plugin dependency
+`/work-loop` is the autonomous sprint — but it skips `skill:*` issues since modifying SKILL.md files requires the interactive wizard tools. Those stay in `/sprint`.
 
 ## Source
 
@@ -88,5 +114,4 @@ This plugin consolidates:
 - playbook-builder (create-playbook, adjust-playbook)
 - file-indexing, brain-memory, json-memory, workspace-kit (memory templates)
 - github-backlog (backlog workflow)
-- install-github-backlog (add-backlog)
 - project-planner (plan)
