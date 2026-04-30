@@ -121,22 +121,32 @@ Store both values — you'll write them to Trinity's `.env` on the server.
 
 #### Set admin password
 
-Use AskUserQuestion:
-- Question: "Choose an admin password for Trinity (minimum 12 characters). This is your web UI login."
-- Store as `ADMIN_PASSWORD`
+Use AskUserQuestion (tool requires ≥2 options):
+- Question: "Set the Trinity admin password (minimum 12 characters)"
+- Options:
+  1. **Generate a secure password** → run `openssl rand -base64 16 | tr -d '=+/'` and show the result; store as `ADMIN_PASSWORD`
+  2. **I'll provide my own** → follow up with a second AskUserQuestion to collect it (use the same 2-option constraint: option 1 = "Enter now", option 2 = "Back")
 - Validate: at least 12 characters. If shorter, ask again.
 
 #### Check port availability
+
+Check all four required ports before starting (`ss`/`netstat` are universally available; `lsof` is not installed on many minimal images):
+
 ```bash
 ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} \
-  "ss -tlnp 2>/dev/null | grep ':80 ' || netstat -tlnp 2>/dev/null | grep ':80 ' || echo 'port 80 free'"
+  "for p in 80 8000 8001 8080; do ss -tlnp 2>/dev/null | grep -q \":$p \" && echo \"IN_USE $p\" || echo \"FREE $p\"; done"
 ```
 
-(`ss` and `netstat` are universally available; `lsof` is not installed on many minimal images.)
+For each port reported `IN_USE`, use AskUserQuestion (tool requires ≥2 options — structure as choice 1: suggested alternate, choice 2: enter custom) to ask for an alternate:
 
-If port 80 is in use, ask:
-- "Port 80 is taken on this server. What port should Trinity's frontend use?" (suggest `8090`)
-- Store as `FRONTEND_PORT` (default: `80`)
+| Port in use | Question | Suggestion | Store as |
+|-------------|----------|------------|----------|
+| 80 | "Port 80 is taken. What port for the frontend?" | `8090` | `FRONTEND_PORT` |
+| 8080 | "Port 8080 is taken. What port for the MCP server?" | `8085` | `MCP_PORT` |
+| 8000 | "Port 8000 is taken. What port for the backend API?" | `8100` | `BACKEND_PORT` |
+| 8001 | "Port 8001 is taken. What port for the scheduler?" | `8101` | `SCHEDULER_PORT` |
+
+Defaults if port is free: `FRONTEND_PORT=80`, `MCP_PORT=8080`, `BACKEND_PORT=8000`, `SCHEDULER_PORT=8001`.
 
 #### Verify firewall / security group
 
@@ -148,22 +158,22 @@ Display this warning and ask the user to confirm before proceeding:
 Before Trinity can be reached from outside the server, you need to open
 these ports in your cloud firewall / security group:
 
-  Port 80   (or your custom FRONTEND_PORT) — Web UI
-  Port 8080 — MCP Server (for Claude Code connection)
+  Port {FRONTEND_PORT} — Web UI
+  Port {MCP_PORT} — MCP Server (for Claude Code connection)
 
 How to open ports:
-  AWS        → EC2 → Security Groups → Inbound Rules → Add HTTP (80) + Custom TCP (8080)
-  GCP        → VPC → Firewall → Create rule: tcp:80,8080 targeting your instance tag
-  Hetzner    → Cloud Console → Firewall → Add Inbound rule for TCP 80 and 8080
-  DigitalOcean → Networking → Firewalls → Add Inbound rule for TCP 80 and 8080
-  VPS / bare metal → ufw allow 80/tcp && ufw allow 8080/tcp
+  AWS        → EC2 → Security Groups → Inbound Rules → Add Custom TCP for {FRONTEND_PORT} and {MCP_PORT}
+  GCP        → VPC → Firewall → Create rule: tcp:{FRONTEND_PORT},{MCP_PORT} targeting your instance tag
+  Hetzner    → Cloud Console → Firewall → Add Inbound rule for TCP {FRONTEND_PORT} and {MCP_PORT}
+  DigitalOcean → Networking → Firewalls → Add Inbound rule for TCP {FRONTEND_PORT} and {MCP_PORT}
+  VPS / bare metal → ufw allow {FRONTEND_PORT}/tcp && ufw allow {MCP_PORT}/tcp
 
 If you're on a private network or Tailscale, ports only need to be
 reachable by your machine — no public firewall rule needed.
 ```
 
 Use AskUserQuestion:
-- Question: "Have you opened ports 80 and 8080 on the server's firewall / security group?"
+- Question: "Have you opened ports {FRONTEND_PORT} and {MCP_PORT} on the server's firewall / security group?"
 - Options: "Yes, done" / "I'm on a private network / Tailscale (no rules needed)" / "Skip — I'll do it later"
 
 If they say "Skip", note that the web UI and MCP server will not be reachable until ports are opened.
@@ -184,6 +194,40 @@ ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} \
   "[ -d ~/trinity ] && echo 'already cloned' || git clone https://github.com/abilityai/trinity ~/trinity"
 ```
 
+**Step 2b: Patch MCP server Dockerfile**
+
+Fix the healthcheck endpoint (upstream bug: `/mcp` returns HTTP 400, so the container always reports `(unhealthy)` even when fully functional — `/health` returns 200):
+
+```bash
+ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} \
+  "cd ~/trinity && find . -name 'Dockerfile' | xargs grep -l '/mcp' 2>/dev/null | while read f; do sed -i 's|/mcp|/health|g' \"\$f\"; echo \"healthcheck patched: \$f\"; done"
+```
+
+If `MCP_PORT` is not `8080`, also update the hardcoded port in all three Dockerfile locations (EXPOSE, ENV, HEALTHCHECK):
+
+```bash
+ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} \
+  "cd ~/trinity && find . -name 'Dockerfile' | xargs grep -l '8080' 2>/dev/null | while read f; do
+    sed -i 's/EXPOSE 8080/EXPOSE {MCP_PORT}/g' \"\$f\"
+    sed -i 's/ENV MCP_PORT=8080/ENV MCP_PORT={MCP_PORT}/g' \"\$f\"
+    sed -i 's/:8080\/health/:{MCP_PORT}\/health/g' \"\$f\"
+    echo \"port patched: \$f\"
+  done"
+```
+
+Update docker-compose.yml port mappings for any non-default ports:
+
+```bash
+ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} "
+  cd ~/trinity
+  [ '{FRONTEND_PORT}' != '80' ]    && sed -i 's/\"80:80\"/\"{FRONTEND_PORT}:{FRONTEND_PORT}\"/g' docker-compose.yml || true
+  [ '{MCP_PORT}' != '8080' ]       && sed -i 's/\"8080:8080\"/\"{MCP_PORT}:{MCP_PORT}\"/g' docker-compose.yml || true
+  [ '{BACKEND_PORT}' != '8000' ]   && sed -i 's/\"8000:8000\"/\"{BACKEND_PORT}:{BACKEND_PORT}\"/g' docker-compose.yml || true
+  [ '{SCHEDULER_PORT}' != '8001' ] && sed -i 's/\"8001:8001\"/\"{SCHEDULER_PORT}:{SCHEDULER_PORT}\"/g' docker-compose.yml || true
+  echo 'docker-compose ports configured'
+"
+```
+
 **Step 3: Configure .env**
 ```bash
 ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} \
@@ -201,10 +245,16 @@ ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} "
 "
 ```
 
-If `FRONTEND_PORT` is not `80`:
+For any non-default ports, update `.env`:
 ```bash
-ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} \
-  "cd ~/trinity && grep -q FRONTEND_PORT .env && sed -i 's|^FRONTEND_PORT=.*|FRONTEND_PORT={FRONTEND_PORT}|' .env || echo 'FRONTEND_PORT={FRONTEND_PORT}' >> .env"
+ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} "
+  cd ~/trinity
+  [ '{FRONTEND_PORT}' != '80' ]    && (grep -q FRONTEND_PORT .env && sed -i 's|^FRONTEND_PORT=.*|FRONTEND_PORT={FRONTEND_PORT}|' .env || echo 'FRONTEND_PORT={FRONTEND_PORT}' >> .env) || true
+  [ '{MCP_PORT}' != '8080' ]       && (grep -q MCP_PORT .env && sed -i 's|^MCP_PORT=.*|MCP_PORT={MCP_PORT}|' .env || echo 'MCP_PORT={MCP_PORT}' >> .env) || true
+  [ '{BACKEND_PORT}' != '8000' ]   && (grep -q BACKEND_PORT .env && sed -i 's|^BACKEND_PORT=.*|BACKEND_PORT={BACKEND_PORT}|' .env || echo 'BACKEND_PORT={BACKEND_PORT}' >> .env) || true
+  [ '{SCHEDULER_PORT}' != '8001' ] && (grep -q SCHEDULER_PORT .env && sed -i 's|^SCHEDULER_PORT=.*|SCHEDULER_PORT={SCHEDULER_PORT}|' .env || echo 'SCHEDULER_PORT={SCHEDULER_PORT}' >> .env) || true
+  echo 'ports configured'
+"
 ```
 
 **Step 4: Start Trinity**
@@ -247,11 +297,13 @@ Trinity is running. Now create an API key for the ops agent.
 4. Click "Create New Key" — copy the value
 ```
 
-Use AskUserQuestion:
-- Question: "Paste your MCP API key:"
-- Store as `MCP_API_KEY`
+Use AskUserQuestion (tool requires ≥2 options):
+- Question: "Paste your MCP API key (from Settings → Platform API Keys)"
+- Options:
+  1. **Paste key now** → collect from user input; store as `MCP_API_KEY`
+  2. **I'll configure it later** → set `MCP_API_KEY=""` and note that `.env` must be updated before using the ops agent
 
-Set ports: `BACKEND_PORT=8000`, `FRONTEND_PORT={FRONTEND_PORT or 80}`, `MCP_PORT=8080`, `SCHEDULER_PORT=8001`
+Set ports: `BACKEND_PORT=8000`, `FRONTEND_PORT={FRONTEND_PORT}`, `MCP_PORT={MCP_PORT}`, `SCHEDULER_PORT=8001`
 
 ---
 
@@ -266,8 +318,8 @@ ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} \
 If port differs from `8000`, ask: "What port is the Trinity backend on?" Store as `BACKEND_PORT`.
 
 Collect:
-- AskUserQuestion: "Trinity admin password?" → `ADMIN_PASSWORD`
-- AskUserQuestion: "MCP API key? (Settings → Platform API Keys in the Trinity web UI)" → `MCP_API_KEY`
+- AskUserQuestion (≥2 options): "Trinity admin password" → Option 1: "Enter it now", Option 2: "I'll add it to .env manually" → store as `ADMIN_PASSWORD`
+- AskUserQuestion (≥2 options): "MCP API key (Settings → Platform API Keys)" → Option 1: "Paste key now", Option 2: "I'll configure later" → store as `MCP_API_KEY`
 
 Set defaults: `BACKEND_PORT=8000`, `FRONTEND_PORT=80`, `MCP_PORT=8080`, `SCHEDULER_PORT=8001`
 
@@ -299,13 +351,54 @@ INTERNAL_API_SECRET=$(openssl rand -hex 32)
 
 Ask for `ADMIN_PASSWORD` (same as PATH B).
 
+Check all required ports before starting:
+```bash
+for p in 80 8000 8001 8080; do
+  lsof -i ":$p" >/dev/null 2>&1 && echo "IN_USE $p" || echo "FREE $p"
+done
+```
+
+For each `IN_USE` port, use AskUserQuestion (≥2 options) to ask for an alternate — same table as PATH B. Set defaults `FRONTEND_PORT=80`, `MCP_PORT=8080`, `BACKEND_PORT=8000`, `SCHEDULER_PORT=8001`.
+
 Deploy:
 ```bash
 git clone https://github.com/abilityai/trinity ~/trinity
 cd ~/trinity && cp .env.example .env
 ```
 
-Edit `~/trinity/.env` to set `SECRET_KEY`, `INTERNAL_API_SECRET`, `ADMIN_PASSWORD`.
+Patch the MCP server Dockerfile healthcheck (upstream bug — `/mcp` returns 400; `/health` returns 200):
+```bash
+find ~/trinity -name 'Dockerfile' | xargs grep -l '/mcp' 2>/dev/null | while read f; do
+  perl -i -pe 's|/mcp|/health|g' "$f" && echo "healthcheck patched: $f"
+done
+```
+
+If `MCP_PORT` is not `8080`, also patch the hardcoded port and update docker-compose:
+```bash
+find ~/trinity -name 'Dockerfile' | xargs grep -l '8080' 2>/dev/null | while read f; do
+  perl -i -pe "s/EXPOSE 8080/EXPOSE {MCP_PORT}/g; s/ENV MCP_PORT=8080/ENV MCP_PORT={MCP_PORT}/g; s|:8080/health|:{MCP_PORT}/health|g" "$f"
+done
+
+# Update docker-compose.yml port mappings for all non-default ports
+cd ~/trinity
+[ '{FRONTEND_PORT}' != '80' ]    && perl -i -pe 's/"80:80"/"{FRONTEND_PORT}:{FRONTEND_PORT}"/g' docker-compose.yml || true
+[ '{MCP_PORT}' != '8080' ]       && perl -i -pe 's/"8080:8080"/"{MCP_PORT}:{MCP_PORT}"/g' docker-compose.yml || true
+[ '{BACKEND_PORT}' != '8000' ]   && perl -i -pe 's/"8000:8000"/"{BACKEND_PORT}:{BACKEND_PORT}"/g' docker-compose.yml || true
+[ '{SCHEDULER_PORT}' != '8001' ] && perl -i -pe 's/"8001:8001"/"{SCHEDULER_PORT}:{SCHEDULER_PORT}"/g' docker-compose.yml || true
+```
+
+Configure `.env` — use `perl -i -pe` for cross-platform compatibility (`sed -i` requires a backup suffix on macOS):
+```bash
+cd ~/trinity
+perl -i -pe 's|^SECRET_KEY=.*|SECRET_KEY={SECRET_KEY}|' .env
+perl -i -pe 's|^INTERNAL_API_SECRET=.*|INTERNAL_API_SECRET={INTERNAL_API_SECRET}|' .env
+perl -i -pe 's|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD={ADMIN_PASSWORD}|' .env
+
+[ '{FRONTEND_PORT}' != '80' ]    && (grep -q FRONTEND_PORT .env && perl -i -pe 's|^FRONTEND_PORT=.*|FRONTEND_PORT={FRONTEND_PORT}|' .env || echo 'FRONTEND_PORT={FRONTEND_PORT}' >> .env) || true
+[ '{MCP_PORT}' != '8080' ]       && (grep -q MCP_PORT .env && perl -i -pe 's|^MCP_PORT=.*|MCP_PORT={MCP_PORT}|' .env || echo 'MCP_PORT={MCP_PORT}' >> .env) || true
+[ '{BACKEND_PORT}' != '8000' ]   && (grep -q BACKEND_PORT .env && perl -i -pe 's|^BACKEND_PORT=.*|BACKEND_PORT={BACKEND_PORT}|' .env || echo 'BACKEND_PORT={BACKEND_PORT}' >> .env) || true
+[ '{SCHEDULER_PORT}' != '8001' ] && (grep -q SCHEDULER_PORT .env && perl -i -pe 's|^SCHEDULER_PORT=.*|SCHEDULER_PORT={SCHEDULER_PORT}|' .env || echo 'SCHEDULER_PORT={SCHEDULER_PORT}' >> .env) || true
+```
 
 Start:
 ```bash
