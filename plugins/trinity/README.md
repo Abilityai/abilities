@@ -1,6 +1,6 @@
 # trinity
 
-Connect, deploy, and sync Claude Code agents to the Trinity Deep Agent Orchestration Platform.
+Set up, connect, deploy, and sync Claude Code agents to the Trinity Deep Agent Orchestration Platform.
 
 ## Installation
 
@@ -11,6 +11,7 @@ Connect, deploy, and sync Claude Code agents to the Trinity Deep Agent Orchestra
 ## Usage
 
 ```
+/trinity:deploy               # Set up a Trinity instance + create an ops agent to manage it
 /trinity:connect              # One-time: authenticate and configure MCP
 /trinity:onboard              # Per-agent: make compatible and deploy
 /trinity:sync                 # Ongoing: sync changes between local and remote
@@ -21,12 +22,22 @@ Connect, deploy, and sync Claude Code agents to the Trinity Deep Agent Orchestra
 
 | Skill | Description |
 |-------|-------------|
+| **deploy** | Deploy Trinity on any server (or connect to existing) and scaffold a full ops agent |
 | **connect** | Authenticate with Trinity instance, configure MCP server connection |
 | **onboard** | Full onboarding flow — compatibility check, file creation, deploy to remote |
 | **sync** | Synchronize local/remote changes, supports multiple remotes |
 | **create-dashboard** | Generate an `/update-dashboard` skill for existing agents |
 
 ## User Flow
+
+### 0. Deploy Trinity (if you don't have an instance yet)
+
+Run `/trinity:deploy` to set up a Trinity instance and create an ops agent:
+- Choose cloud (ability.ai) or self-hosted (remote SSH or local Docker)
+- For fresh installs: generates secrets, configures `.env`, runs `start.sh`, verifies health
+- Handles firewall/security group guidance for AWS, GCP, Hetzner, DigitalOcean
+- Scaffolds a complete ops agent with 6 skills: `/status`, `/restart`, `/update`, `/backup`, `/monitor`, `/logs`
+- Works with any SSH-accessible server — provider-agnostic
 
 ### 1. Connect (One-time)
 
@@ -81,4 +92,4 @@ The following features from the old `trinity-onboard` plugin are now handled dif
 
 ## Source
 
-This plugin is a simplified version of `trinity-onboard`, reducing 11 skills to 4 core workflows.
+This plugin is a simplified version of `trinity-onboard`, reducing 11 skills to 5 core workflows.
