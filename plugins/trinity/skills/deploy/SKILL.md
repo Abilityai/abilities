@@ -466,6 +466,7 @@ mkdir -p {DEST}/.claude/skills/update
 mkdir -p {DEST}/.claude/skills/backup
 mkdir -p {DEST}/.claude/skills/monitor
 mkdir -p {DEST}/.claude/skills/logs
+mkdir -p {DEST}/.claude/skills/bug-report
 ```
 
 Substitute all `{PLACEHOLDERS}` with the actual values collected above before writing each file.
@@ -536,6 +537,7 @@ All credentials are in `.env`.
 | `/backup` | Database backup to `./backups/` |
 | `/monitor` | Comprehensive health sweep — writes rolling report to `monitor-state.md` |
 | `/logs` | View logs from any service or agent container |
+| `/bug-report` | File a Trinity code bug as a GitHub issue on abilityai/trinity |
 
 ---
 
@@ -1509,6 +1511,143 @@ source .env && docker logs trinity-{service} --tail {N}
 
 ---
 
+### {DEST}/.claude/skills/bug-report/SKILL.md
+
+```markdown
+---
+name: bug-report
+description: File a Trinity code bug as a GitHub issue on the public abilityai/trinity repo — gathers logs, sanitizes sensitive info, and posts a structured report
+user-invocable: true
+allowed-tools: Bash, Read
+---
+
+# Bug Report
+
+Create a structured GitHub issue on the public **abilityai/trinity** repository for a Trinity code bug found on this instance.
+
+**CRITICAL: abilityai/trinity is a PUBLIC repository. Never include sensitive information.**
+
+## Sensitive Information — Never Include
+
+| Category | Examples | Replace With |
+|----------|----------|--------------|
+| IP addresses | `192.168.1.50`, `100.97.x.x` | `[INSTANCE_IP]` |
+| Hostnames / VM names | specific server names | `[INSTANCE]` |
+| Credentials | API keys, passwords, tokens | `[REDACTED]` |
+| User data | emails, names, session IDs | `[USER_DATA]` |
+| Internal paths | `/home/eugene/`, `/Users/specific/` | `~/` |
+| Env var values | anything from `.env` | `[ENV_VAR]` |
+
+## Steps
+
+### 1. Collect bug context
+
+From the current session, gather:
+- **Title** — short description (`"Backend 500 after update"`)
+- **Component** — Backend / Frontend / Scheduler / MCP Server / Agent Runtime
+- **Priority** — P0 (service down) / P1 (major broken) / P2 (impaired, workaround) / P3 (minor)
+- **Error** — sanitized error message or stack trace
+- **Location** — file and line number in the Trinity repo
+- **Root cause** — what's causing it
+- **Reproduction steps** — generic, no instance-specific details
+- **Suggested fix** — if known
+
+Get the current Trinity version on the instance:
+```bash
+source .env && ./scripts/run.sh "cd ~/trinity && git log -1 --oneline" 2>/dev/null || \
+  (cd ${TRINITY_PATH:-~/trinity} && git log -1 --oneline)
+```
+
+### 2. Sanitize
+
+Scan your draft for the patterns above before posting. Replace anything sensitive with the placeholder tokens from the table.
+
+### 3. Create the GitHub issue
+
+```bash
+gh issue create --repo abilityai/trinity \
+  --title "bug: {Short descriptive title}" \
+  --label "type-bug" \
+  --label "priority-{p0|p1|p2|p3}" \
+  --label "status-ready" \
+  --body "$(cat <<'EOF'
+## Summary
+
+{2-3 sentence description — what broke and what the impact is}
+
+## Component
+
+{Backend / Frontend / Scheduler / MCP Server / Agent Runtime}
+
+## Priority
+
+{P0 / P1 / P2 / P3}
+
+## Error
+
+\`\`\`
+{Sanitized error message — no IPs, credentials, or user paths}
+\`\`\`
+
+## Location
+
+- **File**: \`{file_path in repo}\`
+- **Line**: {line_number}
+- **Function/Class**: {name}
+
+## Root Cause
+
+{What's causing the bug}
+
+## Reproduction Steps
+
+1. {Generic step — no instance-specific details}
+2. {Step 2}
+3. {Step 3}
+
+## Suggested Fix
+
+{Proposed solution with code example if applicable}
+
+## Environment
+
+- Trinity version: {git commit}
+- Docker version: {version}
+- OS: {Linux distro + version}
+
+## Related
+
+- {Links to relevant files in the repo, related issues}
+EOF
+)"
+```
+
+### 4. Add to project board
+
+```bash
+gh project item-add 6 --owner abilityai --url {issue_url_from_step_3}
+```
+
+### 5. Report back
+
+```
+## Bug Report Filed
+
+| Field | Value |
+|-------|-------|
+| Issue | #{number} |
+| URL | {url} |
+| Title | {title} |
+| Priority | {pN} |
+| Labels | type-bug, priority-{pN}, status-ready |
+| Project | Trinity Roadmap (Todo) |
+
+⚠️ Public repo — verify no sensitive info was included.
+```
+```
+
+---
+
 ## STEP 4: Finalize
 
 Make scripts executable:
@@ -1540,12 +1679,13 @@ Agent:    {DEST}
 
 ### Skills available
 
-  /status   — health check all services
-  /restart  — restart Trinity services
-  /update   — pull latest Trinity + rebuild
-  /backup   — back up the database
-  /logs     — view service logs
-  /monitor  — full sweep + write report
+  /status      — health check all services
+  /restart     — restart Trinity services
+  /update      — pull latest Trinity + rebuild
+  /backup      — back up the database
+  /logs        — view service logs
+  /monitor     — full sweep + write report
+  /bug-report  — file a Trinity code bug on GitHub
 
 ### Access Trinity
 
