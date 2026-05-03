@@ -1,24 +1,24 @@
 ---
 name: work-loop
-description: Autonomous work loop — process backlog issues until empty or time limit reached
+description: Autonomous work loop — pick one backlog issue, execute it, close it, exit. Re-invoked by scheduler for the next.
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent, Skill
 automation: autonomous
 schedule: "0 9 * * *"  # Daily at 9am — adjust as needed
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-04-14
-  updated: 2026-04-28
+  updated: 2026-05-03
   author: Ability.ai
 ---
 
 # Work Loop
 
-Autonomous heartbeat skill that processes the GitHub Issues backlog. Continues in-progress work or picks the next task, executes it, closes when done, and repeats.
+Autonomous skill that picks one issue from the backlog, executes it, and exits. The scheduler re-invokes it for the next issue — one issue per context window.
 
 ## Purpose
 
-Run on a schedule (or manually) to autonomously work through the agent's task backlog. The agent decides how to execute each task based on the issue content and its available skills.
+Run on a schedule (or manually) to autonomously advance the agent's task backlog. Each invocation handles exactly one issue, keeping context focused and noise-free. The cron handles iteration; this skill handles execution.
 
 ## State Dependencies
 
@@ -37,18 +37,7 @@ Run on a schedule (or manually) to autonomously work through the agent's task ba
 
 ## Process
 
-### Step 1: Initialize Loop
-
-Record start time. The loop must complete within 40 minutes to stay under the 45-minute reliability threshold.
-
-```bash
-LOOP_START=$(date +%s)
-MAX_DURATION=2400  # 40 minutes in seconds
-```
-
-Read CLAUDE.md to understand agent capabilities and guidelines.
-
-### Step 2: Check for In-Progress Work
+### Step 1: Check for In-Progress Work
 
 ```bash
 gh issue list --label "status:in-progress" --state open --json number,title,body,labels --limit 1
@@ -57,11 +46,11 @@ gh issue list --label "status:in-progress" --state open --json number,title,body
 If an issue is in-progress:
 - This is the current task
 - Parse the issue body for requirements
-- Continue working on it (skip to Step 4)
+- Continue working on it (skip to Step 3)
 
-If no in-progress work, proceed to Step 3.
+If no in-progress work, proceed to Step 2.
 
-### Step 3: Pick Next Task
+### Step 2: Pick Next Task
 
 Find highest priority todo:
 
@@ -90,7 +79,7 @@ If task found:
   gh issue comment $NUMBER --body "Starting work on this issue."
   ```
 
-### Step 4: Execute Task
+### Step 3: Execute Task
 
 Parse the issue body to understand requirements. The issue should contain:
 - Clear description of what needs to be done
@@ -128,7 +117,7 @@ gh issue comment $NUMBER --body "Progress: $UPDATE"
   ```
 - Continue to next task
 
-### Step 5: Complete Task
+### Step 4: Complete Task
 
 When task is done:
 
@@ -144,21 +133,6 @@ gh issue edit $NUMBER --remove-label "status:in-progress" --add-label "status:do
 gh issue close $NUMBER --reason completed
 ```
 
-### Step 6: Check Time and Loop
-
-```bash
-CURRENT=$(date +%s)
-ELAPSED=$((CURRENT - LOOP_START))
-```
-
-If elapsed < MAX_DURATION (40 minutes):
-- Return to Step 2 (check for next task)
-
-If elapsed >= MAX_DURATION:
-- Log: "Time limit approaching. Pausing work loop."
-- If work is in-progress, add comment: "Pausing work loop due to time limit. Will continue on next scheduled run."
-- Exit successfully
-
 ## Outputs
 
 - Issues processed (moved from todo → done)
@@ -171,16 +145,14 @@ If elapsed >= MAX_DURATION:
 | Error | Recovery |
 |-------|----------|
 | `gh` not authenticated | Log error, exit — user must run `! gh auth login` |
-| Issue update fails | Log error, continue to next issue |
-| Task execution fails | Mark issue as blocked with error details, continue to next |
-| Time limit reached | Graceful exit with status comment on any in-progress issue |
+| Issue update fails | Log error, exit |
+| Task execution fails | Mark issue as blocked with error details, exit |
 | Network failure | Retry once, then log and exit |
 
 ## Completion Checklist
 
 - [ ] Checked for in-progress work
-- [ ] Processed available tasks by priority
+- [ ] Picked next task by priority
 - [ ] Added progress comments
-- [ ] Closed completed issues with summaries
-- [ ] Respected 40-minute time limit
+- [ ] Closed completed issue with summary
 - [ ] Logged final status

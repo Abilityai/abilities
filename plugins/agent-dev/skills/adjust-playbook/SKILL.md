@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[playbook-name] [what to change] [--archive]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2025-02-10
-  updated: 2026-04-14
+  updated: 2026-05-03
   author: Ability.ai
   changelog:
+    - "1.3: Add single-task scope check to autonomous validation checklist"
     - "1.2: Add autonomous validation — cannot add gates to autonomous or change to autonomous with gates"
     - "1.1: Added --archive flag and versioning workflow for breaking changes"
     - "1.0: Initial version"
@@ -260,6 +261,7 @@ Autonomous playbooks run unattended — there is no human to approve gates. Befo
 - [ ] **Notifications on failure** — errors must alert via Slack, email, or logging
 - [ ] **Under 45 minutes** — execution time within agent reliability window
 - [ ] **Idempotent or safe to retry** — can re-run without causing duplicate effects
+- [ ] **Single-task scope** — processes one task type per invocation; iteration over varied items happens across invocations, not within one
 
 If existing playbook has approval gates, you MUST either:
 1. Remove all `[APPROVAL GATE]` sections (and their associated user interaction steps)

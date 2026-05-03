@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.3"
+  version: "2.4"
   created: 2025-02-10
-  updated: 2026-04-23
+  updated: 2026-05-03
   author: Ability.ai
   changelog:
+    - "2.4: Add Single-Task Rule — scheduled skills must be scoped to one task type per invocation"
     - "2.3: Note project-specific vs official frontmatter; list newer official fields (model, context, paths, hooks) for Tier 3"
     - "2.2: Add No-Gates Rule — autonomous playbooks cannot have approval gates (breaks execution)"
     - "2.1: Add 45-minute rule to Design Constraints — autonomous playbooks must complete within this limit"
@@ -274,6 +275,13 @@ When gathering requirements for Tier 3 playbooks, ask: "Can this complete in und
 - If the workflow needs human approval at any point, it MUST be `gated` or `manual`, not `autonomous`
 - When user requests autonomous + approval gates, explain the incompatibility and ask them to choose
 
+**The Single-Task Rule for Scheduled Skills**: Autonomous playbooks execute in a single context window. Iterating over multiple *different* tasks (e.g., "process all backlog items") fills that window with context from each prior item, adding noise to every subsequent step.
+
+- Each scheduled invocation must be scoped to **one task or one task type**
+- Process one item per invocation; let the scheduler re-invoke for the next
+- Exception: batch tasks where every item has *identical* context needs (same files, same pattern) are fine — e.g., running the same quality gate on N wizard files all read the same kind of data
+- When a user asks for a scheduled loop, design it as single-item-per-invocation and explain that the cron handles repetition
+
 ---
 
 ## Autonomous Playbook Validation Checklist
@@ -286,6 +294,7 @@ Before generating any autonomous playbook, verify:
 - [ ] **Notifications on failure** — errors must alert via Slack, email, or logging
 - [ ] **Under 45 minutes** — execution time within agent reliability window
 - [ ] **Idempotent or safe to retry** — can re-run without causing duplicate effects
+- [ ] **Single-task scope** — processes one task type per invocation; iteration over varied items happens across invocations, not within one
 
 If any check fails, the playbook cannot be autonomous. Recommend `gated` instead.
 
