@@ -312,9 +312,7 @@ cd /path/to/agent && claude -p "sanitized request here" --output-format json
 ```
 
 **Trinity remote invocation pattern:**
-```
-trinity chat [agent-name] "sanitized request here"
-```
+Use `mcp__trinity__chat_with_agent` with the agent name and sanitized message.
 
 ## How to Work With This Agent
 
@@ -333,22 +331,13 @@ Build this agent iteratively:
 1. **Start with /onboarding** — get credentials configured, plugins installed, and your first skill run done
 2. **Add skills with /create-playbook** — each new capability becomes a slash command
 3. **Refine skills with /adjust-playbook** — improve based on real usage
-4. **Deploy when ready** — run `trinity deploy .` from your terminal to go live on Trinity
+4. **Deploy when ready** — run `/trinity:onboard` to go live on Trinity
 
 ### Deploying to Trinity
 
-When you're ready to run this agent remotely (scheduled tasks, always-on, API access):
+When you're ready to run this agent remotely (scheduled tasks, always-on, API access), run `/trinity:onboard` from this directory. It configures Trinity compatibility and publishes the agent to your instance.
 
-```bash
-pip install trinity-cli    # one-time install
-trinity init               # connect to your Trinity instance
-trinity deploy .           # deploy this agent
-```
-
-After deploying, manage from your terminal:
-- `trinity chat receptionist "message"` — talk to the remote agent
-- `trinity logs receptionist` — view logs
-- `trinity schedules list receptionist` — check scheduled tasks
+After deploying, interact with your remote agent through the Trinity MCP tools available in Claude Code.
 
 Learn more at [ability.ai](https://ability.ai)
 
@@ -615,9 +604,7 @@ cd [agent-path] && claude -p "[sanitized request summary]. Respond with the info
 ```
 
 If the agent is on Trinity:
-```bash
-trinity chat [agent-name] "[sanitized request summary]. Respond with the information or action result only."
-```
+Use `mcp__trinity__chat_with_agent` with the agent name and sanitized request summary.
 
 **5d. Receive and validate the response:**
 - If the specialist agent responds, capture the response content
@@ -815,9 +802,7 @@ cd [agent-path] && claude -p "[sanitized request]" --output-format json
 ```
 
 If on Trinity:
-```bash
-trinity chat [agent-name] "[sanitized request]"
-```
+Use `mcp__trinity__chat_with_agent` with the agent name and sanitized request.
 
 ### Step 5: Show Response
 

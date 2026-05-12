@@ -273,22 +273,13 @@ Build this agent iteratively:
 1. **Start with /onboarding** — get plugins installed and your first post written
 2. **Refine your voice** — run `/set-voice` after seeing initial output, adjust until it sounds right
 3. **Add skills with /create-playbook** — each new capability becomes a slash command
-4. **Deploy when ready** — run `trinity deploy .` from your terminal to go live on Trinity
+4. **Deploy when ready** — run `/trinity:onboard` to go live on Trinity
 
 ### Deploying to Trinity
 
-When you're ready to run this agent remotely (scheduled tasks, always-on, API access):
+When you're ready to run this agent remotely (scheduled tasks, always-on, API access), run `/trinity:onboard` from this directory. It configures Trinity compatibility and publishes the agent to your instance.
 
-```bash
-pip install trinity-cli    # one-time install
-trinity init               # connect to your Trinity instance
-trinity deploy .           # deploy this agent
-```
-
-After deploying, manage from your terminal:
-- `trinity chat ghostwriter "message"` — talk to the remote agent
-- `trinity logs ghostwriter` — view logs
-- `trinity schedules list ghostwriter` — check scheduled tasks
+After deploying, interact with your remote agent through the Trinity MCP tools available in Claude Code.
 
 Learn more at [ability.ai](https://ability.ai)
 
@@ -968,7 +959,7 @@ Identify the first incomplete step in the current phase. Provide specific guidan
 - After all attempted, mark done.
 
 **For `onboarded` (Trinity phase):**
-- Tell user to run `/trinity:onboard` or `trinity deploy .` from terminal.
+- Tell user to run `/trinity:onboard`.
 - After completion, mark done and advance phase.
 
 **For `first_remote_run`:**

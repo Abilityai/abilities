@@ -218,7 +218,6 @@ Next steps:
 
 ## Notes
 
-- This skill replaces the need for `trinity init` or `trinity login` CLI commands
-- Credentials are stored in the same location as the CLI for compatibility
+- Credentials are stored in `~/.trinity/config.json`
 - The JWT token expires (check `exp` claim) but MCP API key is long-lived
 - Multiple profiles are supported - run again with a different URL to add another instance

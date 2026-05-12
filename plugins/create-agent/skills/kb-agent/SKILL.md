@@ -627,9 +627,7 @@ This agent manages its work via GitHub Issues in this repository.
 
 **Autonomous Mode (Trinity):**
 Schedule `/work-loop` to run periodically. The agent will process its backlog automatically:
-```bash
-trinity schedules create work-loop --cron "0 */4 * * *"
-```
+Use `mcp__trinity__create_agent_schedule` to create the work-loop cron job with `"0 */4 * * *"`.
 
 ## Subagents
 
@@ -652,20 +650,13 @@ Build this agent iteratively:
 2. **Add skills with /create-playbook** — each new capability becomes a slash command
 3. **Refine skills with /adjust-playbook** — improve based on real usage
 4. **Refine the ontology** — after 2-3 weeks of real use, revisit `${agent_name}-graph.yaml`. Ontologies are hypotheses; they get revised.
-5. **Deploy when ready** — `trinity deploy .` to go live remotely
+5. **Deploy when ready** — run `/trinity:onboard` to go live remotely
 
 ## Deploying to Trinity
 
-```bash
-pip install trinity-cli
-trinity init
-trinity deploy .
-```
+When you're ready to run this agent remotely, run `/trinity:onboard` from this directory. It configures Trinity compatibility and publishes the agent to your instance.
 
-After deploying:
-- `trinity chat ${agent_name} "message"` — talk to remote agent
-- `trinity logs ${agent_name}` — view logs
-- `trinity schedules list ${agent_name}` — check scheduled jobs (coherence-sweep, compute-lifecycle, detect-tensions, refresh-index)
+After deploying, interact with your remote agent and manage schedules through the Trinity MCP tools available in Claude Code.
 
 ## Onboarding
 

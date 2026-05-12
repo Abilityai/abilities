@@ -187,22 +187,13 @@ Build this agent iteratively:
 1. **Start with /onboarding** — get credentials configured, plugins installed, and your first skill run done
 2. **Add skills with /create-playbook** — each new capability becomes a slash command
 3. **Refine skills with /adjust-playbook** — improve based on real usage
-4. **Deploy when ready** — run `trinity deploy .` from your terminal to go live on Trinity
+4. **Deploy when ready** — run `/trinity:onboard` to go live on Trinity
 
 ### Deploying to Trinity
 
-When you're ready to run this agent remotely (scheduled tasks, always-on, API access):
+When you're ready to run this agent remotely (scheduled tasks, always-on, API access), run `/trinity:onboard` from this directory. It configures Trinity compatibility and publishes the agent to your instance.
 
-```bash
-pip install trinity-cli    # one-time install
-trinity init               # connect to your Trinity instance
-trinity deploy .           # deploy this agent
-```
-
-After deploying, manage from your terminal:
-- `trinity chat [agent-name] "message"` — talk to the remote agent
-- `trinity logs [agent-name]` — view logs
-- `trinity schedules list [agent-name]` — check scheduled tasks
+After deploying, interact with your remote agent through the Trinity MCP tools available in Claude Code.
 
 Learn more at [ability.ai](https://ability.ai)
 
