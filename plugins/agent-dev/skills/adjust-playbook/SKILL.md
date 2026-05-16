@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[playbook-name] [what to change] [--archive]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2025-02-10
-  updated: 2026-05-03
+  updated: 2026-05-16
   author: Ability.ai
   changelog:
+    - "1.4: Add Change Effort/Model and Add Skill-Scoped Hooks adjustments; add Routines note to autonomous validation"
     - "1.3: Add single-task scope check to autonomous validation checklist"
     - "1.2: Add autonomous validation — cannot add gates to autonomous or change to autonomous with gates"
     - "1.1: Added --archive flag and versioning workflow for breaking changes"
@@ -263,6 +264,8 @@ Autonomous playbooks run unattended — there is no human to approve gates. Befo
 - [ ] **Idempotent or safe to retry** — can re-run without causing duplicate effects
 - [ ] **Single-task scope** — processes one task type per invocation; iteration over varied items happens across invocations, not within one
 
+> **Alternative**: For cloud-hosted scheduled execution without a local machine, use Anthropic's Routines (`/schedule` in CLI). The project `schedule:` field runs locally; Routines run on Anthropic infrastructure.
+
 If existing playbook has approval gates, you MUST either:
 1. Remove all `[APPROVAL GATE]` sections (and their associated user interaction steps)
 2. OR keep the playbook as `gated`/`manual`
@@ -312,6 +315,32 @@ Add item to Completion Checklist:
 ```markdown
 - [ ] [New verification item]
 ```
+
+### Change Effort or Model
+
+Update frontmatter to override model or effort level for this skill's invocations:
+
+```yaml
+model: sonnet        # or opus, haiku, or a full model ID
+effort: high         # low / medium / high / xhigh / max
+```
+
+The override applies only while the skill is active; the session model/effort resumes on the next prompt.
+
+### Add Skill-Scoped Hooks
+
+Add a `hooks:` block to frontmatter to run commands on tool events while this skill is active:
+
+```yaml
+hooks:
+  PostToolUse:
+    - matcher: "Edit|Write"
+      hooks:
+        - type: command
+          command: "./scripts/lint.sh"
+```
+
+All standard hook events are supported. These hooks fire only while the skill is loaded.
 
 ### Fix an Issue
 

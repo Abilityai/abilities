@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.4"
+  version: "2.5"
   created: 2025-02-10
-  updated: 2026-05-03
+  updated: 2026-05-16
   author: Ability.ai
   changelog:
+    - "2.5: Add when_to_use/arguments/shell/effort/substitution-vars to frontmatter; fix hot-reload advice; add supporting-files step; add Routines note"
     - "2.4: Add Single-Task Rule — scheduled skills must be scoped to one task type per invocation"
     - "2.3: Note project-specific vs official frontmatter; list newer official fields (model, context, paths, hooks) for Tier 3"
     - "2.2: Add No-Gates Rule — autonomous playbooks cannot have approval gates (breaks execution)"
@@ -86,7 +87,14 @@ Ask these questions to classify:
 - Approval gates (if gated): where? ⚠️ **Not allowed for autonomous — see No-Gates Rule**
 - Prerequisites
 
-### Step 4b: Self-Improvement Option
+### Step 4b: Supporting Files
+
+Ask: Does this skill need supporting files (templates, example outputs, helper scripts)?
+
+- If YES: plan a `scripts/`, `examples/`, or `reference.md` alongside SKILL.md, referenced from the main file so Claude knows when to load them. Keep SKILL.md under 500 lines — move large reference material to separate files.
+- If NO: proceed.
+
+### Step 4c: Self-Improvement Option
 
 Ask the user:
 
@@ -97,6 +105,10 @@ Ask the user:
 > If in a git repo, improvements are committed for version control.
 
 If user confirms YES, include the Self-Improvement Checklist (see below) at the end of the generated skill.
+
+### Step 4d: Deep Reasoning
+
+If this skill involves complex multi-step logic or architectural decisions, add `ultrathink` anywhere in the skill body to request deeper reasoning when it runs.
 
 ### Step 5: Determine Location
 
@@ -152,7 +164,7 @@ After confirmation:
 cat [path]/SKILL.md | head -20
 ```
 
-Remind user they may need to restart Claude Code for the skill to be recognized.
+Edits to existing skill files hot-reload without restart. A restart is only needed if the top-level skills directory (`~/.claude/skills/` or `.claude/skills/`) didn't exist before this session.
 
 ---
 
@@ -196,6 +208,7 @@ description: What it does
 automation: gated        # project convention (see note below)
 schedule: "0 9 * * 1"    # project convention, optional
 allowed-tools: [tools]
+effort: high             # optional: low/medium/high/xhigh/max
 user-invocable: true
 ---
 # Playbook Name
@@ -219,18 +232,27 @@ Skills here use a mix of official Claude Code frontmatter and project-specific f
 **Official Claude Code fields** (https://code.claude.com/docs/en/skills.md):
 - `name`, `description`, `allowed-tools`, `argument-hint`
 - `user-invocable`, `disable-model-invocation`
-- `model`, `effort` — override model/effort level for the skill
+- `when_to_use` — additional trigger context; combined with `description`, capped at 1,536 chars in skill listing
+- `arguments` — named positional args: `arguments: [issue, branch]` → `$issue`, `$branch` in content
+- `model`, `effort` — override model/effort level (`low`/`medium`/`high`/`xhigh`/`max`)
+- `shell` — `bash` (default) or `powershell` for `!` command blocks
 - `context: fork` + `agent:` — run the skill in a subagent
 - `paths:` — glob patterns to scope auto-activation
 - `hooks:` — skill-scoped lifecycle hooks
-- `arguments:` — named `$name` substitution
+
+**String substitutions available in skill content:**
+- `$ARGUMENTS` — full argument string; `$ARGUMENTS[N]` / `$N` — positional (0-based)
+- `$name` — named arg from `arguments:` frontmatter
+- `${CLAUDE_SESSION_ID}` — current session ID
+- `${CLAUDE_EFFORT}` — active effort level
+- `${CLAUDE_SKILL_DIR}` — absolute path to the skill's directory (use for bundled scripts)
 
 **Project-specific (not official Claude Code)**:
 - `metadata:` block with `version`, `changelog`, `author`
 - `automation: autonomous | gated | manual`
 - `schedule: "<cron>"`
 
-The project fields are load-bearing for the `agent-dev` plugin's playbook model. They work locally but won't be recognized by tooling that only reads official Claude Code frontmatter. Anthropic's official path for scheduled/unattended execution is **Routines / Remote Tasks**, not a skill field.
+The project fields are load-bearing for the `agent-dev` plugin's playbook model. They work locally but won't be recognized by tooling that only reads official Claude Code frontmatter. Anthropic's official path for cloud-hosted scheduled execution is **Routines** — create one with `/schedule` in the CLI or at claude.ai/code/routines. Routines run on Anthropic infrastructure without a local machine.
 
 When generating Tier 3 playbooks, keep the project fields (the rest of the plugin depends on them) and optionally add official fields like `model:`, `context: fork`, or `paths:` when they fit.
 
