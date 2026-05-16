@@ -6,8 +6,9 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-16
+  updated: 2026-05-16
   author: Ability.ai
 ---
 
@@ -128,3 +129,4 @@ Run `/[setup-skill]` to initialize the memory system.
 - Multiple memory types can be installed in the same agent
 - If skills already exist (duplicate names), warn and ask before overwriting
 - The setup skill initializes the memory system (creates directories, indexes, etc.)
+- **Portability**: all data directories are created inside the agent repo — never in `~/`. If using the native Claude Code `memory:` frontmatter field on custom subagent definitions, use `memory: project` (stores in `.claude/agent-memory/`, stays in repo) — never `memory: user` (stores in `~/.claude/`, breaks portability)
