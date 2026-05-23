@@ -1,7 +1,7 @@
 {
   "name": "agent-dev",
-  "description": "Develop and extend existing agents — add skills, memory systems, and a full GitHub Issues development workflow (backlog, roadmap, groom, claim, autoplan, commit, sprint, work-loop)",
-  "version": "1.2.0",
+  "description": "Develop and extend existing agents — add skills, memory systems, GitHub Issues development workflow (backlog, roadmap, groom, claim, autoplan, commit, sprint, work-loop), and long-running multi-stage pipelines (add-pipeline + heartbeat / status / recover / pause / resume runtime skills)",
+  "version": "1.3.0",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"
@@ -13,6 +13,8 @@
     "agent", "development", "skills", "playbook", "memory",
     "backlog", "github", "issues", "workflow", "planning",
     "file-index", "zettelkasten", "json-state", "workspace",
-    "git-sync", "hooks", "durability", "cross-session"
+    "git-sync", "hooks", "durability", "cross-session",
+    "pipeline", "dag", "stages", "heartbeat", "long-running",
+    "trinity", "observability", "multi-tenant", "instances"
   ]
 }

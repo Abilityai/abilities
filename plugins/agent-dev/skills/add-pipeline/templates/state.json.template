@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "pipeline_id": "{{PIPELINE_ID}}",
+  "instance_id": "{{INSTANCE_ID}}",
+  "agent_name": "{{AGENT_NAME}}",
+  "status": "idle",
+  "current_stage": null,
+  "stage_entered_at": null,
+  "stage_attempt": 0,
+  "stage_max_attempts": 0,
+  "last_advanced_at": null,
+  "last_completed_cycle_at": null,
+  "next_check_at": null,
+  "health": "green",
+  "blockers": [],
+  "open_escalations": [],
+  "stages": {},
+  "metrics": {
+    "cycles_completed": 0,
+    "cycles_failed": 0,
+    "avg_cycle_duration_seconds": 0,
+    "last_fitness_score": null
+  },
+  "updated_at": "{{CREATED_AT}}"
+}
