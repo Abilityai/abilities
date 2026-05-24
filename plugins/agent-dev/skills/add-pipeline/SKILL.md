@@ -29,7 +29,7 @@ Add a long-running, multi-stage **pipeline** to any Trinity-compatible agent. Im
 | `.claude/skills/pipeline-resume/` | agent repo | operator resume |
 | `~/.trinity/pipelines/<slug>.yaml` | user home | write-through copy — Trinity's read surface |
 | `~/.trinity/pipeline-state/<slug>/` | user home | per-instance state, read by dashboards and other agents |
-| `~/.trinity/pre-check` | user home | gate that skips the heartbeat tick when nothing needs attention |
+| `~/.trinity/pre-check` | user home | advisory marker — emits a reason when pipeline-tick has work, always fires the schedule otherwise (see Step 6 for why) |
 | `dashboard.yaml` panel | agent repo (if present) | Trinity UI shows a row per instance |
 | heartbeat schedule | Trinity MCP (if available) | `pipeline-<slug>-heartbeat` cron `*/15 * * * *` |
 
@@ -162,7 +162,9 @@ date -u +%Y-%m-%dT%H:%M:%SZ > "$HOME/.trinity/pipelines/$SLUG.last_synced"
 
 ### Step 6: Extend ~/.trinity/pre-check
 
-The pre-check script gates heartbeat invocation when the pipeline is healthy and idle. Multiple pipelines coexist by sharing one script with a managed block per plugin.
+The pre-check script emits an advisory reason when pipeline-tick has work pending. **It always fires the schedule** — skip logic belongs inside pipeline-tick itself, not here. Multiple pipelines coexist by sharing one script with a single managed block (it scans every `~/.trinity/pipeline-state/*/*.json`).
+
+> ⚠️ **Why this constraint matters.** Trinity's pre-check API is **agent-global** — the same `~/.trinity/pre-check` is consulted before every scheduled skill on the agent, not just pipeline-tick. If the block ever returns empty stdout, Trinity silences **every** schedule on the agent (digests, heartbeats, batch jobs, the lot). Earlier versions of this template made that mistake. The block default MUST be `echo "fire"`.
 
 ```bash
 PRE_CHECK="$HOME/.trinity/pre-check"
@@ -176,16 +178,30 @@ if [ ! -f "$PRE_CHECK" ]; then
   chmod +x "$PRE_CHECK"
 fi
 
-# Check for existing add-pipeline block
-if grep -q "BEGIN add-pipeline block" "$PRE_CHECK"; then
-  echo "add-pipeline block already present in pre-check — skipping (the block scans all pipelines, no per-pipeline edit needed)."
+# Migrate or install the block
+if grep -q "BEGIN add-pipeline block v2" "$PRE_CHECK"; then
+  echo "add-pipeline block v2 already present in pre-check — skipping."
+elif grep -q "BEGIN add-pipeline block" "$PRE_CHECK"; then
+  # v1 block present — rewrite it in place (v1 returned empty stdout when idle,
+  # silencing all other agent schedules; v2 defaults to "fire").
+  echo "⚠️  Found v1 add-pipeline block in pre-check — replacing with v2 (default-fire)."
+  TMP=$(mktemp)
+  awk '
+    /BEGIN add-pipeline block/ {skip=1; next}
+    /END add-pipeline block/   {skip=0; next}
+    !skip
+  ' "$PRE_CHECK" > "$TMP"
+  echo "" >> "$TMP"
+  cat "$BLOCK_TEMPLATE" >> "$TMP"
+  mv "$TMP" "$PRE_CHECK"
+  chmod +x "$PRE_CHECK"
 else
   echo "" >> "$PRE_CHECK"
   cat "$BLOCK_TEMPLATE" >> "$PRE_CHECK"
 fi
 ```
 
-The block is **pipeline-agnostic** — it scans every `~/.trinity/pipeline-state/*/*.json`. Installing a second pipeline doesn't require editing pre-check again.
+Installing a second pipeline doesn't require editing pre-check again — the block scans all pipelines.
 
 ### Step 7: Install heartbeat schedule via Trinity MCP
 
@@ -300,6 +316,7 @@ Status: <installed via Trinity MCP | NOT installed — see Step 7>
 | Trinity MCP unavailable | Skip schedule install, print manual instructions |
 | dashboard.yaml has conflicting `pipelines:` key | Warn, leave existing alone, suggest manual review |
 | pre-check has un-marked content | Append our block but warn the user to review |
+| pre-check has v1 add-pipeline block (no `v2` marker) | Auto-rewrite to v2 (v1 emitted empty stdout when idle, silencing every other schedule on the agent — see Step 6) |
 
 ## Idempotency
 

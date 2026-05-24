@@ -1,11 +1,19 @@
-# BEGIN add-pipeline block — managed by /add-pipeline, do not edit by hand
-# This block decides whether pipeline-tick needs to run on this heartbeat tick.
-# Exits 0 with empty stdout when nothing needs attention (Trinity scheduler will
-# record a "skipped" tick and not invoke Claude). Otherwise prints a one-line
-# reason and exits 0 — Claude is invoked, pipeline-tick runs.
+# BEGIN add-pipeline block v2 — managed by /add-pipeline, do not edit by hand
+# Emits an advisory reason when pipeline-tick has work pending. Always exits 0
+# with non-empty stdout so the heartbeat fires.
+#
+# CRITICAL: Trinity's pre-check API is agent-global — every scheduled skill on
+# this agent (not just pipeline-tick) consults this same file. If this block
+# ever returns empty stdout, Trinity silences ALL schedules on the agent. The
+# default MUST be "fire". Skip decisions belong inside pipeline-tick itself,
+# where they only affect pipeline-tick.
 
 PIPELINE_STATE_DIR="${HOME}/.trinity/pipeline-state"
-[ -d "$PIPELINE_STATE_DIR" ] || exit 0
+if [ ! -d "$PIPELINE_STATE_DIR" ]; then
+  # No pipelines installed yet — must still fire so other schedules run.
+  echo "fire"
+  exit 0
+fi
 
 NOW_EPOCH=$(date +%s)
 HORIZON_SECONDS=900  # 15 minutes — match heartbeat cron
@@ -59,5 +67,7 @@ done
 
 if [ -n "$NEEDS_TICK" ]; then
   echo "pipeline-tick: $NEEDS_TICK"
+else
+  echo "fire"
 fi
 # END add-pipeline block
