@@ -4,11 +4,14 @@ description: Scaffold a complete, self-contained Next.js 15 website with Tailwin
 disable-model-invocation: false
 user-invocable: true
 argument-hint: "[project-name or description]"
-allowed-tools: Read, Write, Edit, Bash, Bash(gh *), Glob, Grep, AskUserQuestion, mcp__vercel__deploy_to_vercel, mcp__vercel__list_teams, mcp__vercel__list_projects, mcp__vercel__get_project, mcp__vercel__list_deployments, mcp__vercel__get_deployment, mcp__vercel__get_deployment_build_logs
+allowed-tools: Read, Write, Edit, Bash, Bash(gh *), Bash(vercel *), Glob, Grep, AskUserQuestion, mcp__vercel__deploy_to_vercel, mcp__vercel__list_teams, mcp__vercel__list_projects, mcp__vercel__get_project, mcp__vercel__list_deployments, mcp__vercel__get_deployment, mcp__vercel__get_deployment_build_logs
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-03-25
+  updated: 2026-05-24
   author: Ability.ai
+  changelog:
+    - "1.1: Prefer Vercel CLI for deployment; fall back to Vercel MCP, then to manual"
 ---
 
 # Create Website
@@ -303,49 +306,104 @@ gh repo create $PROJECT_NAME --[public|private] --source=. --push
 
 This creates the repo, sets the remote, and pushes in one command.
 
-### Step 16: Check Vercel MCP Availability
+### Step 16: Pick Deployment Method
 
-Check if the Vercel MCP server is connected by attempting to call `mcp__vercel__list_teams`.
+**Prefer the Vercel CLI** — it deploys directly from the local project without needing the GitHub→Vercel webhook to fire, gives immediate URLs, and works without any MCP setup. Fall back to the Vercel MCP only if the CLI is unavailable and the user doesn't want to install it.
 
-**If Vercel MCP is available:** proceed to Step 17.
+Probe both options in parallel:
 
-**If Vercel MCP is NOT available:** tell the user:
-
-```
-## Vercel MCP Not Connected
-
-To enable deployment from Claude Code, add the Vercel MCP server:
-
-    claude mcp add --transport http vercel https://mcp.vercel.com
-
-Then restart Claude Code and run `/mcp` to authenticate with Vercel.
-
-Or deploy manually:
-    1. Go to vercel.com/new
-    2. Import the GitHub repo: $GITHUB_REPO_URL
-    3. Click Deploy
+```bash
+vercel --version 2>/dev/null
 ```
 
-Skip to Step 20 (Summary).
+Also attempt one Vercel MCP call (e.g., `mcp__vercel__list_teams`) to see if the MCP server is connected.
 
-### Step 17: Deploy to Vercel from GitHub
+Decision tree:
+
+1. **CLI available** → use CLI path (Step 17a). Skip MCP entirely.
+2. **CLI not installed, MCP connected** → use MCP path (Step 17b).
+3. **Neither available** → offer to install the CLI:
+
+   ```
+   ## Vercel CLI not installed
+
+   The fastest way to deploy is the Vercel CLI:
+
+       npm i -g vercel
+
+   Then run `vercel login` once. After that, re-run this wizard or deploy manually with `vercel --prod` from the project directory.
+
+   Alternative: connect the Vercel MCP server:
+       claude mcp add --transport http vercel https://mcp.vercel.com
+       (then restart Claude Code and run `/mcp` to authenticate)
+
+   Or deploy via the dashboard:
+       1. Go to vercel.com/new
+       2. Import the GitHub repo: $GITHUB_REPO_URL
+       3. Click Deploy
+   ```
+
+   Skip to Step 20 (Summary).
+
+### Step 17a: Deploy via Vercel CLI (preferred)
 
 Use AskUserQuestion:
-- **Question:** "Deploy to Vercel now?"
+- **Question:** "Deploy to Vercel now via the CLI?"
 - **Header:** "Deployment"
 - Show these options:
-  1. **Yes, deploy now** — Connect GitHub repo to Vercel and deploy
+  1. **Yes, deploy now** — Use `vercel` CLI to deploy from this directory
   2. **Not yet** — Skip deployment, I'll deploy later
 
 If user chooses "Not yet", skip to Step 20.
 
-If deploying, call `mcp__vercel__deploy_to_vercel` from the project directory.
+Check auth status first:
 
-This connects the GitHub repository to Vercel. Future pushes to `main` will trigger automatic deployments.
+```bash
+vercel whoami 2>&1
+```
+
+If not logged in, the user must run `vercel login` themselves (it's interactive — open browser flow). Tell them:
+
+```
+You're not logged into Vercel. Run this in your terminal:
+
+    vercel login
+
+Then re-run the wizard, or deploy yourself with:
+
+    cd $PROJECT_NAME && vercel --prod
+```
+
+Skip to Step 20.
+
+If authenticated, deploy. From the project directory:
+
+```bash
+# First-time link + production deploy in one shot.
+# --yes accepts defaults (project name = directory name, scope = personal),
+# --prod targets production.
+vercel --prod --yes
+```
+
+Capture the deployment URL from stdout (last line is typically the production URL).
+
+If the user wants to link to a specific scope/team or override the project name, use `vercel link --yes` first with `--scope <team>` and `--project <name>`, then `vercel --prod --yes`.
+
+### Step 17b: Deploy via Vercel MCP (fallback)
+
+Call `mcp__vercel__deploy_to_vercel` from the project directory. This connects the GitHub repository to Vercel; future pushes to `main` trigger automatic deployments.
 
 ### Step 18: Monitor Deployment
 
-After deployment is initiated:
+**CLI path:** `vercel --prod --yes` blocks until the deployment finishes and prints the result. If it fails, the error is in the command output — read it, fix the issue, commit, and re-run `vercel --prod --yes`. To inspect a past deployment:
+
+```bash
+vercel ls                          # list recent deployments
+vercel inspect <deployment-url>    # detailed status
+vercel logs <deployment-url>       # build/runtime logs
+```
+
+**MCP path:** After deployment is initiated:
 
 1. Call `mcp__vercel__list_teams` to get the team ID
 2. Call `mcp__vercel__list_projects` with the team ID to find the newly created project
@@ -354,14 +412,21 @@ After deployment is initiated:
 If the deployment state is `ERROR` or `FAILED`:
 - Call `mcp__vercel__get_deployment_build_logs` with the deployment ID to get error details
 - Show the relevant error to the user
-- Attempt to fix the build issue, commit, push, and the deployment will re-trigger automatically
+- Fix the build issue, commit, push — the deployment will re-trigger automatically
 
 ### Step 19: Verify Live Site
 
 Once deployment succeeds:
 
-1. Call `mcp__vercel__get_project` to get the production domain
-2. Display the live URL to the user
+**CLI path:** the production URL was printed by `vercel --prod --yes`. To re-fetch:
+
+```bash
+vercel ls --prod | head -2
+```
+
+**MCP path:** Call `mcp__vercel__get_project` to get the production domain.
+
+Display the live URL to the user.
 
 ### Step 20: Present Summary
 
@@ -388,8 +453,8 @@ Display:
    - Add pages: `app/[page-name]/page.tsx`
 
 3. **Redeploy:**
-   Push to GitHub — Vercel auto-deploys from `main`:
-   git add -A && git commit -m "Update" && git push
+   - Via CLI (instant, from local): `vercel --prod`
+   - Via GitHub (if connected): `git add -A && git commit -m "Update" && git push` — Vercel auto-deploys from `main`
 ```
 
 ---
@@ -438,10 +503,14 @@ Display:
 | `gh` not authenticated | Tell user to run `gh auth login` and follow prompts |
 | GitHub repo name taken | Ask user for alternative name, retry with `gh repo create <new-name>` |
 | `git push` fails | Check remote is set correctly: `git remote -v`, re-add if needed |
-| Vercel MCP not connected | Guide user: `claude mcp add --transport http vercel https://mcp.vercel.com` then restart and `/mcp` |
+| Vercel CLI not installed | Suggest `npm i -g vercel`, then `vercel login`. If user declines, fall back to MCP or manual dashboard import |
+| Vercel CLI not logged in | Tell user to run `vercel login` themselves (interactive browser flow) and re-run, or finish manually with `vercel --prod` |
+| Vercel CLI deploy fails | Read error from `vercel --prod --yes` output. Use `vercel logs <url>` for build logs. Fix, commit, re-run `vercel --prod --yes` |
+| Vercel CLI project already exists | `vercel link --yes` links to the existing project before deploying |
+| Vercel MCP not connected | Prefer the CLI path (`npm i -g vercel`). If the user wants MCP: `claude mcp add --transport http vercel https://mcp.vercel.com`, then restart and `/mcp` |
 | Vercel MCP auth fails | Tell user to run `/mcp` in Claude Code to re-authenticate with Vercel |
-| Vercel deployment fails | Get build logs via `mcp__vercel__get_deployment_build_logs`, fix the issue, redeploy |
-| Vercel project already exists | Use existing project — the MCP will detect and link it |
+| Vercel MCP deployment fails | Get build logs via `mcp__vercel__get_deployment_build_logs`, fix the issue, redeploy |
+| Vercel project already exists (MCP) | Use existing project — the MCP will detect and link it |
 
 ---
 
