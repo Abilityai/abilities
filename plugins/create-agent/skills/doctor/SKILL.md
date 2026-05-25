@@ -6,10 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-05-25
+  updated: 2026-05-25
   author: Ability.ai
   changelog:
+    - "1.1: Generalize language handling — drop Russian-specific examples, ask for languages as a follow-up"
     - "1.0: Initial version — bootstrap from existing files, 7 starting skills, multi-language extraction, onboarding tracker, Trinity dashboard"
 ---
 
@@ -21,7 +23,7 @@ Create a **personal medical-records and health-management agent** powered by Cla
 - A private repository for one person's health records — PDFs, scans, lab reports, genetic data
 - A first-run skill that analyzes existing documents and bootstraps a structured profile (current meds, conditions, lab history)
 - Ongoing skills for ingestion, memory upkeep, lab-trend analysis, doctor-visit prep, and supplement/interaction checks
-- Multi-language extraction (handles mixed English / Russian / other document sets)
+- Multi-language extraction (handles mixed-language document sets)
 - Trinity dashboard surfacing key health metrics
 
 > Built by [Ability.ai](https://ability.ai) — the agent orchestration platform.
@@ -85,15 +87,15 @@ Use AskUserQuestion:
 - **Header:** "Languages"
 - **Options:**
   1. English only
-  2. Russian only
-  3. Mixed English + Russian
-  4. Other / custom mix
+  2. Single non-English language
+  3. Mixed (two or more languages)
+  4. Other / specify
 
-Capture as `$languages`. Used in:
+For options 2, 3, and 4, ask a follow-up free-text question for the specific language list. Capture the final answer as `$languages` (e.g. "English", "Spanish", "Mixed English + Portuguese").
+
+Used in:
 - The ingestion skill's extraction prompts (whether to translate, preserve original, or both)
 - `memory/patient_profile.md` (one-line note about document languages)
-
-If `Other`, ask a follow-up free-text question for the language list.
 
 ---
 
@@ -364,7 +366,7 @@ This repository contains **Protected Health Information (PHI)**. When extracting
 
 - **Medical caution, always.** Surface trends and possible interactions; do not diagnose. Frame findings as "worth raising with a doctor", never as conclusions.
 - **Cite the source document** for every claim that appears in `memory/`. Memory files should be traceable to a file in `Files/` or `documents/`.
-- **Preserve original-language content** when extracting. If the patient's documents are in Russian and the extraction is in English, keep the original phrase in parentheses for clinical terms (e.g. diagnoses, drug names).
+- **Preserve original-language content** when extracting. If the patient's documents are not in English and the extraction is in English, keep the original phrase in parentheses for clinical terms (e.g. diagnoses, drug names).
 - **Append, do not overwrite, lab history.** Lab values are time series — old values are evidence, not stale data.
 `````
 
@@ -448,7 +450,7 @@ For bootstrap, prioritize (do not fully extract every file at this stage — tha
 
 1. Most recent lab reports from the last 12 months — for `lab_history.md` baseline
 2. Most recent prescription or medication list — for `current_medications.md`
-3. Any document containing "discharge", "summary", "anamnesis", "diagnosis", "выписка", or "диагноз" — for `conditions.md`
+3. Any document containing keywords like "discharge", "summary", "anamnesis", or "diagnosis" (in any language relevant to `$languages`) — for `conditions.md`
 4. Genetic test results (Promethease, 23andMe raw, MyHeritage) — for the genetic-risk section of `conditions.md`
 
 For each prioritized file, read it (PDFs via the Read tool, images via Read for vision) and extract the relevant fields.
