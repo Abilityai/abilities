@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-05-25
   updated: 2026-05-25
   author: Ability.ai
   changelog:
+    - "1.2: Vendor /document-extractor and /file-indexer from skill-library at scaffold time. Reduce /ingest-documents to a thin medical wrapper. Drop the inline /index-files skill."
     - "1.1: Generalize language handling — drop Russian-specific examples, ask for languages as a follow-up"
     - "1.0: Initial version — bootstrap from existing files, 7 starting skills, multi-language extraction, onboarding tracker, Trinity dashboard"
 ---
@@ -133,9 +134,9 @@ Capture as `$plugins`. Defaults: `agent-dev, trinity`.
 
 ---
 
-## STEP 7: Create Agent Directory
+## STEP 7: Create Agent Directory and Vendor Shared Skills
 
-Run:
+### 7a. Create directories
 
 ```bash
 mkdir -p "$destination/.claude/skills/bootstrap-profile"
@@ -144,7 +145,6 @@ mkdir -p "$destination/.claude/skills/update-memory"
 mkdir -p "$destination/.claude/skills/lab-trends"
 mkdir -p "$destination/.claude/skills/visit-prep"
 mkdir -p "$destination/.claude/skills/supplement-check"
-mkdir -p "$destination/.claude/skills/index-files"
 mkdir -p "$destination/.claude/skills/onboarding"
 mkdir -p "$destination/.claude/skills/update-dashboard"
 mkdir -p "$destination/documents"
@@ -153,6 +153,37 @@ mkdir -p "$destination/memory"
 ```
 
 `documents/` is where the user drops incoming files. `Files/` holds extracted markdown summaries (one per source document, mirroring the source's relative path). `memory/` holds the curated profile.
+
+### 7b. Copy shared extraction skills
+
+The agent delegates per-file extraction to `/document-extractor` and directory indexing to `/file-indexer`. These live in the user's local `skill-library` stash; copy them in rather than re-implementing.
+
+```bash
+SKILL_LIB="$HOME/Dropbox/Agents/skill-library/.claude/skills"
+
+if [ -d "$SKILL_LIB/document-extractor" ] && [ -d "$SKILL_LIB/file-indexer" ]; then
+  cp -r "$SKILL_LIB/document-extractor" "$destination/.claude/skills/"
+  cp -r "$SKILL_LIB/file-indexer" "$destination/.claude/skills/"
+  echo "Copied document-extractor and file-indexer from $SKILL_LIB"
+else
+  cat <<MSG
+ERROR: shared extraction skills not found at $SKILL_LIB
+
+The doctor agent expects /document-extractor and /file-indexer to be available
+in this stash. Either:
+  1. Clone the skill-library repo to that path, or
+  2. Copy the two skills manually into $destination/.claude/skills/ after
+     this wizard finishes, or
+  3. Re-run with --no-shared-skills (the wizard will fall back to bespoke
+     versions of both skills — not recommended).
+
+Stopping here so you don't end up with a half-configured agent.
+MSG
+  exit 1
+fi
+```
+
+If the user passed `--no-shared-skills`, skip this block — the wizard's `/ingest-documents` and a fallback `/file-indexer` in `.claude/skills/` will need to be generated inline (left as an exercise; the happy path is the shared stash).
 
 ---
 
@@ -183,7 +214,8 @@ You operate on documents in the user's local repository. Nothing leaves this mac
 | `/lab-trends` | Track lab values over time; flag out-of-range trends and reference-range violations |
 | `/visit-prep` | Generate a doctor-visit brief: relevant history, current meds, open questions, recent changes |
 | `/supplement-check` | Build evidence-based supplement plans; flag drug-supplement and CYP interactions against current meds |
-| `/index-files` | Refresh `memory/file_index.md` — a tree view of `documents/` and `Files/` for fast lookup |
+| `/document-extractor` | (vendored from skill-library) Walk a folder of documents and produce per-file markdown extracts |
+| `/file-indexer` | (vendored from skill-library) Refresh `memory/file_index.md` — a tree view of `documents/` and `Files/` for fast lookup |
 
 ## How to Work With This Agent
 
@@ -282,7 +314,8 @@ $agent_name/
       lab-trends/SKILL.md
       visit-prep/SKILL.md
       supplement-check/SKILL.md
-      index-files/SKILL.md
+      document-extractor/SKILL.md
+      file-indexer/SKILL.md
       onboarding/SKILL.md
       update-dashboard/SKILL.md
 ```
@@ -323,7 +356,7 @@ artifacts:
   memory/file_index.md:
     mode: descriptive
     direction: target
-    sources: [index-files/SKILL.md]
+    sources: [file-indexer/SKILL.md]
     description: "Tree view of documents/ and Files/"
 
   Files/**/*.md:
@@ -349,7 +382,7 @@ artifacts:
 
 | Skill | Schedule | Purpose |
 |-------|----------|---------|
-| `/index-files` | `0 8 * * 1` (weekly Monday 8am) | Refresh `memory/file_index.md` so the agent always has a current tree of what's on disk |
+| `/file-indexer` | `0 8 * * 1` (weekly Monday 8am) | Refresh `memory/file_index.md` so the agent always has a current tree of what's on disk |
 | `/update-dashboard` | `0 */6 * * *` (every 6 hours) | Refresh dashboard metrics for the Trinity view |
 | `/lab-trends` | `0 9 1 * *` (1st of each month, 9am) | Monthly trend sweep — surfaces drift early without overwhelming the user |
 
@@ -492,14 +525,16 @@ If they say yes, hand off to `/ingest-documents`.
 | Conflicting info across documents | Use the most recent; note the conflict in memory/ |
 ```
 
-### 10b. /ingest-documents
+### 10b. /ingest-documents (medical wrapper around /document-extractor)
+
+This skill is a **thin orchestrator**: it delegates raw extraction to the vendored `/document-extractor` skill (copied in STEP 7b), then walks the new `Files/*.md` outputs and updates the medical-specific memory files. Do NOT re-implement the extraction loop here.
 
 Frontmatter:
 
 ```yaml
 ---
 name: ingest-documents
-description: Extract structured markdown summaries from PDFs and images in documents/ into Files/<specialty>/
+description: Run /document-extractor on documents/, then route extracted lab values to memory/lab_history.md and medication updates to memory/current_medications.md
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
@@ -509,80 +544,87 @@ metadata:
 ---
 ```
 
-Body (note: the body contains a nested fenced block showing the extracted-file format, so we wrap with 4 backticks):
+Body:
 
-````markdown
+```markdown
 # Ingest Documents
 
-Extract structured markdown summaries from documents in `documents/` (or a path the user provides) into `Files/<specialty>/<original-name>.md`. Preserves filenames; tracks file hashes so re-runs are idempotent.
+Drive /document-extractor over the agent's documents/ folder, then post-process the new extracts to keep `memory/lab_history.md` and `memory/current_medications.md` current.
 
 ## Process
 
-### Step 1: Determine Target Folder
+### Step 1: Snapshot Current Files/
 
-Default: `documents/`. If the user passes a path argument, use that instead.
+Before running the extractor, list all current files under `Files/`:
 
-### Step 2: Find New or Changed Files
+`find Files -type f -name '*.md' -printf '%p\n' > /tmp/files-before.txt`
 
-For each file in the target folder (recursively):
-- Compute SHA-256 hash
-- Check if a matching `Files/<relative-path>.md` already exists with the same hash recorded in its frontmatter
-- If yes, skip (idempotent re-run)
-- If no, add to the work queue
+(on macOS, use `find Files -type f -name '*.md' > /tmp/files-before.txt`)
 
-Report queue size before processing.
+We'll diff against this after extraction to identify NEW or CHANGED extracts.
 
-### Step 3: Extract Each File
+### Step 2: Invoke /document-extractor
 
-For each file in the queue, read the document (PDFs and images via the Read tool's native handling) and write `Files/<relative-path>.md` with this structure:
+Call the `/document-extractor` skill on `documents/` (or the path the user passed as argument). It will:
+- Walk the folder, hash each file, skip unchanged ones
+- Read PDFs/images/text via the Read tool
+- Write `Files/<folder>/<name>.md` with frontmatter (hash, extraction timestamp, source path)
+- Generate `Files/<folder>/summary.md` rollups
 
-```
----
-source: documents/<relative-path>
-hash: <sha256>
-extracted: <ISO timestamp>
-date: <document date if determinable>
-specialty: <inferred from path or content>
-language: <detected from content>
----
+When invoking, give it these medical-context overrides:
+- Preserve original-language clinical terms in parentheses on first occurrence (documents may be in $languages)
+- Mask DOB and ID numbers (show last 4 digits only) — this is PHI
+- For lab reports, structure Key Findings as `test | value | unit | reference range | flagged`
+- For prescriptions, structure Key Findings as `drug | dose | frequency | prescribed date`
 
-# <Document title or filename>
+### Step 3: Diff and Post-Process
 
-## Summary
-<2-4 sentence summary of what this document is and its key findings>
+After /document-extractor returns, list Files/ again:
 
-## Key Findings
-<Bulleted findings, with values + reference ranges for labs>
+`find Files -type f -name '*.md' -newer /tmp/files-before.txt`
 
-## Original Text
-<Short documents: full extracted text. Long ones: key passages only.>
-```
+For each NEW or CHANGED extract, read it and route based on the specialty/content:
 
-Notes:
-- Documents may be in $languages — preserve original-language clinical terms in parentheses on first occurrence
-- For lab reports, append rows to `memory/lab_history.md` (date | test | value | unit | range | flagged)
-- For prescriptions, propose updates to `memory/current_medications.md` and confirm with the user via AskUserQuestion before writing
+**Lab reports** (specialty: labs, or Key Findings contains `value | unit | reference range`):
+- Parse each row in Key Findings
+- Append to `memory/lab_history.md` as: `date | panel | test | value | unit | range | flagged | source`
+- Sort the file by date descending after appending
+- Skip rows that already exist (same date + test + value)
 
-### Step 4: Update Summary
+**Prescriptions / med changes** (specialty: prescriptions, or Key Findings contains `dose | frequency`):
+- For each drug in the extract, check if it appears in `memory/current_medications.md`
+- If new: propose adding via AskUserQuestion; only write after user confirms
+- If existing with different dose: propose updating via AskUserQuestion; only write after user confirms
+- If user says no: skip silently (the extract in Files/ still records the source)
 
-After processing, write or update `Files/<specialty>/summary.md` for each specialty that received new files — a 5-10 line rollup of the specialty's history.
+**Discharge / diagnosis documents** (Key Findings contains diagnosis or ICD code):
+- Propose updates to `memory/conditions.md` via AskUserQuestion
+- Only write after user confirms
 
-### Step 5: Report
+**Other** (everything else): no post-processing — the extract in Files/ is the only output.
 
-Print: N files processed, M skipped (unchanged), K errors; specialties touched; notable findings flagged.
+### Step 4: Report
+
+Print:
+- N new extracts produced (delegated to /document-extractor)
+- M lab rows appended to lab_history.md
+- K med updates proposed (P accepted, Q rejected)
+- L condition updates proposed
+- Notable flags: any out-of-range lab in the new batch
 
 ## Outputs
 
-- `Files/<specialty>/<filename>.md` per new document
-- `Files/<specialty>/summary.md` updates
-- Appended rows to `memory/lab_history.md` for lab reports
-- Confirmed updates to `memory/current_medications.md`
+- New/updated `Files/<folder>/<name>.md` (produced by /document-extractor)
+- Appended rows in `memory/lab_history.md`
+- Confirmed edits in `memory/current_medications.md`
+- Confirmed edits in `memory/conditions.md`
 
 ## Notes
 
-- The hash check makes this safe to re-run as often as the user likes
-- For very large genome ZIPs (raw 23andMe data), do not extract content — write a placeholder noting size and date, then skip
-````
+- /document-extractor handles the heavy lifting (hashing, idempotency, file I/O). This skill is purely about routing the structured output into the medical memory layer.
+- For very large genome ZIPs (raw 23andMe data), /document-extractor writes a metadata-only placeholder — that's correct; no medical post-processing needed.
+- If /document-extractor isn't installed, the agent is mis-scaffolded — re-run `cp -r ~/Dropbox/Agents/skill-library/.claude/skills/document-extractor .claude/skills/`.
+```
 
 ### 10c. /update-memory
 
@@ -838,79 +880,27 @@ Show the user. Recommend running the plan past the prescribing physician before 
 - Stdout summary of flags and approvals
 ```
 
-### 10g. /index-files
+### 10g. /file-indexer (vendored — no inline content needed)
 
-Frontmatter:
+Already copied from skill-library in STEP 7b. Do NOT generate this skill inline — it lives at `$destination/.claude/skills/file-indexer/SKILL.md` (with its Python helper at `scripts/index-files.py`). The user invokes it directly as `/file-indexer`.
 
-```yaml
----
-name: index-files
-description: Generate memory/file_index.md — a tree of documents/ and Files/ for fast lookup
-allowed-tools: Read, Write, Bash, Glob
-user-invocable: true
-metadata:
-  version: "1.0"
-  created: <today>
-  author: $agent_name
----
+If you need to re-run STEP 7b in isolation:
+
+```bash
+cp -r ~/Dropbox/Agents/skill-library/.claude/skills/file-indexer "$destination/.claude/skills/"
 ```
 
-Body (contains a nested block — 4-backtick wrap):
+The vendored skill writes its output to `memory/file_index.md` by default — which matches the doctor agent's convention.
 
-````markdown
-# Index Files
+### 10h. /document-extractor (vendored — no inline content needed)
 
-Generate a current tree of `documents/` and `Files/` for fast lookup.
+Same pattern as 10g — copied from skill-library in STEP 7b. Lives at `$destination/.claude/skills/document-extractor/SKILL.md`. The `/ingest-documents` skill from 10b delegates to this one for the actual file-by-file extraction.
 
-## Process
+If you need to re-copy:
 
-### Step 1: Walk the Trees
-
-Use `find documents/ -type f` and `find Files/ -type f -name '*.md'` to collect paths.
-
-### Step 2: Format
-
-Write `memory/file_index.md`:
-
+```bash
+cp -r ~/Dropbox/Agents/skill-library/.claude/skills/document-extractor "$destination/.claude/skills/"
 ```
-# File Index
-
-Generated: <ISO timestamp>
-
-## documents/  (raw source files)
-
-documents/
-├── cardiovascular/
-│   ├── 2024-03-15_ecg.pdf
-│   └── 2024-09-01_holter.pdf
-├── labs/
-│   └── ...
-...
-
-## Files/  (extracted markdown summaries)
-
-Files/
-├── cardiovascular/
-│   ├── 2024-03-15_ecg.md
-│   └── summary.md
-...
-
-## Stats
-
-- Documents: <N> files, <total size>
-- Files extracted: <M> markdown summaries
-- Coverage: <M/N>% of documents have a matching extract
-```
-
-### Step 3: Save
-
-Write the file. Print the location.
-
-## Outputs
-
-- `memory/file_index.md`
-- Coverage stat printed to stdout
-````
 
 ---
 
@@ -1012,7 +1002,7 @@ Identify the first incomplete step in the current phase and guide based on its k
 - `plugins_installed` — Run install commands for each plugin in `$plugins`. Report installed / failed. Mark done.
 - `onboarded` (Trinity phase) — Tell the user to run `/trinity:onboard`. Mark done and advance phase.
 - `first_remote_run` — Tell the user to use `mcp__trinity__chat_with_agent` with their agent name. Mark done and advance phase.
-- `schedules_configured` — Suggest scheduling `/index-files` (weekly), `/update-dashboard` (every 6h), and `/lab-trends` (monthly). Mark done.
+- `schedules_configured` — Suggest scheduling `/file-indexer` (weekly), `/update-dashboard` (every 6h), and `/lab-trends` (monthly). Mark done.
 - `first_scheduled_run` — Tell user to check with `mcp__trinity__get_schedule_executions`. Mark done.
 
 ### Step 4: Update State
@@ -1286,7 +1276,8 @@ Display:
 | `.claude/skills/lab-trends/SKILL.md` | Track lab values over time, flag trends |
 | `.claude/skills/visit-prep/SKILL.md` | Generate doctor-visit briefs |
 | `.claude/skills/supplement-check/SKILL.md` | Drug-supplement interaction checks |
-| `.claude/skills/index-files/SKILL.md` | Refresh file_index.md tree |
+| `.claude/skills/document-extractor/SKILL.md` | (vendored from skill-library) Generic document-extraction skill |
+| `.claude/skills/file-indexer/SKILL.md` | (vendored from skill-library) Generic directory-tree indexer |
 | `.claude/skills/onboarding/SKILL.md` | Setup progress tracker |
 | `.claude/skills/update-dashboard/SKILL.md` | Dashboard metrics updater |
 | `onboarding.json` | Persistent onboarding checklist |
