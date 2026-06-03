@@ -6,12 +6,13 @@ user-invocable: true
 argument-hint: "[project-name or description]"
 allowed-tools: Read, Write, Edit, Bash, Bash(gh *), Bash(vercel *), Glob, Grep, AskUserQuestion, mcp__vercel__deploy_to_vercel, mcp__vercel__list_teams, mcp__vercel__list_projects, mcp__vercel__get_project, mcp__vercel__list_deployments, mcp__vercel__get_deployment, mcp__vercel__get_deployment_build_logs
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-03-25
-  updated: 2026-05-24
+  updated: 2026-06-03
   author: Ability.ai
   changelog:
     - "1.1: Prefer Vercel CLI for deployment; fall back to Vercel MCP, then to manual"
+    - "1.2: JSON-backed content layer + optional zero-dependency Studio CMS (/studio) for self-service editing"
 ---
 
 # Create Website
@@ -164,31 +165,110 @@ Common pages and their patterns:
 - **Blog** — List page + `[slug]` dynamic route with TypeScript data
 - **Pricing** — Pricing cards (2-3 tiers)
 
-### Step 10: Create Content Data Layer
+### Step 10: Create Content Data Layer (JSON-backed)
 
-Create `lib/site-data.ts` with typed content:
+Editable copy lives as **JSON under `content/`**, with thin typed wrappers in
+`lib/` that import it. This keeps content separate from code — so it can be
+edited (by a person via the optional Studio CMS in Step 10b, or by an agent)
+**without touching components or redeploying by hand**.
 
-```typescript
-export const siteConfig = {
-  name: "$BRAND_NAME",
-  tagline: "$TAGLINE",
-  description: "$DESCRIPTION",
-  url: "https://$DOMAIN",
-  nav: [
-    { label: "About", href: "/about" },
-    { label: "Contact", href: "/contact" },
+Create `content/site.json` (global, language-neutral facts):
+
+```json
+{
+  "name": "$BRAND_NAME",
+  "tagline": "$TAGLINE",
+  "description": "$DESCRIPTION",
+  "url": "https://$DOMAIN",
+  "nav": [
+    { "label": "About", "href": "/about" },
+    { "label": "Contact", "href": "/contact" }
   ],
-  footer: {
-    company: [...],
-    legal: [
-      { label: "Privacy", href: "/privacy" },
-      { label: "Terms", href: "/terms" },
-    ],
-  },
-} as const;
+  "footer": {
+    "legal": [
+      { "label": "Privacy", "href": "/privacy" },
+      { "label": "Terms", "href": "/terms" }
+    ]
+  }
+}
 ```
 
-If the site has blog or dynamic content, create typed data files in `lib/` (e.g., `lib/blog-data.ts`).
+Create `content/home.json` for the homepage copy (hero, feature bullets, etc.),
+and one `content/[page].json` per content-heavy page.
+
+Then create `lib/site-data.ts` as a thin **typed wrapper** that imports the
+JSON and re-exports it (components import from here, never from raw JSON):
+
+```typescript
+import siteJson from "@/content/site.json";
+import homeJson from "@/content/home.json";
+
+export const siteConfig = siteJson;
+export const home = homeJson;
+
+export type SiteConfig = typeof siteJson;
+export type Home = typeof homeJson;
+```
+
+Pretty-print the JSON with 2-space indent + a trailing newline (keeps diffs
+clean and matches what Studio writes back). Every section/component renders from
+these wrappers — **no hardcoded copy in components**, which is what makes the
+content editable in Step 10b.
+
+### Step 10b: Add Studio CMS (optional)
+
+Offer a **self-service, in-site content editor** at `/studio` so a non-technical
+owner can edit the site's copy themselves — passphrase login, schema-driven
+forms, and each **Publish** commits the relevant `content/*.json` to GitHub
+(which the host auto-redeploys). It adds **zero npm dependencies** (Node
+`crypto` + `fetch` against the GitHub Contents API) and builds directly on the
+JSON content layer from Step 10.
+
+Use AskUserQuestion:
+- **Question:** "Add Studio — a self-service editor so non-developers can edit the site's copy without touching code?"
+- **Header:** "Content Editing"
+- Show these options:
+  1. **Yes, add Studio** — In-site `/studio` editor; owner edits copy and publishes from the browser. Needs a GitHub repo + a fine-grained PAT.
+  2. **No, JSON only** — Content stays editable via `content/*.json` (by a developer or an agent), no in-site editor.
+
+If the user chooses "No", skip to Step 11.
+
+If "Yes", scaffold the Studio stack from
+[reference.md — Studio CMS](./reference.md#studio-cms). Create exactly these
+files (templates are in reference.md):
+
+- `lib/studio/auth.ts` — passphrase + HMAC-signed cookie
+- `lib/studio/github.ts` — Contents API read/write (+ `STUDIO_LOCAL_WRITE` dev mode)
+- `lib/studio/schema.ts` — declarative section schemas (edit to match the site's `content/*.json`)
+- `components/studio/fields.tsx` — schema-driven form controls
+- `app/studio/layout.tsx`, `app/studio/login/page.tsx`, `app/studio/page.tsx`
+- `app/studio/[section]/page.tsx`, `app/studio/[section]/editor.tsx`
+- `app/studio/api/{login,logout,save}/route.ts`
+
+Then:
+
+1. **Hide Studio from the public site** — guard the Header/Footer with
+   `usePathname` so they return `null` on `/studio`, and add `disallow: "/studio"`
+   to `app/robots.ts` (see reference.md → Hiding Studio).
+2. **Add the Studio env vars** to `.env.example` (see reference.md → Environment
+   variables): `STUDIO_PASSWORD`, `STUDIO_SESSION_SECRET`, `GITHUB_TOKEN`,
+   `GITHUB_REPO`, `GITHUB_BRANCH`, optional `STUDIO_COMMIT_NAME/_EMAIL`,
+   `STUDIO_LOCAL_WRITE`.
+3. **Generate the secrets locally** so the owner can test immediately:
+   ```bash
+   echo "STUDIO_SESSION_SECRET=$(openssl rand -base64 32)"
+   ```
+   Write a `.env.local` (gitignored) with the passphrase + secret and
+   `STUDIO_LOCAL_WRITE=1`, so `/studio` works in dev before any PAT exists.
+4. **Flag the committer-email gotcha** to the user (see reference.md): the
+   `STUDIO_COMMIT_EMAIL` must map to a GitHub account the host (Vercel) is
+   allowed to deploy from, or the host **blocks the deploy** and edits silently
+   never go live. Use the repo owner's GitHub noreply email.
+
+Note for the summary (Step 20): Studio's production env vars
+(`STUDIO_PASSWORD`, `STUDIO_SESSION_SECRET`, `GITHUB_TOKEN`, `GITHUB_REPO`) must
+be set in the **host's** project settings (e.g. Vercel → Settings → Environment
+Variables), not just `.env.local`.
 
 ### Step 11: SEO Setup
 
@@ -239,7 +319,15 @@ Create a `CLAUDE.md` in the project root with:
 
 ## Content Management
 
-[Explain the TypeScript data file pattern in lib/]
+Editable copy lives as JSON under `content/` (e.g. `content/site.json`,
+`content/home.json`); `lib/site-data.ts` imports it and re-exports typed values
+that components render from. Edit the JSON to change the site — no component
+changes needed.
+
+[If Studio was added in Step 10b, also document: owner self-service editing at
+`/studio` (passphrase login → publish → host redeploys), the `lib/studio/`
+modules, how to add a new editable section (content JSON + `lib/` wrapper +
+`SectionSchema` entry), and the required env vars.]
 ```
 
 ### Step 14: Verify Build
@@ -440,6 +528,7 @@ Display:
 **GitHub:** [repo URL if created, or "not created"]
 **Pages:** [list of created pages]
 **Design:** [chosen direction]
+**Studio CMS:** [if added: "/studio (self-service editor)", else "not added"]
 **Live URL:** [vercel URL if deployed, or "not yet deployed"]
 
 ### What's Next
@@ -448,13 +537,21 @@ Display:
    cd $PROJECT_NAME && npm run dev
 
 2. **Edit content:**
-   - Site config: `lib/site-data.ts`
+   - Content (copy): `content/*.json` (e.g. `content/site.json`, `content/home.json`)
    - Design tokens: `app/globals.css`
    - Add pages: `app/[page-name]/page.tsx`
+   [If Studio was added:]
+   - Self-service editor: visit `/studio` (passphrase: your `STUDIO_PASSWORD`).
+     In dev, `STUDIO_LOCAL_WRITE=1` edits files locally. For production, set
+     `STUDIO_PASSWORD`, `STUDIO_SESSION_SECRET`, `GITHUB_TOKEN`, `GITHUB_REPO`
+     in the host's project settings (Vercel → Settings → Environment Variables),
+     and make sure `STUDIO_COMMIT_EMAIL` maps to a GitHub account the host can
+     deploy from (else deploys are blocked).
 
 3. **Redeploy:**
    - Via CLI (instant, from local): `vercel --prod`
    - Via GitHub (if connected): `git add -A && git commit -m "Update" && git push` — Vercel auto-deploys from `main`
+   [If Studio was added: the owner's Publish in /studio commits to `main` and triggers this same auto-deploy.]
 ```
 
 ---
@@ -511,6 +608,11 @@ Display:
 | Vercel MCP auth fails | Tell user to run `/mcp` in Claude Code to re-authenticate with Vercel |
 | Vercel MCP deployment fails | Get build logs via `mcp__vercel__get_deployment_build_logs`, fix the issue, redeploy |
 | Vercel project already exists (MCP) | Use existing project — the MCP will detect and link it |
+| Studio: `/studio` shows "Publishing isn't configured" | `GITHUB_TOKEN` not set. Add a fine-grained PAT (Contents: read/write on this repo), or set `STUDIO_LOCAL_WRITE=1` for local-only editing |
+| Studio: login always fails | `STUDIO_PASSWORD` unset/mismatched, or `STUDIO_SESSION_SECRET` shorter than 16 chars. Set both; regenerate the secret with `openssl rand -base64 32` |
+| Studio: "page changed since you opened it" (409) | Optimistic-concurrency guard — the file changed since load. Reload the editor and re-apply the edit |
+| Studio: Publish succeeds but site never updates | Committer-email gotcha — `STUDIO_COMMIT_EMAIL` maps to an account the host won't deploy from, so the host blocked the deploy. Use the repo owner's GitHub noreply email |
+| Studio: public Header/Footer show on `/studio` | Add the `usePathname` guard (`if (pathname?.startsWith("/studio")) return null;`) to `header.tsx`/`footer.tsx` |
 
 ---
 
