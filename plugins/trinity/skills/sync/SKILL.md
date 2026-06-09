@@ -4,12 +4,13 @@ description: Synchronize this agent with one or more remote instances on Trinity
 argument-hint: [status|push|pull|deploy|remotes|add-remote|set-default] [@remote] [branch]
 disable-model-invocation: true
 user-invocable: true
-allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent
+allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__list_operator_queue, mcp__trinity__get_operator_queue_item
 metadata:
-  version: "2.0"
+  version: "2.1"
   created: 2025-02-05
   author: eugene
   changelog:
+    - "2.1: After syncing a remote, check its Operating Room queue and report any open ops notifications"
     - "2.0: Multi-remote support - one local agent can sync to multiple Trinity instances"
     - "1.1: Genericized - works with any agent via dynamic name detection"
     - "1.0: Initial version"
@@ -392,6 +393,30 @@ Confirm both agents report:
 - Same branch checked out
 - Same HEAD commit hash
 - Clean working tree (or only runtime state uncommitted)
+
+### Phase 6: Operator Queue Check
+
+After syncing a remote (push/pull/deploy) — and for each remote shown in a `status` check — review the agent's Operating Room queue and surface any items awaiting human attention.
+
+For each targeted remote, using its resolved Trinity agent name:
+
+```
+mcp__trinity__list_operator_queue(agent_name: <remote.agent>)
+```
+
+Treat items that are not already resolved/closed as **open**. For each open item, optionally fetch detail with `mcp__trinity__get_operator_queue_item(<id>)` to summarize what it needs.
+
+Report back to the user:
+- **No open items:** one line — `✓ Operating Room: no open notifications for <remote>`
+- **Open items:** list them so the user can act:
+
+```
+⚠ Operating Room: <N> open notification(s) for <remote> (<agent>)
+  • [<id>] <title/summary> — <status>
+  • [<id>] <title/summary> — <status>
+```
+
+This is report-only — the sync skill never resolves or answers queue items; it just makes the user aware they exist.
 
 ## Branch Operations
 
