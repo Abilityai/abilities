@@ -1,15 +1,16 @@
 ---
 name: loop
 description: Run a remote Trinity agent task in a sequential, bounded loop — a fixed number of iterations or until a stop signal, with optional response chaining. Fires server-side via run_agent_loop (caller can disconnect), then polls and renders progress. The remote, durable counterpart to Claude Code's local /loop.
-argument-hint: [start|status|stop] [@agent] [<message>]
+argument-hint: "[start|status|stop] [@agent] [<message>]"
 disable-model-invocation: true
 user-invocable: true
 allowed-tools: AskUserQuestion, Read, mcp__trinity__list_agents, mcp__trinity__run_agent_loop, mcp__trinity__get_loop_status, mcp__trinity__stop_loop
 metadata:
-  version: "1.0"
+  version: "1.0.1"
   created: 2026-06-09
   author: Ability.ai
   changelog:
+    - "1.0.1: Quote argument-hint — unquoted brackets broke YAML frontmatter, making the skill invisible"
     - "1.0: Initial version — modeled on Claude Code's /loop, backed by the run_agent_loop server primitive"
 ---
 

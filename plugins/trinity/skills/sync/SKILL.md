@@ -1,15 +1,16 @@
 ---
 name: sync
 description: Synchronize this agent with one or more remote instances on Trinity via GitHub. Supports multiple remotes and branch-based versioning.
-argument-hint: [status|push|pull|deploy|remotes|add-remote|set-default] [@remote] [branch]
+argument-hint: "[status|push|pull|deploy|remotes|add-remote|set-default] [@remote] [branch]"
 disable-model-invocation: true
 user-invocable: true
 allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__list_operator_queue, mcp__trinity__get_operator_queue_item
 metadata:
-  version: "2.1"
+  version: "2.1.1"
   created: 2025-02-05
   author: eugene
   changelog:
+    - "2.1.1: Quote argument-hint — unquoted brackets broke YAML frontmatter, making the skill invisible"
     - "2.1: After syncing a remote, check its Operating Room queue and report any open ops notifications"
     - "2.0: Multi-remote support - one local agent can sync to multiple Trinity instances"
     - "1.1: Genericized - works with any agent via dynamic name detection"

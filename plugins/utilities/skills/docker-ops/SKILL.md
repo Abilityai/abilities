@@ -1,6 +1,6 @@
 ---
 name: docker-ops
-description: Docker Compose service management over SSH. Subcommands: logs (view service logs with filtering), restart (graceful service restart), telemetry (CPU/memory/disk/container stats), cleanup (prune Docker resources, dry-run by default). Use for day-to-day container operations.
+description: "Docker Compose service management over SSH. Subcommands: logs (view service logs with filtering), restart (graceful service restart), telemetry (CPU/memory/disk/container stats), cleanup (prune Docker resources, dry-run by default). Use for day-to-day container operations."
 disable-model-invocation: false
 user-invocable: true
 argument-hint: "[logs|restart|telemetry|cleanup] [service] [options]"

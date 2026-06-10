@@ -1,6 +1,6 @@
 ---
 name: safe-deploy
-description: Safe deployment workflow for SSH-accessible docker-compose stacks. Subcommands: update (backup→pull→rebuild→restart→validate), rollback (revert commit + optional DB restore), diagnose (health analysis). Use when deploying, rolling back, or checking deployment health.
+description: "Safe deployment workflow for SSH-accessible docker-compose stacks. Subcommands: update (backup→pull→rebuild→restart→validate), rollback (revert commit + optional DB restore), diagnose (health analysis). Use when deploying, rolling back, or checking deployment health."
 disable-model-invocation: false
 user-invocable: true
 argument-hint: "[update|rollback|diagnose]"
