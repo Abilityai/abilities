@@ -77,7 +77,11 @@ Once connected, Trinity MCP tools are available directly:
 | `mcp__trinity__run_agent_loop` | Run an agent task sequentially up to N times (server-side; see `/trinity:loop`) |
 | `mcp__trinity__get_loop_status` | Poll a loop's per-run progress |
 | `mcp__trinity__stop_loop` | Request a graceful stop of a running loop |
-| `mcp__trinity__*` | Schedule and event management tools |
+| `mcp__trinity__create_agent_schedule` | Create a cron schedule on an agent (`list_agent_schedules`, `update_agent_schedule`, `toggle_agent_schedule`, `delete_agent_schedule`, `trigger_agent_schedule`, `get_schedule_executions`) |
+
+### Schedules are declarative
+
+Don't hand-create schedules ad hoc. Declare an agent's recommended schedules in a `schedules:` block in `template.yaml` (the design source of truth). `/trinity:onboard` and `/trinity:sync` **reconcile** that block onto the instance — creating missing schedules, updating drifted ones, and flagging live schedules that aren't declared. The per-schedule `enabled` flag is the recommended default; turning a schedule on or off on a live agent is the operator's call via `toggle_agent_schedule`.
 
 ### Three execution patterns
 
@@ -99,7 +103,7 @@ The following features from the old `trinity-onboard` plugin are now handled dif
 |-----------|--------------|
 | `trinity-compatibility` | Absorbed into `/trinity:onboard` as Phase 0 |
 | `trinity-remote` | Use MCP directly: `mcp__trinity__chat_with_agent` |
-| `trinity-schedules` | Use MCP directly: schedule management tools |
+| `trinity-schedules` | Declare schedules in `template.yaml` (`schedules:`); `/trinity:onboard` and `/trinity:sync` reconcile them onto the instance |
 | `trinity-events` | Use MCP directly or Trinity dashboard |
 | `credential-sync` | Absorbed into `/trinity:onboard` and `/trinity:sync` |
 | `create-heartbeat` | Generated during `/trinity:onboard` |

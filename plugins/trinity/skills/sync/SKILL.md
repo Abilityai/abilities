@@ -1,15 +1,16 @@
 ---
 name: sync
 description: Synchronize this agent with one or more remote instances on Trinity via GitHub. Supports multiple remotes and branch-based versioning.
-argument-hint: "[status|push|pull|deploy|remotes|add-remote|set-default] [@remote] [branch]"
+argument-hint: "[status|push|pull|deploy|remotes|add-remote|set-default|schedules] [@remote] [branch]"
 disable-model-invocation: true
 user-invocable: true
-allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__list_operator_queue, mcp__trinity__get_operator_queue_item
+allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__list_operator_queue, mcp__trinity__get_operator_queue_item, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
 metadata:
-  version: "2.1.1"
+  version: "2.2.0"
   created: 2025-02-05
   author: eugene
   changelog:
+    - "2.2.0: Schedule reconciliation (Phase 7) — diff template.yaml schedules: against live Trinity schedules on push/pull/deploy/status; new `schedules` subcommand to reconcile on demand"
     - "2.1.1: Quote argument-hint — unquoted brackets broke YAML frontmatter, making the skill invisible"
     - "2.1: After syncing a remote, check its Operating Room queue and report any open ops notifications"
     - "2.0: Multi-remote support - one local agent can sync to multiple Trinity instances"
@@ -93,6 +94,10 @@ remotes:
 - `/trinity-sync add-remote <name> <agent-name> [branch]` - Add a new remote
 - `/trinity-sync set-default <name>` - Change default remote
 - `/trinity-sync remove-remote <name>` - Remove a remote configuration
+
+### Schedules
+- `/trinity-sync schedules` - Reconcile `template.yaml` schedules against the default remote's live schedules
+- `/trinity-sync schedules @staging` - Reconcile schedules on a specific remote
 
 ## Arguments
 
@@ -419,6 +424,45 @@ Report back to the user:
 
 This is report-only — the sync skill never resolves or answers queue items; it just makes the user aware they exist.
 
+## Phase 7: Schedule Reconciliation
+
+Schedules are declared in `template.yaml` under a `schedules:` block (the design source of truth — schema defined in `/trinity:onboard` Step 3a) and materialized as live cron jobs on each Trinity instance. They drift: someone edits `template.yaml`, or an operator adds/removes a schedule on a live agent. This phase keeps the declared catalog and the live instance aligned.
+
+**When it runs:**
+- `push` / `pull` / `deploy` — after the code sync completes, reconcile the target remote's schedules (the agent's capabilities just changed; its schedules should match).
+- `status` — **report only**: show declared-vs-live drift, change nothing.
+- `schedules` subcommand — reconcile on demand against the resolved remote(s).
+
+**Procedure** — for each targeted remote, using its resolved Trinity agent name:
+
+1. **Read declared schedules** from local `template.yaml`. If there's no `schedules:` block, skip this phase entirely.
+2. **List live schedules:** `mcp__trinity__list_agent_schedules(agent_name: <remote.agent>)`.
+3. **Match by `id`** — the catalog `id` is stamped as a `[id]` prefix in each live schedule's `name`. Diff:
+
+   | Case | Condition | push/pull/deploy action | status action |
+   |------|-----------|-------------------------|---------------|
+   | **Create** | Declared, no live match | `create_agent_schedule(...)`, `enabled` from manifest, `[id]`-prefixed name | report "would create" |
+   | **Update** | Declared + live, cron/message/timezone/etc. differ | `update_agent_schedule(...)` to match manifest (never touch `enabled`) | report "would update" |
+   | **In sync** | Declared + live, identical | nothing | — |
+   | **Drift** | Live `[id]` not in manifest | **report, never delete** | report |
+
+4. **Never flip `enabled` on an existing schedule** — turning schedules on/off on a live agent is the operator's decision (`toggle_agent_schedule`). The manifest's `enabled` is applied only at create time. Reconcile keeps *configuration* in sync, not *activation*.
+5. **Deletions are never automatic.** A live schedule with no matching declaration is surfaced as drift for the operator to resolve (remove on the instance, or add to `template.yaml`).
+
+**Report:**
+
+```
+Schedule Reconciliation — prod (my-agent)
+─────────────────────────────────────────────────
+ id              Cron        State     Action
+─────────────────────────────────────────────────
+ weekly-report   0 9 * * 1   enabled   ✓ in sync
+ daily-digest    0 7 * * *   enabled   ↑ updated (cron changed)
+ monthly-roll    0 0 1 * *   disabled  + created (operator can enable)
+─────────────────────────────────────────────────
+⚠ Drift: "[adhoc] manual cleanup" is live but not in template.yaml — left as-is
+```
+
 ## Branch Operations
 
 ### List Branches
@@ -516,6 +560,7 @@ Both agents sync through the shared GitHub repository. GitHub is the source of t
 10. **Clean before switch** - Only discard runtime state before branch switch
 11. **Branches are cheap** - Use them liberally for experiments
 12. **Track branch per remote** - Each remote can track a different branch
+13. **Schedules reconcile from template.yaml** - The `schedules:` block is the source of truth; reconcile aligns live cron jobs but never toggles activation (operator's call) or deletes drift
 
 ## When to Run Sync
 

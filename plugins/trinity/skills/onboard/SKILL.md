@@ -4,12 +4,13 @@ description: Onboard this agent to Trinity platform. Creates required files, con
 argument-hint: "[analyze]"
 disable-model-invocation: false
 user-invocable: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
 metadata:
-  version: "4.8"
+  version: "4.9"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "4.9: Declarative schedules — define a schedules: block in template.yaml (Step 3a); deploy reconciles them onto the instance via create_agent_schedule (Step 5e). Fixed wrong MCP tool names (create_schedule → create_agent_schedule, list_schedules → list_agent_schedules)"
     - "4.8: Document Trinity resource constraints (integer cpu, g-suffix memory) in Step 3a + error table — fractional cpu/Mi memory are rejected at deploy time"
     - "4.7: Add /agent-dev:add-git-sync follow-up prompt in both completion paths"
     - "4.6: Add GitHub PAT troubleshooting guide for private repo deployment"
@@ -174,7 +175,7 @@ Use scheduled skills or CronCreate to automate this polling.
 | **Execute** | `mcp__trinity__chat_with_agent` | Run task on remote, get response |
 | **Deploy-Run** | `/trinity:sync` then `chat_with_agent` | Sync changes first, then execute |
 | **Async Task** | `chat_with_agent(..., async=true)` | Fire-and-forget, poll with `get_execution_result` |
-| **Scheduled** | `mcp__trinity__create_schedule` | Cron-based autonomous execution |
+| **Scheduled** | `mcp__trinity__create_agent_schedule` | Cron-based autonomous execution (declared in `template.yaml`, see Step 3a) |
 
 ### When to Use Local vs Remote
 
@@ -449,6 +450,35 @@ resources:
 
 Keep the defaults (`cpu: "2"`, `memory: "4g"`) unless the user explicitly needs a heavier tier — and when they do, snap their request to the nearest **allowed** value rather than passing through an arbitrary number. Never write a fractional cpu or a `Mi`/`Gi`/`m` memory suffix into `template.yaml`; the deploy in Step 5 will fail validation if you do.
 
+#### Optional: `schedules:` block — declarative scheduled tasks
+
+`template.yaml` is the agent's design manifest, so it is also where the agent's **recommended schedules** are declared. This is the single source of truth for "what this agent is built to run on a cadence" — no separate schedules file. The split is:
+
+- **Design (this block):** the agent declares the schedules it's built to run. Travels with the agent through git; identical on every instance.
+- **Operator decision (the instance):** which of those actually fire is the live state on Trinity. The per-schedule `enabled` flag is the *recommended default*; the operator can toggle any schedule on/off post-deploy without editing `template.yaml`.
+
+Append a `schedules:` list to `template.yaml`. Each entry's fields map one-to-one onto `create_agent_schedule`, so deploy-time setup (Step 5e) is a direct mapping:
+
+```yaml
+schedules:
+  - id: weekly-report          # REQUIRED, stable — round-trips to the live schedule (stamped into its name)
+    name: Weekly report        # REQUIRED — human-readable schedule name
+    cron: "0 9 * * 1"          # REQUIRED — 5-field cron (min hour dom mon dow)
+    timezone: America/New_York # default UTC — set it, or 9am means 9am UTC
+    message: "Run /weekly-report and post the summary"  # REQUIRED — task sent to the agent on trigger
+    purpose: Weekly status digest                       # human note; rendered into CLAUDE.md
+    enabled: true              # the RECOMMENDED default state (operator can override on the instance)
+    timeout_seconds: 900       # optional — default 15 min
+    max_retries: 1             # optional — 0–5
+    model: claude-opus-4-8     # optional — model override for this schedule's runs
+    allowed_tools: []          # optional — least-privilege tool scoping for the run
+```
+
+**Rules:**
+- `id` must be unique within the agent and stable across edits — it's how a declared schedule is matched to its live counterpart during reconcile. Use kebab-case.
+- Omit the whole block if the agent has no scheduled tasks. An empty/absent block is valid.
+- The `## Recommended Schedules` table in `CLAUDE.md` is a human-readable rendering of this block, not a second source of truth.
+
 **avatar_prompt guidance:** This field is used by Trinity to generate a portrait avatar for the agent using AI image generation. Write a vivid, specific character description that captures the agent's personality and role. The prompt should describe a person or character as a portrait subject — appearance, attire, expression, setting, and lighting.
 
 Examples:
@@ -644,6 +674,37 @@ mcp__trinity__get_agent(name: "[agent-name]")
 
 Confirm the agent is running.
 
+### 5e. Reconcile Schedules
+
+If `template.yaml` has a `schedules:` block (see Step 3a), materialize it onto the freshly-deployed agent so the design catalog and the live instance agree.
+
+1. **Read declared schedules** from `template.yaml`.
+2. **List what's already live:** `mcp__trinity__list_agent_schedules(agent_name: "[agent-name]")`.
+3. **Match by `id`** — each live schedule carries its catalog `id` as a `[id]` prefix in its `name` (e.g. `"[weekly-report] Weekly report"`). Diff declared vs live:
+
+   | Case | Condition | Action |
+   |------|-----------|--------|
+   | **Create** | Declared, no live match | `create_agent_schedule(...)` with `enabled` from the manifest. Prefix the live `name` with `[id]`. |
+   | **Update** | Declared and live, but cron/message/timezone/etc. differ | `update_agent_schedule(schedule_id, ...)` to match the manifest. **Do not** touch `enabled` here. |
+   | **In sync** | Declared and live, identical | Nothing to do |
+   | **Drift** | Live `[id]` not in the manifest | **Report, never delete.** Flag it so the operator decides (it may be operator-added). |
+
+4. **Respect the operator on `enabled`:** set `enabled` from the manifest only when *creating*. For schedules that already exist, never flip `enabled` during reconcile — toggling on/off is the operator's call (`toggle_agent_schedule`). The manifest's `enabled` is the recommended *default at birth*, not a continuous override.
+5. **Report** what was created / updated / left / flagged.
+
+```
+## Schedules Reconciled
+
+| id | Schedule | Cron | State | Action |
+|----|----------|------|-------|--------|
+| weekly-audit | Weekly wizard audit | 0 10 * * 1 | enabled | created |
+| weekly-inventory | Weekly inventory | 0 9 * * 1 | disabled | created (operator can enable) |
+
+⚠ Drift: 1 live schedule not in template.yaml — "[adhoc] manual cleanup" (left as-is; remove from instance or add to template.yaml)
+```
+
+If there is no `schedules:` block, skip this step.
+
 ---
 
 ## STEP 6: Completion
@@ -680,7 +741,7 @@ Your agent is now live on Trinity.
    ```
 
 3. **Set up scheduled tasks:**
-   Use `mcp__trinity__create_schedule` with agent name, skill, and cron expression.
+   Declare them in `template.yaml` under `schedules:` (see Step 3a), then re-run onboard or `/trinity:sync` to reconcile them onto the instance. For one-off changes, `mcp__trinity__create_agent_schedule` / `toggle_agent_schedule` act directly on the live agent.
 
 4. **Add cross-session durability** (recommended):
    ```
@@ -820,5 +881,5 @@ If the pull still fails, verify:
 
 For remote operations, schedules, and credentials, use MCP tools directly:
 - `mcp__trinity__chat_with_agent` — Execute tasks on remote agent
-- `mcp__trinity__list_schedules` / `create_schedule` — Manage scheduled tasks
+- `mcp__trinity__list_agent_schedules` / `create_agent_schedule` / `update_agent_schedule` / `toggle_agent_schedule` / `delete_agent_schedule` / `trigger_agent_schedule` / `get_schedule_executions` — Manage scheduled tasks (prefer declaring them in `template.yaml`; see Step 3a)
 - `mcp__trinity__list_agents` — View deployed agents
