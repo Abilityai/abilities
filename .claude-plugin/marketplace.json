@@ -27,7 +27,8 @@
         "./skills/doctor",
         "./skills/custom",
         "./skills/clone",
-        "./skills/adjust"
+        "./skills/adjust",
+        "./skills/review"
       ]
     },
     {

@@ -6,8 +6,9 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.0"
+  version: "2.1"
   created: 2026-04-16
+  updated: 2026-06-14
   author: Ability.ai
 ---
 
@@ -32,7 +33,8 @@ All wizards are skills within this plugin. Use `/create-agent:[wizard-name]` to 
 | **doctor** | Personal medical-records agent — ingests health documents, tracks lab trends, preps doctor visits | `/create-agent:doctor` |
 | **custom** | Blank canvas agent — you define everything | `/create-agent:custom` |
 | **clone** | Clone an existing agent repository as starting point | `/create-agent:clone` |
-| **adjust** | Modify an existing agent's identity and focus | `/create-agent:adjust` |
+| **review** | Audit an existing agent against best practices (read-only report) | `/create-agent:review` |
+| **adjust** | Apply best-practice fixes to an existing agent | `/create-agent:adjust` |
 
 ## Process
 

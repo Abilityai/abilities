@@ -23,7 +23,8 @@ Create new Claude Code agents with domain-specific wizards or from scratch.
 /create-agent:doctor              # Personal medical-records agent
 /create-agent:custom              # Blank canvas agent
 /create-agent:clone               # Clone existing agent
-/create-agent:adjust              # Modify existing agent
+/create-agent:review              # Audit existing agent (read-only report)
+/create-agent:adjust              # Apply best-practice fixes to existing agent
 ```
 
 ## Available Wizards
@@ -48,7 +49,8 @@ Create new Claude Code agents with domain-specific wizards or from scratch.
 | **website** | Scaffold a single Next.js website (no agent, just a site) |
 | **custom** | Create any agent from scratch — blank canvas, you define everything |
 | **clone** | Clone an existing agent repository as a starting point |
-| **adjust** | Modify an existing agent's identity and focus |
+| **review** | Audit an existing agent against best practices — read-only findings report (composition integrity, identity, schedules, Trinity readiness) |
+| **adjust** | Apply best-practice fixes to an existing agent — runs review, then applies approved edits |
 
 ## How Wizards Work
 
@@ -69,6 +71,8 @@ All generated agents work locally first — Trinity deployment is the natural up
 1. **Add capabilities**: `/agent-dev:create-playbook` — add new skills/playbooks
 2. **Add memory**: `/agent-dev:add-memory` — choose appropriate memory system
 3. **Deploy to Trinity**: `/trinity:onboard` — deploy for remote execution
+
+**Compose, don't copy.** When one of an agent's skills needs work another skill already does, it should *invoke that skill by name* (``Invoke `/child-skill` ``, `Skill` in `allowed-tools`) rather than inline its steps or call its internal scripts — so the child stays the single source of truth and its fixes propagate automatically. See [Composing skills (hierarchical playbooks)](../agent-dev/README.md#composing-skills-hierarchical-playbooks).
 
 ## Source
 

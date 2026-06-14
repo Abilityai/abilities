@@ -1,19 +1,23 @@
 ---
 name: adjust-agent
-description: Review an agent against best practices and apply improvements — proposes specific before/after changes to CLAUDE.md, skills, and Trinity files, then applies approved edits.
+description: Apply best-practice improvements to an existing agent — runs /review-agent to find issues, then proposes exact before/after changes to CLAUDE.md, skills, and Trinity files and applies the approved ones.
 argument-hint: "[path to agent] [what to improve]"
 disable-model-invocation: false
 user-invocable: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-04
+  updated: 2026-06-14
   author: Ability.ai
+  changelog:
+    - "1.1: Compose /review-agent for the audit instead of an inline rubric (Composition Rule — single-sourced); add Skill to allowed-tools; add composition-aware fix guidance"
+    - "1.0: Initial version"
 ---
 
 # Adjust Agent
 
-Review an existing agent against best practices and transition it to a better state. Works like `/adjust-playbook` but for the agent as a whole — proposes exact before/after diffs, gets approval, applies changes.
+Transition an existing agent to a better state. This is the *apply* half of the review/adjust pair: it invokes `/review-agent` (a read-only audit) to find issues, then proposes exact before/after diffs, gets approval, and applies them. Works like `/adjust-playbook`, but for the agent as a whole.
 
 ## When to Use
 
@@ -69,7 +73,7 @@ Parse and display the agent's current state:
 
 ## Step 2: Determine What to Change
 
-From `$ARGUMENTS` or conversation context, identify what the user wants. If the user asked for a general review, run the full audit (Step 3). If they asked for something specific, skip to the relevant area.
+From `$ARGUMENTS` or conversation context, identify what the user wants. If the user asked for a general review, invoke `/review-agent` for the full audit (Step 3). If they asked for something specific, scope `/review-agent` to that focus area.
 
 | Change Type | Examples |
 |-------------|----------|
@@ -98,95 +102,21 @@ Use AskUserQuestion:
 
 ---
 
-## Step 3: Audit
+## Step 3: Audit (via /review-agent)
 
-Evaluate each area below. For each, assign a status:
+Invoke `/review-agent` to produce the findings — it is the single source of truth for the audit rubric (identity, capabilities, dependency graph, schedules, guidelines, skill quality, composition integrity, Trinity readiness, hygiene). Pass the agent path and, for a scoped request, the focus area:
 
-- **PASS** — meets best practice, no changes needed
-- **IMPROVE** — present but incomplete
-- **MISSING** — not present at all
+```
+Invoke `/review-agent [path] [focus area]`
+```
 
-Only audit areas relevant to the user's request (or all areas for a full review).
-
-### 3a. Identity Section
-
-Check for:
-- `## Identity` section with agent name in bold
-- One-sentence purpose statement
-- 2-3 paragraph description covering: what it does, who it serves, approach
-- Repository URL (if git remote exists)
-
-### 3b. Core Capabilities
-
-Check for:
-- `## Core Capabilities` or equivalent section
-- Each capability links to a skill (`/skill-name`)
-- Descriptions explain *when* to use, not just *what*
-
-Cross-reference: every skill in `.claude/skills/` should be listed, and every listed skill should exist.
-
-### 3c. Artifact Dependency Graph
-
-Check for:
-- `## Artifact Dependency Graph` section
-- `artifacts:` YAML block with `mode` (prescriptive/descriptive) and `direction` (source/target)
-- `sources` declared for target artifacts
-- `sync_skills:` mapping skills to source→target edges
-- Direction rules summary
-
-If missing, draft a complete graph from the agent's actual artifacts and skills.
-
-### 3d. Recommended Schedules
-
-Check for:
-- A `schedules:` block in `template.yaml` (the design source of truth)
-- Each entry has `id`, `name`, `cron`, `message` (fields map to `create_agent_schedule`)
-- Only automatable tasks listed (not interactive ones)
-- Sensible cadences for each task type
-- `enabled: false` by default (the operator chooses what runs); a `## Recommended Schedules` table in CLAUDE.md that renders the block
-
-If missing, analyze skills and propose schedules:
-- Monitoring/health → every 15m–1h
-- Sync/update → every 1–6h or daily
-- Reports/summaries → daily or weekly
-- Cleanup/maintenance → weekly
-
-### 3e. Guidelines
-
-Check for:
-- `## Guidelines` section
-- 2-4 domain-specific, actionable rules
-- Rules specific to this agent's domain (not generic advice)
-
-### 3f. Skill Quality
-
-For each `SKILL.md`, check:
-- YAML frontmatter with `name`, `description`, `allowed-tools`, `user-invocable`
-- `allowed-tools` is comma-separated (not YAML array)
-- Tools match what the skill actually needs (no over-permissioning)
-- Clear, specific step-by-step instructions
-- `metadata.version` present
-
-### 3g. Trinity Readiness
-
-Check for:
-- `template.yaml` with `name`, `display_name`, `description`, `avatar_prompt`
-- `.env.example` documenting required variables
-- `.mcp.json.template` with Trinity server config
-- `.gitignore` excluding `.env`, `.mcp.json`, `*.pem`, `*.key`, `.claude/projects/`, `.claude/todos/`
-
-### 3h. Project Hygiene
-
-Check for:
-- Git initialized
-- No committed secrets
-- Skill directory naming convention (lowercase-with-hyphens)
+Use its scorecard and findings table as the input to Step 4. Do **not** re-audit by hand — if a check seems missing, add it to `/review-agent` (so every caller benefits), not here.
 
 ---
 
 ## Step 4: Propose Changes
 
-For each IMPROVE or MISSING finding, propose a specific change with exact before/after. Follow the adjust-playbook pattern.
+For each IMPROVE or MISSING finding from `/review-agent`, propose a specific change with exact before/after. Follow the adjust-playbook pattern.
 
 ```
 ## Proposed Changes to [Agent Name]
@@ -227,6 +157,11 @@ Everything else remains the same:
 2. Completeness (dependency graph, schedules)
 3. Quality (skill permissions, guidelines)
 4. Polish (hygiene, docs alignment)
+
+**Fix guidance** for the non-obvious areas:
+- *Dependency graph (MISSING)* — draft a complete `artifacts:` + `sync_skills:` block from the agent's actual files and skills.
+- *Schedules (MISSING)* — propose cadences by task type: monitoring/health → 15m–1h; sync/update → 1–6h or daily; reports/summaries → daily/weekly; cleanup → weekly. Default `enabled: false`.
+- *Composition findings* — for skill-internal fixes (missing `Skill` tool, broken invoke target, cycles, inlined logic), hand off to `/agent-dev:adjust-playbook` rather than rewriting the SKILL.md's logic here.
 
 ---
 
@@ -294,19 +229,7 @@ Changes applied:
 
 ## Audit Checklist Reference
 
-Quick reference for the full audit — all items that a well-structured agent should have:
-
-| # | Area | Check | Priority |
-|---|------|-------|----------|
-| 1 | Identity | Named, purposeful, audience-aware | High |
-| 2 | Capabilities | Listed, linked to skills, when-to-use | High |
-| 3 | Dependency Graph | Artifacts declared, directions set, skills mapped | Medium |
-| 4 | Schedules | Automatable skills scheduled with cadences | Medium |
-| 5 | Guidelines | 2-4 domain-specific actionable rules | Medium |
-| 6 | Skill Docs | CLAUDE.md ↔ .claude/skills/ in sync | High |
-| 7 | Skill Quality | Frontmatter valid, permissions minimal, steps clear | High |
-| 8 | Trinity Ready | template.yaml, .env.example, .gitignore, .mcp template | Low |
-| 9 | Hygiene | Git init, no secrets, naming convention | Low |
+The audit rubric lives in [/review-agent](../review/) — the single source of truth. This skill consumes its findings and applies the approved fixes; it does not re-define the checks.
 
 ---
 
@@ -314,6 +237,6 @@ Quick reference for the full audit — all items that a well-structured agent sh
 
 | Skill | Purpose |
 |-------|---------|
-| [/create-agent](../create-agent/) | Scaffold a new agent from scratch |
+| [/review-agent](../review/) | The read-only audit this skill applies — run first |
+| [/create-agent:create](../create/) | Scaffold a new agent from scratch |
 | [/agent-dev:adjust-playbook](../../agent-dev/skills/adjust-playbook/) | Modify a single skill/playbook |
-| [/agent-dev:playbook-architect](../../agent-dev/skills/playbook-architect/) | Audit and bulk skill adoption |
