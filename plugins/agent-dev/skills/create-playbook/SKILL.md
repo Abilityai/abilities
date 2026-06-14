@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.5"
+  version: "2.6"
   created: 2025-02-10
-  updated: 2026-05-16
+  updated: 2026-06-14
   author: Ability.ai
   changelog:
+    - "2.6: Add the Composition Rule — playbooks invoke child skills by name (compose, don't copy); reuse-check step, Composes section, transitive autonomous check"
     - "2.5: Add when_to_use/arguments/shell/effort/substitution-vars to frontmatter; fix hot-reload advice; add supporting-files step; add Routines note"
     - "2.4: Add Single-Task Rule — scheduled skills must be scoped to one task type per invocation"
     - "2.3: Note project-specific vs official frontmatter; list newer official fields (model, context, paths, hooks) for Tier 3"
@@ -110,6 +111,16 @@ If user confirms YES, include the Self-Improvement Checklist (see below) at the 
 
 If this skill involves complex multi-step logic or architectural decisions, add `ultrathink` anywhere in the skill body to request deeper reasoning when it runs.
 
+### Step 4e: Reuse Check (Composition)
+
+Does any planned step duplicate work an existing skill already does? If so, **invoke that skill instead of reimplementing it** — ``Invoke `/child-skill` `` (namespace cross-plugin calls: ``/plugin:child-skill ``). Then:
+
+- Add `Skill` to `allowed-tools`.
+- List each child under a `## Composes` section so the dependency is greppable.
+- Call the **unversioned** name to ride the latest version (so child fixes propagate automatically); pin `/child-vN` only to freeze against a child's breaking changes.
+
+See **The Composition Rule** in Design Constraints. Never call another skill's `scripts/`/`reference.md`/templates directly — go through the skill entry point.
+
 ### Step 5: Determine Location
 
 | Scope | Location | Use When |
@@ -207,7 +218,7 @@ name: playbook-name
 description: What it does
 automation: gated        # project convention (see note below)
 schedule: "0 9 * * 1"    # project convention, optional
-allowed-tools: [tools]
+allowed-tools: [tools]   # include `Skill` if it invokes other skills
 effort: high             # optional: low/medium/high/xhigh/max
 user-invocable: true
 ---
@@ -215,6 +226,7 @@ user-invocable: true
 ## Purpose
 ## State Dependencies
 ## Prerequisites
+## Composes               # optional: child skills this playbook invokes
 ## Process
 ### Step 1: Read Current State
 ### Step N: [Work]
@@ -304,6 +316,8 @@ When gathering requirements for Tier 3 playbooks, ask: "Can this complete in und
 - Exception: batch tasks where every item has *identical* context needs (same files, same pattern) are fine — e.g., running the same quality gate on N wizard files all read the same kind of data
 - When a user asks for a scheduled loop, design it as single-item-per-invocation and explain that the cron handles repetition
 
+**The Composition Rule**: When a playbook needs work another skill already does, it **invokes that skill by name** (``Invoke `/child-skill` ``, `Skill` in `allowed-tools`) — it never inlines the child's steps, calls its internal scripts/files directly, or paraphrases what it does. The parent holds only the orchestration; the child stays the single source of truth, so its fixes propagate automatically. Call the unversioned name to ride latest; pin `/child-vN` only to freeze. Composition is a DAG (no cycles, keep it shallow). See [Composing skills](../../README.md#composing-skills-hierarchical-playbooks) for the full rule.
+
 ---
 
 ## Autonomous Playbook Validation Checklist
@@ -317,6 +331,7 @@ Before generating any autonomous playbook, verify:
 - [ ] **Under 45 minutes** — execution time within agent reliability window
 - [ ] **Idempotent or safe to retry** — can re-run without causing duplicate effects
 - [ ] **Single-task scope** — processes one task type per invocation; iteration over varied items happens across invocations, not within one
+- [ ] **Composed children are autonomous-safe** — autonomy is transitive: recurse into every `/invoked` skill; none of them may contain `[APPROVAL GATE]` or human decision points, and the whole tree must fit the 45-minute / single-task budget
 
 If any check fails, the playbook cannot be autonomous. Recommend `gated` instead.
 
@@ -327,4 +342,4 @@ If any check fails, the playbook cannot be autonomous. Recommend `gated` instead
 | Skill | Purpose |
 |-------|---------|
 | [adjust-playbook](../adjust-playbook/) | Modify existing skills |
-| [playbook-architect](../playbook-architect/) | Audit and improve agent skills |
+| [/create-agent:review-agent](../../../create-agent/skills/review/) | Read-only audit of an agent's skills (composition integrity, quality) |

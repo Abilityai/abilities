@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[playbook-name] [what to change] [--archive]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2025-02-10
-  updated: 2026-05-16
+  updated: 2026-06-14
   author: Ability.ai
   changelog:
+    - "1.5: Add Composition Rule support — Compose adjustment (replace inlined logic with a skill call), downstream-caller detection on breaking changes, transitive autonomous check"
     - "1.4: Add Change Effort/Model and Add Skill-Scoped Hooks adjustments; add Routines note to autonomous validation"
     - "1.3: Add single-task scope check to autonomous validation checklist"
     - "1.2: Add autonomous validation — cannot add gates to autonomous or change to autonomous with gates"
@@ -150,12 +151,20 @@ Everything else remains the same:
 - Breaking: [yes/no] - if yes, recommend archiving
 ```
 
-**If change is breaking** (output format changes, steps removed, args changed):
+**If change is breaking** (output format changes, steps removed, args changed), find the downstream callers first — every parent that invokes the **unversioned** name inherits this change automatically:
+
+```bash
+# Skills that compose this one (any plugin)
+grep -rln "/$0\b\|:$0\b" --include=SKILL.md .claude/skills/ ~/.claude/skills/ plugins/ 2>/dev/null
+```
+
 ```
 ⚠️  This is a breaking change.
 
-Other playbooks calling /[skill-name] may break.
-Recommend: Archive current version before modifying.
+Callers found: [list, or "none detected"]
+Each caller using the unversioned /[skill-name] will pick up this change.
+Recommend: Archive current version as [skill-name]-v[N], then point
+stability-sensitive callers at the pin while the rest ride latest.
 
 Archive as [skill-name]-v[N]? [Y/n]
 ```
@@ -263,6 +272,7 @@ Autonomous playbooks run unattended — there is no human to approve gates. Befo
 - [ ] **Under 45 minutes** — execution time within agent reliability window
 - [ ] **Idempotent or safe to retry** — can re-run without causing duplicate effects
 - [ ] **Single-task scope** — processes one task type per invocation; iteration over varied items happens across invocations, not within one
+- [ ] **Composed children are autonomous-safe** — autonomy is transitive: recurse into every `/invoked` skill; none may contain `[APPROVAL GATE]` or human decision points, and the whole tree must fit the 45-minute / single-task budget
 
 > **Alternative**: For cloud-hosted scheduled execution without a local machine, use Anthropic's Routines (`/schedule` in CLI). The project `schedule:` field runs locally; Routines run on Anthropic infrastructure.
 
@@ -341,6 +351,21 @@ hooks:
 ```
 
 All standard hook events are supported. These hooks fire only while the skill is loaded.
+
+### Replace Inlined Logic with a Skill Call (Compose)
+
+When a step reimplements, paraphrases, or shells into another skill's internals, refactor it to **invoke that skill by name** instead:
+
+```markdown
+### Step N: [Work]
+Invoke `/child-skill` (namespace cross-plugin: `/plugin:child-skill`).
+```
+
+- Add `Skill` to `allowed-tools` and list the child under a `## Composes` section.
+- Call the **unversioned** name so the child's fixes propagate automatically; pin `/child-vN` only to freeze against breaking changes.
+- Never call the child's `scripts/`/`reference.md`/templates directly — go through the entry point.
+
+See [The Composition Rule](../create-playbook/SKILL.md#design-constraints) and [Composing skills](../../README.md#composing-skills-hierarchical-playbooks).
 
 ### Fix an Issue
 
@@ -515,4 +540,4 @@ User: "run daily-backup twice a day"
 | Skill | Purpose |
 |-------|---------|
 | [/create-playbook](../create-playbook/) | Create new playbook |
-| [/playbook-architect](../playbook-architect/) | Audit and bulk adoption |
+| [/create-agent:review-agent](../../../create-agent/skills/review/) | Read-only audit of an agent's skills (composition integrity, quality) |

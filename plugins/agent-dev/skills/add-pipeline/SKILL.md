@@ -1,19 +1,22 @@
 ---
 name: add-pipeline
 description: Scaffold a Trinity-compatible long-running pipeline inside any agent — creates projects/&lt;slug&gt;/{project.md, pipeline.yaml, instances/}, copies pipeline-tick/status/recover/pause/resume skills into .claude/skills/, sets up the ~/.trinity/ read surface, extends the pre-check gate, installs the heartbeat schedule, and adds a dashboard panel.
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-05-23
+  updated: 2026-06-14
   author: Ability.ai
+  changelog:
+    - "1.1: Add 'When to use a pipeline' guidance (multi-instance ≠ multi-tenant); add Skill to allowed-tools and invoke /validate-pipeline canonically (Composition Rule)"
 ---
 
 # Add Pipeline
 
 Add a long-running, multi-stage **pipeline** to any Trinity-compatible agent. Implements the canonical pipeline spec: the agent owns the DAG and stage logic; Trinity owns the read surface (`~/.trinity/pipelines/*.yaml` + `~/.trinity/pipeline-state/**/*.json`); a single heartbeat skill (`pipeline-tick`) owns advancement, retry, and escalation.
 
-**Who this is for:** any agent whose work decomposes into a multi-stage cycle that runs continuously (or on cron) across one or more independent instances/tenants/zones. Columns, ingestion pipelines, per-customer onboarding flows, scheduled research crawls — anything where "what stage is each tenant in" is a question worth asking.
+**When to use a pipeline (and when not):** reach for this only when the work is a *population* of items that each crawl through *multiple stages over many runs*, and you need durable per-item state, isolated retries, and an at-a-glance "what stage is each item in" — e.g. per-customer onboarding, document ingestion, batched research crawls, especially when the whole batch can't finish in one scheduled run. If it's a single recurring task, a scheduled playbook is simpler — don't reach for a pipeline. And mind the boundary: instances are **multi-instance, not multi-tenant** — their *state* is isolated but they all run inside the **same agent** (same credentials, context window, and heartbeat), so for genuinely isolated or large-scale tenants, deploy **one agent per tenant** (Trinity fan-out) rather than one pipeline with many instances.
 
 **What gets installed:**
 
@@ -269,11 +272,10 @@ fi
 
 ### Step 9: Validate (advisory)
 
-Invoke the `validate-pipeline` skill on the new pipeline as a sanity check:
+Invoke `/validate-pipeline <SLUG>` on the new pipeline as a sanity check — call the skill by name (needs `Skill` in `allowed-tools`), don't reimplement its checks here:
 
 ```
-Skill: validate-pipeline
-Args: <SLUG>
+Invoke `/validate-pipeline <SLUG>`
 ```
 
 This is a linter — it prints a report and refreshes `~/.trinity/pipelines/<SLUG>.yaml` on a clean pass. Errors don't block this skill from finishing the scaffold (the user can edit `pipeline.yaml` and re-run `/validate-pipeline` later), but warnings should be surfaced.
