@@ -10,9 +10,14 @@ metadata:
   created: 2026-04-16
   updated: 2026-06-14
   author: Ability.ai
+  changelog:
+    - "2.1: List the read-only /review-agent wizard alongside /adjust-agent in the menu"
+    - "2.0: Add the doctor wizard (personal medical records) to the menu"
 ---
 
 # Create
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `create vX.Y — recent: <summary>`. Then proceed.
 
 Your single entry point for creating agents, websites, and projects. Lists all available creation paths and launches the right one.
 

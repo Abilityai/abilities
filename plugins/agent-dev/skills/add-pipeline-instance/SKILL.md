@@ -8,9 +8,13 @@ metadata:
   version: "1.0"
   created: 2026-05-23
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — scaffolds a new instance (tenant / zone / case) of an existing pipeline and syncs its state.json to the Trinity read surface"
 ---
 
 # Add Pipeline Instance
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `add-pipeline-instance vX.Y — recent: <summary>`. Then proceed.
 
 Add an independent runtime instance to an existing pipeline. Each instance runs the same DAG with its own state and config — a zone, a tenant, a case, a customer.
 

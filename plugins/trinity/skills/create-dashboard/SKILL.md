@@ -8,9 +8,13 @@ metadata:
   version: "1.0"
   created: 2026-05-27
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — generate an agent-specific /update-dashboard skill that gathers metrics from the agent's data sources and writes a schedulable dashboard.yaml for Trinity"
 ---
 
 # /trinity:create-dashboard
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `create-dashboard vX.Y — recent: <summary>`. Then proceed.
 
 Generate an agent-specific `/update-dashboard` skill that keeps `dashboard.yaml` current for Trinity. Analyzes the agent's purpose and data sources, proposes metrics, gets user approval, then creates a schedulable skill.
 

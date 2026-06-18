@@ -19,6 +19,8 @@ metadata:
 
 # Create Doctor
 
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `doctor vX.Y — recent: <summary>`. Then proceed.
+
 Create a **personal medical-records and health-management agent** powered by Claude Code and compatible with [Trinity](https://ability.ai) for remote deployment, scheduling, and orchestration.
 
 **What you'll get:**

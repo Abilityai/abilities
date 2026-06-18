@@ -9,9 +9,13 @@ metadata:
   version: "1.0"
   created: 2026-03-16
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — structured production incident investigation that collects evidence, classifies severity, and produces a root-cause report."
 ---
 
 # Investigate Incident
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `investigate-incident vX.Y — recent: <summary>`. Then proceed.
 
 Conduct a structured investigation of a production incident. Collect evidence systematically, classify severity, and produce a report with root cause hypotheses.
 

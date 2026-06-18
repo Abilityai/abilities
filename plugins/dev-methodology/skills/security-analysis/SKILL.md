@@ -5,9 +5,17 @@ context: fork
 agent: security-analyzer
 allowed-tools: Read, Grep, Glob, Bash(grep *)
 automation: manual
+metadata:
+  version: "1.0"
+  created: 2026-03-13
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — performs an OWASP Top 10 based security analysis of the codebase for auditing vulnerabilities before deployment or after auth changes."
 ---
 
 # Security Analysis
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `security-analysis vX.Y — recent: <summary>`. Then proceed.
 
 Perform a comprehensive security analysis of the codebase based on OWASP Top 10.
 

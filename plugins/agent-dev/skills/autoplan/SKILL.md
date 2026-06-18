@@ -8,9 +8,13 @@ metadata:
   version: "1.0"
   created: 2026-04-28
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — analyzes an open skill issue before implementing, reading the affected SKILL.md to produce a focused plan and surface risks"
 ---
 
 # Autoplan
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `autoplan vX.Y — recent: <summary>`. Then proceed.
 
 Analyze an open issue before touching any files. Reads the affected skill's SKILL.md, understands the current behavior, and produces a focused implementation plan. Run this after `/claim` and before `/adjust-playbook` or `/create-playbook`.
 

@@ -9,9 +9,15 @@ metadata:
   version: "1.1"
   created: 2026-04-30
   author: Ability.ai
+  changelog:
+    - "1.1: Scaffold the ops agent by cloning trinity-ops-public instead of generating files inline — agents now ship with the full, maintained skill set"
+    - "1.0.1: Add a /bug-report skill to generated ops agents, and fix six production deploy gaps — port checks, Dockerfile, and macOS sed compatibility"
+    - "1.0: Initial version — provision a Trinity instance on cloud, remote, or local Docker and scaffold a complete ops agent to manage it"
 ---
 
 # Deploy Trinity
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `deploy-new-instance vX.Y — recent: <summary>`. Then proceed.
 
 Set up a Trinity instance and create a complete operations agent to manage it.
 

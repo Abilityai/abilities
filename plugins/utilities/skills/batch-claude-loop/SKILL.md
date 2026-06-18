@@ -4,9 +4,17 @@ description: Orchestrate batch headless Claude Code calls - loop over inputs wit
 allowed-tools: Bash, Read, Write, Edit
 user-invocable: true
 argument-hint: "[description of what to process]"
+metadata:
+  version: "1.0"
+  created: 2026-03-26
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — orchestrate batch headless Claude Code calls, looping over inputs with clean context per iteration and structured result collection."
 ---
 
 # Batch Claude Loop
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `batch-claude-loop vX.Y — recent: <summary>`. Then proceed.
 
 ## Purpose
 

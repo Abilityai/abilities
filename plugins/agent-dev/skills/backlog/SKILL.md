@@ -8,9 +8,14 @@ metadata:
   version: "1.1"
   created: 2026-04-14
   author: Ability.ai
+  changelog:
+    - "1.1: Add error handling and prerequisite checks"
+    - "1.0: Initial version — priority-ordered view of open GitHub Issues by status and priority"
 ---
 
 # Backlog
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `backlog vX.Y — recent: <summary>`. Then proceed.
 
 View the agent's task backlog from GitHub Issues.
 

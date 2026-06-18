@@ -5,9 +5,17 @@ automation: gated
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, AskUserQuestion
 user-invocable: true
 argument-hint: "[project-name] [--plan <input> | --status | --session N | --skip N | --abandon | --add \"change\"]"
+metadata:
+  version: "1.0"
+  created: 2026-03-09
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — plans and executes large multi-session projects, splitting scope into ordered sessions with approval gates and state tracking"
 ---
 
 # Project Planner
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-plan vX.Y — recent: <summary>`. Then proceed.
 
 ## Purpose
 

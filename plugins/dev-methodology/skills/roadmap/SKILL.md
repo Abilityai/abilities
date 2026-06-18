@@ -4,9 +4,18 @@ description: Query GitHub Issues for roadmap priorities and status
 allowed-tools: Bash, Read, Write
 user-invocable: true
 automation: manual
+metadata:
+  version: "1.1"
+  created: 2026-03-13
+  author: Ability.ai
+  changelog:
+    - "1.1: Added epics, themes, and orphans subcommands — Epic rollup with progress bars, coverage by strategic theme, and detection of issues missing an Epic or Theme."
+    - "1.0: Initial version — queries GitHub Issues for roadmap priorities, blockers, and work status."
 ---
 
 # Roadmap
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `roadmap vX.Y — recent: <summary>`. Then proceed.
 
 Query GitHub Issues to check current priorities, blockers, and work status.
 

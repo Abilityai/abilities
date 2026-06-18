@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[playbook-name] [what to change] [--archive]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2025-02-10
-  updated: 2026-06-14
+  updated: 2026-06-18
   author: Ability.ai
   changelog:
+    - "1.6: On every change, prepend a newest-first changelog entry, bump metadata.version, and ensure the what's-new banner is present after the H1"
     - "1.5: Add Composition Rule support — Compose adjustment (replace inlined logic with a skill call), downstream-caller detection on breaking changes, transitive autonomous check"
     - "1.4: Add Change Effort/Model and Add Skill-Scoped Hooks adjustments; add Routines note to autonomous validation"
     - "1.3: Add single-task scope check to autonomous validation checklist"
@@ -20,6 +21,8 @@ metadata:
 ---
 
 # Adjust Playbook
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `adjust-playbook vX.Y — recent: <summary>`. Then proceed.
 
 Modify existing playbooks while preserving their core structure and functionality.
 
@@ -187,6 +190,10 @@ For each change:
 1. Find the exact text to replace
 2. Apply the edit
 3. Verify the edit succeeded
+
+Then, before finishing, maintain the skill's changelog and banner (required — see Version Tracking below):
+4. **Prepend** a one-line entry to `metadata.changelog` (newest-first) and bump `metadata.version`
+5. Confirm the what's-new banner (`> ℹ️ **First, set expectations:** …`) is present immediately after the H1 — add it if missing
 
 ### Step 7: Verify
 
@@ -378,16 +385,24 @@ See [The Composition Rule](../create-playbook/SKILL.md#design-constraints) and [
 
 ## Version Tracking
 
-When making significant changes, update metadata:
+On every change, update metadata — bump the version and **prepend** a newest-first changelog entry (the skill's what's-new banner surfaces the *top* entry on launch, so newest must be first):
 
 ```yaml
 metadata:
   version: "1.1"  # increment
   updated: 2025-02-10
   changelog:
-    - "1.1: [what changed]"
+    - "1.1: [what changed]"   # newest first — prepend, never append
     - "1.0: Initial version"
 ```
+
+Also ensure the body still opens (right after the H1) with the what's-new banner:
+
+```markdown
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `skill-name vX.Y — recent: <summary>`. Then proceed.
+```
+
+See the repo `CLAUDE.md` → "Skill Changelog & What's-New Banner" for the canonical rule.
 
 ### Breaking Changes: Archive First
 

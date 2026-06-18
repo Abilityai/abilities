@@ -28,6 +28,8 @@ metadata:
 
 # Trinity Onboarding
 
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `onboard vX.Y — recent: <summary>`. Then proceed.
+
 Onboard any Claude Code agent to the Trinity Deep Agent Orchestration Platform. This skill guides you through the complete setup process.
 
 ## Prerequisites: Getting a Trinity Instance

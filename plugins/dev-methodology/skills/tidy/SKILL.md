@@ -4,9 +4,17 @@ description: Audit and clean up repository structure. Identifies outdated docs, 
 disable-model-invocation: true
 argument-hint: "[scope] [--report-only]"
 automation: gated
+metadata:
+  version: "1.0"
+  created: 2026-03-13
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — audits repository structure for outdated docs, misplaced files, orphan configs, and test artifacts, reporting findings and requiring approval before changes."
 ---
 
 # Repository Tidy Skill
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `tidy vX.Y — recent: <summary>`. Then proceed.
 
 Audit and clean up the repository structure without breaking code.
 

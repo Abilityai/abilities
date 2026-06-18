@@ -4,9 +4,17 @@ description: Update project documentation after making changes. Updates changelo
 allowed-tools: Read, Write, Edit, Bash, Agent
 user-invocable: true
 automation: manual
+metadata:
+  version: "1.0"
+  created: 2026-03-13
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — updates project documentation (changelog, architecture, feature flows, requirements) after making changes."
 ---
 
 # Update Project Documentation
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `update-docs vX.Y — recent: <summary>`. Then proceed.
 
 Update project documentation after making changes.
 

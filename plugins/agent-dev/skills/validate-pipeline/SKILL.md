@@ -8,9 +8,13 @@ metadata:
   version: "1.0"
   created: 2026-05-23
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — read-only pipeline.yaml linter checking schema, DAG acyclicity, referenced-skill existence, and precondition kinds; writes no files"
 ---
 
 # Validate Pipeline
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `validate-pipeline vX.Y — recent: <summary>`. Then proceed.
 
 Read-only linter. Verify a `pipeline.yaml` is structurally sound. Surfaces errors and warnings; **writes no files**.
 

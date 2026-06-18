@@ -9,9 +9,13 @@ metadata:
   version: "1.0"
   created: 2026-04-28
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — human-supervised cycle orchestrating roadmap → claim → autoplan → implement → commit for one skill issue"
 ---
 
 # Sprint
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `sprint vX.Y — recent: <summary>`. Then proceed.
 
 Walks through one complete agent development cycle for a single issue. The implement step is intentionally human-driven — this skill frames and bookends it. The autonomous equivalent is `/work-loop`.
 

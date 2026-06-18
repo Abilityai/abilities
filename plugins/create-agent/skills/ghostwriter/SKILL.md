@@ -9,9 +9,14 @@ metadata:
   version: "1.1"
   created: 2026-04-09
   author: Ability.ai
+  changelog:
+    - "1.1: Wizards emit a template.yaml schedules: block; dropped Trinity CLI references"
+    - "1.0: Initial version — brand-voice content writer wizard"
 ---
 
 # Install Ghostwriter
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `install-ghostwriter vX.Y — recent: <summary>`. Then proceed.
 
 Create a **content writer agent** that knows your brand voice and writes platform-specific content. Powered by Claude Code and compatible with [Trinity](https://ability.ai) for remote deployment, scheduling, and orchestration.
 

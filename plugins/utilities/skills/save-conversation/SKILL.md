@@ -9,9 +9,13 @@ metadata:
   version: "1.0"
   created: 2025-02-20
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — save the current conversation as a structured markdown file for selective history preservation."
 ---
 
 # Save Conversation
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `save-conversation vX.Y — recent: <summary>`. Then proceed.
 
 Capture the current conversation as a markdown file in a standardized folder structure. Unlike automatic session logs, this is selective - only save conversations worth preserving.
 

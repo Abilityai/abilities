@@ -11,11 +11,13 @@ metadata:
   updated: 2026-06-03
   author: Ability.ai
   changelog:
-    - "1.1: Prefer Vercel CLI for deployment; fall back to Vercel MCP, then to manual"
     - "1.2: JSON-backed content layer + optional zero-dependency Studio CMS (/studio) for self-service editing"
+    - "1.1: Prefer Vercel CLI for deployment; fall back to Vercel MCP, then to manual"
 ---
 
 # Create Website
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `create-website vX.Y — recent: <summary>`. Then proceed.
 
 Scaffold a complete, production-ready Next.js 15 website deployable to Vercel.
 

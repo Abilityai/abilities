@@ -5,9 +5,17 @@ allowed-tools: Bash, Read, Grep, Glob, Skill
 user-invocable: true
 argument-hint: "[issue-number]"
 automation: manual
+metadata:
+  version: "1.0"
+  created: 2026-04-28
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — runs strategy, engineering, and security review in sequence and produces an implementation plan with auto-decisions for an In Progress issue."
 ---
 
 # Autoplan
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `autoplan vX.Y — recent: <summary>`. Then proceed.
 
 Run the full pre-implementation review pipeline for an issue: strategy review, engineering review, and security review. Produces a structured plan with auto-decisions so the developer can approve or revise before implementation begins.
 

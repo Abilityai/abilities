@@ -8,9 +8,13 @@ metadata:
   version: "1.0"
   created: 2026-04-28
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — stages changed skill files, writes a traceability commit referencing the in-progress issue, and closes it"
 ---
 
 # Commit
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `commit vX.Y — recent: <summary>`. Then proceed.
 
 Stage changed skill files, write a commit message tied to the in-progress issue, and close the issue with a summary. The single action that closes the loop between a GitHub issue and a SKILL.md change.
 

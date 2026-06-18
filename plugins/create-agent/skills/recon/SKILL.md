@@ -9,9 +9,14 @@ metadata:
   version: "1.1"
   created: 2026-04-06
   author: Ability.ai
+  changelog:
+    - "1.1: Wizards emit a template.yaml schedules: block; dropped Trinity CLI references"
+    - "1.0: Initial version — competitive-intelligence agent wizard"
 ---
 
 # Install Recon
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `install-recon vX.Y — recent: <summary>`. Then proceed.
 
 Create a **competitive intelligence agent** powered by Claude Code and compatible with [Trinity](https://ability.ai) for remote deployment, scheduling, and orchestration.
 

@@ -8,9 +8,13 @@ metadata:
   version: "1.0"
   created: 2026-04-28
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — claims the highest-priority todo from the GitHub Issues backlog and moves it to in-progress"
 ---
 
 # Claim
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `claim vX.Y — recent: <summary>`. Then proceed.
 
 Select the next issue from the GitHub Issues backlog and mark it as in-progress.
 

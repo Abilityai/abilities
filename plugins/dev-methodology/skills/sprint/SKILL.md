@@ -5,9 +5,17 @@ allowed-tools: Bash, Read, Skill
 user-invocable: true
 argument-hint: "[issue-number]"
 automation: gated
+metadata:
+  version: "1.0"
+  created: 2026-04-28
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — full dev cycle orchestrator that runs autoplan, implement, review, cso, sync-feature-flows, and commit in sequence with human approval gates."
 ---
 
 # Sprint
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `sprint vX.Y — recent: <summary>`. Then proceed.
 
 Orchestrate the complete development pipeline for a single issue. Each step runs in sequence; human approval gates are inserted at key decision points.
 

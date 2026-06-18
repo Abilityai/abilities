@@ -5,9 +5,17 @@ allowed-tools: Bash, Read, Grep, Glob
 user-invocable: true
 argument-hint: ""
 automation: manual
+metadata:
+  version: "1.0"
+  created: 2026-04-28
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — validates the codebase against documented architectural invariants (naming, dependency directions, API patterns, auth enforcement) and reports violations."
 ---
 
 # Validate Architecture
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `validate-architecture vX.Y — recent: <summary>`. Then proceed.
 
 Validate the live codebase against the architectural invariants documented in `docs/memory/architecture.md`. Produces a violations report. Run weekly or before any major release.
 

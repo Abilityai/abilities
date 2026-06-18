@@ -5,9 +5,17 @@ allowed-tools: Bash, Read
 user-invocable: true
 argument-hint: ""
 automation: gated
+metadata:
+  version: "1.0"
+  created: 2026-04-28
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — audits backlog board coverage, detects unranked items, reviews priority ordering, and proposes rank updates pending human approval."
 ---
 
 # Groom
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `groom vX.Y — recent: <summary>`. Then proceed.
 
 Audit the GitHub Issues backlog for health: coverage, ranking, priority ordering, and stale items. Propose changes; apply only after human approval.
 

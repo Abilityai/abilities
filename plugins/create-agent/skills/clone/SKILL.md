@@ -9,9 +9,13 @@ metadata:
   version: "1.0"
   created: 2026-03-16
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — clone the Cornelius agent repository and guide the user to open Claude Code inside it"
 ---
 
 # Clone Cornelius
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `clone-cornelius vX.Y — recent: <summary>`. Then proceed.
 
 Clone [Cornelius](https://github.com/Abilityai/cornelius) and launch Claude Code inside the repository.
 

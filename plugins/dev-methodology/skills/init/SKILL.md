@@ -5,9 +5,17 @@ allowed-tools: Read, Write, Edit, Bash, Glob
 user-invocable: true
 argument-hint: "[project-name]"
 automation: manual
+metadata:
+  version: "1.0"
+  created: 2026-03-13
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — scaffolds CLAUDE.md, memory files, workflow docs, and testing templates to initialize the dev-methodology in a project."
 ---
 
 # Initialize Dev Methodology
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `init vX.Y — recent: <summary>`. Then proceed.
 
 Scaffold the documentation-driven development methodology into the current project.
 

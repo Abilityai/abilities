@@ -4,9 +4,17 @@ description: Load all project documentation into context for this session.
 allowed-tools: Read, Bash
 user-invocable: true
 automation: manual
+metadata:
+  version: "1.0"
+  created: 2026-03-13
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — loads all project documentation into context for the current session."
 ---
 
 # Read Project Documentation
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `read-docs vX.Y — recent: <summary>`. Then proceed.
 
 Load all project documentation into context for this session.
 

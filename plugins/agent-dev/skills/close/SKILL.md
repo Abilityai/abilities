@@ -8,9 +8,13 @@ metadata:
   version: "1.0"
   created: 2026-04-28
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — closes the current in-progress issue with a summary comment, no git commit"
 ---
 
 # Close
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `close vX.Y — recent: <summary>`. Then proceed.
 
 Complete the current in-progress issue with a summary comment. For issues where skill files were modified, use `/commit` instead — it closes the issue and creates a git commit in one step.
 

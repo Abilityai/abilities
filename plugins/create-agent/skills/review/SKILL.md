@@ -9,9 +9,13 @@ metadata:
   version: "1.0"
   created: 2026-06-14
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — read-only agent audit that hands off to /adjust-agent"
 ---
 
 # Review Agent
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `review-agent vX.Y — recent: <summary>`. Then proceed.
 
 Audit an existing agent against best practices and produce a findings report. **Read-only by construction** — this skill has no `Write`/`Edit` tools and changes nothing. It is the *detect-and-report* half of the pair; `/adjust-agent` (agent-level) and `/agent-dev:adjust-playbook` (skill-level) are the *apply* half.
 

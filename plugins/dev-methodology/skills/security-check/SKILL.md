@@ -4,9 +4,17 @@ description: Pre-commit security validation. Scans staged/modified files for sec
 disable-model-invocation: true
 allowed-tools: Bash(git *), Grep
 automation: manual
+metadata:
+  version: "1.0"
+  created: 2026-03-13
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — pre-commit security validation that scans staged/modified files for secrets, API keys, credentials, and PII before committing."
 ---
 
 # Pre-Commit Security Check
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `security-check vX.Y — recent: <summary>`. Then proceed.
 
 Validate that staged changes don't contain sensitive information before committing.
 

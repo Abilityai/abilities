@@ -21,6 +21,8 @@ metadata:
 
 # /trinity:loop — run a remote agent in a sequential loop
 
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `loop vX.Y — recent: <summary>`. Then proceed.
+
 The remote counterpart to Claude Code's built-in `/loop`. Where `/loop` re-invokes **your local session** on a cadence, `/trinity:loop` hands one bounded, sequential loop to a **remote Trinity agent**: you fire it once with `run_agent_loop`, get a `loop_id`, and can walk away — the backend runs every iteration in order, optionally chaining each response into the next, and exits on a hard cap or a stop signal.
 
 Use it for iterative refinement, agentic retry, and bounded polling that must outlive your session and the 60-second MCP timeout.

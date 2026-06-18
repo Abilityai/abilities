@@ -5,9 +5,17 @@ allowed-tools: Read, Edit
 user-invocable: true
 argument-hint: "<feature-flow-name>"
 automation: manual
+metadata:
+  version: "1.0"
+  created: 2026-03-13
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — adds a Testing section to a feature flow document using the standard template."
 ---
 
 # Add Testing Section to Feature Flow
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `add-testing vX.Y — recent: <summary>`. Then proceed.
 
 Add a Testing section to a feature flow document using the standard template.
 

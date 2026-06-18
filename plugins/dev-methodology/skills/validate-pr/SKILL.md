@@ -5,9 +5,17 @@ allowed-tools: Bash, Read, Grep
 user-invocable: true
 argument-hint: "<pr-number-or-url>"
 automation: gated
+metadata:
+  version: "1.0"
+  created: 2026-03-13
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — validates a pull request against the project development methodology and generates a merge decision report."
 ---
 
 # Validate Pull Request
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `validate-pr vX.Y — recent: <summary>`. Then proceed.
 
 Validate a pull request against the project development methodology and generate a merge decision report.
 

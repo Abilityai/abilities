@@ -5,9 +5,17 @@ allowed-tools: Bash, Read, Write, Grep
 user-invocable: true
 argument-hint: "[version-tag]"
 automation: gated
+metadata:
+  version: "1.0"
+  created: 2026-04-28
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — cuts a release: runs the pre-release checklist, bumps the version, generates release notes, and creates and tags the release PR."
 ---
 
 # Release
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `release vX.Y — recent: <summary>`. Then proceed.
 
 Automate the release cut process: pre-release checklist, version bump, release notes, PR creation, and tagging.
 

@@ -17,6 +17,8 @@ metadata:
 
 # Adjust Agent
 
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `adjust-agent vX.Y — recent: <summary>`. Then proceed.
+
 Transition an existing agent to a better state. This is the *apply* half of the review/adjust pair: it invokes `/review-agent` (a read-only audit) to find issues, then proposes exact before/after diffs, gets approval, and applies them. Works like `/adjust-playbook`, but for the agent as a whole.
 
 ## When to Use

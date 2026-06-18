@@ -9,9 +9,15 @@ metadata:
   version: "1.2"
   created: 2026-04-04
   author: Ability.ai
+  changelog:
+    - "1.2: Wizard emits a template.yaml schedules: block so generated agents ship with declarative Trinity schedules"
+    - "1.1: Remove Trinity CLI references from the generated agent — Trinity deploys via MCP, not a CLI"
+    - "1.0: Backfill the /agent-dev:add-git-sync prompt so generated agents get durable git-as-state memory"
 ---
 
 # Install Chief of Staff
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `install-chiefofstaff vX.Y — recent: <summary>`. Then proceed.
 
 Create an **executive chief of staff agent** powered by Claude Code and compatible with [Trinity](https://ability.ai) for remote deployment, scheduling, and orchestration.
 

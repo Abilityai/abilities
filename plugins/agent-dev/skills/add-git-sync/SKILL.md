@@ -7,9 +7,13 @@ metadata:
   version: "1.0"
   created: 2026-04-21
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — installs git-as-state hooks (Stop auto-commit, SessionStart rebase, PreCompact snapshot) so an agent's own repo becomes durable cross-session memory"
 ---
 
 # Add Git Sync
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `add-git-sync vX.Y — recent: <summary>`. Then proceed.
 
 Installs three hooks that turn the agent's own repo into its durable state layer:
 

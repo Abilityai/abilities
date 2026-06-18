@@ -9,9 +9,13 @@ metadata:
   version: "1.0"
   created: 2026-03-16
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — review recent commits in a managed codebase, assess operational impact, and propose CLAUDE.md or skill updates."
 ---
 
 # Sync Ops Knowledge
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `sync-ops-knowledge vX.Y — recent: <summary>`. Then proceed.
 
 Review recent changes in a managed codebase and update the ops agent's documentation to reflect new operational requirements. Ensures the agent stays current without modifying application code.
 

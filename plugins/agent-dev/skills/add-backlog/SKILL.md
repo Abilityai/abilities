@@ -15,6 +15,8 @@ metadata:
 
 # Install GitHub Backlog
 
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `install-github-backlog vX.Y — recent: <summary>`. Then proceed.
+
 Add GitHub Issues task management to any Claude Code agent. This wizard creates skills directly in your agent's `.claude/skills/` directory — no plugin dependency, fully self-contained.
 
 **What you get:**

@@ -10,9 +10,15 @@ metadata:
   created: 2026-04-13
   updated: 2026-04-21
   author: Ability.ai
+  changelog:
+    - "1.3: Wizards emit a template.yaml schedules: block for declarative Trinity scheduling"
+    - "1.2: Removed Trinity CLI references; backfilled the /agent-dev:add-git-sync prompt"
+    - "1.1: GitHub backlog as default task management"
 ---
 
 # Install KB Agent
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `install-kb-agent vX.Y — recent: <summary>`. Then proceed.
 
 Create a **Cornelius-shaped knowledge-base agent** powered by Claude Code, customized to a specific domain (community management, CS research, clinical research, legal analysis, personal KB, or custom), and compatible with [Trinity](https://ability.ai) for remote deployment, scheduling, and orchestration.
 

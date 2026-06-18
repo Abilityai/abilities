@@ -9,9 +9,15 @@ metadata:
   version: "1.2"
   created: 2026-04-04
   author: Ability.ai
+  changelog:
+    - "1.2: Wizards emit a template.yaml schedules: block for declarative Trinity scheduling"
+    - "1.1: Removed Trinity CLI references — deployment guidance is now MCP/onboard-based"
+    - "1.0: Backfilled the /agent-dev:add-git-sync prompt; added a development-workflow section"
 ---
 
 # Install Webmaster
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `install-webmaster vX.Y — recent: <summary>`. Then proceed.
 
 Create a **website management agent** powered by Claude Code and compatible with [Trinity](https://ability.ai) for remote deployment, scheduling, and orchestration.
 

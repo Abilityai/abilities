@@ -129,6 +129,25 @@ Key frontmatter fields:
 2. Bump the patch version in `plugins/[name]/.claude-plugin/plugin.json`
 3. Commit both changes together
 
+## Skill Changelog & What's-New Banner (Required)
+
+**Every skill's `SKILL.md` carries its own changelog and announces its latest change when it runs.** This is separate from the plugin-level version bump above: the `plugin.json` bump makes installs *sync*; the per-skill changelog + banner tell *users* what changed. Both parts are required and must be kept current:
+
+1. **`metadata.changelog`** — a **newest-first** list under the skill's `metadata:` block; the top entry is the most recent change. On **every** edit to a skill, **prepend** a one-line entry and bump `metadata.version`:
+   ```yaml
+   metadata:
+     version: "1.4"                          # bump on every change
+     changelog:
+       - "1.4: <what changed in this edit>"  # newest first — prepend, don't append
+       - "1.3: <previous change>"
+   ```
+2. **What's-new banner** — the first body line, immediately after the H1, instructing the skill to surface its version + newest changelog entry on launch:
+   ```markdown
+   > ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `<skill-name> vX.Y — recent: <summary>`. Then proceed.
+   ```
+
+A skill that has never been individually edited carries a single honest `"1.0: Initial version — <summary>"` entry — do not fabricate history. Skills under `memory-templates/` are scaffolding copied into other agents, not invokable here, and are exempt. The generators (`create-playbook`, `create-wizard`) seed both parts; the modifiers (`adjust-playbook`, `update-wizard`) maintain them.
+
 ## Skill Versioning
 
 When making breaking changes to a skill, archive the current version before modifying:

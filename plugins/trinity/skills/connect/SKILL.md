@@ -8,9 +8,13 @@ metadata:
   version: "1.0"
   created: 2026-05-27
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — connect to a Trinity instance via email OTP, provision an MCP API key, and write .mcp.json, with no CLI installation required"
 ---
 
 # /trinity:connect
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `connect vX.Y — recent: <summary>`. Then proceed.
 
 Connect to a Trinity instance and configure MCP server. No CLI installation required.
 

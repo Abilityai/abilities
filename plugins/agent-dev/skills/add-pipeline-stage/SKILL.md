@@ -8,9 +8,13 @@ metadata:
   version: "1.0"
   created: 2026-05-23
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — appends a new stage to an existing pipeline.yaml with retry/timeout defaults, DAG acyclicity checks, and skill-existence validation"
 ---
 
 # Add Pipeline Stage
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `add-pipeline-stage vX.Y — recent: <summary>`. Then proceed.
 
 Extend an existing pipeline with a new stage. Edits `projects/<slug>/pipeline.yaml` non-destructively and revalidates.
 

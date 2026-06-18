@@ -5,9 +5,17 @@ allowed-tools: Agent, Read, Write, Edit, Grep, Glob, Bash
 user-invocable: true
 argument-hint: "[commit-range|file-list|'recent']"
 automation: gated
+metadata:
+  version: "1.0"
+  created: 2026-03-13
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — analyzes code changes and updates affected feature flow docs, creating new flows for new features and updating existing ones for modified code."
 ---
 
 # Sync Feature Flows
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `sync-feature-flows vX.Y — recent: <summary>`. Then proceed.
 
 Analyze code changes and synchronize feature flow documentation.
 

@@ -5,9 +5,17 @@ allowed-tools: Agent, Read, Write, Edit, Grep, Glob, Bash, Skill
 user-invocable: true
 argument-hint: "<requirements-file|issue-number|'description'>"
 automation: autonomous
+metadata:
+  version: "1.0"
+  created: 2026-03-13
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — end-to-end feature implementation from a requirements file, GitHub issue, or description through tests to documentation."
 ---
 
 # Implement Feature
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `implement vX.Y — recent: <summary>`. Then proceed.
 
 End-to-end feature implementation from requirements to tested, documented code.
 

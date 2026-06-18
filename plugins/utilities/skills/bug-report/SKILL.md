@@ -9,9 +9,13 @@ metadata:
   version: "1.0"
   created: 2026-03-16
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — create a sanitized GitHub issue from an incident or bug, redacting secrets, IPs, paths, and PII before submission."
 ---
 
 # Bug Report
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `bug-report vX.Y — recent: <summary>`. Then proceed.
 
 Create a well-structured GitHub issue from an incident or observed bug. Automatically sanitizes sensitive data before submission so it's safe to post to a public or shared repository.
 

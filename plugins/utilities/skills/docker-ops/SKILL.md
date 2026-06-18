@@ -9,9 +9,13 @@ metadata:
   version: "1.0"
   created: 2026-03-16
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — logs, restart, telemetry, and cleanup subcommands over SSH"
 ---
 
 # Docker Ops
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `docker-ops vX.Y — recent: <summary>`. Then proceed.
 
 Day-to-day Docker Compose service management over SSH. Four subcommands for the most common operations.
 

@@ -10,9 +10,14 @@ metadata:
   created: 2026-04-16
   updated: 2026-05-16
   author: Ability.ai
+  changelog:
+    - "1.1: Add portability note — memory skills are copied into the agent so it stays self-contained with no plugin dependency"
+    - "1.0: Initial version — adds a memory system (file-index, brain, json-state, or workspace) to an existing agent"
 ---
 
 # Add Memory
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `add-memory vX.Y — recent: <summary>`. Then proceed.
 
 Add a memory system to an existing agent. Memory skills are COPIED into the agent's `.claude/skills/` directory — the agent becomes self-contained with no plugin dependency.
 

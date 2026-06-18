@@ -4,9 +4,17 @@ description: Generate and update user-facing documentation from code, feature fl
 automation: gated
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent
 user-invocable: true
+metadata:
+  version: "1.0"
+  created: 2026-03-26
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — generates and updates user-facing documentation from code, feature flows, and recent changes into docs/user-docs/."
 ---
 
 # Generate User Docs
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `generate-user-docs vX.Y — recent: <summary>`. Then proceed.
 
 Generate and maintain `docs/user-docs/` — authoritative user documentation derived from code as the single source of truth.
 

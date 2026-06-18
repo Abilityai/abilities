@@ -7,9 +7,13 @@ metadata:
   version: "1.0"
   created: 2026-04-28
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — tags untagged issues with skill:* labels, verifies priorities, and surfaces stale in-progress work"
 ---
 
 # Groom
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `groom vX.Y — recent: <summary>`. Then proceed.
 
 Audit the open issue backlog for this agent. Tags issues with the skill they affect, surfaces missing priorities, and flags stale in-progress work. This is the agent-dev equivalent of backlog grooming — but the "areas" are skills, not features.
 

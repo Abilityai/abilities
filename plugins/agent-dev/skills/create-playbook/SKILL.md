@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.6"
+  version: "2.7"
   created: 2025-02-10
-  updated: 2026-06-14
+  updated: 2026-06-18
   author: Ability.ai
   changelog:
+    - "2.7: Generated skills now include the what's-new banner + a seed changelog; documented the required changelog + banner convention for every tier"
     - "2.6: Add the Composition Rule — playbooks invoke child skills by name (compose, don't copy); reuse-check step, Composes section, transitive autonomous check"
     - "2.5: Add when_to_use/arguments/shell/effort/substitution-vars to frontmatter; fix hot-reload advice; add supporting-files step; add Routines note"
     - "2.4: Add Single-Task Rule — scheduled skills must be scoped to one task type per invocation"
@@ -20,6 +21,8 @@ metadata:
 ---
 
 # Create Playbook
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `create-playbook vX.Y — recent: <summary>`. Then proceed.
 
 Create a new skill. Determines the right complexity tier and generates from the appropriate template.
 
@@ -188,8 +191,16 @@ name: skill-name
 description: What it does
 allowed-tools: [tools]
 user-invocable: true
+metadata:
+  version: "1.0"
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — <one-line summary>"
 ---
 # Skill Name
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `skill-name vX.Y — recent: <summary>`. Then proceed.
+
 ## Purpose
 ## Process
 ## Outputs
@@ -235,6 +246,8 @@ user-invocable: true
 ## Error Recovery
 ```
 
+**Every tier (required):** include the `metadata:` block (with a newest-first `changelog`) and the what's-new banner shown in the Tier 1 example, placed right after the H1. The banner surfaces the *top* (newest) changelog entry on launch, so keep the changelog newest-first. See the repo `CLAUDE.md` → "Skill Changelog & What's-New Banner".
+
 ---
 
 ## Frontmatter: Official vs Project Conventions
@@ -260,7 +273,7 @@ Skills here use a mix of official Claude Code frontmatter and project-specific f
 - `${CLAUDE_SKILL_DIR}` — absolute path to the skill's directory (use for bundled scripts)
 
 **Project-specific (not official Claude Code)**:
-- `metadata:` block with `version`, `changelog`, `author`
+- `metadata:` block with `version`, `changelog` (newest-first), `author` — **required on every skill**: bump `version` and prepend a `changelog` entry on each edit, and pair it with the what's-new banner after the H1 (see the repo `CLAUDE.md` → "Skill Changelog & What's-New Banner")
 - `automation: autonomous | gated | manual`
 - `schedule: "<cron>"`
 

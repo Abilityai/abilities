@@ -10,9 +10,15 @@ metadata:
   created: 2026-04-14
   updated: 2026-05-03
   author: Ability.ai
+  changelog:
+    - "1.3: Add Single-Task Rule — each invocation handles exactly one issue per context window"
+    - "1.2: Adopt the issue-driven development workflow — picks one backlog issue, executes it, closes it, and exits for the scheduler to re-invoke"
+    - "1.1: Add error handling and prerequisite checks"
 ---
 
 # Work Loop
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `work-loop vX.Y — recent: <summary>`. Then proceed.
 
 Autonomous skill that picks one issue from the backlog, executes it, and exits. The scheduler re-invokes it for the next issue — one issue per context window.
 

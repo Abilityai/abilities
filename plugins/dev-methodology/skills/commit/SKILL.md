@@ -4,9 +4,17 @@ description: Commit, push, and link to GitHub Issues
 allowed-tools: Bash
 user-invocable: true
 automation: manual
+metadata:
+  version: "1.0"
+  created: 2026-03-13
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — commits changes, pushes, and links the commit to relevant GitHub Issues."
 ---
 
 # Commit
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `commit vX.Y — recent: <summary>`. Then proceed.
 
 Commit changes and link to relevant GitHub Issues.
 

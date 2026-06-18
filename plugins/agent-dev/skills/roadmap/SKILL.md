@@ -7,9 +7,13 @@ metadata:
   version: "1.0"
   created: 2026-04-28
   author: Ability.ai
+  changelog:
+    - "1.0: Initial version — shows the agent backlog grouped by affected skill to reveal which areas have the most work"
 ---
 
 # Roadmap
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `roadmap vX.Y — recent: <summary>`. Then proceed.
 
 Shows the agent backlog grouped by affected skill rather than by priority. Use this to understand which parts of the agent need the most work, and to choose a sprint focus area. For the day-to-day priority-ordered view, use `/backlog`.
 

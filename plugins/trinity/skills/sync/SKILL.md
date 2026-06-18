@@ -21,6 +21,8 @@ metadata:
 
 # Agent Synchronization Skill
 
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `sync vX.Y — recent: <summary>`. Then proceed.
+
 Synchronize the local agent with one or more remote instances on Trinity. Supports multiple remotes (e.g., production, staging, development) and branch-based versioning.
 
 ## Multi-Remote Architecture

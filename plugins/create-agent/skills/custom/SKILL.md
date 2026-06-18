@@ -10,9 +10,15 @@ metadata:
   created: 2026-04-01
   updated: 2026-04-21
   author: Ability.ai
+  changelog:
+    - "1.2: Wizards emit a template.yaml schedules: block for declarative Trinity scheduling"
+    - "1.1: Removed Trinity CLI references — deployment guidance is now MCP/onboard-based"
+    - "1.0: Backfilled the /agent-dev:add-git-sync follow-up prompt into the scaffold"
 ---
 
 # Create Agent
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `create-agent vX.Y — recent: <summary>`. Then proceed.
 
 Scaffold a complete Claude Code agent from scratch. The agent will be Trinity-compatible and ready for development with playbook-based skill creation.
 

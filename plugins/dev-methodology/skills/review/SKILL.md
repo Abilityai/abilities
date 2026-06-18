@@ -5,9 +5,17 @@ allowed-tools: Bash, Read, Grep, Glob
 user-invocable: true
 argument-hint: "[pr-number or branch]"
 automation: manual
+metadata:
+  version: "1.0"
+  created: 2026-04-28
+  author: Ability.ai
+  changelog:
+    - "1.0: Initial version — added in the dev-methodology skills expansion"
 ---
 
 # Code Review
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `review vX.Y — recent: <summary>`. Then proceed.
 
 Pre-landing diff review for structural issues. Run before opening a PR or before merging. Catches problems that pass tests but indicate design or safety issues.
 
