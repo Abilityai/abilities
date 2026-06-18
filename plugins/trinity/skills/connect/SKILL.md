@@ -5,10 +5,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, AskUserQuestion
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.1: Idempotent reconnect (PHASE 0) — when a valid profile already exists, (re)write `.mcp.json` in the current directory from the stored profile without an email round-trip, instead of just reporting 'already connected'. connect is now the single writer of `.mcp.json` that /trinity:onboard, /trinity:sync, and /trinity:loop delegate to"
     - "1.0: Initial version — connect to a Trinity instance via email OTP, provision an MCP API key, and write .mcp.json, with no CLI installation required"
 ---
 
@@ -39,7 +40,9 @@ cat ~/.trinity/config.json 2>/dev/null | jq -r '.current_profile // empty'
 If a profile exists, check if it's still valid:
 - Read the current profile's instance_url and token
 - Test connection: `curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer {token}" {instance_url}/api/users/me`
-- If 200: "You're already connected to {instance_url}. Run `/trinity:connect --force` to reconnect or switch instances."
+- If 200 (profile valid): **ensure `.mcp.json` in the current directory is present and correct before reporting done.** `/trinity:connect` is the single writer of `.mcp.json` — `/trinity:onboard`, `/trinity:sync`, and `/trinity:loop` delegate here rather than writing it themselves, so a valid profile must still (re)materialize the file for the current agent directory:
+  - Derive the MCP URL and write the `trinity` server block from the stored profile's `instance_url` + `mcp_api_key`, exactly as in PHASE 6 — **no email round-trip needed**. If the file was already present and identical, leave it.
+  - Report: "Already connected to {instance_url}. `.mcp.json` [written / refreshed / already current]. Reconnect with `/mcp` if it just changed. Run `/trinity:connect --force` to re-authenticate or switch instances." Then **skip to PHASE 7** (verify) — do not re-run the email flow.
 - If not 200: Continue with flow (token expired)
 
 ### PHASE 1: Get Instance URL

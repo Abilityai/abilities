@@ -6,10 +6,11 @@ disable-model-invocation: true
 user-invocable: true
 allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__list_operator_queue, mcp__trinity__get_operator_queue_item, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
 metadata:
-  version: "2.3.0"
+  version: "2.3.1"
   created: 2025-02-05
   author: eugene
   changelog:
+    - "2.3.1: Added the canonical Trinity MCP connection prerequisite — delegates to /trinity:connect (the single connection owner) when the mcp__trinity__* tools aren't live, consistent with /trinity:loop and /trinity:onboard"
     - "2.3.0: Unified remote registry — sync's config is now `.trinity-remote.yaml` (was `.trinity-sync.yaml`), the same file `/trinity:onboard` writes and `/trinity:loop` reads. Fixes the onboard→sync handoff (sync now resolves the agent name onboard recorded instead of re-guessing). Schema gains onboard's machine-maintained `instance`/`profile`/`deployed_at` fields; migrates legacy single-remote files in place"
     - "2.2.0: Schedule reconciliation (Phase 7) — diff template.yaml schedules: against live Trinity schedules on push/pull/deploy/status; new `schedules` subcommand to reconcile on demand"
     - "2.1.1: Quote argument-hint — unquoted brackets broke YAML frontmatter, making the skill invisible"
@@ -24,6 +25,10 @@ metadata:
 > ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `sync vX.Y — recent: <summary>`. Then proceed.
 
 Synchronize the local agent with one or more remote instances on Trinity. Supports multiple remotes (e.g., production, staging, development) and branch-based versioning.
+
+## Prerequisite — Trinity MCP connection
+
+The `mcp__trinity__*` tools below need a live connection. If they're unavailable (or a call errors with no connection), run **`/trinity:connect`** — it authenticates and writes `.mcp.json` (or refreshes it from your stored profile) — then reconnect with `/mcp` (full restart only as a fallback) and resume. Never fall back to the Trinity CLI or `curl`.
 
 ## Multi-Remote Architecture
 

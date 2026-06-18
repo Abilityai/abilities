@@ -6,10 +6,11 @@ disable-model-invocation: true
 user-invocable: true
 allowed-tools: AskUserQuestion, Read, Skill, mcp__trinity__list_agents, mcp__trinity__run_agent_loop, mcp__trinity__get_loop_status, mcp__trinity__stop_loop
 metadata:
-  version: "1.5"
+  version: "1.5.1"
   created: 2026-06-09
   author: Ability.ai
   changelog:
+    - "1.5.1: Reworded the connection prerequisite to the canonical block shared with /trinity:sync and /trinity:onboard — delegates to /trinity:connect (the single connection owner), reconnect via /mcp, never the CLI/curl"
     - "1.5: Resolve the remote from the unified `.trinity-remote.yaml` registry — read the `default` remote's `agent` under `remotes:` (with legacy single-remote fallback). Provenance now accurate: the file is genuinely written by both /trinity:onboard and /trinity:sync"
     - "1.4: Default local watch after firing — dynamic /loop (ScheduleWakeup) polls get_loop_status, reports changes/stalls/terminal state; skipped on fire-and-forget or when local /loop is unavailable"
     - "1.3: Until sentinel must be tied to verifiable evidence (not self-assessment); stall detection in status/observe; timeout_per_run recommended for Until mode; durable artifacts in agent files, not {{previous_response}}"
@@ -66,9 +67,9 @@ User wants to:
 
 Do **not** use this for a single remote turn (use `chat_with_agent`) or a parallel batch (use `fan_out`). This is the **sequential** primitive.
 
-## Prerequisite
+## Prerequisite — Trinity MCP connection
 
-Trinity MCP must be connected (`/trinity:connect`). The `mcp__trinity__*` tools below fail fast if it isn't — if a call errors with no connection, tell the user to run `/trinity:connect` first.
+The `mcp__trinity__*` tools below need a live connection. If they're unavailable (or a call errors with no connection), run **`/trinity:connect`** — it authenticates and writes `.mcp.json` (or refreshes it from your stored profile) — then reconnect with `/mcp` (full restart only as a fallback) and resume. Never fall back to the Trinity CLI or `curl`.
 
 ---
 
