@@ -4,12 +4,14 @@ description: Onboard this agent to Trinity platform. Creates required files, con
 argument-hint: "[analyze]"
 disable-model-invocation: false
 user-invocable: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
 metadata:
-  version: "4.10"
+  version: "4.12"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "4.12: Delegate connection to /trinity:connect (Composition Rule) — Step 2 is now a connect handoff (no inline credential resolution), Step 4 just verifies the connection (deleted the stale `npx mcp-remote` .mcp.json writer + .mcp.json.template; connect is the single writer). .env is now for the agent's own secrets only (Trinity creds live in connect's ~/.trinity/config.json + .mcp.json). Updated Step 1b/Step 6/error table accordingly"
+    - "4.11: Deploy robustness — Step 5 preamble: use Trinity MCP tools (not the CLI/curl) for every remote op and confirm the target instance when multiple Trinity servers are connected; new Step 5e injects gitignored credentials (e.g. .env) after deploy via inject_credentials, since the archive excludes them; schedule reconcile renumbered 5e→5f; fixed Step 6 Next-Steps numbering (5,6 were 6,7)"
     - "4.10: Unified remote registry — `.trinity-remote.yaml` is now the shared multi-remote file (default + remotes:) read by /trinity:sync and /trinity:loop, not a single-remote tracking file. Step 5c records the deploy as a named remote without clobbering sync's config; Step 5b parses the multi-remote shape and migrates legacy single-remote files"
     - "4.9: Declarative schedules — define a schedules: block in template.yaml (Step 3a); deploy reconciles them onto the instance via create_agent_schedule (Step 5e). Fixed wrong MCP tool names (create_schedule → create_agent_schedule, list_schedules → list_agent_schedules)"
     - "4.8: Document Trinity resource constraints (integer cpu, g-suffix memory) in Step 3a + error table — fractional cpu/Mi memory are rejected at deploy time"
@@ -339,87 +341,22 @@ After analyzing the current state, use AskUserQuestion to determine what the use
 
 - **If "Deploy to Trinity"**: Continue with Steps 2-6 (full flow)
 - **If "Adapt only"**: Skip to Step 3, but:
-  - Skip creating `.env` with credentials (Step 3b)
-  - Skip creating `.mcp.json` with credentials (Step 4a)
+  - Skip Step 2 (Trinity connection) and Step 4 (MCP verification) — both depend on `/trinity:connect`
   - Skip Step 5 (Deploy) entirely
   - Show "Adaptation Complete" instead of "Onboarding Complete"
 
 ---
 
-## STEP 2: Get Trinity Credentials
+## STEP 2: Ensure Trinity Connection
 
 **SKIP THIS STEP if user chose "Adapt only".**
 
-Resolve credentials in this priority order:
+Authentication and MCP configuration are owned by **`/trinity:connect`** — the single source of truth. onboard does **not** resolve credentials or write `.mcp.json` itself (duplicating that is what drifted before).
 
-### 2a. Check environment variable
+- **If the `mcp__trinity__*` tools are already available** this session, you're connected — continue to Step 3.
+- **Otherwise, hand off:** tell the user to run **`/trinity:connect`** (it authenticates via email and writes `.mcp.json`, or refreshes it from a stored profile — no Trinity CLI, no manual URL/key entry), then reconnect with `/mcp` and re-run `/trinity:onboard`. Do **not** prompt for a URL/API key or write `.mcp.json` here.
 
-If `TRINITY_API_KEY` is set in the environment, use it. Also check for `TRINITY_URL` env var.
-
-### 2b. Check Trinity CLI profile
-
-If env vars are not set, check for the Trinity CLI config file:
-
-```bash
-cat ~/.trinity/config.json 2>/dev/null
-```
-
-If the file exists, parse it:
-1. Read `current_profile` to find the active profile name
-2. Look up that profile in the `profiles` object
-3. Extract `instance_url` — use as Trinity URL
-4. Extract `token` — use as Bearer auth token / API key
-5. If `mcp_api_key` is present, save it for MCP configuration in Step 4
-
-**Example `~/.trinity/config.json`:**
-```json
-{
-  "current_profile": "production",
-  "profiles": {
-    "production": {
-      "instance_url": "https://trinity.example.com",
-      "token": "tr_abc123...",
-      "mcp_api_key": "mcp_xyz789..."
-    }
-  }
-}
-```
-
-If credentials were found from env var or CLI profile, inform the user:
-
-```
-## Credentials detected
-
-Found Trinity credentials from [environment variable / CLI profile "profile-name"]:
-- **Instance**: [instance_url]
-- **Auth**: [token prefix]...
-
-Using these for onboarding. If you'd like to use different credentials, provide them now.
-```
-
-### 2c. Prompt user interactively (fallback)
-
-If neither env var nor CLI profile is available, ask the user:
-
-```
-## Trinity Instance Configuration
-
-To connect this agent to Trinity, I need your instance details.
-
-**Don't have a Trinity instance yet?**
-- Self-host: https://github.com/abilityai/trinity
-- Managed service: Contact trinity@ability.ai
-
-Please provide:
-
-1. **Trinity Instance URL**
-   The full URL to your Trinity instance (e.g., https://trinity.example.com)
-
-2. **Trinity API Key**
-   Your API key from Trinity dashboard > Settings > API Keys
-```
-
-**IMPORTANT:** Do not proceed until credentials are resolved from one of the three sources.
+When onboard later needs the instance URL (for the deploy tracking file in Step 5), read it from the active profile in `~/.trinity/config.json` (written by connect). Reading that shared artifact is fine; reimplementing connect's auth or MCP config is not.
 
 ---
 
@@ -460,7 +397,7 @@ Keep the defaults (`cpu: "2"`, `memory: "4g"`) unless the user explicitly needs 
 - **Design (this block):** the agent declares the schedules it's built to run. Travels with the agent through git; identical on every instance.
 - **Operator decision (the instance):** which of those actually fire is the live state on Trinity. The per-schedule `enabled` flag is the *recommended default*; the operator can toggle any schedule on/off post-deploy without editing `template.yaml`.
 
-Append a `schedules:` list to `template.yaml`. Each entry's fields map one-to-one onto `create_agent_schedule`, so deploy-time setup (Step 5e) is a direct mapping:
+Append a `schedules:` list to `template.yaml`. Each entry's fields map one-to-one onto `create_agent_schedule`, so deploy-time setup (Step 5f) is a direct mapping:
 
 ```yaml
 schedules:
@@ -491,26 +428,20 @@ Examples:
 
 Ask the user to describe what character or persona fits their agent, or propose one based on the agent's purpose from CLAUDE.md.
 
-### 3b. Create .env
+### 3b. Create .env (agent's own secrets only)
 
-**SKIP THIS STEP if user chose "Adapt only".**
+Trinity connection credentials are **not** stored here — `/trinity:connect` keeps them in `~/.trinity/config.json` and `.mcp.json`. Create `.env` only if the agent has its **own** integration secrets (API keys for the services it calls):
 
-Create `.env` with the user's credentials:
 ```
-# Trinity Platform Connection
-TRINITY_URL=[user-provided-url]
-TRINITY_API_KEY=[user-provided-key]
+# Agent integration secrets (example — fill with what the agent actually uses)
+# SOME_SERVICE_API_KEY=...
 ```
+
+After deploy, these are injected into the remote agent (Step 5e). If the agent has no secrets of its own, skip 3b and 3c.
 
 ### 3c. Create .env.example
 
-Create `.env.example` (safe to commit):
-```
-# Trinity Platform Connection
-# Get your API key from your Trinity dashboard > Settings > API Keys
-TRINITY_URL=https://your-trinity-instance.example.com
-TRINITY_API_KEY=your-api-key-here
-```
+If you created `.env`, mirror its keys with empty/placeholder values in `.env.example` (safe to commit) so a fresh clone knows what to provide.
 
 ### 3d. Create/Update .gitignore
 
@@ -535,80 +466,25 @@ session-files/
 
 ---
 
-## STEP 4: Configure MCP Connection
+## STEP 4: Verify MCP Connection
 
 **SKIP THIS ENTIRE STEP if user chose "Adapt only".**
 
-### 4a. Create .mcp.json
+`.mcp.json` is written by `/trinity:connect` (Step 2) — onboard writes **no** MCP config of its own, so there is nothing to create here. Just confirm the connection is live before deploying:
 
-Determine the MCP API key to use, in this priority order:
-1. `TRINITY_API_KEY` environment variable (explicit override)
-2. `mcp_api_key` from the active CLI profile (if found in Step 2b)
-3. `token` from the active CLI profile (if `mcp_api_key` is not present)
-4. User-provided API key (from Step 2c)
-
-Create `.mcp.json` with the actual Trinity URL and resolved API key:
-
-```json
-{
-  "mcpServers": {
-    "trinity": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "[TRINITY_URL]/mcp"],
-      "env": {
-        "API_KEY": "[MCP_API_KEY]"
-      }
-    }
-  }
-}
-```
-
-Replace `[TRINITY_URL]` with the instance URL and `[MCP_API_KEY]` with the resolved MCP key.
-
-### 4b. Create .mcp.json.template
-
-Create `.mcp.json.template` with placeholders (safe to commit):
-
-```json
-{
-  "mcpServers": {
-    "trinity": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "${TRINITY_URL}/mcp"],
-      "env": {
-        "API_KEY": "${TRINITY_API_KEY}"
-      }
-    }
-  }
-}
-```
-
-### 4c. Verify MCP Connection
-
-Tell the user:
-
-```
-## MCP Configuration Created
-
-I've created .mcp.json with your Trinity credentials.
-
-**To activate the connection, you need to restart Claude Code.**
-
-Please:
-1. Exit this Claude Code session
-2. Start Claude Code again in this directory
-3. Run `/trinity:onboard` again to continue
-
-The Trinity MCP tools will then be available.
-```
-
-**If Trinity MCP tools are already available** (check if `mcp__trinity__list_agents` works), skip to Step 5.
+- Check that `mcp__trinity__list_agents` works. If it does, the connection is live — continue to Step 5.
+- If it errors with "no connection," `.mcp.json` was just written or changed and Claude Code hasn't loaded it yet: have the user reconnect with `/mcp` (full restart only as a fallback), then re-run `/trinity:onboard`. Do **not** write `.mcp.json` here or fall back to the Trinity CLI.
 
 ---
 
 ## STEP 5: Deploy to Trinity
 
 **SKIP THIS ENTIRE STEP if user chose "Adapt only" — go directly to Step 6.**
+
+**Before deploying — two guardrails:**
+
+1. **Use Trinity MCP tools for every remote operation** (deploy, credential injection, schedules) — they are the sanctioned path. If the `mcp__trinity__*` tools aren't available in this session, the MCP connection isn't live: configure it (Step 4 / `/trinity:connect`), have the user reconnect, then resume here. **Do not** fall back to the Trinity CLI or raw `curl` to deploy or configure the agent.
+2. **Confirm the target instance.** The `mcp__trinity__*` tools act on whichever instance is connected as the `trinity` server. If more than one Trinity server is connected this session (e.g. `trinity` and `trinity-dgx`), a deploy can silently land on the wrong instance. Before deploying, verify `mcp__trinity__list_agents` reaches the instance from Step 2 (its URL / the tracking-file remote) and shows the agents you expect. If the intended instance is connected under a different server name, have the user reconnect it as `trinity` (`/trinity:connect`) first.
 
 ### 5a. Initialize Git (if needed)
 
@@ -689,7 +565,25 @@ mcp__trinity__get_agent(name: "[agent-name]")
 
 Confirm the agent is running.
 
-### 5e. Reconcile Schedules
+### 5e. Inject Credentials
+
+The deploy archive **excludes `.env`** (the `--exclude='.env'` flag in 5c), so the freshly-deployed agent starts without the secrets stored there. Inject the credentials it needs to function — the agent's *own* integration secrets, not the Trinity connection:
+
+```
+mcp__trinity__inject_credentials(
+  name: "[agent-name]",
+  files: { ".env": "[contents of the local .env, minus anything Trinity-only]" }
+)
+```
+
+Notes:
+- The agent must be running (it is, immediately after a successful deploy).
+- `inject_credentials` writes files directly into the agent workspace; the current tool accepts `.env`, `.mcp.json`, and other files. If this agent reads credentials from a **non-standard path** (e.g. `config/*.yaml`), inject `.env` and have the agent transform it on startup, or inject the actual file if the instance permits — verify against the instance rather than assuming a fixed allowlist.
+- Inject only what the remote agent needs for its own work. It does **not** need the local `.mcp.json` that points back at Trinity.
+
+If the agent has no credentials of its own, skip this step.
+
+### 5f. Reconcile Schedules
 
 If `template.yaml` has a `schedules:` block (see Step 3a), materialize it onto the freshly-deployed agent so the design catalog and the live instance agree.
 
@@ -738,12 +632,11 @@ Your agent is now live on Trinity.
 
 ### Files Created
 - [x] template.yaml
-- [x] .env (with your credentials)
-- [x] .env.example (template)
 - [x] .gitignore
-- [x] .mcp.json (with your credentials)
-- [x] .mcp.json.template (template)
+- [x] .env / .env.example (only if the agent has its own secrets)
 - [x] .trinity-remote.yaml (deployment tracking)
+
+(MCP config — `.mcp.json` — is written by `/trinity:connect`, not onboard.)
 
 ### Next Steps
 
@@ -764,10 +657,10 @@ Your agent is now live on Trinity.
    ```
    Installs three hooks that auto-commit on session end, rebase on session start, and snapshot before compaction — keeps local and remote state consistent without manual pushes. Ideal for Trinity-deployed agents running scheduled tasks.
 
-6. **Enable voice chat** (optional):
+5. **Enable voice chat** (optional):
    Create `voice-agent-system-prompt.md` on the remote agent
 
-7. **Connect Slack** (optional):
+6. **Connect Slack** (optional):
    Agent Detail > Sharing > "Create Slack Channel"
 ```
 
@@ -784,21 +677,17 @@ Your agent is now Trinity-compatible and ready for deployment when you're ready.
 
 ### Files Created
 - [x] template.yaml (agent metadata)
-- [x] .env.example (credential template)
 - [x] .gitignore (with Trinity patterns)
-- [x] .mcp.json.template (MCP config template)
+- [x] .env.example (only if the agent has its own secrets)
 
 ### What's NOT configured (by your choice)
-- [ ] .env (no credentials stored)
-- [ ] .mcp.json (no MCP connection)
+- [ ] Trinity connection (`/trinity:connect` authenticates and writes `.mcp.json`)
 - [ ] Remote deployment (agent not on Trinity)
 
 ### When You're Ready to Deploy
 
-Run `/trinity:onboard` again and choose "Deploy to Trinity" to:
-1. Connect to your Trinity instance
-2. Configure MCP tools
-3. Deploy this agent to the platform
+1. Run `/trinity:connect` to authenticate and configure MCP, then reconnect with `/mcp`
+2. Run `/trinity:onboard` and choose "Deploy to Trinity"
 
 ### Add Cross-Session Durability (Optional)
 
@@ -808,7 +697,7 @@ Run `/agent-dev:add-git-sync` to install git-sync hooks — auto-commits on sess
 
 You can now commit these Trinity-compatible files:
 ```bash
-git add template.yaml .env.example .gitignore .mcp.json.template
+git add template.yaml .gitignore   # add .env.example too if you created one
 git commit -m "Add Trinity compatibility files"
 ```
 ```
@@ -819,7 +708,7 @@ git commit -m "Add Trinity compatibility files"
 
 If user runs `/trinity:onboard analyze`:
 
-Only perform Steps 1-2 (check state and gather info), then present a report without making any changes.
+Only perform Step 1 (check state), then present a report without making any changes — do not connect or deploy.
 
 ---
 
@@ -828,8 +717,8 @@ Only perform Steps 1-2 (check state and gather info), then present a report with
 | Error | Resolution |
 |-------|------------|
 | No CLAUDE.md | Create minimal CLAUDE.md first |
-| MCP tools not available | Restart Claude Code after creating .mcp.json |
-| Deployment failed | Check Trinity URL and API key are correct |
+| MCP tools not available | Run `/trinity:connect` (writes `.mcp.json`), then reconnect with `/mcp` — full restart only as a fallback |
+| Deployment failed | Confirm the connection is live (`mcp__trinity__list_agents`); re-run `/trinity:connect` if the profile expired |
 | Deploy rejected on `resources` (e.g. `invalid literal for int() with base 10: '0.5'`) | `template.yaml` has an invalid cpu/memory. cpu must be integer (`"1"`/`"2"`/`"4"`/`"8"`/`"16"`), memory must use the `g` suffix (`"1g"`..`"32g"`). Fix `template.yaml` and redeploy — see Step 3a |
 | Agent already exists | Will update existing agent |
 | Git clone/pull fails on remote | Configure GitHub PAT in Trinity (see below) |
