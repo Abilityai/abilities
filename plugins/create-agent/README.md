@@ -64,6 +64,8 @@ Each wizard is a guided conversation that:
 
 Generated agents ship with a `schedules:` block in `template.yaml` describing the recurring tasks the agent is designed to run. They're declared `enabled: false` — `/trinity:onboard` and `/trinity:sync` reconcile them onto your Trinity instance, and you turn on the ones you want.
 
+**Best practice: each scheduled entry calls one playbook and nothing else** — no inline instructions or arguments in the cron prompt. Business logic belongs in the playbook the schedule triggers, so changing a scheduled task means editing that playbook, not the schedule.
+
 ### Current → target development model
 
 Every generated agent carries a clear picture of *what it is*, *how it runs today*, and *where it's going*:

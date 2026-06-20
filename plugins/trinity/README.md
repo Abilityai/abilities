@@ -83,6 +83,8 @@ Once connected, Trinity MCP tools are available directly:
 
 Don't hand-create schedules ad hoc. Declare an agent's recommended schedules in a `schedules:` block in `template.yaml` (the design source of truth). `/trinity:onboard` and `/trinity:sync` **reconcile** that block onto the instance — creating missing schedules, updating drifted ones, and flagging live schedules that aren't declared. The per-schedule `enabled` flag is the recommended default; turning a schedule on or off on a live agent is the operator's call via `toggle_agent_schedule`.
 
+**Best practice: a schedule should call one playbook and nothing else** — keep the cron prompt to a bare skill invocation (e.g. `/daily-briefing`), with no inline instructions, arguments, or business logic. That logic belongs in the playbook the schedule triggers, so changing what a scheduled run does is always an edit to the playbook, never to the schedule.
+
 ### Three execution patterns
 
 Trinity exposes three ways to drive a remote agent:

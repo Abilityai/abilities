@@ -124,6 +124,8 @@ The `/add-memory` skill copies memory skills directly into the agent (no plugin 
 
 `/work-loop` is the autonomous sprint — but it skips `skill:*` issues since modifying SKILL.md files requires the interactive wizard tools. Those stay in `/sprint`.
 
+**Trinity scheduling, in one line:** a schedule should call a single playbook and nothing else — business logic belongs in the playbook, so the cron prompt stays a bare skill invocation and behavior changes are edits to the playbook, never the schedule.
+
 ## Source
 
 This plugin consolidates:
