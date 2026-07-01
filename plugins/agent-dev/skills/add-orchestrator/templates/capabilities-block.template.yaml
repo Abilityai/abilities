@@ -1,32 +1,46 @@
-# capabilities: — optional self-description block for an agent's template.yaml.
+# x-capabilities: — optional RICH self-description for an agent's template.yaml.
 #
-# Append this to template.yaml (top level, column 0, beside `resources:`).
-# /discover-agents reads it to build a richer system map. It is ADDITIVE and
-# OPTIONAL: agents without it are still discovered via `description` + `tags`.
+# WHY THE x- PREFIX (important): Trinity's native template.yaml already uses a
+# top-level `capabilities:` key, and it is a FLAT LIST of capability keywords:
 #
-# Keep it honest — declare only what the agent actually does. `provides` should
-# list real, user-invocable skills.
+#     capabilities: [research, scoring, crm-sync]        # ← native Trinity, do not clobber
+#
+# This block is a richer MAP (role, summary, provides, …). Putting a map under
+# `capabilities:` collides with that flat list and breaks parsers. So it lives
+# under a separate, collision-proof key. The `x-` prefix is the conventional
+# "extension field" marker: Trinity ignores unknown x-* keys, and
+# /discover-agents reads it. The two coexist cleanly:
+#
+#     capabilities: [research, scoring, crm-sync]        # native — flat keywords
+#     x-capabilities:                                    # extension — rich, for discovery
+#       role: research
+#       ...
+#
+# Everything here is OPTIONAL and ADDITIVE. /discover-agents works fine without
+# it, falling back to `description`, `tags`, and the native `capabilities:` list.
+# Append this block at column 0 in template.yaml, beside `resources:`. Declare
+# only what the agent actually does.
 
-capabilities:
-  # Coarse category used to group agents in the map and pick a permissions
-  # topology. Free text, but prefer a short noun: research | comms | ops |
-  # content | knowledge | health | web | orchestration | ...
+x-capabilities:
+  # Coarse category used to group agents and pick a permissions topology.
+  # Short noun: research | comms | ops | content | knowledge | health | web | orchestration | ...
   role: <role>
 
-  # One line: what this agent is for. Shown in the system map and dashboards.
+  # One line: what this agent is for. Shown in the map and dashboards.
   summary: "<what this agent does, in one sentence>"
 
-  # The agent's public interface — the skills another agent (or an orchestrator)
-  # can meaningfully invoke. Omit purely-internal/infra skills.
+  # The agent's public interface — skills another agent/orchestrator can invoke.
+  # Omit purely-internal/infra skills.
   provides:
     - skill: /<skill-name>
       does: "<what it produces>"
       # inputs: "<optional: what it needs>"
 
-  # persistent  → runs continuously / on a schedule
-  # ephemeral   → meant to be rolled out, used, and torn down on demand
+  # persistent → runs continuously / on a schedule
+  # ephemeral  → meant to be rolled out, used, and torn down on demand
   lifecycle: persistent
 
   # Discovery tags. Prefix capability tags with `capability:` so orchestrators
-  # can match on them (these also map onto Trinity agent tags).
+  # can match on them. These are ADDITIVE to (not a replacement for) the native
+  # flat `capabilities:` list and the template's own `tags:`.
   tags: [<domain>, capability:<primary-capability>]

@@ -4,10 +4,11 @@ description: Put the fleet to work — read fleet/system-map.yaml + live Trinity
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__fan_out, mcp__trinity__deploy_system, mcp__trinity__deploy_local_agent, mcp__trinity__stop_agent, mcp__trinity__start_agent, mcp__trinity__delete_agent
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.1: Call deployed agents by their live deployed_name (not the map key/template name) — avoids standing up duplicates when the two differ; use live status/health from the map; reads the map directly (no /compose-system needed for an existing fleet); guarded report swallows auth-scope failures"
     - "1.0: Initial version — routes a task to the best-fit fleet agent, fans out across a set, or rolls out a catalog agent ephemerally (deploy → chat → tear down); plans dry when Trinity MCP is absent"
 ---
 
@@ -31,7 +32,7 @@ Drive the fleet. Given a task, decide **who** should do it (matching against `fl
 [ -f fleet/system-map.yaml ] || { echo "No fleet/system-map.yaml — run /discover-agents first."; exit 1; }
 ```
 
-Read the map. Detect Trinity MCP. If it's **absent**, you can still produce a **routing plan** (Step 2–3) but not execute — say so up front and end at the plan.
+Read the map directly — for a fleet already on Trinity this is all you need (no `/compose-system`, no manifest). Detect Trinity MCP. If it's **absent**, you can still produce a **routing plan** (Step 2–3) but not execute — say so up front and end at the plan.
 
 If the map's `generated:` is old or `fleet/sources.yaml` has changed since, suggest re-running `/discover-agents` first (don't force it).
 
@@ -51,7 +52,7 @@ If the best-fit agent is ambiguous (two plausible matches, or none scores well),
 
 For each agent the plan needs:
 
-- **`deployed: true`** → use its Trinity name directly. Check `mcp__trinity__get_agent_health` before sending real work; if unhealthy, report and offer to pick an alternate.
+- **`deployed: true`** → call it by its **`deployed_name`** from the map, *not* the map key or `template.yaml` name (they often differ, e.g. `ruby` → `ruby-internal`). Calling the wrong name would miss the live agent and risk deploying a duplicate. If `status` is `stopped`, `mcp__trinity__start_agent` first; check `mcp__trinity__get_agent_health` before sending real work; if unhealthy, report and offer an alternate.
 - **catalog-only (`deployed: false`)** → it must be rolled out. Confirm the ephemeral plan **once, up front**: list which agents will be created and that they'll be **torn down when the task completes**. On approval:
   - GitHub source → deploy a one-agent ephemeral system from the ref:
     - `mcp__trinity__deploy_system` with a minimal manifest `{name: "eph-<agent>-<short-id>", agents: {<agent>: {template: github:Org/repo}}, permissions: {preset: none}}`
@@ -63,8 +64,8 @@ Vary the `<short-id>` per run by using the task index/name — do not rely on ra
 
 ### Step 4: Dispatch
 
-- **Single:** `chat_with_agent(agent, task)` → capture the response.
-- **Fan-out:** `fan_out(task, <inputs or agent set>)` → collect results.
+- **Single:** `chat_with_agent(<deployed_name>, task)` → capture the response. (Ephemerals created this run: use the name they were deployed under.)
+- **Fan-out:** `fan_out(task, <deployed_names or agent set>)` → collect results.
 - **Chain:** call agents in order; inject the prior result into the next prompt (`… given: <previous_response> …`). For long server-side sequential runs, `/trinity:loop` (`run_agent_loop`) is the durable option — mention it if the chain is long-running.
 
 Capture each agent's output. Keep a running transcript of who did what.
@@ -89,7 +90,7 @@ Ephemerals torn down: <list | none>
 Result: <synthesized outcome>
 ```
 
-Publish a guarded Trinity report (`report_type: <agent>.orchestration_run`, `display_hint: markdown`) when the tool is available. Skip silently otherwise.
+Publish a guarded Trinity report (`report_type: <agent>.orchestration_run`, `display_hint: markdown`). Guard against **both** the tool being absent **and** an auth-scope error (the report tool needs an agent-scoped key; an admin/user MCP key raises a permission error) — swallow either and continue.
 
 ---
 

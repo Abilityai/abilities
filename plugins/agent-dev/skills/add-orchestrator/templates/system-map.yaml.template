@@ -1,9 +1,16 @@
 # fleet/system-map.yaml — the descriptive "system-aware list".
 #
-# WRITTEN BY /discover-agents. Do not hand-edit the `agents:` block; re-run the
-# scan instead. This file is a *description* of what exists (agents, what they
-# do, where they run, when they run). /compose-system turns it into a
-# prescriptive Trinity SystemManifest (fleet/system.yaml).
+# WRITTEN BY /discover-agents. A *description* of what exists — agents, what they
+# do, where/when they run, and (for deployed ones) their live callable name and
+# status. This is the read surface /orchestrate uses directly.
+#
+# TWO WAYS TO USE THIS MAP:
+#   • Existing fleet → reference & route.  The map ALONE is enough. /orchestrate
+#     reads it. You do NOT need /compose-system for a fleet already on Trinity.
+#   • Provision a NEW system.  /compose-system turns this map into a Trinity
+#     SystemManifest (fleet/system.yaml) for deploy_system.
+#
+# Do not hand-edit `agents:` — re-run /discover-agents.
 #
 # This template is the empty starting state seeded at install time.
 
@@ -15,25 +22,33 @@ system_name: null        # from sources.yaml, or "<agent>-fleet"
 # One entry per discovered agent. Schema each scan produces:
 #
 # agents:
-#   prospector:
-#     source: github:Abilityai/prospector      # where it was scanned from
-#     ref: trinity://prod/prospector            # deployed → trinity://<instance>/<name>
-#     deployed: true                            #   OR github://Org/repo (catalog-only)
-#     role: research                            # capabilities.role, or inferred
-#     summary: "B2B SaaS sales research agent"  # capabilities.summary or template description
-#     capabilities:                             # capabilities.provides, or [] if none declared
+#   prospector:                                   # key = template.yaml `name` (design-time id)
+#     source: github:Org/prospector               # where it was scanned from
+#     github_repo: org/prospector                 # normalized repo — used for MATCHING (repo-first)
+#     deployed: true                              # matched a live Trinity agent
+#     deployed_name: prospector-internal          # ACTUAL callable name — /orchestrate uses THIS,
+#                                                 #   not the key; it may differ from the template name
+#     ref: trinity://<instance>/prospector-internal   #  OR github://Org/repo when catalog-only
+#     status: running                             # live: running | stopped | unknown
+#     owner: <user>                               # live, if exposed
+#     autonomy: true                              # live autonomy_enabled, if exposed
+#     role: research                              # x-capabilities.role, or inferred
+#     summary: "B2B SaaS sales research agent"    # x-capabilities.summary or template description
+#     capability_keywords: [research, scoring]    # NATIVE flat template `capabilities:` list
+#     provides:                                   # x-capabilities.provides, or []
 #       - skill: /research-company
 #         does: "deep-dive company research"
-#     tags: [sales, research]                   # template.yaml tags ∪ capabilities.tags
-#     resources: {cpu: "2", memory: "4g"}       # from template.yaml, if present
-#     lifecycle: persistent                     # capabilities.lifecycle (persistent|ephemeral)
-#     schedules:                                # from template.yaml schedules:, if present
-#       - {name: weekly-account-refresh, cron: "0 8 * * 1", skill: /refresh-accounts, enabled: false}
-#     spec_found: [template.yaml]               # which Trinity specs were located
-#     notes: null                               # scan warnings (missing spec, parse issue, etc.)
+#     tags: [sales, research]                     # template `tags:` ∪ x-capabilities.tags
+#     resources: {cpu: "2", memory: "4g"}         # from template.yaml, if present
+#     lifecycle: persistent                       # x-capabilities.lifecycle (persistent|ephemeral)
+#     schedules:
+#       - {name: weekly-refresh, cron: "0 8 * * 1", skill: /refresh, enabled: false}
+#     spec_found: [template.yaml]                 # which Trinity specs were located
+#     match: repo                                 # how it matched a live agent: repo | name | none
+#     notes: null                                 # scan warnings (auth, parse, low-confidence match)
 
 agents: {}
 
-# Agents referenced in a scanned repo's own system.yaml but not found as their
+# Agents referenced in a scanned repo's own system.yaml but not present as their
 # own repo in sources.yaml. Surfaced so you can add them to sources.yaml.
 unresolved: []

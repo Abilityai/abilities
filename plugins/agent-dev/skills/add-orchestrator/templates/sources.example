@@ -5,17 +5,17 @@
 #
 # Each entry is one of:
 #   - a local path            e.g.  /Users/you/agents/prospector   or   ../recon
-#   - a GitHub repo ref        e.g.  github:Abilityai/prospector    (default branch)
-#                              or    github:Abilityai/prospector@main   (pin a branch/tag)
+#   - a GitHub repo ref        e.g.  github:your-org/researcher    (default branch)
+#                              or    github:your-org/researcher@main   (pin a branch/tag)
 #
 # GitHub repos need NOT be deployed to Trinity — a repo-only agent becomes a
 # "catalog" entry the orchestrator can roll out ephemerally on demand.
 
 repos:
-  # - github:Abilityai/prospector
-  # - github:vybe/battlecard-bot@main
-  # - /Users/you/agents/chief-of-staff
-  # - ../recon
+  # - github:your-org/researcher
+  # - github:your-org/battlecard-bot@main
+  # - /Users/you/agents/assistant
+  # - ../sibling-agent
 
 # Optional: name the system these agents form. Used by /compose-system as the
 # SystemManifest `name`. Defaults to "<this-agent>-fleet" if omitted.

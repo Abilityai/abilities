@@ -114,7 +114,9 @@ The `/add-memory` skill copies memory skills directly into the agent (no plugin 
 | **compose-system** | Turn the map into a Trinity `SystemManifest` (`fleet/system.yaml`) and `deploy_system` |
 | **orchestrate** | Route a task to the best-fit agent, fan out across many, or roll a catalog agent out ephemerally (deploy → chat → tear down) |
 
-The multi-agent *definition* aligns with Trinity's `SystemManifest` — no parallel format. Orchestration stays **agent-owned**: Trinity brokers the calls and the lifecycle but runs no central DAG engine. Agents advertise themselves to the scanner via an optional `capabilities:` block in `template.yaml` (the scanner degrades gracefully to `description` + `tags` when it's absent).
+**Two modes, not one pipeline:** to *describe and route over a fleet that already exists on Trinity*, run `/discover-agents` then `/orchestrate` — the map is the read surface, **skip `/compose-system`**. To *provision a new system* from catalog repos, go `/discover-agents` → `/compose-system` → `deploy_system` → `/orchestrate`.
+
+The multi-agent *definition* aligns with Trinity's `SystemManifest` — no parallel format. Orchestration stays **agent-owned**: Trinity brokers the calls and the lifecycle but runs no central DAG engine. Agents self-describe via an optional `x-capabilities:` block in `template.yaml` — an extension key that coexists with Trinity's native flat `capabilities:` keyword list; the scanner reads both and degrades to `description` + `tags` when neither is present. Deployed agents are matched **repo-first** and called by their live `deployed_name` (which may differ from the template name).
 
 ## Composing skills (hierarchical playbooks)
 

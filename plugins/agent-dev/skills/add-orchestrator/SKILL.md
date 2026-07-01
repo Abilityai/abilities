@@ -4,11 +4,12 @@ description: Make any agent a system-aware orchestrator — installs /discover-a
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-01
   author: Ability.ai
   changelog:
-    - "1.0: Initial version — installs /discover-agents, /compose-system, /orchestrate into a target agent; scans local + github:Org/repo repos for template.yaml/system.yaml into fleet/system-map.yaml; composes a Trinity SystemManifest; defines the optional capabilities: self-description block"
+    - "1.1: Self-description moves to x-capabilities: (no longer collides with Trinity's native flat capabilities: keyword list); scanner is zsh-safe and matches Trinity repo-first with an explicit deployed_name; two explicit modes up front — describe an existing fleet (map-only, read-only) vs provision a new system (map→manifest→deploy)"
+    - "1.0: Initial version — installs /discover-agents, /compose-system, /orchestrate into a target agent; scans local + github:Org/repo repos for template.yaml/system.yaml into fleet/system-map.yaml; composes a Trinity SystemManifest; defines the optional self-description block"
 ---
 
 # Add Orchestrator
@@ -17,18 +18,20 @@ metadata:
 
 Turn any Trinity-compatible agent into a **system-aware orchestrator**: an agent that knows what other agents exist (deployed *or* just sitting in a GitHub repo), what each can do, and can route work to them, batch across them, or roll one out ephemerally, use it, and spin it back down.
 
-**The model — three skills, two artifacts, one existing standard:**
+**Two modes — pick by whether the fleet already exists. Don't force a linear pipeline.**
 
 ```
-fleet/sources.yaml   (you list the repos)
-        │  /discover-agents   ← scans template.yaml / system.yaml, cross-refs Trinity
-        ▼
-fleet/system-map.yaml  (descriptive registry — the "system-aware list")
-        │  /compose-system    ← maps the registry onto Trinity's schema
-        ▼
-fleet/system.yaml  (prescriptive Trinity SystemManifest — deploy_system-ready)
+Mode A · Describe & route over an EXISTING fleet   (read-only — the common case)
+  fleet/sources.yaml ──/discover-agents──▶ fleet/system-map.yaml ──/orchestrate──▶ work
+  The map IS the read surface. No manifest, no deploy. Skip /compose-system.
 
-/orchestrate  ← reads system-map.yaml + live Trinity MCP to route / fan out / run ephemeral
+Mode B · Provision a NEW system   (create agents that today are only catalog repos)
+  fleet/system-map.yaml ──/compose-system──▶ fleet/system.yaml (Trinity SystemManifest) ──deploy──▶ /orchestrate
+
+Artifacts:
+  fleet/sources.yaml     you curate — local paths + github:Org/repo
+  fleet/system-map.yaml  descriptive registry, written by /discover-agents   (Mode A stops here)
+  fleet/system.yaml      Trinity SystemManifest, written by /compose-system   (Mode B only)
 ```
 
 **Design invariant (do not violate):** orchestration is **agent-owned**. Trinity supplies the substrate (shared folders, agent-to-agent permissions, MCP messaging, cron) but runs **no central DAG engine**. So the roll-out → work → tear-down lifecycle lives *inside* `/orchestrate` — stitched from existing MCP calls — never as a new platform primitive. The multi-agent *definition* aligns 1:1 with Trinity's `SystemManifest` (the same YAML `deploy_system` consumes); this skill does **not** invent a competing format.
@@ -120,10 +123,10 @@ Also add a one-line pointer in the agent's Core Capabilities table for each inst
 
 ### Step 6: Advertise this agent's own capabilities (the convention)
 
-The scanner reads an optional `capabilities:` block from each agent's `template.yaml`. Since this agent is about to advertise *others*, make it self-describing too. If `template.yaml` exists and has no `capabilities:` key, offer to append the block from `templates/capabilities-block.template.yaml`, filled from the agent's CLAUDE.md identity:
+The scanner reads an optional **`x-capabilities:`** block from each agent's `template.yaml` — a rich, hyphenated *extension* key that coexists with Trinity's native flat `capabilities:` keyword list (the `x-` prefix keeps them from colliding). Since this agent is about to advertise *others*, make it self-describing too. If `template.yaml` exists and has no `x-capabilities:` key, offer to append the block from `templates/capabilities-block.template.yaml`, filled from the agent's CLAUDE.md identity:
 
 ```yaml
-capabilities:
+x-capabilities:
   role: orchestration
   summary: "<one line from the agent's identity>"
   provides:
@@ -135,7 +138,7 @@ capabilities:
   tags: [orchestrator, fleet, capability:orchestrate]
 ```
 
-This block is **additive and optional** — `/discover-agents` works on agents that lack it (falling back to `description` + `tags`). Do not fabricate capabilities the agent doesn't have.
+Leave any existing native `capabilities:` list untouched — append `x-capabilities:` beside it. This block is **additive and optional**: `/discover-agents` works on agents that lack it, falling back to `description`, `tags`, and the native `capabilities:` list. Do not fabricate capabilities the agent doesn't have.
 
 ### Step 7: Extend dashboard.yaml (if present)
 

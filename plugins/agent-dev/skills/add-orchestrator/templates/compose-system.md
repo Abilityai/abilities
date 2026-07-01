@@ -4,10 +4,11 @@ description: Turn fleet/system-map.yaml into a Trinity SystemManifest (fleet/sys
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__deploy_system, mcp__trinity__list_systems, mcp__trinity__get_system_manifest, mcp__trinity__restart_system, mcp__trinity__list_templates
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.1: Front-load the two-mode distinction — this is the PROVISION path (stand up NEW agents); skip it for a fleet already on Trinity (the map + /orchestrate is enough). Guarded report swallows auth-scope failures"
     - "1.0: Initial version — composes a Trinity SystemManifest from the system map, validates via dry_run, deploys on explicit approval, and always writes fleet/system.yaml for version control"
 ---
 
@@ -16,6 +17,8 @@ metadata:
 > ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `compose-system vX.Y — recent: <summary>`. Then proceed.
 
 Take the descriptive `fleet/system-map.yaml` and produce a **prescriptive Trinity `SystemManifest`** at `fleet/system.yaml` — the exact YAML `deploy_system` consumes. Validate it with a dry-run, write it to the repo, and (only with explicit approval) deploy the whole multi-agent system in one shot.
+
+> ⚠️ **This is the PROVISION path — use it only to stand up NEW agents.** If your fleet already runs on Trinity, **skip this skill**: the descriptive `fleet/system-map.yaml` is what `/orchestrate` reads, and composing/deploying a manifest over agents that already exist risks duplicates or clobbering live config. Reach for `/compose-system` when you want to create agents that are currently only catalog repos (`deployed: false`), or replicate a system into a fresh instance.
 
 **This emits Trinity's native format.** The `agents` map, `template` refs, `folders`, `schedules`, `tags`, and `permissions` preset all match Trinity's `SystemManifest`. We do not invent fields.
 
@@ -35,9 +38,9 @@ Read it. If `agents:` is empty, tell the user to run `/discover-agents` and stop
 
 Use `AskUserQuestion`:
 
-**Q1 — Which agents are members of this system?**
-- `All discovered` (recommended) — every agent in the map
-- `Deployed only` — skip catalog-only entries
+**Q1 — Which agents to include as members?**
+- `Catalog-only (not yet deployed)` (recommended) — the `deployed: false` agents; this is the normal provisioning case
+- `All discovered` — every agent in the map. Only for replicating a whole system into a **fresh** instance; over your current instance this tries to re-create already-deployed agents (duplicates)
 - `Let me pick` — present the list, multi-select
 
 **Q2 — Permissions topology** (Trinity presets):
@@ -73,7 +76,7 @@ prompt: "<from Q3, or omit>"
 
 agents:
   prospector:
-    template: github:Abilityai/prospector
+    template: github:your-org/prospector
     resources: {cpu: "2", memory: "4g"}     # from map; omit to use template defaults
     folders: {expose: false, consume: false}
     schedules:                               # carried over from the map (enabled as declared)
@@ -128,7 +131,7 @@ Deployed: <yes → system '<name>' | no — manifest written only>
 Next: /orchestrate <task>  to put the system to work.
 ```
 
-Publish a guarded Trinity report (`report_type: <agent>.system_composed`, `display_hint: markdown`) when the tool is available.
+Publish a guarded Trinity report (`report_type: <agent>.system_composed`, `display_hint: markdown`). Guard against **both** tool-absence **and** an auth-scope error (the report tool needs an agent-scoped key, not an admin/user MCP key) — swallow either and continue.
 
 ---
 
