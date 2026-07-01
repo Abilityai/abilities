@@ -43,6 +43,7 @@
         "./skills/add-memory",
         "./skills/add-backlog",
         "./skills/add-git-sync",
+        "./skills/add-orchestrator",
         "./skills/backlog",
         "./skills/pick-work",
         "./skills/close-work",

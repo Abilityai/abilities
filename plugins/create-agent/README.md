@@ -83,6 +83,7 @@ All generated agents work locally first — Trinity deployment is the natural up
 1. **Add capabilities**: `/agent-dev:create-playbook` — add new skills/playbooks
 2. **Add memory**: `/agent-dev:add-memory` — choose appropriate memory system
 3. **Deploy to Trinity**: `/trinity:onboard` — deploy for remote execution
+4. **Orchestrate a fleet**: `/agent-dev:add-orchestrator` — make this agent system-aware, able to discover and drive other agents
 
 **Compose, don't copy.** When one of an agent's skills needs work another skill already does, it should *invoke that skill by name* (``Invoke `/child-skill` ``, `Skill` in `allowed-tools`) rather than inline its steps or call its internal scripts — so the child stays the single source of truth and its fixes propagate automatically. See [Composing skills (hierarchical playbooks)](../agent-dev/README.md#composing-skills-hierarchical-playbooks).
 

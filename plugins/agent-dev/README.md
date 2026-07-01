@@ -18,6 +18,7 @@ Develop and extend existing Claude Code agents with skills, memory systems, a fu
 /agent-dev:add-memory         # Add a memory system (file-index, brain, json-state, workspace)
 /agent-dev:add-backlog        # Install the full GitHub Issues development workflow
 /agent-dev:add-git-sync       # Install auto-commit hooks for durable state
+/agent-dev:add-orchestrator   # Make the agent a system-aware orchestrator of other agents
 ```
 
 ### Development Workflow
@@ -63,6 +64,7 @@ For autonomous processing of project-level issues:
 | **add-memory** | Copy a memory system into the agent |
 | **add-backlog** | Install the full GitHub Issues development workflow |
 | **add-git-sync** | Install auto-commit hooks for durable cross-session state |
+| **add-orchestrator** | Make the agent a system-aware orchestrator — installs `/discover-agents` (scan a repo list for Trinity specs into `fleet/system-map.yaml`), `/compose-system` (map → Trinity `SystemManifest` → `deploy_system`), and `/orchestrate` (route / fan out / run ephemeral agents). Aligns with Trinity's `SystemManifest`; orchestration stays agent-owned. |
 
 ### Development Workflow
 
@@ -101,6 +103,18 @@ The `/add-memory` skill copies memory skills directly into the agent (no plugin 
 | **brain** | Connected notes, knowledge graph | setup-brain, create-note, search-brain, find-connections |
 | **json-state** | Structured state, counters, config | setup-memory, load-memory, update-memory, memory-jq |
 | **workspace** | Multi-session project tracking | setup-projects, create-project, create-session, archive-project |
+
+### System Orchestration
+
+`/add-orchestrator` makes an agent **system-aware** — able to discover other agents (deployed *or* just sitting in a GitHub repo), describe what each can do, and put them to work. It installs three skills into the agent plus a `fleet/` workspace:
+
+| Skill Installed | Purpose |
+|------|----------|
+| **discover-agents** | Scan a repo list (local paths + `github:Org/repo`) for Trinity specs (`template.yaml`/`system.yaml`) into a descriptive `fleet/system-map.yaml` |
+| **compose-system** | Turn the map into a Trinity `SystemManifest` (`fleet/system.yaml`) and `deploy_system` |
+| **orchestrate** | Route a task to the best-fit agent, fan out across many, or roll a catalog agent out ephemerally (deploy → chat → tear down) |
+
+The multi-agent *definition* aligns with Trinity's `SystemManifest` — no parallel format. Orchestration stays **agent-owned**: Trinity brokers the calls and the lifecycle but runs no central DAG engine. Agents advertise themselves to the scanner via an optional `capabilities:` block in `template.yaml` (the scanner degrades gracefully to `description` + `tags` when it's absent).
 
 ## Composing skills (hierarchical playbooks)
 

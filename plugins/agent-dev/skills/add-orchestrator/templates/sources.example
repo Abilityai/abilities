@@ -1,0 +1,22 @@
+# fleet/sources.yaml — repositories to scan for Trinity specs.
+#
+# /discover-agents reads this list, finds template.yaml (and system.yaml, if any)
+# in each repo, and assembles fleet/system-map.yaml.
+#
+# Each entry is one of:
+#   - a local path            e.g.  /Users/you/agents/prospector   or   ../recon
+#   - a GitHub repo ref        e.g.  github:Abilityai/prospector    (default branch)
+#                              or    github:Abilityai/prospector@main   (pin a branch/tag)
+#
+# GitHub repos need NOT be deployed to Trinity — a repo-only agent becomes a
+# "catalog" entry the orchestrator can roll out ephemerally on demand.
+
+repos:
+  # - github:Abilityai/prospector
+  # - github:vybe/battlecard-bot@main
+  # - /Users/you/agents/chief-of-staff
+  # - ../recon
+
+# Optional: name the system these agents form. Used by /compose-system as the
+# SystemManifest `name`. Defaults to "<this-agent>-fleet" if omitted.
+system_name: null

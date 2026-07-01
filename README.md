@@ -120,6 +120,8 @@ Develop and extend existing agents with skills, memory systems, and workflows.
 | `/agent-dev:adjust-playbook` | Modify an existing skill/playbook |
 | `/agent-dev:add-memory` | Add memory system (file-index, brain, json-state, workspace) |
 | `/agent-dev:add-backlog` | Add GitHub Issues backlog workflow |
+| `/agent-dev:add-git-sync` | Add auto-commit hooks for durable cross-session state |
+| `/agent-dev:add-orchestrator` | Make the agent a system-aware orchestrator of other agents |
 | `/agent-dev:backlog` | View GitHub Issues backlog |
 | `/agent-dev:pick-work` | Pick next issue to work on |
 | `/agent-dev:close-work` | Close current issue |
@@ -205,7 +207,7 @@ Abilities supports a four-step workflow for building agents that appreciate over
 
 **Scaffold** — Use a wizard like `/create-agent:prospector` or `/create-agent:custom` to get a fully configured agent with CLAUDE.md, skills, Trinity files, and an onboarding tracker.
 
-**Develop** — Use `/agent-dev:create-playbook` to add capabilities, `/agent-dev:add-memory` to add persistence, and `/agent-dev:add-backlog` for task management.
+**Develop** — Use `/agent-dev:create-playbook` to add capabilities, `/agent-dev:add-memory` to add persistence, `/agent-dev:add-backlog` for task management, and `/agent-dev:add-orchestrator` to make an agent aware of — and able to drive — other agents.
 
 **Deploy** — Run `/trinity:connect` once to authenticate, then `/trinity:onboard` for each agent. Or use the [Trinity CLI](https://pypi.org/project/trinity-cli/): `trinity deploy .`
 

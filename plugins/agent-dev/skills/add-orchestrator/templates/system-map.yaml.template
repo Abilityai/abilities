@@ -1,0 +1,39 @@
+# fleet/system-map.yaml — the descriptive "system-aware list".
+#
+# WRITTEN BY /discover-agents. Do not hand-edit the `agents:` block; re-run the
+# scan instead. This file is a *description* of what exists (agents, what they
+# do, where they run, when they run). /compose-system turns it into a
+# prescriptive Trinity SystemManifest (fleet/system.yaml).
+#
+# This template is the empty starting state seeded at install time.
+
+version: 1
+generated: null          # ISO-8601 timestamp, set by /discover-agents
+generated_by: null       # this orchestrator agent's name
+system_name: null        # from sources.yaml, or "<agent>-fleet"
+
+# One entry per discovered agent. Schema each scan produces:
+#
+# agents:
+#   prospector:
+#     source: github:Abilityai/prospector      # where it was scanned from
+#     ref: trinity://prod/prospector            # deployed → trinity://<instance>/<name>
+#     deployed: true                            #   OR github://Org/repo (catalog-only)
+#     role: research                            # capabilities.role, or inferred
+#     summary: "B2B SaaS sales research agent"  # capabilities.summary or template description
+#     capabilities:                             # capabilities.provides, or [] if none declared
+#       - skill: /research-company
+#         does: "deep-dive company research"
+#     tags: [sales, research]                   # template.yaml tags ∪ capabilities.tags
+#     resources: {cpu: "2", memory: "4g"}       # from template.yaml, if present
+#     lifecycle: persistent                     # capabilities.lifecycle (persistent|ephemeral)
+#     schedules:                                # from template.yaml schedules:, if present
+#       - {name: weekly-account-refresh, cron: "0 8 * * 1", skill: /refresh-accounts, enabled: false}
+#     spec_found: [template.yaml]               # which Trinity specs were located
+#     notes: null                               # scan warnings (missing spec, parse issue, etc.)
+
+agents: {}
+
+# Agents referenced in a scanned repo's own system.yaml but not found as their
+# own repo in sources.yaml. Surfaced so you can add them to sources.yaml.
+unresolved: []

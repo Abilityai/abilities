@@ -1,0 +1,32 @@
+# capabilities: — optional self-description block for an agent's template.yaml.
+#
+# Append this to template.yaml (top level, column 0, beside `resources:`).
+# /discover-agents reads it to build a richer system map. It is ADDITIVE and
+# OPTIONAL: agents without it are still discovered via `description` + `tags`.
+#
+# Keep it honest — declare only what the agent actually does. `provides` should
+# list real, user-invocable skills.
+
+capabilities:
+  # Coarse category used to group agents in the map and pick a permissions
+  # topology. Free text, but prefer a short noun: research | comms | ops |
+  # content | knowledge | health | web | orchestration | ...
+  role: <role>
+
+  # One line: what this agent is for. Shown in the system map and dashboards.
+  summary: "<what this agent does, in one sentence>"
+
+  # The agent's public interface — the skills another agent (or an orchestrator)
+  # can meaningfully invoke. Omit purely-internal/infra skills.
+  provides:
+    - skill: /<skill-name>
+      does: "<what it produces>"
+      # inputs: "<optional: what it needs>"
+
+  # persistent  → runs continuously / on a schedule
+  # ephemeral   → meant to be rolled out, used, and torn down on demand
+  lifecycle: persistent
+
+  # Discovery tags. Prefix capability tags with `capability:` so orchestrators
+  # can match on them (these also map onto Trinity agent tags).
+  tags: [<domain>, capability:<primary-capability>]

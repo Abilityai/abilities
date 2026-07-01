@@ -97,6 +97,12 @@ Trinity exposes three ways to drive a remote agent:
 
 `/trinity:loop` is the **remote** counterpart to Claude Code's built-in `/loop`: same two modes (fixed count vs run-until-a-signal), but the loop body runs server-side, so you fire once and disconnect.
 
+## Building multi-agent systems
+
+A *system* is a coordinated group of agents. Declare one as a Trinity **`SystemManifest`** and deploy it in a single shot with the `deploy_system` MCP tool (`list_systems`, `get_system_manifest`, and `restart_system` round out the set). Trinity supplies the substrate — agent-to-agent messaging, shared folders, permissions, cron — but runs **no central DAG engine**: orchestration is owned by the agents themselves.
+
+To make an agent that *discovers*, *composes*, and *drives* such a system, install **`/agent-dev:add-orchestrator`**. It adds `/discover-agents` (scan a repo list — local or `github:Org/repo` — into a system map), `/compose-system` (system map → `SystemManifest` → `deploy_system`), and `/orchestrate` (route work, fan out, or roll a catalog agent out ephemerally). It's the agent-side counterpart to these platform primitives.
+
 ## Migrated Features
 
 The following features from the old `trinity-onboard` plugin are now handled differently:
