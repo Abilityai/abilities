@@ -1,13 +1,14 @@
 ---
 name: discover-agents
 description: Scan a list of agent repositories (local paths + github:Org/repo) for Trinity specs (template.yaml, system.yaml), cross-reference live Trinity agents repo-first, and assemble a descriptive fleet/system-map.yaml — the system-aware list. Read-only; works on any agent or fleet.
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_info, mcp__trinity__get_agent_tags, mcp__trinity__list_tags
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_info, mcp__trinity__get_agent_tags, mcp__trinity__list_tags, mcp__trinity__get_agent_auth
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.2: After writing the map, refresh fleet/orchestration.md's fenced GENERATED:roster (node table) and GENERATED:topology (Mermaid graph whose edges are the live agent_permissions via get_agent_auth) — in place, touching only content between the markers, never prose; re-inserts the section from template if markers were deleted; nodes-only with an unverified note when Trinity is absent"
     - "1.1: Read the rich self-description from x-capabilities: (native flat capabilities: list no longer collides); per-field yq extraction with a type guard so one bad field never aborts a file; bash-forced, array-based, glob-free scan (zsh-safe); gh auth + org-access preflight; repo-first Trinity matching with an explicit deployed_name + live status/owner/autonomy; guarded report swallows auth-scope failures; two-mode next steps"
     - "1.0: Initial version — scans local + github repos for template.yaml/system.yaml, cross-references live Trinity agents, writes fleet/system-map.yaml"
 ---
@@ -157,7 +158,7 @@ If a scanned repo carries its own `system.yaml` (a sub-system manifest), record 
 
 ### Step 5: Cross-reference live Trinity — **repo-first**, not name-first
 
-Name-only matching is wrong and dangerous: an agent's deployed name often differs from its `template.yaml` name (e.g. `ruby` → `ruby-internal`), so a name match would mark it undeployed and `/orchestrate` would try to stand up a **duplicate**. Match on the source **repo** instead.
+Name-only matching is wrong and dangerous: an agent's deployed name often differs from its `template.yaml` name (e.g. `researcher` → `researcher-prod`), so a name match would mark it undeployed and `/orchestrate` would try to stand up a **duplicate**. Match on the source **repo** instead.
 
 If Trinity MCP is available:
 
@@ -177,6 +178,40 @@ If Trinity MCP is **absent**: every agent `deployed: false`, `match: none`, `dep
 
 Rewrite the file (keep the comment header). Set `generated` (`date -u +%Y-%m-%dT%H:%M:%SZ`), `generated_by`, `system_name` (from `sources.yaml`, else `<agent>-fleet`), the `agents:` map (key = template `name`), and `unresolved:`.
 
+### Step 6b: Refresh the machine blocks in `fleet/orchestration.md`
+
+`orchestration.md` is the narrative layer. It's hybrid-owned: prose is the human's, but two fenced blocks are tool-written. Refresh **only** those blocks; never touch prose.
+
+First ensure the file exists — if a user deleted it, recreate it from the installer template (substituting `{{SYSTEM_NAME}}`/`{{DATE}}`) before refreshing:
+
+```bash
+[ -f fleet/orchestration.md ] || echo "orchestration.md missing — recreate from templates/orchestration.md.template first."
+```
+
+Rewrite strictly between the HTML-comment markers (replace text between `<!-- BEGIN GENERATED:X … -->` and `<!-- END GENERATED:X -->`). If a marker pair is missing (user deleted it), re-insert the whole section from the template rather than guessing.
+
+- **`GENERATED:roster`** → a compact node table from the map, one row per agent:
+  `| agent | role | does (summary) | ref |` — use `deployed_name` in `ref` when deployed.
+- **`GENERATED:topology`** → a Mermaid `graph LR`:
+  - **nodes** = the discovered agents (label with role).
+  - **edges** = the live **agent_permissions** — the real "who *can* call whom." Get them from Trinity via `mcp__trinity__get_agent_auth` per deployed agent (or read the manifest's permissions). Render `caller --> callee` per allowed edge.
+  - If Trinity is unavailable, render **nodes only** and add `%% edges unverified — Trinity MCP not available`.
+
+Example of a refreshed topology block (shape only — note the outer fence is 4 backticks so the inner mermaid fence nests cleanly):
+
+````
+<!-- BEGIN GENERATED:topology (written by /discover-agents from system-map + live agent_permissions) -->
+```mermaid
+graph LR
+  orchestrator[orchestrator · orchestration]
+  researcher[researcher · research]
+  orchestrator --> researcher
+```
+<!-- END GENERATED:topology -->
+````
+
+Leave §4 (edges + why), §5 (permissions intent), §6 (patterns), and every other prose section untouched — those are the human's to author.
+
 ### Step 7: Report + recommend the right next step
 
 Summarize; don't dump the file:
@@ -188,6 +223,7 @@ Scanned N repos → M agents in fleet/system-map.yaml
   by role:       research 3 · comms 1 · ops 2 · …
   unreachable:   <repos needing gh auth, if any>
   name-only:     <low-confidence matches to verify, if any>
+  orchestration.md: refreshed (roster N, topology edges M)
 
 Next:
   • Fleet already on Trinity → /orchestrate <task>   (the map is enough; skip /compose-system)

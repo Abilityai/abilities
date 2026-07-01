@@ -4,10 +4,11 @@ description: Make any agent a system-aware orchestrator — installs /discover-a
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.2: Add the orchestration-narrative layer — scaffolds fleet/orchestration.md (hybrid: human prose + tool-refreshed roster/topology blocks) as the standard home for the who-calls-whom-and-why intent, imports it into CLAUDE.md via @fleet/orchestration.md so it loads at session start; /discover-agents refreshes its roster+topology from live agent_permissions, /compose-system sources agent_permissions from its §5, /orchestrate routes by its edges/patterns"
     - "1.1: Self-description moves to x-capabilities: (no longer collides with Trinity's native flat capabilities: keyword list); scanner is zsh-safe and matches Trinity repo-first with an explicit deployed_name; two explicit modes up front — describe an existing fleet (map-only, read-only) vs provision a new system (map→manifest→deploy)"
     - "1.0: Initial version — installs /discover-agents, /compose-system, /orchestrate into a target agent; scans local + github:Org/repo repos for template.yaml/system.yaml into fleet/system-map.yaml; composes a Trinity SystemManifest; defines the optional self-description block"
 ---
@@ -22,16 +23,17 @@ Turn any Trinity-compatible agent into a **system-aware orchestrator**: an agent
 
 ```
 Mode A · Describe & route over an EXISTING fleet   (read-only — the common case)
-  fleet/sources.yaml ──/discover-agents──▶ fleet/system-map.yaml ──/orchestrate──▶ work
-  The map IS the read surface. No manifest, no deploy. Skip /compose-system.
+  fleet/sources.yaml ──/discover-agents──▶ system-map.yaml (+ orchestration.md) ──/orchestrate──▶ work
+  The map (facts) + orchestration.md (intent) ARE the read surface. No manifest, no deploy. Skip /compose-system.
 
 Mode B · Provision a NEW system   (create agents that today are only catalog repos)
-  fleet/system-map.yaml ──/compose-system──▶ fleet/system.yaml (Trinity SystemManifest) ──deploy──▶ /orchestrate
+  author orchestration.md §5 ──/compose-system──▶ fleet/system.yaml (SystemManifest) ──deploy──▶ /orchestrate
 
-Artifacts:
-  fleet/sources.yaml     you curate — local paths + github:Org/repo
-  fleet/system-map.yaml  descriptive registry, written by /discover-agents   (Mode A stops here)
-  fleet/system.yaml      Trinity SystemManifest, written by /compose-system   (Mode B only)
+Artifacts (four layers):
+  fleet/sources.yaml       you curate — local paths + github:Org/repo
+  fleet/system-map.yaml    FACTS (nodes) — descriptive, written by /discover-agents      (Mode A stops here)
+  fleet/orchestration.md   NARRATIVE (edges + intent) — human prose + tool-refreshed blocks; imported into CLAUDE.md
+  fleet/system.yaml        Trinity SystemManifest — prescriptive, written by /compose-system   (Mode B only)
 ```
 
 **Design invariant (do not violate):** orchestration is **agent-owned**. Trinity supplies the substrate (shared folders, agent-to-agent permissions, MCP messaging, cron) but runs **no central DAG engine**. So the roll-out → work → tear-down lifecycle lives *inside* `/orchestrate` — stitched from existing MCP calls — never as a new platform primitive. The multi-agent *definition* aligns 1:1 with Trinity's `SystemManifest` (the same YAML `deploy_system` consumes); this skill does **not** invent a competing format.
@@ -44,9 +46,10 @@ Artifacts:
 | `.claude/skills/compose-system/SKILL.md` | agent repo | `system-map.yaml` → Trinity `SystemManifest` → deploy |
 | `.claude/skills/orchestrate/SKILL.md` | agent repo | route / fan out / ephemeral, via Trinity MCP |
 | `fleet/sources.yaml` | agent repo | the repo list you edit (local paths + `github:Org/repo`) |
-| `fleet/system-map.yaml` | agent repo | descriptive registry (written by `/discover-agents`) |
+| `fleet/system-map.yaml` | agent repo | descriptive FACTS/nodes registry (written by `/discover-agents`) |
+| `fleet/orchestration.md` | agent repo | design NARRATIVE — edges, permission intent, patterns; imported into CLAUDE.md, loads at session start (human prose + tool-refreshed blocks) |
 | `fleet/system.yaml` | agent repo | Trinity manifest (written by `/compose-system`) |
-| CLAUDE.md `## Orchestration` section | agent repo | wires the three skills + the flow |
+| CLAUDE.md `## Orchestration` section + `@fleet/orchestration.md` import | agent repo | wires the skills + loads the narrative at session start |
 | dashboard.yaml `fleet` panel | agent repo (if present) | shows discovered agents at a glance |
 
 ---
@@ -98,6 +101,13 @@ SKILL_DIR="<this add-orchestrator skill's own directory>"
 
 # Seed an empty, well-formed system-map so /orchestrate and dashboards don't choke pre-scan
 [ -f fleet/system-map.yaml ] || cp "$SKILL_DIR/templates/system-map.yaml.template" fleet/system-map.yaml
+
+# Seed the narrative layer (hybrid: human prose + tool-refreshed blocks) — never clobber an authored file.
+# SYSTEM_NAME = sources.yaml `system_name`, else "<agent>-fleet". Only {{SYSTEM_NAME}}/{{DATE}} are substituted.
+if [ ! -f fleet/orchestration.md ]; then
+  sed -e "s/{{SYSTEM_NAME}}/$SYSTEM_NAME/g" -e "s/{{DATE}}/$(date -u +%Y-%m-%d)/g" \
+      "$SKILL_DIR/templates/orchestration.md.template" > fleet/orchestration.md
+fi
 ```
 
 If the user pasted repos in Q2, append them under `repos:` in `fleet/sources.yaml` (one entry per line, preserving the header comments).
@@ -120,6 +130,16 @@ done
 Append an `## Orchestration` section to the target agent's `CLAUDE.md` (only if one isn't already present — grep for `## Orchestration`). Read `templates/claude-section.md`, then write its contents. It documents the three skills, the `fleet/` artifacts, the discover → compose → orchestrate flow, and the agent-owned-orchestration invariant.
 
 Also add a one-line pointer in the agent's Core Capabilities table for each installed skill (`/discover-agents`, `/compose-system`, `/orchestrate`) if such a table exists.
+
+**Import the narrative so it loads at session start.** `templates/claude-section.md` already ends with an `@fleet/orchestration.md` import — Claude Code pulls `@`-referenced files into context at load time. The grep-guard below covers the case where the `## Orchestration` section already existed (re-run) and predates this feature, so the import is added exactly once:
+
+```bash
+if ! grep -q '@fleet/orchestration.md' CLAUDE.md; then
+  printf '\n**Loaded at session start (design narrative):**\n@fleet/orchestration.md\n' >> CLAUDE.md
+fi
+```
+
+> **Token caveat (tell the user):** an `@`-import is always-on context. Keep `orchestration.md` lean — aim for < ~200 lines, tight summary up top, detail below. If a system's narrative grows large, swap the hard import for a strong pointer instead: a `CLAUDE.md` line like *"At session start, before any cross-agent routing, read `fleet/orchestration.md`."* Ship the `@`-import as the default.
 
 ### Step 6: Advertise this agent's own capabilities (the convention)
 
@@ -183,19 +203,22 @@ Print:
 - /orchestrate       → route / fan out / run ephemeral, via Trinity MCP
 
 ### Files
-- fleet/sources.yaml      (edit this — your repo list)
-- fleet/system-map.yaml   (<generated | empty until first scan>)
-- CLAUDE.md               (Orchestration section added)
-- dashboard.yaml          (fleet panel added | no dashboard.yaml)
+- fleet/sources.yaml       (edit this — your repo list)
+- fleet/system-map.yaml    (FACTS/nodes — <generated | empty until first scan>)
+- fleet/orchestration.md   (NARRATIVE/intent — author §4–§7; imported into CLAUDE.md)
+- CLAUDE.md                (Orchestration section + @fleet/orchestration.md import added)
+- dashboard.yaml           (fleet panel added | no dashboard.yaml)
 
 ### Trinity MCP: <available | not detected>
 <if not: note that discover/compose still work locally; orchestrate + deploy need /trinity:onboard first>
 
 ### Next steps
-1. Edit fleet/sources.yaml — add the repos (local paths and/or github:Org/repo) you want in the system.
-2. /discover-agents            — build the system map.
-3. /compose-system             — turn it into a Trinity manifest (dry-run deploy first).
-4. /orchestrate <task>         — put the fleet to work.
+1. Edit fleet/sources.yaml — add the repos (local paths and/or github:Org/repo) in the system.
+2. /discover-agents            — build the map + refresh orchestration.md's roster/topology.
+3. Author fleet/orchestration.md — the who-calls-whom edges (§4) and permission intent (§5).
+   Fleet already on Trinity? You're done — skip to step 5.
+4. /compose-system             — (provisioning NEW agents only) derive agent_permissions from §5, dry-run, deploy.
+5. /orchestrate <task>         — put the fleet to work (routes by the map + orchestration.md).
 ```
 
 ---
@@ -209,8 +232,9 @@ Print:
 | `template.yaml` absent | Skip Step 6 (capabilities block); note the agent isn't self-describing yet |
 | `gh` missing and a source is `github:...` | The installed `/discover-agents` falls back to `git clone --depth 1`; warn here |
 | Trinity MCP unavailable | Install anyway; discover + compose work locally; orchestrate/deploy print manual guidance |
-| `CLAUDE.md` already has `## Orchestration` | Leave it; don't append a second section |
+| `CLAUDE.md` already has `## Orchestration` | Leave the section; still grep-add the `@fleet/orchestration.md` import if it's missing |
+| `orchestration.md` `GENERATED:*` markers deleted by a user | `/discover-agents` re-inserts the section from template before refreshing (never guesses) |
 
 ## Idempotency
 
-Re-running is safe: existing `fleet/sources.yaml` and `fleet/system-map.yaml` are never clobbered (only seeded when absent), the CLAUDE.md section and dashboard panel are guarded by grep, and skill copies prompt before overwrite. To refresh the map, run `/discover-agents`; to re-wire a skill, delete its dir under `.claude/skills/` and re-run.
+Re-running is safe: existing `fleet/sources.yaml`, `fleet/system-map.yaml`, and `fleet/orchestration.md` are never clobbered (only seeded when absent); the CLAUDE.md section, the `@fleet/orchestration.md` import, and the dashboard panel are each grep-guarded; and skill copies prompt before overwrite. `/discover-agents` rewrites only the fenced `GENERATED:*` blocks in `orchestration.md` — your prose is never touched. To refresh, run `/discover-agents`; to re-wire a skill, delete its dir under `.claude/skills/` and re-run.

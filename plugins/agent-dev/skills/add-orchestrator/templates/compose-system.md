@@ -4,10 +4,11 @@ description: Turn fleet/system-map.yaml into a Trinity SystemManifest (fleet/sys
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__deploy_system, mcp__trinity__list_systems, mcp__trinity__get_system_manifest, mcp__trinity__restart_system, mcp__trinity__list_templates
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.2: Derive agent_permissions from fleet/orchestration.md §5 (Permissions & boundaries) as the source of intent; fall back to the preset topology with a note when §5 is empty — closing the loop narrative → enforced permissions"
     - "1.1: Front-load the two-mode distinction — this is the PROVISION path (stand up NEW agents); skip it for a fleet already on Trinity (the map + /orchestrate is enough). Guarded report swallows auth-scope failures"
     - "1.0: Initial version — composes a Trinity SystemManifest from the system map, validates via dry_run, deploys on explicit approval, and always writes fleet/system.yaml for version control"
 ---
@@ -43,7 +44,11 @@ Use `AskUserQuestion`:
 - `All discovered` — every agent in the map. Only for replicating a whole system into a **fresh** instance; over your current instance this tries to re-create already-deployed agents (duplicates)
 - `Let me pick` — present the list, multi-select
 
-**Q2 — Permissions topology** (Trinity presets):
+**First, read `fleet/orchestration.md` §5 (Permissions & boundaries).** That section is the authored *intent* for who-may-call-whom and is the **source** for the manifest's `agent_permissions`:
+- **§5 has authored intent** → derive `agent_permissions` from it (translate its allow/deny statements into the explicit permissions map) and just confirm with the user — don't ask Q2 from scratch.
+- **§5 is empty** (freshly scaffolded) → ask Q2 below, and emit a note: *"No permission intent authored in orchestration.md §5 — using the `<preset>` topology. Document intended edges there and re-run for least-privilege."*
+
+**Q2 — Permissions topology** (Trinity presets — used when §5 is empty):
 - `orchestrator-workers` (recommended) — **this** agent is the orchestrator; every other member is a worker it may call. Restrictive and matches this skill's intent.
 - `full-mesh` — every agent may call every other. Use for peer collaboration.
 - `none` — no agent-to-agent calls; isolated members.
@@ -96,6 +101,7 @@ default_tags: [<system_name>]                # optional
 Notes:
 - Carry `resources`, `schedules`, `tags` straight from the map. Keep schedule `enabled` flags as declared (Trinity's declarative-schedules rule — the operator toggles them live).
 - For `orchestrator-workers`, the orchestrator identity is **this** agent (its Trinity name). State that explicitly in the manifest comment.
+- `permissions` are derived from `orchestration.md` §5 when it's authored (Step 2); otherwise the chosen preset. Never grant an edge in the manifest that §5 doesn't sanction.
 
 ### Step 5: Validate (dry-run) and write
 

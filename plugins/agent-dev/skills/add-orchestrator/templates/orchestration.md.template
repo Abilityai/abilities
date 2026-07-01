@@ -1,0 +1,70 @@
+# {{SYSTEM_NAME}} — Orchestration
+
+> The **narrative design** of this multi-agent system: the nodes, the edges (who calls
+> whom and why), the permission boundaries, and the collaboration patterns. This is the
+> **intent** layer.
+>
+> - Machine facts (who exists) live in `fleet/system-map.yaml`.
+> - Enforced permissions live in the Trinity SystemManifest (`fleet/system.yaml`).
+> - This file is the single standard home for the *narrative*. It is imported by
+>   `CLAUDE.md` and loaded into context at session start.
+>
+> **Authorship:** prose sections are human/agent-authored — edit them freely. Blocks
+> between `<!-- BEGIN GENERATED:* -->` and `<!-- END GENERATED:* -->` are rewritten by
+> `/discover-agents` and `/compose-system` — do not hand-edit those.
+
+## 1. System overview
+<One paragraph: what this fleet is for and the through-line that connects the agents.>
+
+## 2. Topology
+<!-- BEGIN GENERATED:topology (written by /discover-agents from system-map + live agent_permissions) -->
+```mermaid
+graph LR
+  %% nodes + edges auto-generated; empty until first scan
+```
+<!-- END GENERATED:topology -->
+
+## 3. Nodes (roles)
+<!-- BEGIN GENERATED:roster (written by /discover-agents) -->
+| agent | role | does | ref |
+| --- | --- | --- | --- |
+<!-- END GENERATED:roster -->
+
+## 4. Edges — who calls whom (and why)
+The allow/deny is enforced by the manifest; the *why* is narrative and lives here.
+
+| caller | callee | trigger / when | channel (direct msg / shared folder / event / group) | rationale |
+| --- | --- | --- | --- | --- |
+
+## 5. Permissions & boundaries
+Least-privilege intent: who MAY talk to whom, and what is explicitly denied. **This
+section is the source `/compose-system` reads to derive `agent_permissions`.** Keep it
+honest — do not grant an edge here you would not enforce.
+
+## 6. Collaboration patterns (choreographies)
+Named, reusable multi-agent flows.
+
+### <pattern-name>
+- **Trigger:**
+- **Steps:** A → B → C
+- **Human gate:**
+- **Output:**
+
+## 7. Escalation & human-in-the-loop
+When does the system stop and ask a human? Who is the operator? Where do approvals go
+(e.g. Trinity operator queue)?
+
+## 8. Design invariants
+- Orchestration is **agent-owned**; Trinity is substrate (permissions, shared folders,
+  messaging, cron) and runs **no central DAG engine**.
+- The Trinity `SystemManifest` is the only prescriptive format; this doc is its
+  narrative source, not a competing schema.
+- <system-specific invariants>
+
+## 9. Maintenance
+- Refresh nodes/topology: `/discover-agents`.
+- Reconcile permission drift: re-run `/discover-agents` (it rewrites the topology from
+  the live `agent_permissions`), compare against the intent in §5, then re-run
+  `/compose-system` to push §5 back into the manifest.
+- Regenerate the manifest from §5 intent: `/compose-system`.
+- **Last reviewed:** {{DATE}}

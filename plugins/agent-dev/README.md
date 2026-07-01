@@ -110,13 +110,13 @@ The `/add-memory` skill copies memory skills directly into the agent (no plugin 
 
 | Skill Installed | Purpose |
 |------|----------|
-| **discover-agents** | Scan a repo list (local paths + `github:Org/repo`) for Trinity specs (`template.yaml`/`system.yaml`) into a descriptive `fleet/system-map.yaml` |
+| **discover-agents** | Scan a repo list (local paths + `github:Org/repo`) for Trinity specs (`template.yaml`/`system.yaml`) into a descriptive `fleet/system-map.yaml`; refresh the roster/topology blocks in `fleet/orchestration.md` |
 | **compose-system** | Turn the map into a Trinity `SystemManifest` (`fleet/system.yaml`) and `deploy_system` |
 | **orchestrate** | Route a task to the best-fit agent, fan out across many, or roll a catalog agent out ephemerally (deploy → chat → tear down) |
 
 **Two modes, not one pipeline:** to *describe and route over a fleet that already exists on Trinity*, run `/discover-agents` then `/orchestrate` — the map is the read surface, **skip `/compose-system`**. To *provision a new system* from catalog repos, go `/discover-agents` → `/compose-system` → `deploy_system` → `/orchestrate`.
 
-The multi-agent *definition* aligns with Trinity's `SystemManifest` — no parallel format. Orchestration stays **agent-owned**: Trinity brokers the calls and the lifecycle but runs no central DAG engine. Agents self-describe via an optional `x-capabilities:` block in `template.yaml` — an extension key that coexists with Trinity's native flat `capabilities:` keyword list; the scanner reads both and degrades to `description` + `tags` when neither is present. Deployed agents are matched **repo-first** and called by their live `deployed_name` (which may differ from the template name).
+The multi-agent *definition* aligns with Trinity's `SystemManifest` — no parallel format. Orchestration stays **agent-owned**: Trinity brokers the calls and the lifecycle but runs no central DAG engine. Agents self-describe via an optional `x-capabilities:` block in `template.yaml` — an extension key that coexists with Trinity's native flat `capabilities:` keyword list; the scanner reads both and degrades to `description` + `tags` when neither is present. Deployed agents are matched **repo-first** and called by their live `deployed_name` (which may differ from the template name). A fourth artifact — **`fleet/orchestration.md`** — holds the design *narrative* (who-calls-whom edges, permission intent, collaboration patterns) as human prose plus tool-refreshed roster/topology blocks; it's imported into the agent's `CLAUDE.md` (`@fleet/orchestration.md`) so it loads at session start, and `/compose-system` derives `agent_permissions` from its Permissions section — closing the loop from narrative intent to enforced permissions.
 
 ## Composing skills (hierarchical playbooks)
 
