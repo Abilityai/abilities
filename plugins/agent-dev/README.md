@@ -19,6 +19,7 @@ Develop and extend existing Claude Code agents with skills, memory systems, a fu
 /agent-dev:add-backlog        # Install the full GitHub Issues development workflow
 /agent-dev:add-git-sync       # Install auto-commit hooks for durable state
 /agent-dev:add-orchestrator   # Make the agent a system-aware orchestrator of other agents
+/agent-dev:add-pipeline       # Add a long-running multi-stage pipeline (+ instance/stage/validate helpers)
 ```
 
 ### Development Workflow
@@ -65,6 +66,7 @@ For autonomous processing of project-level issues:
 | **add-backlog** | Install the full GitHub Issues development workflow |
 | **add-git-sync** | Install auto-commit hooks for durable cross-session state |
 | **add-orchestrator** | Make the agent a system-aware orchestrator — installs `/discover-agents` (scan a repo list for Trinity specs into `fleet/system-map.yaml`), `/compose-system` (map → Trinity `SystemManifest` → `deploy_system`), and `/orchestrate` (route / fan out / run ephemeral agents). Aligns with Trinity's `SystemManifest`; orchestration stays agent-owned. |
+| **add-pipeline** | Install a long-running, multi-stage pipeline (heartbeat + status/recover/pause/resume runtime skills). Extend with `add-pipeline-instance` and `add-pipeline-stage`; lint with `validate-pipeline` |
 
 ### Development Workflow
 

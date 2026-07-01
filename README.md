@@ -122,9 +122,18 @@ Develop and extend existing agents with skills, memory systems, and workflows.
 | `/agent-dev:add-backlog` | Add GitHub Issues backlog workflow |
 | `/agent-dev:add-git-sync` | Add auto-commit hooks for durable cross-session state |
 | `/agent-dev:add-orchestrator` | Make the agent a system-aware orchestrator of other agents |
+| `/agent-dev:add-pipeline` | Add a long-running multi-stage pipeline |
+| `/agent-dev:add-pipeline-instance` | Add an instance to a pipeline |
+| `/agent-dev:add-pipeline-stage` | Add a stage to a pipeline |
+| `/agent-dev:validate-pipeline` | Lint a pipeline definition |
 | `/agent-dev:backlog` | View GitHub Issues backlog |
-| `/agent-dev:pick-work` | Pick next issue to work on |
-| `/agent-dev:close-work` | Close current issue |
+| `/agent-dev:groom` | Tag issues with `skill:*` labels, set priorities |
+| `/agent-dev:roadmap` | View issues grouped by affected skill |
+| `/agent-dev:claim` | Claim the next issue to work on |
+| `/agent-dev:autoplan` | Plan a claimed issue against its SKILL.md |
+| `/agent-dev:commit` | Commit skill changes and close the issue |
+| `/agent-dev:close` | Close an issue without a commit |
+| `/agent-dev:sprint` | Guided full cycle: roadmap → claim → autoplan → commit |
 | `/agent-dev:work-loop` | Run autonomous work loop |
 | `/agent-dev:plan` | Plan multi-session work |
 
