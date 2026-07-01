@@ -28,6 +28,8 @@ Deployed agents are called by their live `deployed_name` from the map (matched r
 | `/discover-agents` | Scan `fleet/sources.yaml` for `template.yaml`/`system.yaml`, cross-reference live Trinity agents, write `fleet/system-map.yaml` |
 | `/compose-system` | Map the registry onto a Trinity `SystemManifest`, validate (dry-run), and `deploy_system` |
 | `/orchestrate` | Read the map + orchestration.md + live Trinity MCP to route a task to the best-fit agent, `fan_out` across many, or run an ephemeral agent |
+| `/sync-fleet-to-head` | Non-destructively bring in-scope agents to their GitHub HEAD (pull-only ladder, conflict gates) — fleet git hygiene |
+| `/profile-fleet` | Interview + introspect agents, reconcile reality vs the narrative, and correct this file's prose behind a gate |
 
 **Loaded at session start (design narrative):**
 @fleet/orchestration.md

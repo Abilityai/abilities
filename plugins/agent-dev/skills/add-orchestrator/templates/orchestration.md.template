@@ -67,4 +67,6 @@ When does the system stop and ask a human? Who is the operator? Where do approva
   the live `agent_permissions`), compare against the intent in §5, then re-run
   `/compose-system` to push §5 back into the manifest.
 - Regenerate the manifest from §5 intent: `/compose-system`.
+- Bring deployed agents to their GitHub HEAD (non-destructive, pull-only): `/sync-fleet-to-head`.
+- Re-interview agents & correct this narrative against reality: `/profile-fleet`.
 - **Last reviewed:** {{DATE}}
