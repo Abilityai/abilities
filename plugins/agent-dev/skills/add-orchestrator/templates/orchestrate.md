@@ -4,10 +4,11 @@ description: Put the fleet to work — read fleet/system-map.yaml + live Trinity
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__fan_out, mcp__trinity__deploy_system, mcp__trinity__deploy_local_agent, mcp__trinity__stop_agent, mcp__trinity__start_agent, mcp__trinity__delete_agent
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.3: Route pipeline-shaped work (a population of items through staged, multi-run processing) to the agent whose pipelines: entry matches — never re-sequence another agent's internal pipeline stages as a cross-agent chain; the DAG is agent-owned (/add-pipeline)"
     - "1.2: Also read fleet/orchestration.md — route by the designed edges (§4) and named collaboration patterns (§6), not just best-fit-by-tags; surface (don't silently proceed on) any route that contradicts the §5 permission boundaries"
     - "1.1: Call deployed agents by their live deployed_name (not the map key/template name) — avoids standing up duplicates when the two differ; use live status/health from the map; reads the map directly (no /compose-system needed for an existing fleet); guarded report swallows auth-scope failures"
     - "1.0: Initial version — routes a task to the best-fit fleet agent, fans out across a set, or rolls out a catalog agent ephemerally (deploy → chat → tear down); plans dry when Trinity MCP is absent"
@@ -46,6 +47,8 @@ If the map's `generated:` is old or `fleet/sources.yaml` has changed since, sugg
 | **Single** | one agent clearly best-fits | `chat_with_agent` |
 | **Fan-out** | same task over many inputs / a whole role-group | `fan_out` |
 | **Chain** | task has ordered steps spanning agents (research → write) | sequential `chat_with_agent`, feeding each result into the next |
+
+**Chain ≠ another agent's pipeline.** A chain is a one-shot ordered flow *across* agents. If the task is a *population of items* each moving through stages over many runs — onboarding cohorts, document backlogs, batched crawls — check the map for an agent whose `pipelines:` field matches: route the task (or the new item) **to that agent** as a Single and let its own `pipeline-tick` heartbeat advance the stages. Never re-sequence a pipeline-owning agent's internal stages from here — that DAG is agent-owned (`/add-pipeline`).
 
 If the best-fit agent is ambiguous (two plausible matches, or none scores well), use `AskUserQuestion` to let the operator pick — show the candidates with their `summary` and match reason. Never silently guess when the match is weak.
 

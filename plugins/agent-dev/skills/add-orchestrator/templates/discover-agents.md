@@ -1,13 +1,14 @@
 ---
 name: discover-agents
-description: Scan a list of agent repositories (local paths + github:Org/repo) for Trinity specs (template.yaml, system.yaml), cross-reference live Trinity agents repo-first, and assemble a descriptive fleet/system-map.yaml — the system-aware list. Read-only; works on any agent or fleet.
+description: Scan a list of agent repositories (local paths + github:Org/repo) for Trinity specs (template.yaml, system.yaml, projects/*/pipeline.yaml), cross-reference live Trinity agents repo-first, and assemble a descriptive fleet/system-map.yaml — the system-aware list. Read-only; works on any agent or fleet.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_info, mcp__trinity__get_agent_tags, mcp__trinity__list_tags, mcp__trinity__get_agent_auth
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.3: Also scan each repo's projects/*/pipeline.yaml (long-running pipelines installed by /add-pipeline) into a pipelines: field per map node — {id, stages} — so pipeline-owning agents are visible to /orchestrate routing and /profile-fleet introspection"
     - "1.2: After writing the map, refresh fleet/orchestration.md's fenced GENERATED:roster (node table) and GENERATED:topology (Mermaid graph whose edges are the live agent_permissions via get_agent_auth) — in place, touching only content between the markers, never prose; re-inserts the section from template if markers were deleted; nodes-only with an unverified note when Trinity is absent"
     - "1.1: Read the rich self-description from x-capabilities: (native flat capabilities: list no longer collides); per-field yq extraction with a type guard so one bad field never aborts a file; bash-forced, array-based, glob-free scan (zsh-safe); gh auth + org-access preflight; repo-first Trinity matching with an explicit deployed_name + live status/owner/autonomy; guarded report swallows auth-scope failures; two-mode next steps"
     - "1.0: Initial version — scans local + github repos for template.yaml/system.yaml, cross-references live Trinity agents, writes fleet/system-map.yaml"
@@ -72,6 +73,13 @@ Determine **this** orchestrator's own name (for `generated_by`): `name:` from lo
 Work in a per-repo temp dir and clean it with `rm -rf` on the directory — **no `rm *.yaml`** (globs behave differently under zsh/nullglob and error on no-match):
 
 ```bash
+copy_pipelines() {  # $1=repo root on disk → copies projects/*/pipeline.yaml into $WORK
+  local p
+  for p in "$1"/projects/*/pipeline.yaml; do
+    [ -f "$p" ] && cp "$p" "$WORK/pipeline-$(basename "$(dirname "$p")").yaml"
+  done
+}
+
 fetch_github() {  # $1=Org/repo  $2=branch(optional)  → sets FETCH_STATUS, writes to $WORK
   local repo="$1" branch="$2" q="" http
   [ -n "$branch" ] && q="?ref=$branch"
@@ -88,11 +96,21 @@ fetch_github() {  # $1=Org/repo  $2=branch(optional)  → sets FETCH_STATUS, wri
       fi
     fi
   done
+  # pipelines (optional): projects/*/pipeline.yaml — one listing call, then fetch each
+  if command -v gh >/dev/null 2>&1 && [ "$FETCH_STATUS" != "auth" ]; then
+    mapfile -t PROJ_DIRS < <(gh api "repos/$repo/contents/projects$q" \
+      -q '.[] | select(.type=="dir") | .name' 2>/dev/null)
+    for proj in "${PROJ_DIRS[@]}"; do
+      gh api "repos/$repo/contents/projects/$proj/pipeline.yaml$q" -H "Accept: application/vnd.github.raw" \
+        >"$WORK/pipeline-$proj.yaml" 2>/dev/null || rm -f "$WORK/pipeline-$proj.yaml"
+    done
+  fi
   # fallback: shallow clone if gh unavailable or produced nothing
   if [ ! -s "$WORK/template.yaml" ] && [ "$FETCH_STATUS" != "auth" ]; then
     git clone --depth 1 ${branch:+--branch "$branch"} "https://github.com/$repo" "$WORK/clone" 2>/dev/null \
       && { cp "$WORK/clone/template.yaml" "$WORK/template.yaml" 2>/dev/null
-           cp "$WORK/clone/system.yaml"   "$WORK/system.yaml"   2>/dev/null; }
+           cp "$WORK/clone/system.yaml"   "$WORK/system.yaml"   2>/dev/null
+           copy_pipelines "$WORK/clone"; }
   fi
 }
 
@@ -102,7 +120,8 @@ for repo in "${REPOS[@]}"; do
     github:*) spec="${repo#github:}"; fetch_github "${spec%@*}" "$( [ "$spec" != "${spec#*@}" ] && echo "${spec#*@}" )" ;;
     *) SRC="${repo/#\~/$HOME}"
        cp "$SRC/template.yaml" "$WORK/template.yaml" 2>/dev/null
-       cp "$SRC/system.yaml"   "$WORK/system.yaml"   2>/dev/null ;;
+       cp "$SRC/system.yaml"   "$WORK/system.yaml"   2>/dev/null
+       copy_pipelines "$SRC" ;;
   esac
   # → parse $WORK/template.yaml and $WORK/system.yaml (Step 3), remembering FETCH_STATUS
   rm -rf "$WORK"
@@ -136,6 +155,15 @@ XROLE=$(yq -r '.["x-capabilities"].role // ""'      "$f" 2>/dev/null)
 XSUM=$( yq -r '.["x-capabilities"].summary // ""'   "$f" 2>/dev/null)
 XLIFE=$(yq -r '.["x-capabilities"].lifecycle // "persistent"' "$f" 2>/dev/null)
 # provides[] and tags[] similarly, each in its own call
+
+# PIPELINES (optional) — one $WORK/pipeline-<slug>.yaml per projects/<slug>/pipeline.yaml
+# found in Step 2. These are /add-pipeline long-running DAGs the agent runs internally.
+for pf in "$WORK"/pipeline-*.yaml; do
+  [ -f "$pf" ] || continue
+  P_ID=$(    yq -r '.pipeline_id // ""'    "$pf" 2>/dev/null)
+  P_STAGES=$(yq -r '.stages | length // 0' "$pf" 2>/dev/null)
+  # → append {id: $P_ID, stages: $P_STAGES} to this entry's pipelines[] (skip if P_ID empty)
+done
 ```
 
 Normalize into a map entry (priority order):
@@ -149,8 +177,11 @@ Normalize into a map entry (priority order):
 | `tags` | template `tags:` ∪ `x-capabilities.tags` (dedup) |
 | `lifecycle` | `x-capabilities.lifecycle` → `persistent` |
 | `resources`, `schedules` | from `template.yaml` → omit / `[]` |
+| `pipelines` | repo `projects/*/pipeline.yaml` → `{id, stages}` per file → `[]` |
 
 Never invent `provides`. If neither native keywords nor `x-capabilities` exist, rely on `summary` + `tags`.
+
+A non-empty `pipelines:` marks the agent as the owner of that long-running work — `/orchestrate` routes pipeline-shaped tasks (a population of items through stages over many runs) *to* it rather than re-sequencing the stages across agents, and `/profile-fleet` uses the field as its fallback when a Trinity build lacks the pipeline MCP introspection tools. A `pipeline-<id>-heartbeat` entry in `schedules:` is corroborating evidence the pipeline is actually wired.
 
 ### Step 4: Note any `system.yaml` found in a scanned repo
 
@@ -221,6 +252,7 @@ Scanned N repos → M agents in fleet/system-map.yaml
   deployed:      X   (matched repo-first; callable via deployed_name)
   catalog-only:  Y   (github://… / local:… — rollable on demand)
   by role:       research 3 · comms 1 · ops 2 · …
+  pipelines:     <agents owning long-running pipelines, with ids — omit line if none>
   unreachable:   <repos needing gh auth, if any>
   name-only:     <low-confidence matches to verify, if any>
   orchestration.md: refreshed (roster N, topology edges M)

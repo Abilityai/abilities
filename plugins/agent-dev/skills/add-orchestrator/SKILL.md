@@ -4,10 +4,11 @@ description: Make any agent a system-aware orchestrator — installs /discover-a
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.4: Integrate with /add-pipeline (the intra-agent sibling) — /discover-agents scans each repo's projects/*/pipeline.yaml into a pipelines: field per map node, /orchestrate routes pipeline-shaped work to the owning agent instead of re-sequencing its stages as a chain, /profile-fleet degrades gracefully on Trinity builds without the pipeline MCP introspection tools; cross-pointers added both ways"
     - "1.3: Adopt two fleet-maintenance skills into the bundle — /sync-fleet-to-head (non-destructively bring in-scope agents to their GitHub HEAD; pull-only clean→stash_reapply ladder, conflict gates) and /profile-fleet (interview + introspect agents, reconcile self-report vs declared config, correct orchestration.md prose behind a gate; writes fleet/agent-profiles/). Both are narrative-scoped and compose /discover-agents"
     - "1.2: Add the orchestration-narrative layer — scaffolds fleet/orchestration.md (hybrid: human prose + tool-refreshed roster/topology blocks) as the standard home for the who-calls-whom-and-why intent, imports it into CLAUDE.md via @fleet/orchestration.md so it loads at session start; /discover-agents refreshes its roster+topology from live agent_permissions, /compose-system sources agent_permissions from its §5, /orchestrate routes by its edges/patterns"
     - "1.1: Self-description moves to x-capabilities: (no longer collides with Trinity's native flat capabilities: keyword list); scanner is zsh-safe and matches Trinity repo-first with an explicit deployed_name; two explicit modes up front — describe an existing fleet (map-only, read-only) vs provision a new system (map→manifest→deploy)"
@@ -42,6 +43,8 @@ Maintenance (keep the fleet + its narrative honest over time):
 ```
 
 **Design invariant (do not violate):** orchestration is **agent-owned**. Trinity supplies the substrate (shared folders, agent-to-agent permissions, MCP messaging, cron) but runs **no central DAG engine**. So the roll-out → work → tear-down lifecycle lives *inside* `/orchestrate` — stitched from existing MCP calls — never as a new platform primitive. The multi-agent *definition* aligns 1:1 with Trinity's `SystemManifest` (the same YAML `deploy_system` consumes); this skill does **not** invent a competing format.
+
+**Sibling layer — `/add-pipeline`:** this skill is the *inter*-agent layer (route / fan out / lifecycle across a fleet); `/add-pipeline` is the *intra*-agent one (a population of items crawling through a staged DAG inside a single agent, advanced by that agent's own heartbeat). They compose, same invariant on both sides: `/discover-agents` surfaces each fleet agent's pipelines (`pipelines:` per map node, scanned from `projects/*/pipeline.yaml`), and `/orchestrate` routes pipeline-shaped work *to* the owning agent rather than re-sequencing its stages as a cross-agent chain. Conversely, when one pipeline's instances are really isolated tenants, the answer is one agent per tenant via this orchestrator — add-pipeline's "multi-instance, not multi-tenant" boundary points here.
 
 **What gets installed into the target agent:**
 

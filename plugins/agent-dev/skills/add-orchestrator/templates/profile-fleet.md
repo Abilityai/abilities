@@ -7,10 +7,11 @@ allowed-tools: Read, Grep, Write, Edit, Bash, Skill, AskUserQuestion, mcp__trini
 effort: high
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.1: Pipeline introspection degrades gracefully — list_agent_pipelines/get_agent_pipeline_state are not on every Trinity build; when absent, fall back to the map's pipelines: field (repo projects/*/pipeline.yaml via /discover-agents), the shared ~/.trinity/pipeline-state/ read surface when visible, and interview Q3"
     - "1.0: Initial version — narrative-scoped fleet interview + introspection; declared-vs-self-reported reconciliation; proposes orchestration.md prose edits behind a diff gate; per-agent dossiers in fleet/agent-profiles/ as checkpoints + evidence"
 ---
 
@@ -33,7 +34,7 @@ ultrathink — the value is in the reconciliation, not the transcription. Distin
 | Orchestration narrative (scope + target) | `fleet/orchestration.md` | ✓ | ✓ (prose sections only) |
 | System map (nodes: `ref`, `source`, summary) | `fleet/system-map.yaml` | ✓ | |
 | Live Trinity agents | `mcp__trinity__list_agents` | ✓ | |
-| Declared config | `get_agent_info` / `get_agent_skills` / `list_agent_schedules` / `list_agent_pipelines` / `get_agent_pipeline_state` / `get_agent_tags` / `get_agent_activity_summary` | ✓ | |
+| Declared config | `get_agent_info` / `get_agent_skills` / `list_agent_schedules` / `list_agent_pipelines` + `get_agent_pipeline_state` (when the build ships them) / `get_agent_tags` / `get_agent_activity_summary` | ✓ | |
 | Self-report (interview) | `mcp__trinity__chat_with_agent` (+ `get_execution_result` to poll) | ✓ | |
 | Per-agent dossiers (checkpoints + evidence) | `fleet/agent-profiles/<trinity_name>.md` | ✓ | ✓ |
 | System map refresh (when stale) | `/discover-agents` | | ✓ (writes `system-map.yaml`) |
@@ -79,7 +80,7 @@ For each in-scope, running agent gather the **declared** truth (no LLM turn, run
 - `get_agent_info` — type, owner, status, config.
 - `get_agent_skills` — the skills/commands it actually has.
 - `list_agent_schedules` (+ enabled/disabled) — its scheduled workflows.
-- `list_agent_pipelines` / `get_agent_pipeline_state` — long-running pipelines it runs.
+- `list_agent_pipelines` / `get_agent_pipeline_state` — long-running pipelines it runs. **Not every Trinity build ships these two tools** — if they're absent from the MCP server, don't fail the introspection: fall back to the `pipelines:` field on the agent's `system-map.yaml` node (scanned from its repo's `projects/*/pipeline.yaml` by `/discover-agents`), read the shared `~/.trinity/pipeline-state/<pipeline_id>/` surface if it's visible from here, and lean on interview Q3 — marking those pipeline facts as declared-from-repo / interview-sourced rather than live-verified.
 - `get_agent_tags` — declared capabilities/tags.
 - `get_agent_activity_summary` — what it has actually been doing lately.
 
@@ -151,6 +152,7 @@ Apply approved edits to `fleet/orchestration.md` (prose only). Report:
 | Agent stopped / unhealthy | Introspect only; mark dossier "introspection-only, not interviewed"; skip its self-report. |
 | `chat_with_agent` returns `queued_timeout` | The task is still running — poll `get_execution_result(execution_id)`; do NOT resend (duplicate-guard will kill it). |
 | Permission denied on a teammate-owned agent | Try introspection (often still allowed); if chat denied, note "not interviewable with current key" and continue. |
+| `list_agent_pipelines` / `get_agent_pipeline_state` not on this Trinity build | Skip the probe without erroring; use the map's `pipelines:` field + `~/.trinity/pipeline-state/` when visible; tag pipeline facts as not live-verified. |
 | Thin/evasive answers | Fall back to declared facts; mark those facts low-confidence; in **deep** mode, one targeted follow-up, then move on. |
 | Self-report contradicts declared skills/schedules | Record both in the dossier, tag **Contradiction**, defer to human at Gate 2. |
 | Whole target section is a GENERATED block | Do not edit; report that the correction belongs in `/discover-agents` / `/compose-system` instead. |

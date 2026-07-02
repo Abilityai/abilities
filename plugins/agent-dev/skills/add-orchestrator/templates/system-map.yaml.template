@@ -43,6 +43,9 @@ system_name: null        # from sources.yaml, or "<agent>-fleet"
 #     lifecycle: persistent                       # x-capabilities.lifecycle (persistent|ephemeral)
 #     schedules:
 #       - {name: weekly-refresh, cron: "0 8 * * 1", skill: /refresh, enabled: false}
+#     pipelines:                                  # long-running /add-pipeline DAGs found in the
+#       - {id: onboarding, stages: 4}             #   repo's projects/*/pipeline.yaml — [] when none;
+#                                                 #   /orchestrate routes pipeline-shaped work HERE
 #     spec_found: [template.yaml]                 # which Trinity specs were located
 #     match: repo                                 # how it matched a live agent: repo | name | none
 #     notes: null                                 # scan warnings (auth, parse, low-confidence match)

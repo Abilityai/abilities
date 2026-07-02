@@ -4,11 +4,12 @@ description: Scaffold a Trinity-compatible long-running pipeline inside any agen
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-05-23
-  updated: 2026-06-14
+  updated: 2026-07-02
   author: Ability.ai
   changelog:
+    - "1.2: Fleet-orchestrator integration — Step 7 also records the heartbeat in template.yaml's schedules: block (source of truth for /trinity:sync; makes the pipeline discoverable to /add-orchestrator's /discover-agents); when-to-use now names /add-orchestrator + /orchestrate as the cross-agent layer for one-agent-per-tenant fan-out"
     - "1.1: Add 'When to use a pipeline' guidance (multi-instance ≠ multi-tenant); add Skill to allowed-tools and invoke /validate-pipeline canonically (Composition Rule)"
 ---
 
@@ -18,7 +19,7 @@ metadata:
 
 Add a long-running, multi-stage **pipeline** to any Trinity-compatible agent. Implements the canonical pipeline spec: the agent owns the DAG and stage logic; Trinity owns the read surface (`~/.trinity/pipelines/*.yaml` + `~/.trinity/pipeline-state/**/*.json`); a single heartbeat skill (`pipeline-tick`) owns advancement, retry, and escalation.
 
-**When to use a pipeline (and when not):** reach for this only when the work is a *population* of items that each crawl through *multiple stages over many runs*, and you need durable per-item state, isolated retries, and an at-a-glance "what stage is each item in" — e.g. per-customer onboarding, document ingestion, batched research crawls, especially when the whole batch can't finish in one scheduled run. If it's a single recurring task, a scheduled playbook is simpler — don't reach for a pipeline. And mind the boundary: instances are **multi-instance, not multi-tenant** — their *state* is isolated but they all run inside the **same agent** (same credentials, context window, and heartbeat), so for genuinely isolated or large-scale tenants, deploy **one agent per tenant** (Trinity fan-out) rather than one pipeline with many instances.
+**When to use a pipeline (and when not):** reach for this only when the work is a *population* of items that each crawl through *multiple stages over many runs*, and you need durable per-item state, isolated retries, and an at-a-glance "what stage is each item in" — e.g. per-customer onboarding, document ingestion, batched research crawls, especially when the whole batch can't finish in one scheduled run. If it's a single recurring task, a scheduled playbook is simpler — don't reach for a pipeline. And mind the boundary: instances are **multi-instance, not multi-tenant** — their *state* is isolated but they all run inside the **same agent** (same credentials, context window, and heartbeat), so for genuinely isolated or large-scale tenants, deploy **one agent per tenant** (Trinity fan-out) rather than one pipeline with many instances — that cross-agent layer is `/add-orchestrator`'s domain: its `/orchestrate` skill does the routing, fan-out, and ephemeral roll-out/tear-down across a fleet, and its `/discover-agents` surfaces this agent's pipelines to the fleet map.
 
 **What gets installed:**
 
@@ -37,6 +38,7 @@ Add a long-running, multi-stage **pipeline** to any Trinity-compatible agent. Im
 | `~/.trinity/pre-check` | user home | heartbeat gate — always emits `fire` so every schedule runs; never emits a message override (see Step 6 for why) |
 | `dashboard.yaml` panel | agent repo (if present) | Trinity UI shows a row per instance |
 | heartbeat schedule | Trinity MCP (if available) | `pipeline-<slug>-heartbeat` cron `*/15 * * * *` |
+| `template.yaml` `schedules:` entry | agent repo (if present) | durable copy of the heartbeat — reconciled by `/trinity:sync`, read by fleet orchestrators (`/discover-agents`) |
 
 ---
 
@@ -250,6 +252,24 @@ To install later:
 
 The pipeline still works locally without Trinity — it just won't auto-advance.
 
+**Also record the schedule in `template.yaml` (if present) — do this whether or not the MCP install succeeded.** The `schedules:` block in `template.yaml` is the source of truth that `/trinity:onboard` / `/trinity:sync` reconcile onto the instance, and it's what fleet orchestrators read (`/discover-agents` from `/add-orchestrator` sources `schedules` from `template.yaml`, not from live Trinity) — a live-only schedule is invisible to both. Grep-guard so re-runs never duplicate:
+
+```bash
+if [ -f template.yaml ] && ! grep -q "pipeline-$SLUG-heartbeat" template.yaml; then
+  # Append under the existing `schedules:` block, creating the block if absent.
+  # Entry shape (matches /trinity:onboard's schedule schema):
+  #   - id: pipeline-<SLUG>-heartbeat
+  #     name: <Display Name> pipeline heartbeat
+  #     cron: "<from Q4>"
+  #     message: "Run /pipeline-tick"
+  #     purpose: Advance the <SLUG> pipeline — retry, escalate, sync the read surface
+  #     enabled: true
+  append_schedule_entry   # use yq if available; otherwise append the YAML block textually
+fi
+```
+
+The `pre_check` wiring stays on the live schedule installed above — the `template.yaml` schedule schema doesn't carry it. If `template.yaml` is absent, skip this and note it in the summary.
+
 ### Step 8: Extend dashboard.yaml (if present)
 
 ```bash
@@ -302,6 +322,7 @@ Print:
 - ~/.trinity/pipeline-state/<SLUG>/
 - ~/.trinity/pre-check  (extended)
 - dashboard.yaml panel  (if present)
+- template.yaml schedules: entry  (added | already present | no template.yaml — heartbeat is live-only and invisible to /trinity:sync and fleet discovery)
 
 ### Heartbeat
 Schedule: pipeline-<SLUG>-heartbeat at `<cron>`
@@ -327,6 +348,7 @@ Status: <installed via Trinity MCP | NOT installed — see Step 7>
 | Runtime skill already exists | Ask: overwrite, skip, or cancel |
 | jq/yq missing | Warn, continue; runtime skills will need them installed before use |
 | Trinity MCP unavailable | Skip schedule install, print manual instructions |
+| `template.yaml` absent | Skip the `schedules:` entry; warn that the heartbeat exists only as a live schedule — invisible to `/trinity:sync` and to fleet orchestrators (`/discover-agents`) |
 | dashboard.yaml has conflicting `pipelines:` key | Warn, leave existing alone, suggest manual review |
 | pre-check has un-marked content | Append our block but warn the user to review |
 | pre-check has v1 or v2 add-pipeline block (no `v3` marker) | Auto-rewrite to v3 (v1 silenced other schedules with empty stdout; v2 hijacked other schedules with a `pipeline-tick:` message override — see Step 6) |
@@ -335,4 +357,4 @@ Status: <installed via Trinity MCP | NOT installed — see Step 7>
 
 Re-running this skill on the same agent with the same slug should refuse, not silently rewrite. Use `/add-pipeline-stage` or edit `pipeline.yaml` directly to extend an existing pipeline.
 
-Re-running with a **different** slug should add a second pipeline cleanly — both share the same `~/.trinity/pre-check` block (no second copy needed), both get their own `~/.trinity/pipelines/<slug>.yaml`, both get their own heartbeat schedule.
+Re-running with a **different** slug should add a second pipeline cleanly — both share the same `~/.trinity/pre-check` block (no second copy needed), both get their own `~/.trinity/pipelines/<slug>.yaml`, both get their own heartbeat schedule and their own grep-guarded `template.yaml` `schedules:` entry.
