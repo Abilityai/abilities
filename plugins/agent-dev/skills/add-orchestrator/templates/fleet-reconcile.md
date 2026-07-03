@@ -6,10 +6,11 @@ automation: gated
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, Skill, mcp__trinity__list_agents, mcp__trinity__list_agent_schedules, mcp__trinity__get_agent_activity_summary, mcp__trinity__list_recent_executions, mcp__trinity__list_operator_queue
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-03
   author: orchestrator
   changelog:
+    - "1.1: Reference the §3a role-reality subsection now that orchestration.md.template ships it — restores the ancestor's convention with a standard home"
     - "1.0: Initial bundle version — adopted from a production orchestrator's fleet-reconcile v1.1 and universalized: the audit-queue delta source is optional and convention-based (any skill's status.yaml carrying corrections_pending:), memory writes route to whatever memory system the agent has (or are skipped), section references align to the bundle's orchestration.md template, and the parallel-session drift guard is kept"
 ---
 
@@ -67,6 +68,7 @@ Build the reconciliation plan — a table of `{surface, section, edit summary, e
 
 - **`fleet/orchestration.md`** (prose only — never the §2/§3 GENERATED blocks):
   - A **dated update block** — "Status update (YYYY-MM-DD, source)" — under §1, or extending whatever status convention the file has grown. Corrections move *into* the dated block; do not silently delete superseded claims — the narrative is a timeline.
+  - §3a role-reality rows for affected agents (never the GENERATED §3 roster itself).
   - §4 edge rows only if wiring actually changed (new confirmed edge, edge died).
   - §5 boundaries only if grant intent changed — and note that §5 is enforced downstream by `/compose-system`, which must be re-run for the change to be real.
   - §6 choreography subsections whose reality/known-breakage lines are invalidated.

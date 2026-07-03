@@ -7,10 +7,11 @@ allowed-tools: Read, Grep, Write, Edit, Bash, Skill, AskUserQuestion, mcp__trini
 effort: high
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.3: Internalize field lessons from the production orchestrator's copy — §3 role corrections go into the adjacent §3a prose subsection, never the GENERATED roster table (learned on its first live run); upgrade specifically the proposed/hypothesized §4 edges; route edge-vs-reality drift to /align-agent-permissions when installed"
     - "1.2: Point to /fleet-reconcile as the cheap sibling — folding already-verified deltas into the narrative without new interviews; this playbook is the evidence generator"
     - "1.1: Pipeline introspection degrades gracefully — list_agent_pipelines/get_agent_pipeline_state are not on every Trinity build; when absent, fall back to the map's pipelines: field (repo projects/*/pipeline.yaml via /discover-agents), the shared ~/.trinity/pipeline-state/ read surface when visible, and interview Q3"
     - "1.0: Initial version — narrative-scoped fleet interview + introspection; declared-vs-self-reported reconciliation; proposes orchestration.md prose edits behind a diff gate; per-agent dossiers in fleet/agent-profiles/ as checkpoints + evidence"
@@ -113,10 +114,10 @@ Per agent, compare **self-report ↔ declared config ↔ current orchestration.m
 - **Gone** — in the doc but the agent denies / no longer does it.
 
 Then draft **prose** edits to `orchestration.md`:
-- **§3 Nodes (roles)** — correct each agent's role/"does" to reality.
-- **§4 Edges** — upgrade edges the interviews confirm (annotate evidence: *confirmed-by-caller* vs *declared-config* vs *still-hypothesized*); add discovered edges; drop denied ones.
+- **§3 Nodes (roles)** — correct each agent's role/"does" to reality. **Caveat (learned in the field):** the §3 roster table is a `<!-- GENERATED:roster -->` block owned by `/discover-agents` — do NOT edit it. Put role corrections in the adjacent prose subsection **§3a Role reality (interview-corrected)** (create it if the narrative predates it) and note they'll be folded into the generated summaries on the next `/discover-agents` run.
+- **§4 Edges** — upgrade proposed/hypothesized edges the interviews confirm (annotate evidence: *confirmed-by-caller* vs *declared-config* vs *still-hypothesized*); add discovered edges; drop denied ones.
 - **§6 Collaboration patterns** — refine choreographies from the real workflows/pipelines.
-- **§1 overview** and **§5 permissions intent** — only if the interviews change the high-level picture. Note that §5 changes are enforced downstream by `/compose-system` (re-run it to push permission intent into the manifest); reconciling §4 edges against real call history is a separate companion step, not part of this playbook.
+- **§1 overview** and **§5 permissions intent** — only if the interviews change the high-level picture. Note that §5 changes are enforced downstream by `/compose-system` (re-run it to push permission intent into the manifest); reconciling §4 edges against real call history is `/align-agent-permissions` (if installed) — this playbook edits narrative, it does not deploy permissions.
 - Update the **Status** note and **Last reviewed** date (`date -u +%Y-%m-%d`).
 
 Never write inside a `<!-- BEGIN GENERATED -->` block; if a whole section is generated, leave it and note the gap.
@@ -131,7 +132,7 @@ Apply approved edits to `fleet/orchestration.md` (prose only). Report:
 - Sections changed; counts by class (corrected N, new N, contradictions N, aspirational N, gone N).
 - Agents profiled vs skipped (not running / out-of-scope / permission).
 - Where dossiers were written (`fleet/agent-profiles/`).
-- Downstream pointers: `/compose-system` to enforce §5; `/discover-agents` if map summaries need refreshing.
+- Downstream pointers: `/compose-system` to enforce §5; `/align-agent-permissions` (if installed) to reconcile edges against real call history; `/discover-agents` if map summaries need refreshing.
 
 ## Completion Checklist
 
@@ -163,7 +164,7 @@ Apply approved edits to `fleet/orchestration.md` (prose only). Report:
 
 - **Three sources, one truth.** Self-report says *intent*, config says *capability*, activity says *reality*. Weight reality highest; an agent that claims a workflow with no matching schedule/skill/activity is aspirational.
 - **Profiles describe deployed code.** Results reflect whatever is currently running — run `/sync-fleet-to-head` first for an at-HEAD picture.
-- **Narrative, not enforcement.** This playbook only edits `orchestration.md`. Turning §5 intent into enforced `agent_permissions` is `/compose-system`; reconciling §4 edges against real call history is a separate companion step, not part of this bundle.
+- **Narrative, not enforcement.** This playbook only edits `orchestration.md`. Turning §5 intent into enforced `agent_permissions` is `/compose-system`; reconciling §4 edges against real call history is `/align-agent-permissions`, if installed.
 - **The cheap sibling.** When the deltas are *already verified* (a fix applied this session, an audit's findings) the docs don't need a re-interview — `/fleet-reconcile` folds them into the narrative, dossier addenda, CLAUDE.md, and memory behind one gate, at zero agent compute. Reach for this playbook only when the evidence itself is stale.
 - **The self-reference:** if this orchestrator is itself in the fleet (often deployed under a different name), profiling it is self-introspection — describe it from what you know rather than interviewing yourself in a loop.
 

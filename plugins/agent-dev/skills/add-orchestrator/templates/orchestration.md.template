@@ -30,6 +30,11 @@ graph LR
 | --- | --- | --- | --- |
 <!-- END GENERATED:roster -->
 
+### 3a. Role reality (interview-corrected)
+<prose corrections from `/profile-fleet` or `/fleet-reconcile` when verified reality
+contradicts the generated roster above — folded into the roster summaries on the next
+`/discover-agents` scan; empty is the healthy state>
+
 ## 4. Edges — who calls whom (and why)
 The allow/deny is enforced by the manifest; the *why* is narrative and lives here.
 
