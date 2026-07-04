@@ -108,7 +108,7 @@ The `/add-memory` skill copies memory skills directly into the agent (no plugin 
 
 ### System Orchestration
 
-`/add-orchestrator` makes an agent **system-aware** — able to discover other agents (deployed *or* just sitting in a GitHub repo), describe what each can do, and put them to work. It installs three skills into the agent plus a `fleet/` workspace:
+`/add-orchestrator` makes an agent **system-aware** — able to discover other agents (deployed *or* just sitting in a GitHub repo), describe what each can do, and put them to work. It installs six fleet skills (plus an opt-in project-management pair) into the agent and a `fleet/` workspace:
 
 | Skill Installed | Purpose |
 |------|----------|
@@ -117,10 +117,13 @@ The `/add-memory` skill copies memory skills directly into the agent (no plugin 
 | **orchestrate** | Route a task to the best-fit agent, fan out across many, or roll a catalog agent out ephemerally (deploy → chat → tear down) |
 | **sync-fleet-to-head** | Non-destructively bring in-scope agents to their GitHub HEAD (pull-only ladder, conflict gates) — fleet git hygiene |
 | **profile-fleet** | Interview + introspect the agents, reconcile reality vs declared config, and correct the `orchestration.md` narrative behind a gate |
+| **fleet-reconcile** | Fold already-verified deltas (session fixes, audit corrections) into every doc surface behind one gate — no new evidence |
+| **project-init** *(opt-in)* | Create/adopt a managed project (GitHub epic + workspace) per `fleet/project-standard.md` |
+| **project-steward** *(opt-in)* | Autonomous scheduled project driver — sweep, dispatch to labeled owners, escalate, digest |
 
 **Two modes, not one pipeline:** to *describe and route over a fleet that already exists on Trinity*, run `/discover-agents` then `/orchestrate` — the map is the read surface, **skip `/compose-system`**. To *provision a new system* from catalog repos, go `/discover-agents` → `/compose-system` → `deploy_system` → `/orchestrate`.
 
-The multi-agent *definition* aligns with Trinity's `SystemManifest` — no parallel format. Orchestration stays **agent-owned**: Trinity brokers the calls and the lifecycle but runs no central DAG engine. Agents self-describe via an optional `x-capabilities:` block in `template.yaml` — an extension key that coexists with Trinity's native flat `capabilities:` keyword list; the scanner reads both and degrades to `description` + `tags` when neither is present. Deployed agents are matched **repo-first** and called by their live `deployed_name` (which may differ from the template name). A fourth artifact — **`fleet/orchestration.md`** — holds the design *narrative* (who-calls-whom edges, permission intent, collaboration patterns) as human prose plus tool-refreshed roster/topology blocks; it's imported into the agent's `CLAUDE.md` (`@fleet/orchestration.md`) so it loads at session start, and `/compose-system` derives `agent_permissions` from its Permissions section — closing the loop from narrative intent to enforced permissions.
+The multi-agent *definition* aligns with Trinity's `SystemManifest` — no parallel format. Orchestration stays **agent-owned**: Trinity brokers the calls and the lifecycle but runs no central DAG engine. Agents self-describe via an optional `x-capabilities:` block in `template.yaml` — an extension key that coexists with Trinity's native flat `capabilities:` keyword list; the scanner reads both and degrades to `description` + `tags` when neither is present. Deployed agents are matched **repo-first** and called by their live `deployed_name` (which may differ from the template name). A fourth artifact — **`fleet/orchestration.md`** — holds the design *narrative* (who-calls-whom edges, permission intent, collaboration patterns) as human prose plus tool-refreshed roster/topology blocks; it's imported into the agent's `CLAUDE.md` (`@fleet/orchestration.md`) so it loads at session start, and `/compose-system` derives `agent_permissions` from its Permissions section — closing the loop from narrative intent to enforced permissions. It also carries an **ownership matrix** (§3b, RACI-lite): one fleet-wide informational table (domain → responsible / consulted / informed) that `/orchestrate`, `/project-init`, and `/project-steward` read as routing and consult/notify defaults — etiquette the orchestrator follows, never gates.
 
 ## Composing skills (hierarchical playbooks)
 

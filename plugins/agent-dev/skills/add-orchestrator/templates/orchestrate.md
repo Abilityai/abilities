@@ -4,10 +4,11 @@ description: Put the fleet to work — read fleet/system-map.yaml + live Trinity
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__fan_out, mcp__trinity__deploy_system, mcp__trinity__deploy_local_agent, mcp__trinity__stop_agent, mcp__trinity__start_agent, mcp__trinity__delete_agent
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.4: Read the §3b ownership matrix (RACI-lite) when present — prefer the domain's R when routing, treat C/I as consult/notify etiquette; informational defaults, never gates"
     - "1.3: Route pipeline-shaped work (a population of items through staged, multi-run processing) to the agent whose pipelines: entry matches — never re-sequence another agent's internal pipeline stages as a cross-agent chain; the DAG is agent-owned (/add-pipeline)"
     - "1.2: Also read fleet/orchestration.md — route by the designed edges (§4) and named collaboration patterns (§6), not just best-fit-by-tags; surface (don't silently proceed on) any route that contradicts the §5 permission boundaries"
     - "1.1: Call deployed agents by their live deployed_name (not the map key/template name) — avoids standing up duplicates when the two differ; use live status/health from the map; reads the map directly (no /compose-system needed for an existing fleet); guarded report swallows auth-scope failures"
@@ -34,7 +35,7 @@ Drive the fleet. Given a task, decide **who** should do it (matching against `fl
 [ -f fleet/system-map.yaml ] || { echo "No fleet/system-map.yaml — run /discover-agents first."; exit 1; }
 ```
 
-Read the map directly — for a fleet already on Trinity this is all you need (no `/compose-system`, no manifest). Also read `fleet/orchestration.md` if present: its **§4 edges** (who-calls-whom + why), **§5 boundaries** (what's allowed/denied), and **§6 patterns** (named choreographies) are the *designed* intent — follow them, don't just match by tags. Detect Trinity MCP. If it's **absent**, you can still produce a **routing plan** (Step 2–3) but not execute — say so up front and end at the plan.
+Read the map directly — for a fleet already on Trinity this is all you need (no `/compose-system`, no manifest). Also read `fleet/orchestration.md` if present: its **§3b ownership matrix** (domain → R/C/I), **§4 edges** (who-calls-whom + why), **§5 boundaries** (what's allowed/denied), and **§6 patterns** (named choreographies) are the *designed* intent — follow them, don't just match by tags. Detect Trinity MCP. If it's **absent**, you can still produce a **routing plan** (Step 2–3) but not execute — say so up front and end at the plan.
 
 If the map's `generated:` is old or `fleet/sources.yaml` has changed since, suggest re-running `/discover-agents` first (don't force it).
 
@@ -49,6 +50,8 @@ If the map's `generated:` is old or `fleet/sources.yaml` has changed since, sugg
 | **Chain** | task has ordered steps spanning agents (research → write) | sequential `chat_with_agent`, feeding each result into the next |
 
 **Chain ≠ another agent's pipeline.** A chain is a one-shot ordered flow *across* agents. If the task is a *population of items* each moving through stages over many runs — onboarding cohorts, document backlogs, batched crawls — check the map for an agent whose `pipelines:` field matches: route the task (or the new item) **to that agent** as a Single and let its own `pipeline-tick` heartbeat advance the stages. Never re-sequence a pipeline-owning agent's internal stages from here — that DAG is agent-owned (`/add-pipeline`).
+
+**Honor the ownership matrix (§3b) when present.** If the task falls in a listed domain, prefer that domain's **R** as the target; if **C** agents are listed, get their input before finalizing significant output (a quick `chat_with_agent` or a note in the brief); mention the outcome to **I** agents. These are informational defaults, not gates — deviate when the task warrants it, and say why.
 
 If the best-fit agent is ambiguous (two plausible matches, or none scores well), use `AskUserQuestion` to let the operator pick — show the candidates with their `summary` and match reason. Never silently guess when the match is weak.
 

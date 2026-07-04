@@ -4,10 +4,11 @@ description: Make any agent a system-aware orchestrator — installs /discover-a
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.7"
+  version: "1.8"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.8: Ownership matrix (RACI-lite) — orchestration.md gains §3b, one fleet-wide informational table (domain → responsible/consulted/informed; A is structural: manager owns the record, operator owns escalations); loaded at session start via the existing @import, so the orchestrator routes by R and treats C/I as consult/notify etiquette — defaults, never gates; /orchestrate, /project-init, /project-steward, /profile-fleet read it advisorily; re-runs offer to insert §3b into an existing orchestration.md that predates it"
     - "1.7: Adopt the project-management layer (opt-in Q3) — /project-init + /project-steward (autonomous driver, from a production orchestrator's field-hardened v1.6) + a fleet/project-standard.md template; registry repo, operator, and cadence parameterized at install; steward schedule recorded in template.yaml schedules:; dispatches resolve owners via the map's deployed_name and respect orchestration.md §5; deliberately does NOT compose /orchestrate (transitive autonomy — its interactive disambiguation would hang an unattended run)"
     - "1.6: Internalize the production orchestrator's profile-fleet field lesson — §3 role corrections route to a §3a prose subsection (the §3 roster is GENERATED and must not be hand-edited); orchestration.md.template now ships the §3a stub; fleet-reconcile references it; /align-agent-permissions referenced when installed"
     - "1.5: Adopt /fleet-reconcile into the bundle (sixth skill) — gated doc-reconciliation that folds already-verified deltas (session fixes, audit corrections_pending queues) into orchestration.md prose, dossier addenda, CLAUDE.md, and memory, then makes one focused commit; universalized from a production orchestrator (optional convention-based audit queue, memory-system-agnostic, section refs aligned to the bundle's orchestration.md template)"
@@ -140,6 +141,8 @@ if [ ! -f fleet/orchestration.md ]; then
       "$SKILL_DIR/templates/orchestration.md.template" > fleet/orchestration.md
 fi
 ```
+
+**Upgrade path — §3b ownership matrix:** if `fleet/orchestration.md` already exists but has no `### 3b` section (an install predating v1.8), offer to add it — never insert silently into an authored narrative. On yes, copy the `### 3b. Ownership matrix` section from the template, inserted after §3a (before `## 4`), with its table left empty for the human to fill. On no, skip; re-running offers again.
 
 If the user pasted repos in Q2, append them under `repos:` in `fleet/sources.yaml` (one entry per line, preserving the header comments).
 
@@ -313,4 +316,4 @@ Print:
 
 ## Idempotency
 
-Re-running is safe: existing `fleet/sources.yaml`, `fleet/system-map.yaml`, and `fleet/orchestration.md` are never clobbered (only seeded when absent); the CLAUDE.md section, the `@fleet/orchestration.md` import, and the dashboard panel are each grep-guarded; and skill copies prompt before overwrite. `/discover-agents` rewrites only the fenced `GENERATED:*` blocks in `orchestration.md` — your prose is never touched. To refresh, run `/discover-agents`; to re-wire a skill, delete its dir under `.claude/skills/` and re-run.
+Re-running is safe: existing `fleet/sources.yaml`, `fleet/system-map.yaml`, and `fleet/orchestration.md` are never clobbered (only seeded when absent); the CLAUDE.md section, the `@fleet/orchestration.md` import, and the dashboard panel are each grep-guarded; the §3b ownership-matrix insert is grep-guarded on `### 3b` and applied only on an explicit yes; and skill copies prompt before overwrite. `/discover-agents` rewrites only the fenced `GENERATED:*` blocks in `orchestration.md` — your prose is never touched. To refresh, run `/discover-agents`; to re-wire a skill, delete its dir under `.claude/skills/` and re-run.

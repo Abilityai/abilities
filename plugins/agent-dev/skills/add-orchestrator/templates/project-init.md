@@ -6,10 +6,11 @@ automation: manual
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-03
   author: orchestrator
   changelog:
+    - "1.1: Ownership-matrix awareness — when orchestration.md §3b has a domain row matching the project, offer its R as the default owner (operator can override); informational default, not a gate"
     - "1.0: Initial bundle version — adopted from a production orchestrator's project-init v1.0 and universalized: registry repo read from fleet/project-standard.md §1 at runtime (not hardcoded), needs-operator label in the base set, owner validation against the system map"
 ---
 
@@ -63,7 +64,10 @@ For adopt-mode, read the existing folder (especially any `project.md`, `README`,
 files) and draft goal/criteria from what is there.
 
 Ask via `AskUserQuestion` only for what cannot be determined: typically goal and owner
-agent. Do not ask about things with sensible defaults (priority, slug).
+agent. Do not ask about things with sensible defaults (priority, slug). For the owner:
+if `fleet/orchestration.md` §3b (ownership matrix) has a domain row matching the
+project's work, offer that domain's **responsible** agent as the default — the operator
+can override; it's an informational default, not a gate.
 
 ### Step 3: Check for collisions
 

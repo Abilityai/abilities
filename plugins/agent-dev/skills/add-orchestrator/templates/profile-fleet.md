@@ -7,10 +7,11 @@ allowed-tools: Read, Grep, Write, Edit, Bash, Skill, AskUserQuestion, mcp__trini
 effort: high
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.4: Ownership-matrix drift — when §3b exists, note mismatches between its R/C/I rows and interview reality (no live R, overlapping claims, a C never consulted) as observations for the human; informational, rows edited only through the same diff gate"
     - "1.3: Internalize field lessons from the production orchestrator's copy — §3 role corrections go into the adjacent §3a prose subsection, never the GENERATED roster table (learned on its first live run); upgrade specifically the proposed/hypothesized §4 edges; route edge-vs-reality drift to /align-agent-permissions when installed"
     - "1.2: Point to /fleet-reconcile as the cheap sibling — folding already-verified deltas into the narrative without new interviews; this playbook is the evidence generator"
     - "1.1: Pipeline introspection degrades gracefully — list_agent_pipelines/get_agent_pipeline_state are not on every Trinity build; when absent, fall back to the map's pipelines: field (repo projects/*/pipeline.yaml via /discover-agents), the shared ~/.trinity/pipeline-state/ read surface when visible, and interview Q3"
@@ -115,6 +116,7 @@ Per agent, compare **self-report ↔ declared config ↔ current orchestration.m
 
 Then draft **prose** edits to `orchestration.md`:
 - **§3 Nodes (roles)** — correct each agent's role/"does" to reality. **Caveat (learned in the field):** the §3 roster table is a `<!-- GENERATED:roster -->` block owned by `/discover-agents` — do NOT edit it. Put role corrections in the adjacent prose subsection **§3a Role reality (interview-corrected)** (create it if the narrative predates it) and note they'll be folded into the generated summaries on the next `/discover-agents` run.
+- **§3b Ownership matrix** — when present, note drift between its rows and interview reality (a domain whose R doesn't actually do the work, two agents claiming one domain, a C that is never consulted) as observations for the human. The matrix is informational — propose row edits through the same diff gate, never rewrite silently.
 - **§4 Edges** — upgrade proposed/hypothesized edges the interviews confirm (annotate evidence: *confirmed-by-caller* vs *declared-config* vs *still-hypothesized*); add discovered edges; drop denied ones.
 - **§6 Collaboration patterns** — refine choreographies from the real workflows/pipelines.
 - **§1 overview** and **§5 permissions intent** — only if the interviews change the high-level picture. Note that §5 changes are enforced downstream by `/compose-system` (re-run it to push permission intent into the manifest); reconciling §4 edges against real call history is `/align-agent-permissions` (if installed) — this playbook edits narrative, it does not deploy permissions.

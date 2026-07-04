@@ -35,6 +35,20 @@ graph LR
 contradicts the generated roster above — folded into the roster summaries on the next
 `/discover-agents` scan; empty is the healthy state>
 
+### 3b. Ownership matrix (RACI-lite — informational)
+One fleet-wide matrix: for each recurring **domain of work**, who does it (R), who gives
+input before it's done (C), who is told after (I). Accountability is structural, not a
+column — the managing agent owns the record, the operator owns escalations.
+
+**This is informational, not enforced.** Use it as routing and etiquette defaults:
+prefer the domain's R when routing; ask C for input before finalizing significant
+output; mention outcomes to I (digest or chat). Ambiguity — no R, or two Rs — is a
+prompt to ask the operator, never a hard stop.
+
+| domain | responsible (does it) | consulted (input before done) | informed (told after) |
+| --- | --- | --- | --- |
+<human-authored — one row per recurring domain of work; agent names must match §3>
+
 ## 4. Edges — who calls whom (and why)
 The allow/deny is enforced by the manifest; the *why* is narrative and lives here.
 

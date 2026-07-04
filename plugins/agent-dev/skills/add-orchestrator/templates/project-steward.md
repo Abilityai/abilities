@@ -7,10 +7,11 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__list_agents, m
 effort: high
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-03
   author: orchestrator
   changelog:
+    - "1.1: Ownership-matrix awareness — when orchestration.md §3b lists C/I agents for the task's domain, note C in the dispatch brief and address I in the digest; advisory etiquette only, never a gate or an extra dispatch"
     - "1.0: Initial bundle version — adopted from a production orchestrator's project-steward v1.6 (six field-hardened releases: gh bootstrap, GH_TOKEN from the origin remote, REST-labels scope pre-flight, no-op discipline for high-frequency cadence, time-based dispatch thresholds, GitHub-as-state-carrier) and universalized: registry repo + operator read from fleet/project-standard.md, needs-operator label, inline class = agent:<self>, owners resolved via system-map deployed_name and checked against orchestration.md §5 before dispatch"
 ---
 
@@ -218,7 +219,11 @@ Then take exactly one action, in priority order:
    (`get_agent_health`)** → dispatch: resolve the owner's live callable name via the map
    (`deployed_name`, else last segment of `ref:` — per standard §9), send the standard
    brief (§9) via `chat_with_agent`, post a dispatch receipt on the task issue, add a
-   tracker entry.
+   tracker entry. If `orchestration.md` **§3b** (ownership matrix) lists **consulted**
+   agents for the task's domain, add one Context line to the brief naming them (the owner
+   should seek their input before calling it done); mention outcomes to the domain's
+   **informed** agents in the digest. Advisory etiquette only — never a gate, never an
+   extra dispatch.
 4. **auto-inline class, run budget left** → execute the task now, post the result as an
    agent-report comment on the task issue, close it if the definition of done is met, and
    check it off in the epic. Max one inline task per run.
