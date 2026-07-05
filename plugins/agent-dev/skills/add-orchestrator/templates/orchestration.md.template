@@ -17,7 +17,7 @@
 <One paragraph: what this fleet is for and the through-line that connects the agents.>
 
 ## 2. Topology
-<!-- BEGIN GENERATED:topology (written by /discover-agents from system-map + live agent_permissions) -->
+<!-- BEGIN GENERATED:topology (written by /discover-agents from system-map + declared permissions) -->
 ```mermaid
 graph LR
   %% nodes + edges auto-generated; empty until first scan
@@ -83,8 +83,8 @@ When does the system stop and ask a human? Who is the operator? Where do approva
 ## 9. Maintenance
 - Refresh nodes/topology: `/discover-agents`.
 - Reconcile permission drift: re-run `/discover-agents` (it rewrites the topology from
-  the live `agent_permissions`), compare against the intent in §5, then re-run
-  `/compose-system` to push §5 back into the manifest.
+  the **declared** permissions — `system.yaml` / §5; live `agent_permissions` aren't
+  exposed over MCP), then re-run `/compose-system` + deploy to push §5 onto Trinity.
 - Regenerate the manifest from §5 intent: `/compose-system`.
 - Bring deployed agents to their GitHub HEAD (non-destructive, pull-only): `/sync-fleet-to-head`.
 - Re-interview agents & correct this narrative against reality: `/profile-fleet`.

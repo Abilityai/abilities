@@ -33,12 +33,12 @@ events:
   emit_on_complete: "pipeline.{{PIPELINE_ID}}.{instance}.cycle_completed"
   emit_on_escalation: "pipeline.{{PIPELINE_ID}}.{instance}.escalated"
 
-# Heartbeat that owns the state machine.
+# Heartbeat that owns the state machine. Mirrors the Trinity schedule installed
+# by /add-pipeline (create_agent_schedule: name / cron_expression / message).
 heartbeat:
-  schedule_name: "pipeline-{{PIPELINE_ID}}-heartbeat"
+  name: "pipeline-{{PIPELINE_ID}}-heartbeat"
   cron: "*/15 * * * *"
-  skill: pipeline-tick
-  pre_check: ~/.trinity/pre-check
+  message: "Run /pipeline-tick"
 
 # Escalation policy when on_failure: escalate fires.
 escalation:

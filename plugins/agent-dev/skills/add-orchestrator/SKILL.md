@@ -4,10 +4,11 @@ description: Make any agent a system-aware orchestrator — installs /discover-a
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.8"
+  version: "1.9"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.9: Platform-alignment fixes, verified against Trinity source — Step 7b calls create_agent_schedule with its real params (agent_name/name/cron_expression/message; schedule_name/cron/skill never existed) and documents that Trinity never reads template.yaml schedules: at agent creation (only /trinity:onboard//sync materialize it); Step 7's dashboard fleet panel now uses Trinity's real sections[]→widgets[] schema with rows /discover-agents materializes (the top-level fleet_map/panel_type block was silently never rendered); bundled templates: /discover-agents v1.4 sources topology edges from DECLARED intent (system.yaml permissions / §5) since agent_permissions are not exposed over MCP (get_agent_auth is subscription auth, not permissions) and materializes the dashboard Fleet rows; /orchestrate v1.5 makes ephemeral names rollout-unique via a persisted counter (delete_agent is a soft delete — names stay reserved until purge, ~180 days)"
     - "1.8: Ownership matrix (RACI-lite) — orchestration.md gains §3b, one fleet-wide informational table (domain → responsible/consulted/informed; A is structural: manager owns the record, operator owns escalations); loaded at session start via the existing @import, so the orchestrator routes by R and treats C/I as consult/notify etiquette — defaults, never gates; /orchestrate, /project-init, /project-steward, /profile-fleet read it advisorily; re-runs offer to insert §3b into an existing orchestration.md that predates it"
     - "1.7: Adopt the project-management layer (opt-in Q3) — /project-init + /project-steward (autonomous driver, from a production orchestrator's field-hardened v1.6) + a fleet/project-standard.md template; registry repo, operator, and cadence parameterized at install; steward schedule recorded in template.yaml schedules:; dispatches resolve owners via the map's deployed_name and respect orchestration.md §5; deliberately does NOT compose /orchestrate (transitive autonomy — its interactive disambiguation would hang an unattended run)"
     - "1.6: Internalize the production orchestrator's profile-fleet field lesson — §3 role corrections route to a §3a prose subsection (the §3 roster is GENERATED and must not be hand-edited); orchestration.md.template now ships the §3a stub; fleet-reconcile references it; /align-agent-permissions referenced when installed"
@@ -75,7 +76,7 @@ Drive (opt-in project-management layer — Q3 at install):
 | `fleet/orchestration.md` | agent repo | design NARRATIVE — edges, permission intent, patterns; imported into CLAUDE.md, loads at session start (human prose + tool-refreshed blocks) |
 | `fleet/system.yaml` | agent repo | Trinity manifest (written by `/compose-system`) |
 | CLAUDE.md `## Orchestration` section + `@fleet/orchestration.md` import | agent repo | wires the skills + loads the narrative at session start |
-| dashboard.yaml `fleet` panel | agent repo (if present) | shows discovered agents at a glance |
+| dashboard.yaml `Fleet` section | agent repo (if present) | table widget (Trinity's `sections[]`→`widgets[]` schema) — rows materialized by `/discover-agents` after each scan |
 
 ---
 
@@ -217,29 +218,36 @@ Leave any existing native `capabilities:` list untouched — append `x-capabilit
 
 ### Step 7: Extend dashboard.yaml (if present)
 
-```bash
-if [ -f dashboard.yaml ]; then
-  if ! grep -q "fleet_map" dashboard.yaml; then
-    cat >> dashboard.yaml <<'EOF'
+Trinity's dashboard schema is `sections[]` → `widgets[]` with **materialized values** — the UI renders exactly what's in the file and never reads other files (a top-level `fleet_map:` key with `panel_type:`/`source:`, which versions ≤1.8 emitted, is silently ignored). So install a real section whose table `/discover-agents` re-materializes after every scan.
 
-# Added by /add-orchestrator — managed block, do not edit by hand
-fleet_map:
-  panel_type: table
-  source: fleet/system-map.yaml
-  columns: [agent, ref, role, deployed, lifecycle, schedules]
-  sort_by: [role, agent]
-EOF
-  fi
-else
-  echo "ℹ️  No dashboard.yaml — skipping fleet panel. The orchestrator still works; it just won't render on Trinity until a dashboard.yaml exists."
-fi
+Grep-guard on `managed by /add-orchestrator`; if absent, append this section under the file's `sections:` list (creating a minimal `title:` + `sections:` scaffold if the file is empty) — use `yq` or a direct edit:
+
+```yaml
+  # managed by /add-orchestrator — rows refreshed by /discover-agents
+  - title: "Fleet"
+    layout: list
+    widgets:
+      - type: table
+        title: "Fleet map"
+        columns:
+          - { key: agent, label: "Agent" }
+          - { key: role, label: "Role" }
+          - { key: deployed, label: "Deployed" }
+          - { key: ref, label: "Ref" }
+          - { key: pipelines, label: "Pipelines" }
+        rows: []   # materialized by /discover-agents after each scan — starts empty
+        max_rows: 30
 ```
+
+**Migration:** if a top-level `fleet_map:` key from a ≤1.8 install is present, remove it (it never rendered) when adding the real section.
+
+If there is no `dashboard.yaml`: `echo "ℹ️  No dashboard.yaml — skipping fleet panel. The orchestrator still works; it just won't render on Trinity until a dashboard.yaml exists."`
 
 ### Step 7b: Steward schedule (project layer only)
 
 Skip unless Q3 selected the project layer. The steward is autonomous — it needs its schedule wired, and the schedule must be durable and discoverable, not live-only:
 
-1. **Record it in `template.yaml`'s `schedules:` block** (grep-guard on `project-steward-sweep` so re-runs never duplicate). This is the source of truth `/trinity:sync` reconciles and `/discover-agents` reads:
+1. **Record it in `template.yaml`'s `schedules:` block** (grep-guard on `project-steward-sweep` so re-runs never duplicate). This is the source of truth `/trinity:sync` reconciles and `/discover-agents` reads. (Platform caveat: Trinity itself never reads this block — an agent created from the template via UI/API gets none of its schedules; only `/trinity:onboard` / `/trinity:sync` materialize it onto a live instance.)
    ```yaml
    - id: project-steward-sweep
      name: Project steward sweep
@@ -248,7 +256,7 @@ Skip unless Q3 selected the project layer. The steward is autonomous — it need
      purpose: Sweep fleet-managed projects — reconcile dispatches, dispatch next work, escalate, digest
      enabled: true
    ```
-2. **If Trinity MCP is available**, install the live schedule via `create_agent_schedule` (`schedule_name: "project-steward-sweep"`). If not, print that the steward works locally when invoked manually and the schedule will be reconciled by `/trinity:onboard` / `/trinity:sync` later.
+2. **If Trinity MCP is available**, install the live schedule via `create_agent_schedule` with its real params: `agent_name`, `name: "project-steward-sweep"`, `cron_expression: "<from Q3>"`, `message: "Run /project-steward"`, optional `description`. (There is no `schedule_name`/`cron`/`skill` param — the `message` is the prompt the agent receives, so it must name the skill.) If not, print that the steward works locally when invoked manually and the schedule will be reconciled by `/trinity:onboard` / `/trinity:sync` later.
 3. If `template.yaml` is absent, warn: the schedule exists live-only (invisible to `/trinity:sync` and fleet discovery) — same caveat as `/add-pipeline`.
 
 ### Step 8: First scan (advisory)
@@ -284,7 +292,7 @@ Print:
 - fleet/orchestration.md   (NARRATIVE/intent — author §4–§7; imported into CLAUDE.md)
 - fleet/project-standard.md (project-management conventions | not installed — Q3 skipped)
 - CLAUDE.md                (Orchestration section + @fleet/orchestration.md import added)
-- dashboard.yaml           (fleet panel added | no dashboard.yaml)
+- dashboard.yaml           (Fleet section added — rows refresh on each /discover-agents | no dashboard.yaml)
 
 ### Trinity MCP: <available | not detected>
 <if not: note that discover/compose still work locally; orchestrate + deploy need /trinity:onboard first>

@@ -5,14 +5,17 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Skill, Agent
 automation: autonomous
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   author: agent-dev
   source: agent-dev:add-pipeline
+  changelog:
+    - "1.1: Drop the pre-check premise — the hook is removed (Trinity's agent-global pre-check contract cannot express a safe gate: any stdout replaces the calling schedule's message); the tick itself is the cheap no-op filter. New Step 9 materializes the dashboard.yaml Pipelines table rows after state writes"
+    - "1.0: Initial version — heartbeat that advances pipelines through their stages (advance/retry/escalate/wait/complete), atomic state writes, ~/.trinity read-surface sync"
 ---
 
 # Pipeline Tick
 
-The heartbeat loop for every pipeline installed in this agent. One pass = one evaluation across every pipeline + instance. Cheap when nothing needs attention (pre-check filters most ticks out before this runs).
+The heartbeat loop for every pipeline installed in this agent. One pass = one evaluation across every pipeline + instance. Cheap when nothing needs attention — Steps 1–3 are pure reads, and a pass where every instance is waiting ends after the one-line summary. (There is deliberately **no** pre-check gate: Trinity's pre-check hook is agent-global and any stdout it emits replaces the calling schedule's message, so skip logic lives here instead.)
 
 ## Invariants
 
@@ -135,6 +138,17 @@ cp "$STATE_FILE" "$HOME/.trinity/pipeline-state/$PIPELINE_ID/$INSTANCE_ID.json"
 ### Step 8: Append to stage log
 
 For every state transition, append a line to `instances/$INSTANCE_ID/stage-logs/$(date +%Y-%m-%dT%H)-$STAGE.json` with `{ ts, action, from_stage, to_stage, attempt, reason }`. Logs are append-only — never edited or deleted by this skill.
+
+### Step 9: Refresh the dashboard table (if present)
+
+If `dashboard.yaml` exists and contains the section marked `managed by /add-pipeline`, rewrite that table widget's `rows:` — one row per pipeline × instance, from the state just written:
+
+```yaml
+rows:
+  - { pipeline: <pipeline_id>, instance: <instance_id>, stage: <current_stage or —>, status: <status>, health: <green|yellow|red per pipeline.yaml health rollup>, last_advanced: <stages[current_stage].started_at or last_completed_cycle_at> }
+```
+
+Trinity renders `dashboard.yaml` values as-is — it does not read other files or compute anything — so this materialization is what keeps the UI current. Touch only the managed section's `rows:`; never other sections. Skip silently if the file or the managed section is absent.
 
 ## Refusing to act
 

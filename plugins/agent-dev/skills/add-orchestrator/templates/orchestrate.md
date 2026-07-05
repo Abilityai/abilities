@@ -4,10 +4,11 @@ description: Put the fleet to work — read fleet/system-map.yaml + live Trinity
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__fan_out, mcp__trinity__deploy_system, mcp__trinity__deploy_local_agent, mcp__trinity__stop_agent, mcp__trinity__start_agent, mcp__trinity__delete_agent
 user-invocable: true
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.5: Ephemeral names must be ROLLOUT-unique, not task-unique — Trinity's delete_agent is a soft delete and the name stays reserved until purge (default ~180 days), so a task-derived short-id fails on the second rollout of the same task; use a persisted counter (fleet/.eph-seq) in the suffix and on a name-exists/reserved deploy error bump + retry (up to 3)"
     - "1.4: Read the §3b ownership matrix (RACI-lite) when present — prefer the domain's R when routing, treat C/I as consult/notify etiquette; informational defaults, never gates"
     - "1.3: Route pipeline-shaped work (a population of items through staged, multi-run processing) to the agent whose pipelines: entry matches — never re-sequence another agent's internal pipeline stages as a cross-agent chain; the DAG is agent-owned (/add-pipeline)"
     - "1.2: Also read fleet/orchestration.md — route by the designed edges (§4) and named collaboration patterns (§6), not just best-fit-by-tags; surface (don't silently proceed on) any route that contradicts the §5 permission boundaries"
@@ -69,7 +70,7 @@ For each agent the plan needs:
   - Record every agent created this run in an **ephemeral set** for teardown.
   - Wait until `get_agent_health` reports ready before dispatching.
 
-Vary the `<short-id>` per run by using the task index/name — do not rely on random or timestamp inside the manifest.
+**Names must be rollout-unique, not just task-unique.** Trinity's `delete_agent` is a **soft delete** — the name stays reserved until purge (default ~180 days) — so a task-derived id fails the second time the same task rolls out. Build `<short-id>` from a persisted counter: read/increment `fleet/.eph-seq` (create at `1` if absent) and name the system e.g. `eph-<agent>-r<seq>`. If deploy still fails with a name-exists/reserved error, increment and retry (up to 3) before reporting. Do not rely on random or timestamp inside the manifest.
 
 ### Step 4: Dispatch
 
@@ -111,5 +112,6 @@ Publish a guarded Trinity report (`report_type: <agent>.orchestration_run`, `dis
 | Trinity MCP absent | Produce the routing plan only; explain that execution needs `/trinity:connect` first |
 | No agent matches the task | Say so; suggest adding a suitable repo to `fleet/sources.yaml`, or a catalog agent to roll out |
 | Chosen deployed agent unhealthy | Report health; offer an alternate or abort |
+| Ephemeral deploy rejected: name exists / reserved | Soft-deleted names stay reserved until purge — bump `fleet/.eph-seq` and retry (up to 3), then report |
 | Ephemeral deploy fails | Report the error; tear down anything already created this run; abort the task |
 | Task failed mid-chain | Stop ephemerals but **don't delete** them (preserve for inspection); report where it broke |

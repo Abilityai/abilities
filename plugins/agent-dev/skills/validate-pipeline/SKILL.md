@@ -5,10 +5,11 @@ argument-hint: "<pipeline-slug>"
 allowed-tools: Read, Bash, Glob, Grep
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-05-23
   author: Ability.ai
   changelog:
+    - "1.1: Heartbeat sanity matches the fixed schema (heartbeat.name/cron/message; 5-field cron — Trinity's scheduler format). heartbeat.pre_check now raises a WARNING: the pre-check hook is removed (Trinity's agent-global hook has no fire vocabulary — any stdout replaces the calling schedule's message); legacy skill/schedule_name fields get a rename note"
     - "1.0: Initial version — read-only pipeline.yaml linter checking schema, DAG acyclicity, referenced-skill existence, and precondition kinds; writes no files"
 ---
 
@@ -117,9 +118,9 @@ For each precondition in `stages[].preconditions[]`:
 
 ### Step 7: Heartbeat sanity
 
-- `heartbeat.cron` is a parseable cron expression (5 or 6 fields, standard characters).
-- `heartbeat.skill` equals `pipeline-tick` (warn if not — supported but unusual).
-- `heartbeat.pre_check` path exists OR is the standard `~/.trinity/pre-check`.
+- `heartbeat.cron` is a parseable **5-field** cron expression (Trinity's scheduler format).
+- `heartbeat.message` names an installed skill (default `Run /pipeline-tick`; warn if the referenced skill directory is missing under `.claude/skills/`).
+- Legacy fields → migrate: `heartbeat.skill` / `heartbeat.schedule_name` get an info-level note to rename to `message` / `name`. `heartbeat.pre_check` gets a **warning**: the pre-check hook is removed (Trinity's agent-global hook contract has no `fire` vocabulary — any stdout replaces the calling schedule's message). Delete the field, and if `~/.trinity/pre-check` still contains an add-pipeline block, re-run `/add-pipeline`'s Step 6 migration to strip it.
 
 ### Step 8: Sync ~/.trinity/ (only on pass)
 

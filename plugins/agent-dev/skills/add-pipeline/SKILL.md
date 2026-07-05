@@ -1,14 +1,15 @@
 ---
 name: add-pipeline
-description: Scaffold a Trinity-compatible long-running pipeline inside any agent — creates projects/&lt;slug&gt;/{project.md, pipeline.yaml, instances/}, copies pipeline-tick/status/recover/pause/resume skills into .claude/skills/, sets up the ~/.trinity/ read surface, extends the pre-check gate, installs the heartbeat schedule, and adds a dashboard panel.
+description: Scaffold a Trinity-compatible long-running pipeline inside any agent — creates projects/&lt;slug&gt;/{project.md, pipeline.yaml, instances/}, copies pipeline-tick/status/recover/pause/resume skills into .claude/skills/, sets up the ~/.trinity/ read surface, installs the heartbeat schedule, adds a dashboard section, and removes the harmful legacy pre-check hook if present.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-05-23
-  updated: 2026-07-02
+  updated: 2026-07-05
   author: Ability.ai
   changelog:
+    - "1.3: Platform-alignment fixes, verified against Trinity source — (1) the pre-check hook is REMOVED entirely, with migration: Trinity's scheduler has no fire/skip vocabulary (exit 0 + empty stdout ⇒ skip; exit 0 + ANY stdout ⇒ stdout replaces the calling schedule's configured message; the hook is agent-global with no schedule context), so v3's `echo fire` rewrote every schedule's prompt to the literal word 'fire' — Step 6 now strips any add-pipeline block (v1–v3) and deletes an empty leftover hook; skip logic lives in pipeline-tick alone; (2) create_agent_schedule is called with its real params (agent_name/name/cron_expression/message — schedule_name/cron/skill/pre_check never existed); (3) the dashboard.yaml block now uses Trinity's real sections[]→widgets[] schema with materialized rows that pipeline-tick refreshes (the old panel_type/source block was never rendered); (4) template.yaml schedules: caveat — Trinity never reads that block at agent creation; only /trinity:onboard and /trinity:sync materialize it"
     - "1.2: Fleet-orchestrator integration — Step 7 also records the heartbeat in template.yaml's schedules: block (source of truth for /trinity:sync; makes the pipeline discoverable to /add-orchestrator's /discover-agents); when-to-use now names /add-orchestrator + /orchestrate as the cross-agent layer for one-agent-per-tenant fan-out"
     - "1.1: Add 'When to use a pipeline' guidance (multi-instance ≠ multi-tenant); add Skill to allowed-tools and invoke /validate-pipeline canonically (Composition Rule)"
 ---
@@ -35,8 +36,7 @@ Add a long-running, multi-stage **pipeline** to any Trinity-compatible agent. Im
 | `.claude/skills/pipeline-resume/` | agent repo | operator resume |
 | `~/.trinity/pipelines/<slug>.yaml` | user home | write-through copy — Trinity's read surface |
 | `~/.trinity/pipeline-state/<slug>/` | user home | per-instance state, read by dashboards and other agents |
-| `~/.trinity/pre-check` | user home | heartbeat gate — always emits `fire` so every schedule runs; never emits a message override (see Step 6 for why) |
-| `dashboard.yaml` panel | agent repo (if present) | Trinity UI shows a row per instance |
+| `dashboard.yaml` `Pipelines` section | agent repo (if present) | table widget (Trinity's `sections[]`→`widgets[]` schema) — rows materialized by `pipeline-tick` each pass |
 | heartbeat schedule | Trinity MCP (if available) | `pipeline-<slug>-heartbeat` cron `*/15 * * * *` |
 | `template.yaml` `schedules:` entry | agent repo (if present) | durable copy of the heartbeat — reconciled by `/trinity:sync`, read by fleet orchestrators (`/discover-agents`) |
 
@@ -167,57 +167,45 @@ Record `last_synced` marker so the heartbeat can detect drift:
 date -u +%Y-%m-%dT%H:%M:%SZ > "$HOME/.trinity/pipelines/$SLUG.last_synced"
 ```
 
-### Step 6: Extend ~/.trinity/pre-check
+### Step 6: Remove any legacy pre-check hook (migration)
 
-The pre-check script always emits `fire` so the heartbeat schedule runs. It never emits a message override. Skip / work-detection logic belongs inside pipeline-tick itself, not here. Multiple pipelines share one script with a single managed block — no per-pipeline edits needed.
+Versions ≤1.2 of this skill installed a managed block in `~/.trinity/pre-check`. **All three block versions are harmful and must be removed — this skill no longer touches pre-check at all.** The verified platform contract (Trinity scheduler → pre-check hook): the hook is **agent-global** (consulted before *every* schedule on the agent, with zero schedule context), and there is **no `fire`/`skip` token vocabulary**:
 
-> ⚠️ **Why this constraint matters.** Trinity's pre-check API is **agent-global** — the same `~/.trinity/pre-check` is consulted before every scheduled skill on the agent, not just pipeline-tick. Two failure modes both silently hijack unrelated schedules:
->
-> 1. **Empty stdout** silences every schedule on the agent (digests, heartbeats, batch jobs, the lot). v1 of this template made this mistake.
-> 2. **Any non-`fire`/`skip` stdout becomes the message override** applied to whichever schedule called the pre-check — overwriting the intended message of unrelated schedules and making them run whatever the override text says (e.g. `pipeline-tick`) instead of their own work. v2 of this template made this mistake.
->
-> The block must emit exactly `echo "fire"` — nothing else.
+- exit 0 + **empty stdout** → the run is **skipped**
+- exit 0 + **any stdout** → that stdout **replaces the calling schedule's configured message**
+- non-zero exit → fail-open (runs with the configured message)
+
+So v1 (empty when idle) silenced every schedule on the agent; v2 (message emit) hijacked them into running pipeline-tick; and v3 (`echo "fire"`) rewrote **every schedule's prompt to the literal word `fire`**. There is no way to express a correct per-schedule gate through this hook today — skip / work-detection logic lives inside `pipeline-tick` itself, which exits cheaply when nothing needs attention.
 
 ```bash
 PRE_CHECK="$HOME/.trinity/pre-check"
-BLOCK_TEMPLATE="$SKILL_DIR/templates/pre-check-block.sh"
 
-# Create pre-check if it doesn't exist
-if [ ! -f "$PRE_CHECK" ]; then
-  echo "#!/usr/bin/env bash" > "$PRE_CHECK"
-  echo "# ~/.trinity/pre-check — heartbeat gate" >> "$PRE_CHECK"
-  echo "set -e" >> "$PRE_CHECK"
-  chmod +x "$PRE_CHECK"
-fi
-
-# Migrate or install the block
-if grep -q "BEGIN add-pipeline block v3" "$PRE_CHECK"; then
-  echo "add-pipeline block v3 already present in pre-check — skipping."
-elif grep -q "BEGIN add-pipeline block" "$PRE_CHECK"; then
-  # v1 or v2 block present — rewrite it in place.
-  # v1 returned empty stdout when idle, silencing every other agent schedule.
-  # v2 emitted "pipeline-tick: <reason>" when work was pending, which Trinity
-  # applies as a message override to whichever schedule called the pre-check —
-  # hijacking unrelated schedules into running pipeline-tick. v3 always emits
-  # "fire" and never overrides messages.
-  echo "⚠️  Found older add-pipeline block in pre-check — replacing with v3 (always fire, no override)."
+if [ -f "$PRE_CHECK" ] && grep -q "BEGIN add-pipeline block" "$PRE_CHECK"; then
+  echo "⚠️  Removing legacy add-pipeline block from ~/.trinity/pre-check"
+  echo "    (v1 skipped every schedule via empty stdout; v2/v3 rewrote every schedule's message via the stdout override)."
   TMP=$(mktemp)
   awk '
     /BEGIN add-pipeline block/ {skip=1; next}
     /END add-pipeline block/   {skip=0; next}
     !skip
   ' "$PRE_CHECK" > "$TMP"
-  echo "" >> "$TMP"
-  cat "$BLOCK_TEMPLATE" >> "$TMP"
   mv "$TMP" "$PRE_CHECK"
   chmod +x "$PRE_CHECK"
-else
-  echo "" >> "$PRE_CHECK"
-  cat "$BLOCK_TEMPLATE" >> "$PRE_CHECK"
+fi
+
+# A leftover hook that emits nothing SKIPS every schedule on the agent. If what
+# remains is only scaffolding (shebang / comments / set -e — nothing that writes
+# stdout), delete the file so schedules run normally with their own messages.
+if [ -f "$PRE_CHECK" ] && ! grep -vE '^\s*(#|set -e\s*$|$)' "$PRE_CHECK" | grep -q .; then
+  rm "$PRE_CHECK"
+  echo "Deleted empty ~/.trinity/pre-check — a no-output hook would skip every schedule on this agent."
+elif [ -f "$PRE_CHECK" ]; then
+  echo "⚠️  ~/.trinity/pre-check still contains user content. Review it against the real contract:"
+  echo "    empty stdout SKIPS the calling schedule; any stdout REPLACES that schedule's message."
 fi
 ```
 
-Installing a second pipeline doesn't require editing pre-check again — the block scans all pipelines.
+Run this migration even when scaffolding a brand-new pipeline — any agent that ran add-pipeline ≤1.2 has a harmful block in place.
 
 ### Step 7: Install heartbeat schedule via Trinity MCP
 
@@ -226,12 +214,13 @@ If Trinity MCP is configured (check `.mcp.json` or `~/.trinity/config`), install
 ```
 Use the Trinity MCP tool create_agent_schedule with:
   agent_name: <inferred from agent dir or asked>
-  schedule_name: "pipeline-<SLUG>-heartbeat"
-  cron: "<from Q4>"
-  skill: "pipeline-tick"
-  pre_check: "~/.trinity/pre-check"
+  name: "pipeline-<SLUG>-heartbeat"
+  cron_expression: "<from Q4>"
+  message: "Run /pipeline-tick"
   description: "Heartbeat for the <display name> pipeline."
 ```
+
+These are the tool's real parameters — there is no `schedule_name`, `cron`, `skill`, or `pre_check` param. The `message` is the prompt the agent receives on each trigger, so it must name the skill to run.
 
 If Trinity MCP is not available, print:
 
@@ -243,9 +232,9 @@ To install later:
   2. Re-run this skill OR install the schedule manually:
        create_agent_schedule(
          agent_name="<agent>",
-         schedule_name="pipeline-<SLUG>-heartbeat",
-         cron="<cron>",
-         skill="pipeline-tick"
+         name="pipeline-<SLUG>-heartbeat",
+         cron_expression="<cron>",
+         message="Run /pipeline-tick"
        )
   3. Until then, trigger the heartbeat manually with `/pipeline-tick`.
 ```
@@ -268,29 +257,35 @@ if [ -f template.yaml ] && ! grep -q "pipeline-$SLUG-heartbeat" template.yaml; t
 fi
 ```
 
-The `pre_check` wiring stays on the live schedule installed above — the `template.yaml` schedule schema doesn't carry it. If `template.yaml` is absent, skip this and note it in the summary.
+**Platform caveat:** Trinity itself never reads `template.yaml`'s `schedules:` block — an agent created from the same template via the UI/API gets **none** of these entries; only `/trinity:onboard` / `/trinity:sync` materialize the block onto a live instance. It's still the durable copy and the fleet-discovery surface, but the live install above is what actually runs. If `template.yaml` is absent, skip this and note it in the summary.
 
 ### Step 8: Extend dashboard.yaml (if present)
 
-```bash
-if [ -f dashboard.yaml ]; then
-  # Check if a pipelines panel already exists
-  if ! grep -q "^pipelines:" dashboard.yaml; then
-    cat >> dashboard.yaml <<'EOF'
+Trinity's dashboard schema is `sections[]` → `widgets[]` with **materialized values** — the UI renders exactly what's in the file and never reads other files or computes anything (top-level `pipelines:` keys with `panel_type:`/`source:`, which versions ≤1.2 emitted, are silently ignored). So install a real section whose table `pipeline-tick` re-materializes on every pass.
 
-# Added by /add-pipeline — managed block, do not edit by hand
-pipelines:
-  panel_type: pipeline_table
-  source: ~/.trinity/pipeline-state/
-  columns: [pipeline_id, instance_id, status, current_stage, health, last_advanced_at, open_escalations]
-  group_by: pipeline_id
-  sort_by: [pipeline_id, instance_id]
-EOF
-  fi
-else
-  echo "ℹ️  No dashboard.yaml found — skipping panel registration. Trinity dashboard will not show pipeline state until a dashboard.yaml is created."
-fi
+Grep-guard on `managed by /add-pipeline`; if absent, append this section under the file's `sections:` list (creating a minimal `title:` + `sections:` scaffold if the file is empty) — use `yq` or a direct edit:
+
+```yaml
+  # managed by /add-pipeline — rows refreshed by /pipeline-tick
+  - title: "Pipelines"
+    layout: list
+    widgets:
+      - type: table
+        title: "Pipeline instances"
+        columns:
+          - { key: pipeline, label: "Pipeline" }
+          - { key: instance, label: "Instance" }
+          - { key: stage, label: "Stage" }
+          - { key: status, label: "Status" }
+          - { key: health, label: "Health" }
+          - { key: last_advanced, label: "Last advanced" }
+        rows: []   # materialized by pipeline-tick each pass — starts empty
+        max_rows: 20
 ```
+
+**Migration:** if a top-level `pipelines:` key from a ≤1.2 install is present, remove it (it never rendered) when adding the real section.
+
+If there is no `dashboard.yaml`: `echo "ℹ️  No dashboard.yaml found — skipping. Trinity dashboard will not show pipeline state until one exists (see /trinity:create-dashboard)."`
 
 ### Step 9: Validate (advisory)
 
@@ -320,8 +315,8 @@ Print:
 - .claude/skills/pipeline-resume/SKILL.md
 - ~/.trinity/pipelines/<SLUG>.yaml
 - ~/.trinity/pipeline-state/<SLUG>/
-- ~/.trinity/pre-check  (extended)
-- dashboard.yaml panel  (if present)
+- ~/.trinity/pre-check  (legacy add-pipeline block removed | empty hook deleted | not present)
+- dashboard.yaml `Pipelines` section  (if present — rows refresh on each /pipeline-tick)
 - template.yaml schedules: entry  (added | already present | no template.yaml — heartbeat is live-only and invisible to /trinity:sync and fleet discovery)
 
 ### Heartbeat
@@ -349,12 +344,12 @@ Status: <installed via Trinity MCP | NOT installed — see Step 7>
 | jq/yq missing | Warn, continue; runtime skills will need them installed before use |
 | Trinity MCP unavailable | Skip schedule install, print manual instructions |
 | `template.yaml` absent | Skip the `schedules:` entry; warn that the heartbeat exists only as a live schedule — invisible to `/trinity:sync` and to fleet orchestrators (`/discover-agents`) |
-| dashboard.yaml has conflicting `pipelines:` key | Warn, leave existing alone, suggest manual review |
-| pre-check has un-marked content | Append our block but warn the user to review |
-| pre-check has v1 or v2 add-pipeline block (no `v3` marker) | Auto-rewrite to v3 (v1 silenced other schedules with empty stdout; v2 hijacked other schedules with a `pipeline-tick:` message override — see Step 6) |
+| dashboard.yaml already has a `Pipelines` section not marked as ours | Warn, leave it alone, suggest manual review |
+| pre-check has an add-pipeline block (any of v1/v2/v3) | Strip it (Step 6) — v1 skipped every schedule via empty stdout; v2/v3 rewrote every schedule's message via the stdout override |
+| pre-check has user content beyond our block | Leave it, but warn with the real contract: empty stdout skips the calling schedule; any stdout replaces that schedule's message |
 
 ## Idempotency
 
 Re-running this skill on the same agent with the same slug should refuse, not silently rewrite. Use `/add-pipeline-stage` or edit `pipeline.yaml` directly to extend an existing pipeline.
 
-Re-running with a **different** slug should add a second pipeline cleanly — both share the same `~/.trinity/pre-check` block (no second copy needed), both get their own `~/.trinity/pipelines/<slug>.yaml`, both get their own heartbeat schedule and their own grep-guarded `template.yaml` `schedules:` entry.
+Re-running with a **different** slug should add a second pipeline cleanly — each gets its own `~/.trinity/pipelines/<slug>.yaml`, its own heartbeat schedule, its own grep-guarded `template.yaml` `schedules:` entry, and its rows in the one shared dashboard `Pipelines` table.
