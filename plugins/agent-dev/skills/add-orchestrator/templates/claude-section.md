@@ -6,7 +6,7 @@ This agent is a **system-aware orchestrator**. It maintains a picture of the oth
 
 | File | Role | Written by |
 |---|---|---|
-| `fleet/sources.yaml` | the repo list you curate (local paths + `github:Org/repo`) | you |
+| `fleet/sources.yaml` | the repo list you curate (local paths + `github:Org/repo`) — optional when discovering from live Trinity | you |
 | `fleet/system-map.yaml` | descriptive FACTS — who exists, what they do, where/when they run (nodes) | `/discover-agents` |
 | `fleet/orchestration.md` | design NARRATIVE — edges, permission intent, patterns; loaded at session start | you + tools |
 | `fleet/system.yaml` | prescriptive Trinity `SystemManifest` — deploy-ready | `/compose-system` |
@@ -25,7 +25,7 @@ Deployed agents are called by their live `deployed_name` from the map (matched r
 
 | Skill | Purpose |
 |---|---|
-| `/discover-agents` | Scan `fleet/sources.yaml` for `template.yaml`/`system.yaml`, cross-reference live Trinity agents, write `fleet/system-map.yaml` |
+| `/discover-agents` | Discover the fleet — from live Trinity (`list_agents`; the default when connected), the `fleet/sources.yaml` repo scan, or both — cross-reference repo-first, write `fleet/system-map.yaml` |
 | `/compose-system` | Map the registry onto a Trinity `SystemManifest`, validate (dry-run), and `deploy_system` |
 | `/orchestrate` | Read the map + orchestration.md + live Trinity MCP to route a task to the best-fit agent, `fan_out` across many, or run an ephemeral agent |
 | `/sync-fleet-to-head` | Non-destructively bring in-scope agents to their GitHub HEAD (pull-only ladder, conflict gates) — fleet git hygiene |

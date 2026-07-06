@@ -1,13 +1,14 @@
 ---
 name: add-orchestrator
-description: Make any agent a system-aware orchestrator — installs /discover-agents (scan a repo list for Trinity specs into a descriptive fleet/system-map.yaml), /compose-system (turn the map into a Trinity SystemManifest and deploy_system), and /orchestrate (route, fan out, and run ephemeral agents via Trinity MCP). Aligns with Trinity's existing SystemManifest; no parallel standard.
+description: Make any agent a system-aware orchestrator — installs /discover-agents (discover the fleet from live Trinity and/or a repo list into a descriptive fleet/system-map.yaml), /compose-system (turn the map into a Trinity SystemManifest and deploy_system), and /orchestrate (route, fan out, and run ephemeral agents via Trinity MCP). Aligns with Trinity's existing SystemManifest; no parallel standard.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.9"
+  version: "1.10"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.10: Bundled /discover-agents v1.5 — discovery source is asked up front when Trinity MCP is connected (live Trinity fleet as the Recommended default · sources.yaml repo scan · both/union); trinity/both runs roster from list_agents, so live agents missing from sources.yaml are no longer invisible (they land as live-only entries, match: live) and fleet/sources.yaml is required only for the repo-scan sources; Step 8's first scan now also fires when Trinity is connected even if sources.yaml is still the example"
     - "1.9: Platform-alignment fixes, verified against Trinity source — Step 7b calls create_agent_schedule with its real params (agent_name/name/cron_expression/message; schedule_name/cron/skill never existed) and documents that Trinity never reads template.yaml schedules: at agent creation (only /trinity:onboard//sync materialize it); Step 7's dashboard fleet panel now uses Trinity's real sections[]→widgets[] schema with rows /discover-agents materializes (the top-level fleet_map/panel_type block was silently never rendered); bundled templates: /discover-agents v1.4 sources topology edges from DECLARED intent (system.yaml permissions / §5) since agent_permissions are not exposed over MCP (get_agent_auth is subscription auth, not permissions) and materializes the dashboard Fleet rows; /orchestrate v1.5 makes ephemeral names rollout-unique via a persisted counter (delete_agent is a soft delete — names stay reserved until purge, ~180 days)"
     - "1.8: Ownership matrix (RACI-lite) — orchestration.md gains §3b, one fleet-wide informational table (domain → responsible/consulted/informed; A is structural: manager owns the record, operator owns escalations); loaded at session start via the existing @import, so the orchestrator routes by R and treats C/I as consult/notify etiquette — defaults, never gates; /orchestrate, /project-init, /project-steward, /profile-fleet read it advisorily; re-runs offer to insert §3b into an existing orchestration.md that predates it"
     - "1.7: Adopt the project-management layer (opt-in Q3) — /project-init + /project-steward (autonomous driver, from a production orchestrator's field-hardened v1.6) + a fleet/project-standard.md template; registry repo, operator, and cadence parameterized at install; steward schedule recorded in template.yaml schedules:; dispatches resolve owners via the map's deployed_name and respect orchestration.md §5; deliberately does NOT compose /orchestrate (transitive autonomy — its interactive disambiguation would hang an unattended run)"
@@ -30,14 +31,14 @@ Turn any Trinity-compatible agent into a **system-aware orchestrator**: an agent
 
 ```
 Mode A · Describe & route over an EXISTING fleet   (read-only — the common case)
-  fleet/sources.yaml ──/discover-agents──▶ system-map.yaml (+ orchestration.md) ──/orchestrate──▶ work
+  live Trinity and/or fleet/sources.yaml ──/discover-agents──▶ system-map.yaml (+ orchestration.md) ──/orchestrate──▶ work
   The map (facts) + orchestration.md (intent) ARE the read surface. No manifest, no deploy. Skip /compose-system.
 
 Mode B · Provision a NEW system   (create agents that today are only catalog repos)
   author orchestration.md §5 ──/compose-system──▶ fleet/system.yaml (SystemManifest) ──deploy──▶ /orchestrate
 
 Artifacts (four layers):
-  fleet/sources.yaml       you curate — local paths + github:Org/repo
+  fleet/sources.yaml       you curate — local paths + github:Org/repo (optional when discovering from live Trinity)
   fleet/system-map.yaml    FACTS (nodes) — descriptive, written by /discover-agents      (Mode A stops here)
   fleet/orchestration.md   NARRATIVE (edges + intent) — human prose + tool-refreshed blocks; imported into CLAUDE.md
   fleet/system.yaml        Trinity SystemManifest — prescriptive, written by /compose-system   (Mode B only)
@@ -61,7 +62,7 @@ Drive (opt-in project-management layer — Q3 at install):
 
 | Artifact | Location | Purpose |
 |---|---|---|
-| `.claude/skills/discover-agents/SKILL.md` | agent repo | scan repos → `fleet/system-map.yaml` |
+| `.claude/skills/discover-agents/SKILL.md` | agent repo | discover live Trinity and/or repos → `fleet/system-map.yaml` |
 | `.claude/skills/compose-system/SKILL.md` | agent repo | `system-map.yaml` → Trinity `SystemManifest` → deploy |
 | `.claude/skills/orchestrate/SKILL.md` | agent repo | route / fan out / ephemeral, via Trinity MCP |
 | `.claude/skills/sync-fleet-to-head/SKILL.md` | agent repo | non-destructively bring in-scope agents to their GitHub HEAD (fleet git hygiene) |
@@ -261,13 +262,13 @@ Skip unless Q3 selected the project layer. The steward is autonomous — it need
 
 ### Step 8: First scan (advisory)
 
-If `fleet/sources.yaml` has at least one real (non-comment) entry and `/discover-agents` was installed, invoke it once to produce an initial `fleet/system-map.yaml` — call the skill by name, don't reimplement it:
+If `/discover-agents` was installed and either `fleet/sources.yaml` has at least one real (non-comment) entry **or Trinity MCP is connected** (the skill can roster the live fleet directly), invoke it once to produce an initial `fleet/system-map.yaml` — call the skill by name, don't reimplement it:
 
 ```
 Invoke `/discover-agents`
 ```
 
-If `sources.yaml` is still just the example, skip this and tell the user to add repos then run `/discover-agents`.
+If `sources.yaml` is still just the example **and** Trinity MCP is absent, skip this and tell the user to add repos (or connect Trinity) and then run `/discover-agents`.
 
 ### Step 9: Summary
 
@@ -277,7 +278,7 @@ Print:
 ## Orchestrator installed into <agent name>
 
 ### Skills added
-- /discover-agents    → scan fleet/sources.yaml into fleet/system-map.yaml
+- /discover-agents    → discover live Trinity and/or fleet/sources.yaml into fleet/system-map.yaml
 - /compose-system     → fleet/system-map.yaml → fleet/system.yaml (Trinity manifest) → deploy
 - /orchestrate        → route / fan out / run ephemeral, via Trinity MCP
 - /sync-fleet-to-head → non-destructively bring in-scope agents to their GitHub HEAD
@@ -299,6 +300,7 @@ Print:
 
 ### Next steps
 1. Edit fleet/sources.yaml — add the repos (local paths and/or github:Org/repo) in the system.
+   (Fleet already live on Trinity? /discover-agents can roster it directly — sources.yaml then just adds catalog repos.)
 2. /discover-agents            — build the map + refresh orchestration.md's roster/topology.
 3. Author fleet/orchestration.md — the who-calls-whom edges (§4) and permission intent (§5).
    Fleet already on Trinity? You're done — skip to step 5.

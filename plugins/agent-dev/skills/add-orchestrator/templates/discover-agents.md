@@ -1,13 +1,14 @@
 ---
 name: discover-agents
-description: Scan a list of agent repositories (local paths + github:Org/repo) for Trinity specs (template.yaml, system.yaml, projects/*/pipeline.yaml), cross-reference live Trinity agents repo-first, and assemble a descriptive fleet/system-map.yaml — the system-aware list. Read-only; works on any agent or fleet.
+description: Discover the fleet — from live Trinity (list_agents), a curated repo list (local paths + github:Org/repo), or both — scan each source repo for Trinity specs (template.yaml, system.yaml, projects/*/pipeline.yaml), cross-reference repo-first, and assemble a descriptive fleet/system-map.yaml — the system-aware list. Read-only; works on any agent or fleet.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_info, mcp__trinity__get_agent_tags, mcp__trinity__list_tags
 user-invocable: true
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.5: Discovery source is now asked up front (new Step 0) — when Trinity MCP is connected, choose between the live Trinity fleet (Recommended default; roster from list_agents, each live agent's own source repo fetched for spec enrichment, sources.yaml not required), the local sources.yaml repo scan (the 1.4 behavior — the only source that surfaces catalog-only agents), or both (union); live agents absent from sources.yaml — previously invisible — now land as live-only map entries (match: live) in trinity/both runs, and local runs count them in the report instead of dropping them silently; Trinity absent → local mode automatically, no question; map header gains discovery_source:"
     - "1.4: Topology edges now sourced from DECLARED intent (fleet/system.yaml permissions, else orchestration.md §5) and labeled as such — live agent_permissions are not exposed over MCP (get_agent_auth is subscription auth status, not permissions; they live behind REST /api/agents/{name}/permissions and are set by deploy_system at deploy time), so 'live edges' were never obtainable; new Step 6c materializes the dashboard.yaml Fleet table rows (Trinity's real sections[]→widgets[] schema — the UI renders values, it reads no files)"
     - "1.3: Also scan each repo's projects/*/pipeline.yaml (long-running pipelines installed by /add-pipeline) into a pipelines: field per map node — {id, stages} — so pipeline-owning agents are visible to /orchestrate routing and /profile-fleet introspection"
     - "1.2: After writing the map, refresh fleet/orchestration.md's fenced GENERATED:roster (node table) and GENERATED:topology (Mermaid graph whose edges are the live agent_permissions via get_agent_auth) — in place, touching only content between the markers, never prose; re-inserts the section from template if markers were deleted; nodes-only with an unverified note when Trinity is absent"
@@ -19,7 +20,7 @@ metadata:
 
 > ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `discover-agents vX.Y — recent: <summary>`. Then proceed.
 
-Build the **system-aware list**: read every repository in `fleet/sources.yaml`, find its Trinity specs, cross-reference what's live on Trinity, and assemble a descriptive `fleet/system-map.yaml`. Deployed agents and repo-only ("catalog") agents both land in the map.
+Build the **system-aware list**: discover the fleet from your chosen source — the **live Trinity fleet** (`list_agents`; the default when Trinity is connected), the curated repo list in `fleet/sources.yaml`, or both — find each agent's Trinity specs, cross-reference repo-first, and assemble a descriptive `fleet/system-map.yaml`. Deployed, live-only, and repo-only ("catalog") agents all land in the map; which of them depends on the source picked in Step 0.
 
 This is **read-only** and mode-agnostic — it just describes reality. What you do next depends on your goal:
 - **Existing fleet → reference & route:** the map alone is enough. Go straight to `/orchestrate`. **Do not** run `/compose-system`.
@@ -33,13 +34,34 @@ This is **read-only** and mode-agnostic — it just describes reality. What you 
 
 ## Process
 
-### Step 1: Load sources + preflight
+### Step 0: Choose the discovery source
+
+Determine **this** orchestrator's own name (for `generated_by`): `name:` from local `template.yaml`, else the CLAUDE.md agent name.
+
+Then probe Trinity: is the Trinity MCP server connected in this session (`mcp__trinity__list_agents` callable)?
+
+- **Trinity connected** → ask where to discover (AskUserQuestion, single-select):
+  1. **Trinity — live fleet (Recommended)** — roster = `list_agents`; each live agent's own source repo is fetched for spec enrichment. `fleet/sources.yaml` is not required. Finds everything actually deployed — including agents your repo list has never heard of.
+  2. **Local repos — `fleet/sources.yaml`** — roster = the curated repo list; Trinity is still cross-referenced for `deployed`/`deployed_name` (Step 5). The only source that surfaces **catalog-only** agents (in repos but not deployed) — pick it when the repo list is the scope of truth.
+  3. **Both — union** — live fleet ∪ repo list; the most complete map (deployed + live-only + catalog).
+- **Trinity absent** → don't ask; run **local** source automatically and note in the report that deployment status is unverified. (No Trinity *and* no `fleet/sources.yaml` → nothing to discover; stop and offer both fixes: connect Trinity, or run `/add-orchestrator` to seed `fleet/sources.yaml`.)
+
+Record the choice as `DISCOVERY_SOURCE` (`trinity` | `local` | `both`) — it flows into the map header (Step 6) and the report (Step 7).
+
+### Step 1: Assemble the scan list + preflight
+
+**Live roster first (`trinity`/`both`):** call `mcp__trinity__list_agents`; for each live agent capture its source repo and live signal (`mcp__trinity__get_agent_info` / `get_agent` where the list payload lacks repo/owner/status). Keep this **live index** (normalized repo → live agent) — Step 5 reuses it instead of re-fetching. The repo scan list is then:
+
+- `trinity` → the deduped source repos of the live agents. Skip the `sources.yaml` read entirely (if the file exists, count its unscanned entries for the report). A live agent with no discoverable repo still gets a map entry — Step 5 handles it — so an empty scan list is not an error here.
+- `local` → `fleet/sources.yaml` (required):
 
 ```bash
-[ -f fleet/sources.yaml ] || { echo "No fleet/sources.yaml — run /add-orchestrator first."; exit 1; }
+[ -f fleet/sources.yaml ] || { echo "No fleet/sources.yaml — run /add-orchestrator first (or re-run and pick Trinity as the discovery source)."; exit 1; }
 ```
 
-Read the repo list into a bash **array** (never `for x in $VAR`):
+- `both` → union of the two (normalized, deduped).
+
+For the `sources.yaml` read (`local`/`both`), load the repo list into a bash **array** (never `for x in $VAR`):
 
 ```bash
 if command -v yq >/dev/null 2>&1; then
@@ -47,9 +69,10 @@ if command -v yq >/dev/null 2>&1; then
 else
   mapfile -t REPOS < <(grep -E '^\s*-\s+' fleet/sources.yaml | sed -E 's/^\s*-\s*//' | grep -Ev '^(null|)$')
 fi
-# append any repo refs passed as arguments to this skill
+# append any repo refs passed as arguments to this skill (honored in every discovery source)
 # REPOS+=( "$@" )
-[ "${#REPOS[@]}" -gt 0 ] || { echo "No repos in fleet/sources.yaml — add some and re-run."; exit 1; }
+# trinity/both: also REPOS+=( live agents' source repos, normalized to github:Org/repo refs ), then dedup
+[ "${#REPOS[@]}" -gt 0 ] || { echo "No repos in fleet/sources.yaml — add some and re-run."; exit 1; }   # local/both only — trinity tolerates an empty scan list
 ```
 
 **GitHub auth preflight** — do this *before* the scan so a token gap is one clear message, not 16 "unreachable" rows:
@@ -66,8 +89,6 @@ if printf '%s\n' "${REPOS[@]}" | grep -q '^github:'; then
   fi
 fi
 ```
-
-Determine **this** orchestrator's own name (for `generated_by`): `name:` from local `template.yaml`, else the CLAUDE.md agent name.
 
 ### Step 2: Fetch each repo's specs (portable, glob-free)
 
@@ -194,7 +215,7 @@ Name-only matching is wrong and dangerous: an agent's deployed name often differ
 
 If Trinity MCP is available:
 
-1. `mcp__trinity__list_agents` → for each live agent, get its source repo and live signal. Use `mcp__trinity__get_agent_info` / `mcp__trinity__get_agent` if the repo/owner/status aren't in the list payload.
+1. `mcp__trinity__list_agents` → for each live agent, get its source repo and live signal. Use `mcp__trinity__get_agent_info` / `mcp__trinity__get_agent` if the repo/owner/status aren't in the list payload. (In `trinity`/`both` runs this **live index already exists** from Step 1 — reuse it, don't re-fetch.)
 2. Build a **normalized-repo → live-agent** index. Normalize both sides: lowercase, strip `github:` / `https://github.com/` / trailing `.git` / any `@branch`.
 3. For each discovered agent, look up its `github_repo`:
    - **match** → `deployed: true`, `match: repo`, and capture the live fields:
@@ -203,12 +224,13 @@ If Trinity MCP is available:
      - `status:` (running/stopped), `owner:`, `autonomy:` (autonomy_enabled) — carry whatever the API exposes; these sharpen routing.
    - **no match** → `deployed: false`, `match: none`, `ref: github://Org/repo` (or `local:<path>`). These are the catalog agents `/orchestrate` can roll out ephemerally.
 4. **Fallback only if live repo info is unavailable:** try a name match, but set `match: name` and `notes: "name-only match — verify deployed_name"` so the low confidence is visible. Never silently treat a name match as authoritative.
+5. **Live-only agents (`trinity`/`both` runs):** any live agent whose repo matched none of the scanned specs — or that exposes no source repo at all — still gets a map entry, keyed by its live name: `deployed: true`, `match: live`, `deployed_name`, `ref: trinity://<instance>/<deployed_name>`, `status`/`owner`/`autonomy`, `role`/`summary` from whatever `get_agent_info` exposes (else `unknown`), `notes: "live-only — no repo spec scanned"`. In a `local` run do **not** add them — the repo list is the chosen scope — but count them so the report can say "N live agents outside sources.yaml — re-run with the Trinity or Both source to include them". Never drop them silently.
 
 If Trinity MCP is **absent**: every agent `deployed: false`, `match: none`, `deployed_name: null`; add a top-level note that deployment status is unverified. Discovery still fully succeeds.
 
 ### Step 6: Write `fleet/system-map.yaml`
 
-Rewrite the file (keep the comment header). Set `generated` (`date -u +%Y-%m-%dT%H:%M:%SZ`), `generated_by`, `system_name` (from `sources.yaml`, else `<agent>-fleet`), the `agents:` map (key = template `name`), and `unresolved:`.
+Rewrite the file (keep the comment header). Set `generated` (`date -u +%Y-%m-%dT%H:%M:%SZ`), `generated_by`, `discovery_source` (`trinity` | `local` | `both`, from Step 0), `system_name` (from `sources.yaml`, else `<agent>-fleet`), the `agents:` map (key = template `name`; live name for live-only entries), and `unresolved:`.
 
 ### Step 6b: Refresh the machine blocks in `fleet/orchestration.md`
 
@@ -262,13 +284,16 @@ Trinity renders `dashboard.yaml` values as-is — it never reads other files —
 Summarize; don't dump the file:
 
 ```
-Scanned N repos → M agents in fleet/system-map.yaml
+Scanned N repos (source: trinity — live fleet | local — sources.yaml | both) → M agents in fleet/system-map.yaml
   deployed:      X   (matched repo-first; callable via deployed_name)
+  live-only:     Z   (deployed, no repo spec scanned — trinity/both sources; omit line if none)
   catalog-only:  Y   (github://… / local:… — rollable on demand)
   by role:       research 3 · comms 1 · ops 2 · …
   pipelines:     <agents owning long-running pipelines, with ids — omit line if none>
   unreachable:   <repos needing gh auth, if any>
   name-only:     <low-confidence matches to verify, if any>
+  out of scope:  <local run: K live agents not in sources.yaml — re-run with Trinity/Both to include>
+                 <trinity run: K sources.yaml repos unscanned — re-run with Both to include catalog>
   orchestration.md: refreshed (roster N, declared-intent edges M)
   dashboard:        Fleet rows refreshed | no dashboard.yaml / no managed section
 
@@ -290,12 +315,14 @@ try: mcp__trinity__report(report_type: "<agent>.fleet_scan", display_hint: "tabl
 
 | Situation | Action |
 |---|---|
-| No `fleet/sources.yaml` | Tell user to run `/add-orchestrator`; stop |
+| No `fleet/sources.yaml` | `local`/`both` source: tell user to run `/add-orchestrator`; stop. `trinity` source: fine — the roster comes from `list_agents` |
+| Trinity MCP absent | Skip the Step 0 question — `local` source automatically; all `deployed:false`; unverified-status note; succeed locally |
+| Trinity absent **and** no `sources.yaml` | Nothing to discover; stop and offer both fixes (connect Trinity / seed sources) |
+| Live agent exposes no source repo (`trinity`/`both`) | Live-only map entry — `match: live`, fields from `get_agent_info`, `notes:`; never dropped |
 | `sources.yaml` empty | Ask for repos or stop; don't overwrite a good map with an empty one |
 | `gh` unauthenticated + `github:` sources present | Preflight warns once (Step 1); unreachable repos get `notes:`, others still scan |
 | Private repo, token lacks org access | `FETCH_STATUS=auth` → `notes: "unreachable — token lacks access"`; continue |
 | `template.yaml` unparseable / one bad field | Per-field extraction keeps the good fields; `notes: "partial parse"` |
 | Native `capabilities:` is a list (not a map) | Expected — read as `capability_keywords`; never index it with `.role` |
 | Deployed name ≠ template name | Repo-first match resolves it into `deployed_name`; that's what `/orchestrate` uses |
-| Trinity MCP absent | All `deployed:false`; unverified-status note; succeed locally |
 | Report tool present but key out of scope | Swallow the auth error; the map write already succeeded |
