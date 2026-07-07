@@ -6,10 +6,11 @@ disable-model-invocation: true
 user-invocable: true
 allowed-tools: AskUserQuestion, Read, Skill, mcp__trinity__list_agents, mcp__trinity__run_agent_loop, mcp__trinity__get_loop_status, mcp__trinity__stop_loop
 metadata:
-  version: "1.5.1"
+  version: "1.5.2"
   created: 2026-06-09
   author: Ability.ai
   changelog:
+    - "1.5.2: Disambiguate 'fire-and-forget' in Phase 5 — here it means disconnecting from a *server-side remote loop* (safe: the backend runs it), NOT abandoning a heavy job inside a single run (which the 300s watchdog / orphan sweeper kill — oversee those in-turn; see /trinity:onboard)"
     - "1.5.1: Reworded the connection prerequisite to the canonical block shared with /trinity:sync and /trinity:onboard — delegates to /trinity:connect (the single connection owner), reconnect via /mcp, never the CLI/curl"
     - "1.5: Resolve the remote from the unified `.trinity-remote.yaml` registry — read the `default` remote's `agent` under `remotes:` (with legacy single-remote fallback). Provenance now accurate: the file is genuinely written by both /trinity:onboard and /trinity:sync"
     - "1.4: Default local watch after firing — dynamic /loop (ScheduleWakeup) polls get_loop_status, reports changes/stalls/terminal state; skipped on fire-and-forget or when local /loop is unavailable"
@@ -166,7 +167,7 @@ The server starts iterating right away — like `/loop`, the first run happens *
 
 ### PHASE 5 — Local watch (default)
 
-After reporting the handle, start a lightweight local watch **by default** — skip it only if the user said fire-and-forget (or equivalent), or the session is headless. Invoke Claude Code's built-in dynamic `/loop` skill (no interval — it self-paces via `ScheduleWakeup`) with a watch prompt like:
+After reporting the handle, start a lightweight local watch **by default** — skip it only if the user said fire-and-forget (or equivalent), or the session is headless. ("Fire-and-forget" here is safe: you're disconnecting from a **server-side** loop the backend keeps running — not the same as spawning a heavy job **inside a single run** and ending the turn, which Trinity's 300s stall watchdog / orphan sweeper kill. Those must be overseen in-turn — see `/trinity:onboard` → *Long-running jobs inside a run*.) Invoke Claude Code's built-in dynamic `/loop` skill (no interval — it self-paces via `ScheduleWakeup`) with a watch prompt like:
 
 > check trinity loop `<loop_id>` via `mcp__trinity__get_loop_status`; post one line only when something changed (`run N/M · status · cost`) or the loop looks stalled (near-identical consecutive responses — suggest `/trinity:loop stop <loop_id>`); when status is terminal, report `stop_reason` and the final response, then end the loop
 

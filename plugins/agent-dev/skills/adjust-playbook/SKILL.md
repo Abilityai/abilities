@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[playbook-name] [what to change] [--archive]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.6"
+  version: "1.7"
   created: 2025-02-10
-  updated: 2026-06-18
+  updated: 2026-07-07
   author: Ability.ai
   changelog:
+    - "1.7: Add Long-Running-Task line to the Autonomous Validation Checklist — a >~4-min step must be overseen in-turn (polled/detached + done-marker, heartbeat <300s, artifact verified) or offloaded to an OS-level job; never foreground-silent or background-then-end-the-turn"
     - "1.6: On every change, prepend a newest-first changelog entry, bump metadata.version, and ensure the what's-new banner is present after the H1"
     - "1.5: Add Composition Rule support — Compose adjustment (replace inlined logic with a skill call), downstream-caller detection on breaking changes, transitive autonomous check"
     - "1.4: Add Change Effort/Model and Add Skill-Scoped Hooks adjustments; add Routines note to autonomous validation"
@@ -277,6 +278,7 @@ Autonomous playbooks run unattended — there is no human to approve gates. Befo
 - [ ] **Complete error handling** — all failure paths handled without human intervention
 - [ ] **Notifications on failure** — errors must alert via Slack, email, or logging
 - [ ] **Under 45 minutes** — execution time within agent reliability window
+- [ ] **No unattended >~4-min job** — any step over ~4 min is overseen in-turn (polled child *or* detached + done-marker, heartbeat <300s, artifact verified before success) or offloaded to an OS-level job; never foreground-silent (300s watchdog kill) or background-then-end-the-turn (orphan-reaped)
 - [ ] **Idempotent or safe to retry** — can re-run without causing duplicate effects
 - [ ] **Single-task scope** — processes one task type per invocation; iteration over varied items happens across invocations, not within one
 - [ ] **Composed children are autonomous-safe** — autonomy is transitive: recurse into every `/invoked` skill; none may contain `[APPROVAL GATE]` or human decision points, and the whole tree must fit the 45-minute / single-task budget

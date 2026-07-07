@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.7"
+  version: "2.8"
   created: 2025-02-10
-  updated: 2026-06-18
+  updated: 2026-07-07
   author: Ability.ai
   changelog:
+    - "2.8: Add the Long-Running-Task Rule to Design Constraints (>~4-min jobs die to Trinity's 300s stall watchdog if foregrounded-silent, or the orphan sweeper if backgrounded-then-turn-ends) + a validation-checklist line — oversee in-turn or offload to an OS-level job; never fire-and-forget"
     - "2.7: Generated skills now include the what's-new banner + a seed changelog; documented the required changelog + banner convention for every tier"
     - "2.6: Add the Composition Rule — playbooks invoke child skills by name (compose, don't copy); reuse-check step, Composes section, transitive autonomous check"
     - "2.5: Add when_to_use/arguments/shell/effort/substitution-vars to frontmatter; fix hot-reload advice; add supporting-files step; add Routines note"
@@ -329,6 +330,13 @@ When gathering requirements for Tier 3 playbooks, ask: "Can this complete in und
 - Exception: batch tasks where every item has *identical* context needs (same files, same pattern) are fine — e.g., running the same quality gate on N wizard files all read the same kind of data
 - When a user asks for a scheduled loop, design it as single-item-per-invocation and explain that the cron handles repetition
 
+**The Long-Running-Task Rule (>~4 min)**: Any single step that can exceed ~4 minutes (a FAISS/index rebuild, full bootstrap, bulk embedding, a large git op) collides with two Trinity guardrails — design around them, don't discover them at 3am:
+
+- **Foreground + silent dies.** The **300-second stall watchdog** `SIGKILL`s any tool call that produces no output for 300s. Never run a quiet multi-minute job in the foreground, and never pipe it through `tail` — `tail` buffers output to the end, guaranteeing the kill.
+- **Background + end-the-turn dies.** A child spawned inside a run does **not** survive the turn ending — the **orphan sweeper** reaps it within ~30s. The "I'll be re-invoked when it finishes" wakeup never fires (the job was killed, not completed), the run records `business_status=skipped`, and nothing durable changes.
+- **Oversee it in-turn instead.** Stay in the same turn and either keep the job as a **polled child** or launch it **truly detached** (`setsid`/`nohup … & disown`, writing a done-marker file) and poll the marker. **Heartbeat every <300s** — print a short progress line each poll so the watchdog never triggers. **Verify the artifact actually moved** (mtime advanced / count > 0) before declaring success — never trust the exit code or `business_status` alone; if the output didn't change, the run *failed*, say so loudly. Size the schedule's `timeout_seconds` comfortably past a full run.
+- **Better still: decouple heavy jobs from the LLM turn.** A 20-min CPU-bound rebuild ideally shouldn't run inside an agent turn at all — every platform guardrail is built to kill that shape of process. Prefer an OS-level job (container cron / systemd unit / small non-LLM sidecar) and have the skill only **trigger and verify status**.
+
 **The Composition Rule**: When a playbook needs work another skill already does, it **invokes that skill by name** (``Invoke `/child-skill` ``, `Skill` in `allowed-tools`) — it never inlines the child's steps, calls its internal scripts/files directly, or paraphrases what it does. The parent holds only the orchestration; the child stays the single source of truth, so its fixes propagate automatically. Call the unversioned name to ride latest; pin `/child-vN` only to freeze. Composition is a DAG (no cycles, keep it shallow). See [Composing skills](../../README.md#composing-skills-hierarchical-playbooks) for the full rule.
 
 ---
@@ -342,6 +350,7 @@ Before generating any autonomous playbook, verify:
 - [ ] **Complete error handling** — all failure paths handled without human intervention
 - [ ] **Notifications on failure** — errors must alert via Slack, email, or logging
 - [ ] **Under 45 minutes** — execution time within agent reliability window
+- [ ] **No unattended >~4-min job** — any step over ~4 min is overseen in-turn (polled child *or* detached + done-marker, heartbeat <300s, artifact verified before success) or offloaded to an OS-level job; never foreground-silent (300s watchdog kill) or background-then-end-the-turn (orphan-reaped)
 - [ ] **Idempotent or safe to retry** — can re-run without causing duplicate effects
 - [ ] **Single-task scope** — processes one task type per invocation; iteration over varied items happens across invocations, not within one
 - [ ] **Composed children are autonomous-safe** — autonomy is transitive: recurse into every `/invoked` skill; none of them may contain `[APPROVAL GATE]` or human decision points, and the whole tree must fit the 45-minute / single-task budget

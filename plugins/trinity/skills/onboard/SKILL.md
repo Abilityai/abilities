@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
 metadata:
-  version: "4.12"
+  version: "4.13"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "4.13: Document the runtime reality of long jobs — new 'Long-running jobs inside a run' subsection (300s stall watchdog + orphan sweeper; oversee in-turn, never fire-and-forget), annotate the Async Task row (fire-and-forget is the local→remote trigger, not licence to abandon a heavy job inside the remote run), and a Rules note to size timeout_seconds past a full run"
     - "4.12: Delegate connection to /trinity:connect (Composition Rule) — Step 2 is now a connect handoff (no inline credential resolution), Step 4 just verifies the connection (deleted the stale `npx mcp-remote` .mcp.json writer + .mcp.json.template; connect is the single writer). .env is now for the agent's own secrets only (Trinity creds live in connect's ~/.trinity/config.json + .mcp.json). Updated Step 1b/Step 6/error table accordingly"
     - "4.11: Deploy robustness — Step 5 preamble: use Trinity MCP tools (not the CLI/curl) for every remote op and confirm the target instance when multiple Trinity servers are connected; new Step 5e injects gitignored credentials (e.g. .env) after deploy via inject_credentials, since the archive excludes them; schedule reconcile renumbered 5e→5f; fixed Step 6 Next-Steps numbering (5,6 were 6,7)"
     - "4.10: Unified remote registry — `.trinity-remote.yaml` is now the shared multi-remote file (default + remotes:) read by /trinity:sync and /trinity:loop, not a single-remote tracking file. Step 5c records the deploy as a named remote without clobbering sync's config; Step 5b parses the multi-remote shape and migrates legacy single-remote files"
@@ -173,13 +174,29 @@ Local Session                           Remote Agent
 
 Use scheduled skills or CronCreate to automate this polling.
 
+### Long-running jobs inside a run
+
+The heartbeat pattern above is *local orchestrating remote*. A different trap bites when the **remote agent itself** kicks off a >~4-min job inside one of its own runs (a FAISS/index rebuild, full bootstrap, bulk embedding, a large git op). Trinity kills the two naive shapes:
+
+- **Foreground + silent** → the **300-second stall watchdog** `SIGKILL`s any tool call that emits no output for 300s. A quiet multi-minute build is killed mid-run. Do **not** pipe a long job through `tail` — it buffers output to the end, guaranteeing the kill.
+- **Background + end the turn** → a child spawned inside a run does **not** survive the turn ending; the **orphan sweeper** reaps it within ~30s. Any "I'll be re-invoked when it finishes" wakeup never fires (the job was killed, not completed), the run records `business_status=skipped`, and nothing durable changes.
+
+**The pattern that works — oversee it in-turn, never fire-and-forget:**
+
+1. Stay in the same turn. Either keep the job as a **polled child** (loop on it) or launch it **truly detached** (`setsid`/`nohup … & disown`, writing a done-marker file) and poll the marker.
+2. **Heartbeat every <300s** — print a short progress line each poll (elapsed, PID alive?, partial stats) so the stall watchdog never triggers. A bare `echo "still building… ${elapsed}s"` is enough.
+3. **Verify the artifact before declaring success** — confirm the *output actually changed* (e.g. the index file's mtime advanced *and* a stats count > 0), not the exit code or `business_status` alone. If the artifact didn't move, the run **failed** — say so loudly; do not exit `skipped`/`success`.
+4. **Size the budget** — the schedule's `timeout_seconds` must comfortably exceed a full run (a 20-min rebuild needs headroom well past 1200s; see Step 3a).
+
+**Better still — decouple heavy jobs from the agent turn.** A 20-min CPU-bound rebuild ideally should not run inside an LLM turn at all: it's costly and every guardrail is designed to kill that shape. Prefer running it as an **OS-level job** (a container cron / systemd unit or a small non-LLM sidecar) and have the skill only **trigger and verify status**.
+
 ### Collaboration Modes
 
 | Mode | Tool/Command | Use Case |
 |------|--------------|----------|
 | **Execute** | `mcp__trinity__chat_with_agent` | Run task on remote, get response |
 | **Deploy-Run** | `/trinity:sync` then `chat_with_agent` | Sync changes first, then execute |
-| **Async Task** | `chat_with_agent(..., async=true)` | Fire-and-forget, poll with `get_execution_result` |
+| **Async Task** | `chat_with_agent(..., async=true)` | Fire-and-forget the *local→remote trigger*, poll with `get_execution_result`. This does **not** license the remote run to spawn a heavy child and abandon it — a >~4-min job **inside** the run must still be overseen in-turn (see *Long-running jobs inside a run*) |
 | **Scheduled** | `mcp__trinity__create_agent_schedule` | Cron-based autonomous execution (declared in `template.yaml`, see Step 3a) |
 
 ### When to Use Local vs Remote
@@ -417,6 +434,7 @@ schedules:
 **Rules:**
 - `id` must be unique within the agent and stable across edits — it's how a declared schedule is matched to its live counterpart during reconcile. Use kebab-case.
 - Omit the whole block if the agent has no scheduled tasks. An empty/absent block is valid.
+- Size `timeout_seconds` past a full run of whatever the schedule triggers. The 15-min default is fine for light tasks, but a run that can kick off a long job (index rebuild, bulk embedding, full bootstrap) needs explicit headroom — and that long job must itself be overseen in-turn, not fire-and-forget (see *Long-running jobs inside a run*).
 - The `## Recommended Schedules` table in `CLAUDE.md` is a human-readable rendering of this block, not a second source of truth.
 
 **avatar_prompt guidance:** This field is used by Trinity to generate a portrait avatar for the agent using AI image generation. Write a vivid, specific character description that captures the agent's personality and role. The prompt should describe a person or character as a portrait subject — appearance, attire, expression, setting, and lighting.

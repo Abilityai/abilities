@@ -97,6 +97,10 @@ Trinity exposes three ways to drive a remote agent:
 
 `/trinity:loop` is the **remote** counterpart to Claude Code's built-in `/loop`: same two modes (fixed count vs run-until-a-signal), but the loop body runs server-side, so you fire once and disconnect.
 
+## Long-running tasks: oversee in-turn, never fire-and-forget
+
+A >~4-min job (FAISS/index rebuild, bulk embedding, full bootstrap, large git op) run **inside an agent's own turn** hits two guardrails: foreground-and-silent trips the **300s stall watchdog** (`SIGKILL` after 300s with no tool output — don't pipe through `tail`), and background-then-end-the-turn gets **orphan-reaped** (~30s; the "re-invoked when done" wakeup never fires and the run records `business_status=skipped`). Oversee it in-turn instead — a polled child *or* a detached job (`setsid`/`nohup … & disown`) + done-marker, a heartbeat line every <300s, and verify the artifact actually moved (mtime/count, not the exit code or `business_status`) — or, better, run heavy CPU jobs as an OS-level cron/systemd/sidecar and have the skill only trigger and verify. `/trinity:onboard` → *Long-running jobs inside a run* documents the full pattern; `/agent-dev:create-playbook` and `/agent-dev:add-pipeline` bake it into generated skills.
+
 ## Building multi-agent systems
 
 A *system* is a coordinated group of agents. Declare one as a Trinity **`SystemManifest`** and deploy it in a single shot with the `deploy_system` MCP tool (`list_systems`, `get_system_manifest`, and `restart_system` round out the set). Trinity supplies the substrate — agent-to-agent messaging, shared folders, permissions, cron — but runs **no central DAG engine**: orchestration is owned by the agents themselves.

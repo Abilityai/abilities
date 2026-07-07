@@ -149,6 +149,8 @@ The multi-agent *definition* aligns with Trinity's `SystemManifest` — no paral
 
 **Trinity scheduling, in one line:** a schedule should call a single playbook and nothing else — business logic belongs in the playbook, so the cron prompt stays a bare skill invocation and behavior changes are edits to the playbook, never the schedule.
 
+**Long-running tasks, in one line:** a step that can exceed ~4 minutes (index rebuild, bulk embedding, large git op) must be *overseen in-turn* — a polled child or a detached job + done-marker, a heartbeat every <300s, and the artifact verified before success — or offloaded to an OS-level job. Never foreground-and-silent (Trinity's 300s stall watchdog `SIGKILL`s it) or background-then-end-the-turn (the orphan sweeper reaps it and the run records `skipped`). `/create-playbook` carries the rule as a Design Constraint; `/add-pipeline` keeps heavy compute out of the heartbeat turn.
+
 ## Source
 
 This plugin consolidates:
