@@ -4,11 +4,12 @@ description: Scaffold a Trinity-compatible long-running pipeline inside any agen
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-05-23
-  updated: 2026-07-05
+  updated: 2026-07-07
   author: Ability.ai
   changelog:
+    - "1.4: When-to-use caveat — a heavy CPU-bound stage (index rebuild, bulk embedding, full bootstrap) must NOT run inside the heartbeat's LLM turn: a headless run can't host a job past the ~10-min sync Bash ceiling (auto-backgrounded, then reaped at turn-end). Model it as an OS-level job (container cron / systemd / sidecar) writing a done-marker; the stage only triggers + verifies the artifact moved. Keeps the heartbeat a cheap read-and-advance loop"
     - "1.3: Platform-alignment fixes, verified against Trinity source — (1) the pre-check hook is REMOVED entirely, with migration: Trinity's scheduler has no fire/skip vocabulary (exit 0 + empty stdout ⇒ skip; exit 0 + ANY stdout ⇒ stdout replaces the calling schedule's configured message; the hook is agent-global with no schedule context), so v3's `echo fire` rewrote every schedule's prompt to the literal word 'fire' — Step 6 now strips any add-pipeline block (v1–v3) and deletes an empty leftover hook; skip logic lives in pipeline-tick alone; (2) create_agent_schedule is called with its real params (agent_name/name/cron_expression/message — schedule_name/cron/skill/pre_check never existed); (3) the dashboard.yaml block now uses Trinity's real sections[]→widgets[] schema with materialized rows that pipeline-tick refreshes (the old panel_type/source block was never rendered); (4) template.yaml schedules: caveat — Trinity never reads that block at agent creation; only /trinity:onboard and /trinity:sync materialize it"
     - "1.2: Fleet-orchestrator integration — Step 7 also records the heartbeat in template.yaml's schedules: block (source of truth for /trinity:sync; makes the pipeline discoverable to /add-orchestrator's /discover-agents); when-to-use now names /add-orchestrator + /orchestrate as the cross-agent layer for one-agent-per-tenant fan-out"
     - "1.1: Add 'When to use a pipeline' guidance (multi-instance ≠ multi-tenant); add Skill to allowed-tools and invoke /validate-pipeline canonically (Composition Rule)"
@@ -21,6 +22,8 @@ metadata:
 Add a long-running, multi-stage **pipeline** to any Trinity-compatible agent. Implements the canonical pipeline spec: the agent owns the DAG and stage logic; Trinity owns the read surface (`~/.trinity/pipelines/*.yaml` + `~/.trinity/pipeline-state/**/*.json`); a single heartbeat skill (`pipeline-tick`) owns advancement, retry, and escalation.
 
 **When to use a pipeline (and when not):** reach for this only when the work is a *population* of items that each crawl through *multiple stages over many runs*, and you need durable per-item state, isolated retries, and an at-a-glance "what stage is each item in" — e.g. per-customer onboarding, document ingestion, batched research crawls, especially when the whole batch can't finish in one scheduled run. If it's a single recurring task, a scheduled playbook is simpler — don't reach for a pipeline. And mind the boundary: instances are **multi-instance, not multi-tenant** — their *state* is isolated but they all run inside the **same agent** (same credentials, context window, and heartbeat), so for genuinely isolated or large-scale tenants, deploy **one agent per tenant** (Trinity fan-out) rather than one pipeline with many instances — that cross-agent layer is `/add-orchestrator`'s domain: its `/orchestrate` skill does the routing, fan-out, and ephemeral roll-out/tear-down across a fleet, and its `/discover-agents` surfaces this agent's pipelines to the fleet map.
+
+**Keep heavy CPU jobs out of the heartbeat turn.** A stage that does real compute (a FAISS/index rebuild, bulk embedding, a full bootstrap) must **not** run synchronously inside `pipeline-tick`'s LLM turn. A headless run is a single agent turn and can't host a job past the **~10-min synchronous Bash ceiling** — past it the harness auto-backgrounds the job, active waiting is blocked, and the turn ending reaps the backgrounded task (it fires `killed`, not `completed`; see `/trinity:onboard` → *Long-running jobs inside a run*). Model the heavy work as an **OS-level job** (a container cron / systemd unit or a small non-LLM sidecar writing a **done-marker**), and let the stage only **trigger it and verify the artifact moved** (mtime advanced / count > 0 — not an exit code or `business_status`). The heartbeat stays a cheap read-and-advance loop.
 
 **What gets installed:**
 

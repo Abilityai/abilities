@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
 metadata:
-  version: "4.12"
+  version: "4.13"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "4.13: New 'Long-running jobs inside a run' subsection — a headless/scheduled execution is a single agent turn and CANNOT host a job longer than the ~10-min synchronous Bash window (a hard platform ceiling): the harness auto-backgrounds it, active waiting is blocked, and ending the turn reaps every background task/monitor (fires `killed`, not `completed`). >~10-min work must decouple to an OS-level cron/systemd/sidecar + done-marker; the run only triggers/verifies. Annotated the Async Task row and added a timeout_seconds Rule accordingly. Always verify the artifact moved, never trust exit code/business_status"
     - "4.12: Delegate connection to /trinity:connect (Composition Rule) — Step 2 is now a connect handoff (no inline credential resolution), Step 4 just verifies the connection (deleted the stale `npx mcp-remote` .mcp.json writer + .mcp.json.template; connect is the single writer). .env is now for the agent's own secrets only (Trinity creds live in connect's ~/.trinity/config.json + .mcp.json). Updated Step 1b/Step 6/error table accordingly"
     - "4.11: Deploy robustness — Step 5 preamble: use Trinity MCP tools (not the CLI/curl) for every remote op and confirm the target instance when multiple Trinity servers are connected; new Step 5e injects gitignored credentials (e.g. .env) after deploy via inject_credentials, since the archive excludes them; schedule reconcile renumbered 5e→5f; fixed Step 6 Next-Steps numbering (5,6 were 6,7)"
     - "4.10: Unified remote registry — `.trinity-remote.yaml` is now the shared multi-remote file (default + remotes:) read by /trinity:sync and /trinity:loop, not a single-remote tracking file. Step 5c records the deploy as a named remote without clobbering sync's config; Step 5b parses the multi-remote shape and migrates legacy single-remote files"
@@ -173,13 +174,34 @@ Local Session                           Remote Agent
 
 Use scheduled skills or CronCreate to automate this polling.
 
+### Long-running jobs inside a run
+
+The heartbeat pattern above is *local orchestrating remote* — safe, because the local session persists. A harder trap bites when the **remote agent itself** kicks off a job inside one of its own **scheduled/headless** runs (a FAISS/index rebuild, full bootstrap, bulk embedding, a large migration). **A headless execution is a single agent turn, and it cannot host a job longer than the synchronous Bash window (~10 min max tool timeout). This is a hard platform ceiling, not a tuning problem** — do **not** try to "oversee it in-turn," and do not trust streaming output or a monitor to save it.
+
+The failure chain, observed end-to-end with streaming working:
+
+1. You run the job as one foreground streaming call (correct). Because it outruns the ~10-min synchronous Bash ceiling, **the harness auto-backgrounds it** — not your choice; it returns *"running in background, you'll be notified on completion."*
+2. You **cannot actively wait**: `sleep`/poll loops are blocked (*"use monitor with an until-loop"*).
+3. So you arm a **monitor** and, with no other work to do, **end the turn** to await the completion event.
+4. **Ending the turn (= the execution finalizing) kills every background task and monitor spawned in it.** The job dies mid-run; the completion event fires as **`killed`, not `completed`**; the promised re-invoke never happens.
+
+Streaming heartbeat output only defeats the **300s no-output stall watchdog** — it does nothing about the ~10-min sync ceiling or the turn-end reaping. The async background-task / monitor / re-invoke model works in an **interactive** session (which persists) but **NOT** in a **headless** execution (which ends the turn and reaps its tasks).
+
+**The rule:**
+
+- **Finishes within ~10 min:** run it as one **foreground, un-piped, streaming** Bash call, in-turn. Do **not** pipe through `tail`/`grep` — that buffers output and re-arms the stall watchdog.
+- **Longer than ~10 min** (full FAISS rebuild, bulk embedding, big migrations): it **MUST run outside the agent turn**. Model the heavy work as an **OS-level job** in the container — a **cron/systemd unit** or a small **sidecar** — that builds the artifact and writes a **done-marker**. The scheduled execution then does only the **fast** parts: check the marker / artifact freshness, and if fresh, run the quick follow-ups (index verify, downstream bootstrap). Size the schedule's `timeout_seconds` for those fast parts, never for the heavy job.
+- **Never** "fire a background task and end the turn to await a notification" in a headless execution — the task is reaped the instant the turn ends.
+
+**Always verify the artifact.** Never report success off an exit code or `business_status`. Confirm the output *actually moved* — e.g. `brain.faiss` mtime advanced **and** `run_connections.sh --stats --json` returns count > 0 — before declaring done. A run that ends without the artifact changing is a **failure**, not a `skipped`.
+
 ### Collaboration Modes
 
 | Mode | Tool/Command | Use Case |
 |------|--------------|----------|
 | **Execute** | `mcp__trinity__chat_with_agent` | Run task on remote, get response |
 | **Deploy-Run** | `/trinity:sync` then `chat_with_agent` | Sync changes first, then execute |
-| **Async Task** | `chat_with_agent(..., async=true)` | Fire-and-forget, poll with `get_execution_result` |
+| **Async Task** | `chat_with_agent(..., async=true)` | Fire-and-forget the *local→remote trigger*, poll with `get_execution_result`. This does **not** license the remote run to spawn a >~10-min child and end the turn — the turn-end reaps it. Decouple such work to an OS-level job (see *Long-running jobs inside a run*) |
 | **Scheduled** | `mcp__trinity__create_agent_schedule` | Cron-based autonomous execution (declared in `template.yaml`, see Step 3a) |
 
 ### When to Use Local vs Remote
@@ -417,6 +439,7 @@ schedules:
 **Rules:**
 - `id` must be unique within the agent and stable across edits — it's how a declared schedule is matched to its live counterpart during reconcile. Use kebab-case.
 - Omit the whole block if the agent has no scheduled tasks. An empty/absent block is valid.
+- Size `timeout_seconds` for the work the run *actually does in-turn*. A run that only triggers-and-verifies a decoupled OS-level job stays fast, so the 15-min default is plenty. A run must **not** try to host a >~10-min job itself — the harness auto-backgrounds it past ~10 min and the turn-end reaps it, so a bigger timeout does not save it (see *Long-running jobs inside a run*).
 - The `## Recommended Schedules` table in `CLAUDE.md` is a human-readable rendering of this block, not a second source of truth.
 
 **avatar_prompt guidance:** This field is used by Trinity to generate a portrait avatar for the agent using AI image generation. Write a vivid, specific character description that captures the agent's personality and role. The prompt should describe a person or character as a portrait subject — appearance, attire, expression, setting, and lighting.

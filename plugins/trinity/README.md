@@ -97,6 +97,10 @@ Trinity exposes three ways to drive a remote agent:
 
 `/trinity:loop` is the **remote** counterpart to Claude Code's built-in `/loop`: same two modes (fixed count vs run-until-a-signal), but the loop body runs server-side, so you fire once and disconnect.
 
+## Long-running jobs cannot live inside a headless run
+
+A **scheduled/headless** execution is a single agent turn, and it cannot host a job longer than the synchronous Bash window (**~10 min** max tool timeout) — a hard platform ceiling, not a tuning problem. Past ~10 min the harness **auto-backgrounds** the job, active waiting is blocked, and **ending the turn reaps every background task and monitor** it spawned (the completion event fires as `killed`, not `completed`; the promised re-invoke never comes). Streaming heartbeat output only silences the 300s no-output stall watchdog — it does nothing about the ~10-min ceiling or the turn-end reaping. The async monitor/re-invoke model works in an **interactive** session (which persists) but **not** headless. So: run a >~10-min job (FAISS/index rebuild, bulk embedding, big migration) as an **OS-level cron/systemd/sidecar** that writes a **done-marker**, and let the scheduled run do only the fast parts — check the marker, verify the artifact actually moved (mtime + count, never the exit code or `business_status`), then run quick follow-ups. `/trinity:onboard` → *Long-running jobs inside a run* documents the full pattern; `/agent-dev:create-playbook` and `/agent-dev:add-pipeline` bake it into generated skills.
+
 ## Building multi-agent systems
 
 A *system* is a coordinated group of agents. Declare one as a Trinity **`SystemManifest`** and deploy it in a single shot with the `deploy_system` MCP tool (`list_systems`, `get_system_manifest`, and `restart_system` round out the set). Trinity supplies the substrate — agent-to-agent messaging, shared folders, permissions, cron — but runs **no central DAG engine**: orchestration is owned by the agents themselves.

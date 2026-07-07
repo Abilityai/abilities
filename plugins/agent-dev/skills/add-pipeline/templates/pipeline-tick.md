@@ -5,10 +5,11 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Skill, Agent
 automation: autonomous
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   author: agent-dev
   source: agent-dev:add-pipeline
   changelog:
+    - "1.2: Verify-the-artifact-before-success rule in Step 4 — a stage counts as done only when its output actually moved (mtime advanced / count > 0), never off an exit code or business_status; if it didn't move the stage failed → retry/escalate, don't advance. A stage's heavy work belongs in an OS-level job, not the tick's turn (a headless run can't host a >~10-min job — see add-pipeline → Keep heavy CPU jobs out of the heartbeat turn)"
     - "1.1: Drop the pre-check premise — the hook is removed (Trinity's agent-global pre-check contract cannot express a safe gate: any stdout replaces the calling schedule's message); the tick itself is the cheap no-op filter. New Step 9 materializes the dashboard.yaml Pipelines table rows after state writes"
     - "1.0: Initial version — heartbeat that advances pipelines through their stages (advance/retry/escalate/wait/complete), atomic state writes, ~/.trinity read-surface sync"
 ---
@@ -101,6 +102,8 @@ Apply decision rules **in priority order** — stop at the first match:
 1. Set `state.last_completed_cycle_at = now`, `state.status = "idle"`, `state.current_stage = null`.
 2. Increment `state.metrics.cycles_completed`.
 3. Write state. Emit `pipeline.$PIPELINE_ID.$INSTANCE_ID.cycle_completed` event.
+
+**Verify the artifact before treating a stage as done.** A stage's `last_status` must reflect that its *output actually moved* — the index file's mtime advanced, a stats count is > 0, the expected file exists and is non-empty — **not** merely that the stage skill exited 0 or a `business_status` came back `success`. A stage that reports done off an exit code alone will happily "advance" a pipeline whose work silently didn't happen — e.g. its heavy job got auto-backgrounded past the ~10-min sync ceiling and then reaped when the turn ended (see `add-pipeline` → *Keep heavy CPU jobs out of the heartbeat turn*). If the artifact didn't move, set `last_status = "failed"` with the reason so this tick routes to `retry`/`escalate` instead of `advance`.
 
 ### Step 5: Precondition evaluation reference
 

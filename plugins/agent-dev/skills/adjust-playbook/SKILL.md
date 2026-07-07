@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[playbook-name] [what to change] [--archive]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.6"
+  version: "1.7"
   created: 2025-02-10
-  updated: 2026-06-18
+  updated: 2026-07-07
   author: Ability.ai
   changelog:
+    - "1.7: Add the Long-Running-Task line to the Autonomous Validation Checklist — a headless run can't host a >~10-min job (auto-backgrounded past the ~10-min sync Bash ceiling, then reaped at turn-end); such work is decoupled to an OS-level cron/systemd/sidecar + done-marker and the run only triggers + verifies the artifact moved (mirrors /create-playbook 2.8)"
     - "1.6: On every change, prepend a newest-first changelog entry, bump metadata.version, and ensure the what's-new banner is present after the H1"
     - "1.5: Add Composition Rule support — Compose adjustment (replace inlined logic with a skill call), downstream-caller detection on breaking changes, transitive autonomous check"
     - "1.4: Add Change Effort/Model and Add Skill-Scoped Hooks adjustments; add Routines note to autonomous validation"
@@ -277,6 +278,7 @@ Autonomous playbooks run unattended — there is no human to approve gates. Befo
 - [ ] **Complete error handling** — all failure paths handled without human intervention
 - [ ] **Notifications on failure** — errors must alert via Slack, email, or logging
 - [ ] **Under 45 minutes** — execution time within agent reliability window
+- [ ] **No in-turn job over ~10 min** — a headless run can't host a job past the ~10-min sync Bash ceiling (auto-backgrounded, then reaped at turn-end); anything longer (index rebuild, bulk embedding, big migration) is decoupled to an OS-level cron/systemd/sidecar + done-marker, and the run only triggers + verifies the artifact moved (never off an exit code / `business_status`)
 - [ ] **Idempotent or safe to retry** — can re-run without causing duplicate effects
 - [ ] **Single-task scope** — processes one task type per invocation; iteration over varied items happens across invocations, not within one
 - [ ] **Composed children are autonomous-safe** — autonomy is transitive: recurse into every `/invoked` skill; none may contain `[APPROVAL GATE]` or human decision points, and the whole tree must fit the 45-minute / single-task budget
