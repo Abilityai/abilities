@@ -1,7 +1,7 @@
 {
   "name": "agent-dev",
   "description": "Develop and extend existing agents — add skills, memory systems, GitHub Issues development workflow (backlog, roadmap, groom, claim, autoplan, commit, sprint, work-loop), long-running multi-stage pipelines (add-pipeline + heartbeat / status / recover / pause / resume runtime skills), and system-aware orchestration (add-orchestrator — discover / compose / orchestrate a multi-agent system via Trinity's SystemManifest)",
-  "version": "1.4.12",
+  "version": "1.4.13",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"

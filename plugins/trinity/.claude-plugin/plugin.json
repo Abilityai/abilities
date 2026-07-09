@@ -1,7 +1,7 @@
 {
   "name": "trinity",
   "description": "Connect, deploy, and sync agents to Trinity platform — the deep agent orchestration system",
-  "version": "2.5.5",
+  "version": "2.5.6",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"

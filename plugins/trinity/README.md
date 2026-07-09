@@ -78,12 +78,27 @@ Once connected, Trinity MCP tools are available directly:
 | `mcp__trinity__get_loop_status` | Poll a loop's per-run progress |
 | `mcp__trinity__stop_loop` | Request a graceful stop of a running loop |
 | `mcp__trinity__create_agent_schedule` | Create a cron schedule on an agent (`list_agent_schedules`, `update_agent_schedule`, `toggle_agent_schedule`, `delete_agent_schedule`, `trigger_agent_schedule`, `get_schedule_executions`) |
+| `mcp__trinity__report` | Publish a structured result to the agent's **Reports** tab (see *Reporting* below) |
 
 ### Schedules are declarative
 
 Don't hand-create schedules ad hoc. Declare an agent's recommended schedules in a `schedules:` block in `template.yaml` (the design source of truth). `/trinity:onboard` and `/trinity:sync` **reconcile** that block onto the instance — creating missing schedules, updating drifted ones, and flagging live schedules that aren't declared. The per-schedule `enabled` flag is the recommended default; turning a schedule on or off on a live agent is the operator's call via `toggle_agent_schedule`.
 
 **Best practice: a schedule should call one playbook and nothing else** — keep the cron prompt to a bare skill invocation (e.g. `/daily-briefing`), with no inline instructions, arguments, or business logic. That logic belongs in the playbook the schedule triggers, so changing what a scheduled run does is always an edit to the playbook, never to the schedule.
+
+### Reporting — what the agent produced
+
+A deployed agent publishes results by calling one MCP tool: **`mcp__trinity__report`**. There's no file-drop convention or polling — the tool resolves *which* agent is reporting from its own agent-scoped key, so an agent can only ever file a report as itself. The card appears on that agent's **Reports** tab and the fleet-wide **Operations → Reports** view in near real time.
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `report_type` | ✅ | Namespaced `lower_snake` joined by `.` — `<agent>.<result>`, e.g. `recon.weekly_summary` |
+| `title` | ✅ | One line, ≤ 300 chars |
+| `payload` | ✅ | Arbitrary JSON, ≤ 256 KB |
+| `display_hint` | optional | `table` (`{columns, rows}`) · `kpi` (`{tiles:[{label,value,unit?}]}`) · `markdown` (`{markdown}`) · `timeline` (`{events:[{ts,label,detail}]}`) · omit → raw-JSON viewer |
+| `period_start` / `period_end` | optional | ISO-8601, for reports covering a window |
+
+**Reports complement `dashboard.yaml`:** the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only history* of what the agent accomplished. The convention `/create-agent` bakes into every generated agent is: **result-producing and scheduled skills end with a guarded `report` call** — guarded so it's skipped silently when the tool is absent (i.e. running locally, off Trinity). Reporting is an upgrade, never a requirement.
 
 ### Three execution patterns
 

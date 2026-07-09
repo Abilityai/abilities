@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-04-13
-  updated: 2026-04-21
+  updated: 2026-07-09
   author: Ability.ai
   changelog:
+    - "1.4: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and its primary result skill /coherence-sweep ends with a guarded ${agent_name}.coherence_digest report (Reports tab history); skipped silently off-Trinity"
     - "1.3: Wizards emit a template.yaml schedules: block for declarative Trinity scheduling"
     - "1.2: Removed Trinity CLI references; backfilled the /agent-dev:add-git-sync prompt"
     - "1.1: GitHub backlog as default task management"
@@ -664,6 +665,18 @@ When you're ready to run this agent remotely, run `/trinity:onboard` from this d
 
 After deploying, interact with your remote agent and manage schedules through the Trinity MCP tools available in Claude Code.
 
+## Reporting to Trinity
+
+Once deployed, publish **structured reports** so an operator can see what you produced without reading chat. At the end of any skill that yields a meaningful result — a coherence-check digest, a recall/research answer, a synthesis brief — call the `mcp__trinity__report` MCP tool. The report appears on this agent's **Reports** tab and the fleet-wide **Operations → Reports** view.
+
+- **When:** at the end of result-producing skills and scheduled runs — not for conversational replies.
+- **`report_type`:** namespaced `lower_snake`, shaped `<agent>.<result>` — e.g. `${agent_name}.coherence_digest`, `${agent_name}.research_answer`, `${agent_name}.synthesis`.
+- **`title`:** one short line (≤300 chars). **`payload`:** any JSON (≤256 KB).
+- **`display_hint`:** `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), or omit for a raw-JSON view.
+- **Guard the call:** the tool exists only when running on Trinity (it publishes under this agent's own key). If `mcp__trinity__report` isn't available — e.g. running locally — skip it silently. **Trinity is an upgrade, not a requirement.**
+
+Reports complement `dashboard.yaml`: the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only* history of what the agent accomplished.
+
 ## Onboarding
 
 This agent tracks your setup progress in `onboarding.json`. Run `/onboarding` to see
@@ -864,6 +877,14 @@ Runs full graph coherence analysis. Invokes `resources/local-brain-search/cohere
 Output: `05-Meta/Coherence-Reports/${YYYY-MM-DD}.md`.
 
 Scheduled: `0 6 * * 1` (weekly Monday 6am).
+
+**Publish a report (Trinity) — final step of this skill.** After writing the coherence report, if the `mcp__trinity__report` tool is available (i.e. running on Trinity), publish the digest so it lands on the agent's **Reports** tab as an append-only record:
+- `report_type`: `${agent_name}.coherence_digest`
+- `title`: `"${display_name} coherence sweep — ${YYYY-MM-DD}"`
+- `display_hint`: `kpi` — tiles for staleness flags, lifecycle transitions detected, tension candidates, and structural-health metrics (or `markdown` carrying the full report body).
+- `payload`: the headline metrics plus the path to `05-Meta/Coherence-Reports/${YYYY-MM-DD}.md`.
+
+Skip this step **silently** if the tool isn't available — running locally, the saved coherence report is the deliverable. Reporting is an upgrade, not a requirement.
 
 ### 16b. `/compute-lifecycle`
 

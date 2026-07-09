@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.8"
+  version: "2.9"
   created: 2025-02-10
-  updated: 2026-07-07
+  updated: 2026-07-09
   author: Ability.ai
   changelog:
+    - "2.9: Add the Reporting Rule to Design Constraints + a validation-checklist line — a skill that yields a surfaceable result (summary, batch, metrics) ends with a guarded mcp__trinity__report step (namespaced report_type, a display_hint, JSON payload) so scheduled/headless runs leave a visible record on the Trinity Reports tab; guarded to skip silently off-Trinity (reporting is an upgrade, never a gate)"
     - "2.8: Add the Long-Running-Task Rule to Design Constraints + a validation-checklist line — a headless/scheduled run is one agent turn and CANNOT host a >~10-min job (the harness auto-backgrounds it past the ~10-min sync Bash ceiling, active waiting is blocked, and ending the turn reaps every background task/monitor). Such work must be decoupled to an OS-level cron/systemd/sidecar + done-marker; the run only triggers and verifies the artifact moved. In-turn oversight is an interactive-only affordance, not a headless one"
     - "2.7: Generated skills now include the what's-new banner + a seed changelog; documented the required changelog + banner convention for every tier"
     - "2.6: Add the Composition Rule — playbooks invoke child skills by name (compose, don't copy); reuse-check step, Composes section, transitive autonomous check"
@@ -339,6 +340,11 @@ When gathering requirements for Tier 3 playbooks, ask: "Can this complete in und
 
 **The Composition Rule**: When a playbook needs work another skill already does, it **invokes that skill by name** (``Invoke `/child-skill` ``, `Skill` in `allowed-tools`) — it never inlines the child's steps, calls its internal scripts/files directly, or paraphrases what it does. The parent holds only the orchestration; the child stays the single source of truth, so its fixes propagate automatically. Call the unversioned name to ride latest; pin `/child-vN` only to freeze. Composition is a DAG (no cycles, keep it shallow). See [Composing skills](../../README.md#composing-skills-hierarchical-playbooks) for the full rule.
 
+**The Reporting Rule**: A skill that produces a **surfaceable result** — a summary, a batch of items, a metrics snapshot — should **end with a guarded Trinity report** so an operator can see what the run produced without reading chat (this is the *only* window into a scheduled/headless run). Add a final step that calls the `mcp__trinity__report` MCP tool with a namespaced `report_type` (`<agent>.<result>` in `lower_snake`, e.g. `oracle.weekly_summary`), a short `title`, a JSON `payload`, and a `display_hint` — `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), or omit for raw JSON. The report lands on the agent's **Reports** tab and the fleet **Operations → Reports** view — an append-only history alongside the live `dashboard.yaml` snapshot.
+
+- **Guard it.** The tool exists only on Trinity (it publishes under the agent's own key). If `mcp__trinity__report` isn't available — e.g. running locally — skip the step **silently**. Reporting is an upgrade, never a gate: the skill must produce its result with or without Trinity.
+- **Not for conversational replies** — only result-producing and scheduled runs.
+
 ---
 
 ## Autonomous Playbook Validation Checklist
@@ -354,6 +360,7 @@ Before generating any autonomous playbook, verify:
 - [ ] **Idempotent or safe to retry** — can re-run without causing duplicate effects
 - [ ] **Single-task scope** — processes one task type per invocation; iteration over varied items happens across invocations, not within one
 - [ ] **Composed children are autonomous-safe** — autonomy is transitive: recurse into every `/invoked` skill; none of them may contain `[APPROVAL GATE]` or human decision points, and the whole tree must fit the 45-minute / single-task budget
+- [ ] **Result-producing runs report** — a skill that yields a surfaceable result ends with a guarded `mcp__trinity__report` step (the Reporting Rule), skipped silently when the tool is absent — so a scheduled/headless run leaves a visible record on the Reports tab
 
 If any check fails, the playbook cannot be autonomous. Recommend `gated` instead.
 

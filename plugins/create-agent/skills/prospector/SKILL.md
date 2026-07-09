@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-04-04
   author: Ability.ai
   changelog:
+    - "1.3: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and /research-company ends with a guarded prospector.company_brief report (Reports tab history alongside the live dashboard); skipped silently off-Trinity"
     - "1.2: Wizards emit a template.yaml schedules: block for declarative Trinity scheduling"
     - "1.1: Removed Trinity CLI references — deployment guidance is now MCP/onboard-based"
     - "1.0: Backfilled the /agent-dev:add-git-sync prompt; added a development-workflow section"
@@ -202,6 +203,18 @@ When you're ready to run this agent remotely (scheduled tasks, always-on, API ac
 After deploying, interact with your remote agent through the Trinity MCP tools available in Claude Code.
 
 Learn more at [ability.ai](https://ability.ai)
+
+### Reporting to Trinity
+
+Once deployed, publish **structured reports** so an operator can see what you produced without reading chat. At the end of any skill that yields a meaningful result — a research brief, a batch of scored accounts, a weekly prospect list — call the `mcp__trinity__report` MCP tool. The report appears on this agent's **Reports** tab and the fleet-wide **Operations → Reports** view.
+
+- **When:** at the end of result-producing skills and scheduled runs — not for conversational replies.
+- **`report_type`:** namespaced `lower_snake`, shaped `<agent>.<result>` — e.g. `prospector.company_brief`, `prospector.fit_scores`, `prospector.weekly_prospects`.
+- **`title`:** one short line (≤300 chars). **`payload`:** any JSON (≤256 KB).
+- **`display_hint`:** `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), or omit for a raw-JSON view.
+- **Guard the call:** the tool exists only when running on Trinity (it publishes under this agent's own key). If `mcp__trinity__report` isn't available — e.g. running locally — skip it silently. **Trinity is an upgrade, not a requirement.**
+
+Reports complement `dashboard.yaml`: the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only* history of what the agent accomplished.
 
 ### Recommended Plugins
 
@@ -415,9 +428,21 @@ mkdir -p research
 
 Report the file location to the user.
 
+### Step 5: Publish a report (Trinity)
+
+If the `mcp__trinity__report` tool is available (i.e. running on Trinity), publish the brief so it lands on the agent's **Reports** tab as an append-only record:
+
+- `report_type`: `prospector.company_brief`
+- `title`: `"[Company Name] — research brief"`
+- `display_hint`: `markdown`
+- `payload`: `{ "markdown": "<the brief you just wrote>" }` (or a `table`/`kpi` shape if you prefer the headline facts as tiles).
+
+Skip this step **silently** if the tool isn't available — running locally, the saved brief is the deliverable. Reporting is an upgrade, not a requirement.
+
 ## Outputs
 
 - Markdown research brief saved to `research/[company].md`
+- A guarded `prospector.company_brief` report on Trinity (skipped when running locally)
 - Console summary with ICP fit assessment and top outreach angles
 ```
 

@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-04-04
   author: Ability.ai
   changelog:
+    - "1.3: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and its primary result skill ends with a guarded webmaster.deploy report (Reports tab history alongside the live dashboard); skipped silently off-Trinity"
     - "1.2: Wizards emit a template.yaml schedules: block for declarative Trinity scheduling"
     - "1.1: Removed Trinity CLI references — deployment guidance is now MCP/onboard-based"
     - "1.0: Backfilled the /agent-dev:add-git-sync prompt; added a development-workflow section"
@@ -177,6 +178,18 @@ When you're ready to run this agent remotely (scheduled tasks, always-on, API ac
 After deploying, interact with your remote agent through the Trinity MCP tools available in Claude Code.
 
 Learn more at [ability.ai](https://ability.ai)
+
+### Reporting to Trinity
+
+Once deployed, publish **structured reports** so an operator can see what you produced without reading chat. At the end of any skill that yields a meaningful result — a deployment, a build/audit summary, a content update — call the `mcp__trinity__report` MCP tool. The report appears on this agent's **Reports** tab and the fleet-wide **Operations → Reports** view.
+
+- **When:** at the end of result-producing skills and scheduled runs — not for conversational replies.
+- **`report_type`:** namespaced `lower_snake`, shaped `<agent>.<result>` — e.g. `webmaster.deploy`, `webmaster.build_summary`, `webmaster.content_update`.
+- **`title`:** one short line (≤300 chars). **`payload`:** any JSON (≤256 KB).
+- **`display_hint`:** `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), or omit for a raw-JSON view.
+- **Guard the call:** the tool exists only when running on Trinity (it publishes under this agent's own key). If `mcp__trinity__report` isn't available — e.g. running locally — skip it silently. **Trinity is an upgrade, not a requirement.**
+
+Reports complement `dashboard.yaml`: the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only* history of what the agent accomplished.
 
 ### Recommended Plugins
 
@@ -380,6 +393,17 @@ npm run build
 
 ### Step 20: Present Summary
 - Project name, location, GitHub URL, pages, design, live URL
+
+### Step 21: Publish a report (Trinity)
+
+If the `mcp__trinity__report` tool is available (i.e. running on Trinity), publish the deployment/build result so it lands on the agent's **Reports** tab as an append-only record:
+
+- `report_type`: `webmaster.deploy`
+- `title`: `"[Project name] — deployed"` (or `"[Project name] — built"` when deployment was skipped)
+- `display_hint`: `markdown`
+- `payload`: `{ "markdown": "<the Step 20 summary — project name, live URL, GitHub URL, pages, design direction, build status>" }` (or a `kpi` shape with tiles for pages built, components, and live status).
+
+Skip this step **silently** if the tool isn't available — running locally, the built site and its repo are the deliverable. Reporting is an upgrade, not a requirement.
 
 ### Design Direction Presets
 Include the CSS variable presets:

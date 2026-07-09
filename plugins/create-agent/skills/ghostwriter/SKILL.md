@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-04-09
   author: Ability.ai
   changelog:
+    - "1.2: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and /write ends with a guarded ghostwriter.draft report (Reports tab history alongside the live dashboard); skipped silently off-Trinity"
     - "1.1: Wizards emit a template.yaml schedules: block; dropped Trinity CLI references"
     - "1.0: Initial version — brand-voice content writer wizard"
 ---
@@ -288,6 +289,18 @@ After deploying, interact with your remote agent through the Trinity MCP tools a
 
 Learn more at [ability.ai](https://ability.ai)
 
+### Reporting to Trinity
+
+Once deployed, publish **structured reports** so an operator can see what you produced without reading chat. At the end of any skill that yields a meaningful result — a finished draft, a repurposed content set, a publishing digest — call the `mcp__trinity__report` MCP tool. The report appears on this agent's **Reports** tab and the fleet-wide **Operations → Reports** view.
+
+- **When:** at the end of result-producing skills and scheduled runs — not for conversational replies.
+- **`report_type`:** namespaced `lower_snake`, shaped `<agent>.<result>` — e.g. `ghostwriter.draft`, `ghostwriter.repurposed`, `ghostwriter.weekly_output`.
+- **`title`:** one short line (≤300 chars). **`payload`:** any JSON (≤256 KB).
+- **`display_hint`:** `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), or omit for a raw-JSON view.
+- **Guard the call:** the tool exists only when running on Trinity (it publishes under this agent's own key). If `mcp__trinity__report` isn't available — e.g. running locally — skip it silently. **Trinity is an upgrade, not a requirement.**
+
+Reports complement `dashboard.yaml`: the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only* history of what the agent accomplished.
+
 ## Onboarding
 
 This agent tracks your setup progress in `onboarding.json`. Run `/onboarding` to see
@@ -500,10 +513,22 @@ After showing the content, ask:
 
 If saving, update `content-library.yaml` with the new entry.
 
+### Step 5: Publish a report (Trinity)
+
+If the `mcp__trinity__report` tool is available (i.e. running on Trinity), publish the finished draft so it lands on the agent's **Reports** tab as an append-only record:
+
+- `report_type`: `ghostwriter.draft`
+- `title`: `"Draft — [piece title]"`
+- `display_hint`: `markdown`
+- `payload`: `{ "markdown": "<the finished draft you just wrote>" }`
+
+Skip this step **silently** if the tool isn't available — running locally, the draft shown (and any library entry) is the deliverable. Reporting is an upgrade, not a requirement.
+
 ## Outputs
 
 - Platform-specific content in the user's brand voice
 - Optional: entry added to `content-library.yaml`
+- A guarded `ghostwriter.draft` report on Trinity (skipped when running locally)
 ```
 
 ### 7b. /set-voice skill

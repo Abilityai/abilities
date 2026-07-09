@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-05-25
-  updated: 2026-05-26
+  updated: 2026-07-09
   author: Ability.ai
   changelog:
+    - "1.4: Generated agent publishes structured summary reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section (summaries only, never raw records) and the visit-prep skill ends with a guarded doctor.visit_prep report; skipped silently off-Trinity"
     - "1.3: Adopt evidence-based /nutrition-plan (three-layer causal-biomarker model) and upgrade /supplement-check to a six-layer decision procedure with companion reference.md. Negative-personalization-first discipline across both."
     - "1.2: Vendor /document-extractor and /file-indexer from skill-library at scaffold time. Reduce /ingest-documents to a thin medical wrapper. Drop the inline /index-files skill."
     - "1.1: Generalize language handling — drop Russian-specific examples, ask for languages as a follow-up"
@@ -257,6 +258,18 @@ After deploying, manage from your terminal:
 - `trinity schedules list $agent_name` — check scheduled tasks
 
 Learn more at [ability.ai](https://ability.ai)
+
+### Reporting to Trinity
+
+Once deployed, publish **structured reports** so an operator can see what you produced without reading chat — a visit-prep pack is ready, a lab trend shifted, an interaction was flagged. At the end of a result-producing skill, call the `mcp__trinity__report` MCP tool with a **summary** (headline facts, deltas, counts) — never a raw dump of medical records. The report appears on this agent's **Reports** tab and the fleet-wide **Operations → Reports** view.
+
+- **When:** at the end of result-producing skills and scheduled runs — not for conversational replies.
+- **`report_type`:** namespaced `lower_snake`, shaped `<agent>.<result>` — e.g. `doctor.visit_prep`, `doctor.lab_trends`, `doctor.interaction_flags`.
+- **`title`:** one short line (≤300 chars). **`payload`:** a JSON *summary* (≤256 KB) — headline metrics/deltas, not full records.
+- **`display_hint`:** `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), or omit for a raw-JSON view.
+- **Guard the call:** the tool exists only when running on Trinity (it publishes under this agent's own key). If `mcp__trinity__report` isn't available — e.g. running locally — skip it silently. **Trinity is an upgrade, not a requirement.**
+
+Reports complement the local record store: the store holds the *full* data; reports are an *append-only* history of summaries — what changed and what was prepared.
 
 ## Onboarding
 
@@ -832,10 +845,22 @@ Write `Files/visit_briefs/<date>_<specialty>.md` with sections:
 
 Print the brief to stdout and save the file. Mention the file path so the user can find and share it.
 
+### Step 5: Publish a report (Trinity)
+
+If the `mcp__trinity__report` tool is available (i.e. running on Trinity), publish a **summary** that an operator can see at a glance — the prep is ready — without exposing the records themselves:
+
+- `report_type`: `doctor.visit_prep`
+- `title`: `"Visit prep ready — [specialty], [date]"`
+- `display_hint`: `kpi` (or `markdown` for a one-line headline)
+- `payload`: a **summary only** — counts and headline deltas, e.g. `{ "tiles": [ {"label":"Specialty","value":"[specialty]"}, {"label":"Open questions","value":[count]}, {"label":"Med changes since last visit","value":[count]}, {"label":"Flagged labs","value":[count]} ] }`. **Never** put the brief's body, medication names, diagnoses, or raw lab values in the payload — this is PHI. The full brief stays in `Files/visit_briefs/` on the patient's machine; the report only signals *that it's ready and what moved*.
+
+Skip this step **silently** if the tool isn't available — running locally, the saved brief is the deliverable. Reporting is an upgrade, not a requirement.
+
 ## Outputs
 
 - `Files/visit_briefs/<date>_<specialty>.md`
 - Stdout brief
+- A guarded `doctor.visit_prep` summary report on Trinity (skipped when running locally)
 ```
 
 ### 10f. /supplement-check

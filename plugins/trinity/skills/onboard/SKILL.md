@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
 metadata:
-  version: "4.13"
+  version: "4.14"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "4.14: Next Steps now includes 'Publish structured reports' — deployed agents end result-producing/scheduled skills with a guarded mcp__trinity__report call so output lands on the Reports tab (append-only history complementing the live dashboard.yaml snapshot), guarded to skip silently off-Trinity"
     - "4.13: New 'Long-running jobs inside a run' subsection — a headless/scheduled execution is a single agent turn and CANNOT host a job longer than the ~10-min synchronous Bash window (a hard platform ceiling): the harness auto-backgrounds it, active waiting is blocked, and ending the turn reaps every background task/monitor (fires `killed`, not `completed`). >~10-min work must decouple to an OS-level cron/systemd/sidecar + done-marker; the run only triggers/verifies. Annotated the Async Task row and added a timeout_seconds Rule accordingly. Always verify the artifact moved, never trust exit code/business_status"
     - "4.12: Delegate connection to /trinity:connect (Composition Rule) — Step 2 is now a connect handoff (no inline credential resolution), Step 4 just verifies the connection (deleted the stale `npx mcp-remote` .mcp.json writer + .mcp.json.template; connect is the single writer). .env is now for the agent's own secrets only (Trinity creds live in connect's ~/.trinity/config.json + .mcp.json). Updated Step 1b/Step 6/error table accordingly"
     - "4.11: Deploy robustness — Step 5 preamble: use Trinity MCP tools (not the CLI/curl) for every remote op and confirm the target instance when multiple Trinity servers are connected; new Step 5e injects gitignored credentials (e.g. .env) after deploy via inject_credentials, since the archive excludes them; schedule reconcile renumbered 5e→5f; fixed Step 6 Next-Steps numbering (5,6 were 6,7)"
@@ -674,16 +675,19 @@ Your agent is now live on Trinity.
 3. **Set up scheduled tasks:**
    Declare them in `template.yaml` under `schedules:` (see Step 3a), then re-run onboard or `/trinity:sync` to reconcile them onto the instance. For one-off changes, `mcp__trinity__create_agent_schedule` / `toggle_agent_schedule` act directly on the live agent.
 
-4. **Add cross-session durability** (recommended):
+4. **Publish structured reports:**
+   Once running remotely, have result-producing and scheduled skills end with a guarded `mcp__trinity__report` call so their output lands on the agent's **Reports** tab (and the fleet **Operations → Reports** view) instead of vanishing into a headless run's chat. Namespace `report_type` as `<agent>.<result>`, pick a `display_hint` (`table` / `kpi` / `markdown` / `timeline`), and skip silently when the tool isn't present (running locally). Reports are the append-only history that complements the live `dashboard.yaml` snapshot. Agents built with `/create-agent` already carry this pattern; add it to hand-built skills via `/agent-dev:create-playbook` (the Reporting Rule).
+
+5. **Add cross-session durability** (recommended):
    ```
    /agent-dev:add-git-sync
    ```
    Installs three hooks that auto-commit on session end, rebase on session start, and snapshot before compaction — keeps local and remote state consistent without manual pushes. Ideal for Trinity-deployed agents running scheduled tasks.
 
-5. **Enable voice chat** (optional):
+6. **Enable voice chat** (optional):
    Create `voice-agent-system-prompt.md` on the remote agent
 
-6. **Connect Slack** (optional):
+7. **Connect Slack** (optional):
    Agent Detail > Sharing > "Create Slack Channel"
 ```
 

@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-04-06
   author: Ability.ai
   changelog:
+    - "1.2: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and /battlecard ends with a guarded recon.battlecard report (Reports tab history alongside the live dashboard); skipped silently off-Trinity"
     - "1.1: Wizards emit a template.yaml schedules: block; dropped Trinity CLI references"
     - "1.0: Initial version — competitive-intelligence agent wizard"
 ---
@@ -235,6 +236,18 @@ When you're ready to run this agent remotely (scheduled tasks, always-on, API ac
 After deploying, interact with your remote agent through the Trinity MCP tools available in Claude Code.
 
 Learn more at [ability.ai](https://ability.ai)
+
+### Reporting to Trinity
+
+Once deployed, publish **structured reports** so an operator can see what you produced without reading chat. At the end of any skill that yields a meaningful result — a battlecard, a competitor digest, a landscape map — call the `mcp__trinity__report` MCP tool. The report appears on this agent's **Reports** tab and the fleet-wide **Operations → Reports** view.
+
+- **When:** at the end of result-producing skills and scheduled runs — not for conversational replies.
+- **`report_type`:** namespaced `lower_snake`, shaped `<agent>.<result>` — e.g. `recon.battlecard`, `recon.weekly_digest`, `recon.landscape`.
+- **`title`:** one short line (≤300 chars). **`payload`:** any JSON (≤256 KB).
+- **`display_hint`:** `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), or omit for a raw-JSON view.
+- **Guard the call:** the tool exists only when running on Trinity (it publishes under this agent's own key). If `mcp__trinity__report` isn't available — e.g. running locally — skip it silently. **Trinity is an upgrade, not a requirement.**
+
+Reports complement `dashboard.yaml`: the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only* history of what the agent accomplished.
 
 ## Onboarding
 
@@ -742,9 +755,21 @@ Key takeaways:
 Refresh recommended: [date — 30 days from now]
 ```
 
+### Step 6: Publish a report (Trinity)
+
+If the `mcp__trinity__report` tool is available (i.e. running on Trinity), publish the battlecard so it lands on the agent's **Reports** tab as an append-only record:
+
+- `report_type`: `recon.battlecard`
+- `title`: `"[Competitor] — battlecard"`
+- `display_hint`: `markdown`
+- `payload`: `{ "markdown": "<the battlecard you just wrote>" }` (or a `table`/`kpi` shape if you prefer the headline facts as tiles).
+
+Skip this step **silently** if the tool isn't available — running locally, the saved battlecard is the deliverable. Reporting is an upgrade, not a requirement.
+
 ## Outputs
 
 - `competitors/[slug]/battlecard.md` — complete battlecard
+- A guarded `recon.battlecard` report on Trinity (skipped when running locally)
 - Console summary with key takeaways
 ```
 

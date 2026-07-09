@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-04-04
   author: Ability.ai
   changelog:
+    - "1.3: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and /daily-briefing ends with a guarded chief_of_staff.daily_briefing report (Reports tab history alongside the live dashboard); skipped silently off-Trinity"
     - "1.2: Wizard emits a template.yaml schedules: block so generated agents ship with declarative Trinity schedules"
     - "1.1: Remove Trinity CLI references from the generated agent — Trinity deploys via MCP, not a CLI"
     - "1.0: Backfill the /agent-dev:add-git-sync prompt so generated agents get durable git-as-state memory"
@@ -218,6 +219,18 @@ After deploying, interact with your remote agent through the Trinity MCP tools a
 Learn more at [ability.ai](https://ability.ai)
 
 **This agent is designed for Trinity.** The daily briefing and weekly digest are most valuable when they run on a schedule — your briefing is waiting for you when you open your laptop.
+
+### Reporting to Trinity
+
+Once deployed, publish **structured reports** so an operator can see what you produced without reading chat. At the end of any skill that yields a meaningful result — a daily briefing, a meeting-prep pack, a weekly digest — call the `mcp__trinity__report` MCP tool. The report appears on this agent's **Reports** tab and the fleet-wide **Operations → Reports** view.
+
+- **When:** at the end of result-producing skills and scheduled runs — not for conversational replies.
+- **`report_type`:** namespaced `lower_snake`, shaped `<agent>.<result>` — e.g. `chief_of_staff.daily_briefing`, `chief_of_staff.weekly_digest`.
+- **`title`:** one short line (≤300 chars). **`payload`:** any JSON (≤256 KB).
+- **`display_hint`:** `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), or omit for a raw-JSON view.
+- **Guard the call:** the tool exists only when running on Trinity (it publishes under this agent's own key). If `mcp__trinity__report` isn't available — e.g. running locally — skip it silently. **Trinity is an upgrade, not a requirement.**
+
+Reports complement `dashboard.yaml`: the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only* history of what the agent accomplished.
 
 ### Recommended Plugins
 
@@ -442,10 +455,22 @@ mkdir -p briefings
 
 Report the briefing inline and note the saved file.
 
+### Step 6: Publish a report (Trinity)
+
+If the `mcp__trinity__report` tool is available (i.e. running on Trinity), publish the briefing so it lands on the agent's **Reports** tab as an append-only record:
+
+- `report_type`: `chief_of_staff.daily_briefing`
+- `title`: `"Daily briefing — [date]"`
+- `display_hint`: `markdown` (or `kpi` with `{tiles:[...]}` if the briefing leads with headline metrics)
+- `payload`: `{ "markdown": "<the briefing you just produced>" }` (or a `kpi` shape if you prefer the headline numbers as tiles).
+
+Skip this step **silently** if the tool isn't available — running locally, the displayed and saved briefing is the deliverable. Reporting is an upgrade, not a requirement.
+
 ## Outputs
 
 - Markdown briefing displayed in conversation
 - Saved to `briefings/[date].md` for reference
+- A guarded `chief_of_staff.daily_briefing` report on Trinity (skipped when running locally)
 ```
 
 ### 5b. /prep-meeting
