@@ -5,10 +5,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Glob, Bash, AskUserQuestion
 metadata:
-  version: "1.1"
+  version: "1.1.1"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.1.1: Note that reports are a rolling history — pruned past agent_reports_retention_days (default 90 days), not a permanent archive"
     - "1.1: Generated /update-dashboard now also emits a guarded {agent}.kpi_snapshot report (display_hint kpi) after writing the dashboard — the same headline numbers accumulate as an append-only history on the Reports tab alongside the live snapshot; skipped silently off-Trinity"
     - "1.0: Initial version — generate an agent-specific /update-dashboard skill that gathers metrics from the agent's data sources and writes a schedulable dashboard.yaml for Trinity"
 ---
@@ -214,7 +215,7 @@ Write to `/home/developer/dashboard.yaml`
 
 ## STEP 4: Publish a KPI snapshot report (Trinity)
 
-If the `mcp__trinity__report` tool is available (i.e. running on Trinity), also publish the same headline numbers as a report so they accumulate as an **append-only history** alongside the live dashboard snapshot (the dashboard is overwritten each refresh; reports are not):
+If the `mcp__trinity__report` tool is available (i.e. running on Trinity), also publish the same headline numbers as a report so they accumulate as an **append-only history** alongside the live dashboard snapshot (the dashboard is overwritten each refresh; reports are not — though they are pruned past `agent_reports_retention_days`, default 90 days):
 
 - `report_type`: `{agent-name}.kpi_snapshot`
 - `display_hint`: `kpi`

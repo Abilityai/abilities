@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-04-30
   author: Ability.ai
   changelog:
+    - "1.2: Align with Trinity v0.7.0+ first-run flow — mandatory web setup with admin email replaces the removed setup token (#49), OWASP password complexity enforced (generator now keeps a special char), note that start.sh auto-generates AGENT_AUTH_SECRET/REDIS_* and probes DOCKER_GID"
     - "1.1: Scaffold the ops agent by cloning trinity-ops-public instead of generating files inline — agents now ship with the full, maintained skill set"
     - "1.0.1: Add a /bug-report skill to generated ops agents, and fix six production deploy gaps — port checks, Dockerfile, and macOS sed compatibility"
     - "1.0: Initial version — provision a Trinity instance on cloud, remote, or local Docker and scaffold a complete ops agent to manage it"
@@ -128,11 +129,11 @@ Store both values — you'll write them to Trinity's `.env` on the server.
 #### Set admin password
 
 Use AskUserQuestion (tool requires ≥2 options):
-- Question: "Set the Trinity admin password (minimum 12 characters)"
+- Question: "Set the Trinity admin password (12–128 chars, must include upper, lower, digit, and a special character)"
 - Options:
-  1. **Generate a secure password** → run `openssl rand -base64 16 | tr -d '=+/'` and show the result; store as `ADMIN_PASSWORD`
+  1. **Generate a secure password** → run `openssl rand -base64 18 | tr '+/' '@#'` and show the result; store as `ADMIN_PASSWORD` (keeps `=`/`@`/`#` — the first-run setup form rejects passwords with no special character)
   2. **I'll provide my own** → follow up with a second AskUserQuestion to collect it (use the same 2-option constraint: option 1 = "Enter now", option 2 = "Back")
-- Validate: at least 12 characters. If shorter, ask again.
+- Validate: 12–128 characters with at least one uppercase, one lowercase, one digit, and one special character — Trinity enforces OWASP complexity at first-run setup, so a weaker password fails there. If it doesn't qualify, ask again.
 
 #### Check port availability
 
@@ -240,7 +241,7 @@ ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} \
   "cd ~/trinity && [ -f .env ] || cp .env.example .env"
 ```
 
-Set the four critical variables:
+Set the three critical variables (`start.sh` auto-generates the other required secrets — `AGENT_AUTH_SECRET`, `REDIS_PASSWORD`, `REDIS_BACKEND_PASSWORD` — and auto-probes `DOCKER_GID` on fresh installs; note `/update` never regenerates them, so don't remove them from `.env` later):
 ```bash
 ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} "
   cd ~/trinity
@@ -291,16 +292,22 @@ Show the logs and ask the user how to proceed.
 
 Display:
 ```
-## Create MCP API Key
+## First-Run Setup + MCP API Key
 
-Trinity is running. Now create an API key for the ops agent.
+Trinity is running. Complete the first-run setup, then create an API key for the ops agent.
 
 1. Open: http://{SSH_HOST}:{FRONTEND_PORT}
    (If unreachable, check your firewall / security group — port {FRONTEND_PORT} must be open.
     On a private network? Run ./scripts/tunnel.sh first and use http://localhost:12080)
-2. Log in: admin / {ADMIN_PASSWORD}
-3. Go to: Settings → Platform API Keys
-4. Click "Create New Key" — copy the value
+2. The first visit shows the first-run setup screen (the old setup token is removed, trinity#49):
+   enter an ADMIN EMAIL (required — it becomes your sign-in identity) and set the admin
+   password to {ADMIN_PASSWORD}. What you set here is authoritative — it overwrites the
+   .env-seeded value. Login attempts before setup completes return 403 setup_required.
+   ⚠️ Do this immediately: the pre-setup window is unauthenticated. On an internet-reachable
+   host, complete setup via the tunnel (./scripts/tunnel.sh) BEFORE opening the firewall.
+3. Log in with that admin email (or username admin) + password
+4. Go to: Settings → Platform API Keys
+5. Click "Create New Key" — copy the value
 ```
 
 Use AskUserQuestion (tool requires ≥2 options):
@@ -416,7 +423,7 @@ Verify:
 curl -sf http://localhost:8000/health && echo healthy
 ```
 
-Get MCP API key from `http://localhost/` → Settings → Platform API Keys.
+Open `http://localhost:{FRONTEND_PORT}/` — the first visit shows the first-run setup screen: enter an admin email + the admin password (same rules and same authority as PATH B; the setup token is gone). Then Settings → Platform API Keys → create and copy the MCP key.
 
 Set `SSH_HOST=""` (empty — local, no SSH).
 

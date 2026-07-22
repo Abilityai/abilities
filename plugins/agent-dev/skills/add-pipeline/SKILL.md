@@ -4,11 +4,12 @@ description: Scaffold a Trinity-compatible long-running pipeline inside any agen
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-05-23
-  updated: 2026-07-07
+  updated: 2026-07-22
   author: Ability.ai
   changelog:
+    - "1.5: Fix the scaffolded escalation contract — pipeline-tick now files operator-queue items by writing ~/.trinity/operator-queue.json with an agent-chosen request_id (trinity#1631; send_notification is a different subsystem and returns no queue_id), pipeline-recover resolves via respond_to_operator_queue; Step 7 notes a schedule message naming an uninstalled skill now fails loudly as SKILL_NOT_FOUND (#1410)"
     - "1.4: When-to-use caveat — a heavy CPU-bound stage (index rebuild, bulk embedding, full bootstrap) must NOT run inside the heartbeat's LLM turn: a headless run can't host a job past the ~10-min sync Bash ceiling (auto-backgrounded, then reaped at turn-end). Model it as an OS-level job (container cron / systemd / sidecar) writing a done-marker; the stage only triggers + verifies the artifact moved. Keeps the heartbeat a cheap read-and-advance loop"
     - "1.3: Platform-alignment fixes, verified against Trinity source — (1) the pre-check hook is REMOVED entirely, with migration: Trinity's scheduler has no fire/skip vocabulary (exit 0 + empty stdout ⇒ skip; exit 0 + ANY stdout ⇒ stdout replaces the calling schedule's configured message; the hook is agent-global with no schedule context), so v3's `echo fire` rewrote every schedule's prompt to the literal word 'fire' — Step 6 now strips any add-pipeline block (v1–v3) and deletes an empty leftover hook; skip logic lives in pipeline-tick alone; (2) create_agent_schedule is called with its real params (agent_name/name/cron_expression/message — schedule_name/cron/skill/pre_check never existed); (3) the dashboard.yaml block now uses Trinity's real sections[]→widgets[] schema with materialized rows that pipeline-tick refreshes (the old panel_type/source block was never rendered); (4) template.yaml schedules: caveat — Trinity never reads that block at agent creation; only /trinity:onboard and /trinity:sync materialize it"
     - "1.2: Fleet-orchestrator integration — Step 7 also records the heartbeat in template.yaml's schedules: block (source of truth for /trinity:sync; makes the pipeline discoverable to /add-orchestrator's /discover-agents); when-to-use now names /add-orchestrator + /orchestrate as the cross-agent layer for one-agent-per-tenant fan-out"
@@ -223,7 +224,7 @@ Use the Trinity MCP tool create_agent_schedule with:
   description: "Heartbeat for the <display name> pipeline."
 ```
 
-These are the tool's real parameters — there is no `schedule_name`, `cron`, `skill`, or `pre_check` param. The `message` is the prompt the agent receives on each trigger, so it must name the skill to run.
+These are the tool's real parameters — there is no `schedule_name`, `cron`, `skill`, or `pre_check` param. The `message` is the prompt the agent receives on each trigger, so it must name the skill to run. If the named skill isn't actually installed in the agent container, the run finalizes **FAILED with `SKILL_NOT_FOUND`** and raises an Operating Room item (trinity#1410) — it used to masquerade as a $0 success, so a wrong `message` is loudly visible now.
 
 If Trinity MCP is not available, print:
 

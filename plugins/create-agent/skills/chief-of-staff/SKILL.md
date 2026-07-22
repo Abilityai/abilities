@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.3"
+  version: "1.3.1"
   created: 2026-04-04
   author: Ability.ai
   changelog:
+    - "1.3.1: /track-decision Step 4 notes set_reminder (trinity#1296) — follow-ups with due dates arm a one-shot self-trigger that fires exactly at the deadline instead of waiting for the next sweep; guarded, works locally without Trinity"
     - "1.3: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and /daily-briefing ends with a guarded chief_of_staff.daily_briefing report (Reports tab history alongside the live dashboard); skipped silently off-Trinity"
     - "1.2: Wizard emits a template.yaml schedules: block so generated agents ship with declarative Trinity schedules"
     - "1.1: Remove Trinity CLI references from the generated agent — Trinity deploys via MCP, not a CLI"
@@ -671,6 +672,8 @@ Read all files in `decisions/` and surface any follow-ups that are past their du
 ```
 
 If nothing is overdue, skip this section.
+
+On Trinity: for each follow-up saved with a due date, also arm `set_reminder` (`fire_at` = the due date, message naming the action, owner, and decision file) — a one-shot self-trigger (trinity#1296) that wakes this agent exactly at the deadline instead of waiting for the next sweep. Skip silently when Trinity MCP isn't connected.
 
 ## Outputs
 

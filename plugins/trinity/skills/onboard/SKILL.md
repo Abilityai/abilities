@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
 metadata:
-  version: "4.14"
+  version: "4.15"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "4.15: Platform-truth refresh (Trinity dev 62ae49f9) — prerequisites point at /trinity:connect (trinity_mcp_ keys, no manual copy), stall-watchdog claim corrected (1800s, mcp__* tools only, #1369), schedule timeout inherits the agent's 60-min cap (not 15), chat_with_agent queued_timeout receipt at ~25s + agent.task.* event report-back (#1578), reports pruned past agent_reports_retention_days (90d), display-label-vs-slug note"
     - "4.14: Next Steps now includes 'Publish structured reports' — deployed agents end result-producing/scheduled skills with a guarded mcp__trinity__report call so output lands on the Reports tab (append-only history complementing the live dashboard.yaml snapshot), guarded to skip silently off-Trinity"
     - "4.13: New 'Long-running jobs inside a run' subsection — a headless/scheduled execution is a single agent turn and CANNOT host a job longer than the ~10-min synchronous Bash window (a hard platform ceiling): the harness auto-backgrounds it, active waiting is blocked, and ending the turn reaps every background task/monitor (fires `killed`, not `completed`). >~10-min work must decouple to an OS-level cron/systemd/sidecar + done-marker; the run only triggers/verifies. Annotated the Async Task row and added a timeout_seconds Rule accordingly. Always verify the artifact moved, never trust exit code/business_status"
     - "4.12: Delegate connection to /trinity:connect (Composition Rule) — Step 2 is now a connect handoff (no inline credential resolution), Step 4 just verifies the connection (deleted the stale `npx mcp-remote` .mcp.json writer + .mcp.json.template; connect is the single writer). .env is now for the agent's own secrets only (Trinity creds live in connect's ~/.trinity/config.json + .mcp.json). Updated Step 1b/Step 6/error table accordingly"
@@ -68,9 +69,9 @@ Once you have a Trinity instance, gather these before starting:
 | Item | Description | Example |
 |------|-------------|---------|
 | **Trinity URL** | Your Trinity instance URL | `https://trinity.example.com` |
-| **API Key** | Your Trinity API key | `tr_abc123...` |
+| **MCP Key** | Provisioned automatically by `/trinity:connect` | `trinity_mcp_...` |
 
-Get your API key from your Trinity dashboard under **Settings > API Keys**.
+Run `/trinity:connect` first — it authenticates and provisions the MCP key (`trinity_mcp_...`) automatically; no manual key copying from the dashboard.
 
 ---
 
@@ -186,7 +187,7 @@ The failure chain, observed end-to-end with streaming working:
 3. So you arm a **monitor** and, with no other work to do, **end the turn** to await the completion event.
 4. **Ending the turn (= the execution finalizing) kills every background task and monitor spawned in it.** The job dies mid-run; the completion event fires as **`killed`, not `completed`**; the promised re-invoke never happens.
 
-Streaming heartbeat output only defeats the **300s no-output stall watchdog** — it does nothing about the ~10-min sync ceiling or the turn-end reaping. The async background-task / monitor / re-invoke model works in an **interactive** session (which persists) but **NOT** in a **headless** execution (which ends the turn and reaps its tasks).
+Streaming heartbeat output changes nothing — the no-output stall watchdog (`AGENT_TOOL_STALL_LIMIT_S`, default 1800s) watches `mcp__*` tools only since trinity#1369, and neither the ~10-min sync ceiling nor the turn-end reaping cares about output. The async background-task / monitor / re-invoke model works in an **interactive** session (which persists) but **NOT** in a **headless** execution (which ends the turn and reaps its tasks).
 
 **The rule:**
 
@@ -289,7 +290,7 @@ Three MCP tools enable programmatic monitoring and async result polling:
 | `get_execution_result` | Get full result of a specific execution (including transcript) |
 | `get_agent_activity_summary` | High-level activity summary (by trigger type, agent) |
 
-These are especially useful for orchestrator agents monitoring worker fleets, and for polling async task results that exceed the 60-second MCP timeout.
+These are especially useful for orchestrator agents monitoring worker fleets, and for polling async task results: a sync `chat_with_agent` call that outlives `MCP_CHAT_TIMEOUT_MS` (~25s) returns a `{status: "queued_timeout", execution_id}` receipt — poll `get_execution_result` with that id instead of re-sending. For push-style report-back, subscribe to the worker's backend-emitted `agent.task.completed` / `agent.task.failed` events (trinity#1578) instead of polling.
 
 ---
 
@@ -395,7 +396,7 @@ basename "$(pwd)"
 Create `template.yaml`:
 ```yaml
 name: [agent-name-lowercase]
-display_name: [Agent Display Name]
+display_name: [Agent Display Name]   # note: the live UI's "rename" edits a display label (ent#181), not the deployed slug (`name`)
 description: |
   [Description - ask user or extract from CLAUDE.md]
 avatar_prompt: [A vivid character description for generating the agent's avatar portrait - see below]
@@ -431,7 +432,7 @@ schedules:
     message: "Run /weekly-report and post the summary"  # REQUIRED — task sent to the agent on trigger
     purpose: Weekly status digest                       # human note; rendered into CLAUDE.md
     enabled: true              # the RECOMMENDED default state (operator can override on the instance)
-    timeout_seconds: 900       # optional — default 15 min
+    timeout_seconds: 900       # optional — omit to inherit the agent's execution cap (default 60 min); must be ≤ that cap or schedule create 400s
     max_retries: 1             # optional — 0–5
     model: claude-opus-4-8     # optional — model override for this schedule's runs
     allowed_tools: []          # optional — least-privilege tool scoping for the run
@@ -440,7 +441,7 @@ schedules:
 **Rules:**
 - `id` must be unique within the agent and stable across edits — it's how a declared schedule is matched to its live counterpart during reconcile. Use kebab-case.
 - Omit the whole block if the agent has no scheduled tasks. An empty/absent block is valid.
-- Size `timeout_seconds` for the work the run *actually does in-turn*. A run that only triggers-and-verifies a decoupled OS-level job stays fast, so the 15-min default is plenty. A run must **not** try to host a >~10-min job itself — the harness auto-backgrounds it past ~10 min and the turn-end reaps it, so a bigger timeout does not save it (see *Long-running jobs inside a run*).
+- Size `timeout_seconds` for the work the run *actually does in-turn*. A run that only triggers-and-verifies a decoupled OS-level job stays fast, so a modest value like the example's 900s is plenty (omitted = the agent's 60-min cap). A run must **not** try to host a >~10-min job itself — the harness auto-backgrounds it past ~10 min and the turn-end reaps it, so a bigger timeout does not save it (see *Long-running jobs inside a run*).
 - The `## Recommended Schedules` table in `CLAUDE.md` is a human-readable rendering of this block, not a second source of truth.
 
 **avatar_prompt guidance:** This field is used by Trinity to generate a portrait avatar for the agent using AI image generation. Write a vivid, specific character description that captures the agent's personality and role. The prompt should describe a person or character as a portrait subject — appearance, attire, expression, setting, and lighting.
@@ -676,7 +677,7 @@ Your agent is now live on Trinity.
    Declare them in `template.yaml` under `schedules:` (see Step 3a), then re-run onboard or `/trinity:sync` to reconcile them onto the instance. For one-off changes, `mcp__trinity__create_agent_schedule` / `toggle_agent_schedule` act directly on the live agent.
 
 4. **Publish structured reports:**
-   Once running remotely, have result-producing and scheduled skills end with a guarded `mcp__trinity__report` call so their output lands on the agent's **Reports** tab (and the fleet **Operations → Reports** view) instead of vanishing into a headless run's chat. Namespace `report_type` as `<agent>.<result>`, pick a `display_hint` (`table` / `kpi` / `markdown` / `timeline`), and skip silently when the tool isn't present (running locally). Reports are the append-only history that complements the live `dashboard.yaml` snapshot. Agents built with `/create-agent` already carry this pattern; add it to hand-built skills via `/agent-dev:create-playbook` (the Reporting Rule).
+   Once running remotely, have result-producing and scheduled skills end with a guarded `mcp__trinity__report` call so their output lands on the agent's **Reports** tab (and the fleet **Operations → Reports** view) instead of vanishing into a headless run's chat. Namespace `report_type` as `<agent>.<result>`, pick a `display_hint` (`table` / `kpi` / `markdown` / `timeline`), and skip silently when the tool isn't present (running locally). Reports are the append-only history that complements the live `dashboard.yaml` snapshot (pruned past `agent_reports_retention_days`, default 90 days — rolling history, not a permanent archive). Agents built with `/create-agent` already carry this pattern; add it to hand-built skills via `/agent-dev:create-playbook` (the Reporting Rule).
 
 5. **Add cross-session durability** (recommended):
    ```

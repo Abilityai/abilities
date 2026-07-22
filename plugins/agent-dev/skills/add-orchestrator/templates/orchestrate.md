@@ -1,13 +1,14 @@
 ---
 name: orchestrate
-description: Put the fleet to work — read fleet/system-map.yaml + live Trinity MCP to route a task to the best-fit agent, fan out across many, or roll out a catalog agent ephemerally (deploy → chat → tear down). Orchestration is agent-owned; no central DAG. Long tasks dispatch fire-and-park (async + run ledger) and report back on completion via event or watchdog wake-up.
+description: Put the fleet to work — read fleet/system-map.yaml + live Trinity MCP to route a task to the best-fit agent, fan out across many, or roll out a catalog agent ephemerally (deploy → chat → tear down). Orchestration is agent-owned; no central DAG. Long tasks dispatch fire-and-park (async + run ledger) and report back on completion via the platform's agent.task.* terminal events or a set_reminder watchdog wake-up.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__fan_out, mcp__trinity__deploy_system, mcp__trinity__deploy_local_agent, mcp__trinity__stop_agent, mcp__trinity__start_agent, mcp__trinity__delete_agent, mcp__trinity__get_execution_result, mcp__trinity__create_agent_schedule, mcp__trinity__delete_agent_schedule, mcp__trinity__list_agent_schedules, mcp__trinity__subscribe_to_event, mcp__trinity__list_event_subscriptions, mcp__trinity__send_message, mcp__trinity__send_notification
 user-invocable: true
 metadata:
-  version: "1.6"
+  version: "1.7"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.7: Platform-native wake-ups — the report-back subscription now targets the backend-emitted agent.task.completed/agent.task.failed terminal events (trinity#1578; no completion trailer, works even when the worker crashes or forgets, covers sync-turned-async runs) with a no-match-→-silent-exit guard for shared workers; the deterministic fallback is a re-arming set_reminder one-shot (trinity#1296) instead of a self-deleting orch-watch cron (reminder_id in the ledger, cancel_reminder on event-first wake-up); Step 5/error table note #1580 — agent keys can tear down only agents they spawned (403 otherwise)"
     - "1.6: Async dispatch + report-back — Step 4 is duration-aware and fire-and-park: quick tasks stay sync; long ones (or a queued_timeout receipt) go out chat_with_agent(parallel=true, async=true) with the execution_id parked in a run ledger (fleet/.orchestrate-runs.yaml) and the turn ended. Dual wake-up: a completion trailer on the dispatched prompt (worker emits orchestration.task_completed; orchestrator pre-subscribes with a {{payload.task_id}}-templated message) plus a self-deleting orch-watch-<execution_id> watchdog schedule as deterministic fallback. New Step 6b report-back fetches the result, delivers via send_message (send_notification fallback), resumes parked chains, cleans up watcher + ledger, and only then tears down ephemerals (Step 5 now runs after results are in hand). Error table gains queued_timeout conversion, duplicate wake-up, failed/cancelled execution, and watchdog-leak reconciliation"
     - "1.5: Ephemeral names must be ROLLOUT-unique, not task-unique — Trinity's delete_agent is a soft delete and the name stays reserved until purge (default ~180 days), so a task-derived short-id fails on the second rollout of the same task; use a persisted counter (fleet/.eph-seq) in the suffix and on a name-exists/reserved deploy error bump + retry (up to 3)"
     - "1.4: Read the §3b ownership matrix (RACI-lite) when present — prefer the domain's R when routing, treat C/I as consult/notify etiquette; informational defaults, never gates"
@@ -27,7 +28,7 @@ Drive the fleet. Given a task, decide **who** should do it (matching against `fl
 
 **Invariant:** this agent owns the orchestration. Trinity brokers the calls (`chat_with_agent`, `fan_out`) and the lifecycle (`deploy_*` / `stop_agent` / `delete_agent`); there is no central DAG engine. Multi-step flows are sequenced *here*, in this skill.
 
-**Dispatch contract: fire-and-park.** Anything long runs async — park the `execution_id` in the run ledger (`fleet/.orchestrate-runs.yaml`), tell the user it's dispatched, and end the turn. A completion event or a watchdog schedule wakes this agent for the report-back (Step 6b). Never block a turn waiting on another agent — no sleeps, no in-turn polling loops.
+**Dispatch contract: fire-and-park.** Anything long runs async — park the `execution_id` in the run ledger (`fleet/.orchestrate-runs.yaml`), tell the user it's dispatched, and end the turn. The worker's backend-emitted `agent.task.completed`/`agent.task.failed` event (trinity#1578) or a `set_reminder` watchdog wakes this agent for the report-back (Step 6b). Never block a turn waiting on another agent — no sleeps, no in-turn polling loops.
 
 ---
 
@@ -77,7 +78,7 @@ For each agent the plan needs:
 
 ### Step 4: Dispatch — fire-and-park, never block-and-wait
 
-**Triage duration first.** Estimate whether each dispatch finishes within a couple of minutes (a lookup, a quick summary) or runs long (research sweeps, builds, multi-file work). Quick → sync. Long or uncertain → **async**, via the procedure below. A sync call that returns a `queued_timeout` receipt has *become* async: capture its `execution_id`, do **not** resend (the duplicate-guard will kill the rerun), and pick up the async bookkeeping at (d) — the completion trailer wasn't attached on a sync dispatch, so the watchdog is that run's only wake-up, which is fine (it's the deterministic path).
+**Triage duration first.** Estimate whether each dispatch finishes within a couple of minutes (a lookup, a quick summary) or runs long (research sweeps, builds, multi-file work). Quick → sync. Long or uncertain → **async**, via the procedure below. A sync call that returns a `queued_timeout` receipt has *become* async: capture its `execution_id`, do **not** resend (the duplicate-guard will kill the rerun), and pick up the async bookkeeping at (d) — the backend emits `agent.task.completed` for *every* execution terminal, so the completion subscription (b) covers a sync-turned-async run too.
 
 - **Single, quick:** `chat_with_agent(<deployed_name>, task)` → capture the response. (Ephemerals created this run: use the name they were deployed under.)
 - **Fan-out, quick:** `fan_out(task, <deployed_names or agent set>)` → collect results. When the legs run long, prefer per-agent async `chat_with_agent(parallel=true, async=true)` dispatches instead — `fan_out` collects synchronously — with one ledger entry per leg.
@@ -86,17 +87,8 @@ For each agent the plan needs:
 **Async dispatch procedure:**
 
 a. **Mint a `task_id`** — bump the persisted counter `fleet/.eph-seq` (the same monotonic sequence ephemeral names use) and use `orch-t<seq>`.
-b. **Ensure the completion subscription exists** (one-time per fleet agent): check `list_event_subscriptions` for an `orchestration.task_completed` subscription from the target agent; if missing, `subscribe_to_event` with a `{{payload.task_id}}`-templated message, e.g. *"Orchestration completion: task {{payload.task_id}} finished — {{payload.summary}}. Run the /orchestrate report-back step (Step 6b) for it."*
-c. **Append the completion trailer** to the dispatched prompt:
-
-   ```
-   ---
-   Completion protocol: when this task is fully done, as your FINAL step call
-   emit_event(event_type: "orchestration.task_completed",
-              payload: {task_id: "<task_id>", summary: "<one-line outcome>"}).
-   Emit even on failure — put the failure in summary.
-   ```
-
+b. **Ensure the completion subscription exists** (one-time per fleet agent): check `list_event_subscriptions` for subscriptions to the target agent's **`agent.task.completed`** and **`agent.task.failed`** — the backend emits these deterministically at every execution terminal (trinity#1578), so nothing has to be added to the worker's prompt and a worker that crashes or forgets still reports. If missing, `subscribe_to_event` on each with a templated message, e.g. *"Execution {{payload.execution_id}} on <deployed_name> hit terminal status {{payload.status}} — {{payload.summary_or_error}}. Run the /orchestrate report-back step (Step 6b) for it."* (Subscribing cross-agent is fine; only *self*-subscribing to `agent.task.*` is rejected, and an event-triggered task suppresses its own terminal event, so the report-back turn can't recurse.)
+c. **Expect noise on shared workers:** the subscription fires for *every* terminal execution of that agent — its own schedules included, not just this dispatch. Step 6b's first move is matching `{{payload.execution_id}}` against the ledger; no match → end the turn silently. For persistent fleet agents with busy schedules, prefer the reminder watchdog alone (skip b) if the wake-up noise outweighs the event's immediacy.
 d. **Dispatch and record:** `chat_with_agent(<deployed_name>, prompt, parallel=true, async=true)` → the receipt carries the `execution_id`. Append an entry to the run ledger `fleet/.orchestrate-runs.yaml`:
 
    ```yaml
@@ -105,14 +97,15 @@ d. **Dispatch and record:** `chat_with_agent(<deployed_name>, prompt, parallel=t
        task: "<one-line task>"
        agent: <deployed_name>
        execution_id: <from the receipt>
+       reminder_id: <from set_reminder in (e) — cancel it if the event wake-up wins>
        notify: <user/operator to report back to>
        started_at: <ISO-8601 UTC>
        status: pending        # pending | done | failed
        remaining: []          # chain only — steps still to dispatch after this one
    ```
 
-e. **Arm the deterministic fallback:** `create_agent_schedule` on **this** agent — `agent_name: <self>`, `name: "orch-watch-<execution_id>"`, `cron_expression: "* * * * *"` (coarsen to `*/10 * * * *` for tasks expected to run hours), `message: "Watchdog orch-watch-<execution_id>: poll get_execution_result(<execution_id>). If terminal, run the /orchestrate report-back step (Step 6b) for it, then delete_agent_schedule this watcher. If still running, end the turn."` This watcher is transient and self-deleting — deliberately live-only, never recorded in `template.yaml` `schedules:`.
-f. **Park:** tell the user *"Dispatched to <agent> — I'll report back when it completes"* and **end the turn**. The completion event and the watchdog are the wake-ups.
+e. **Arm the deterministic fallback:** `set_reminder` on **this** agent (one-shot deferred self-trigger, trinity#1296) — `delay_seconds` ≈ 2× the expected task duration (floor 60s, ceiling 30d), `message: "Watchdog for orch-t<seq> / execution <execution_id>: poll get_execution_result(<execution_id>). If terminal, run the /orchestrate report-back step (Step 6b) for it. If still running, set_reminder again with this same message and a similar delay."` Record the returned `reminder_id` in the ledger entry. A reminder is one-shot: it re-arms itself only while the task is still running, and there is nothing to clean up after it fires — no schedule litter, no `delete_agent_schedule`. (Caps: 25 pending reminders per agent — coarser delays, not more reminders, for long tasks.)
+f. **Park:** tell the user *"Dispatched to <agent> — I'll report back when it completes"* and **end the turn**. The `agent.task.*` completion event and the reminder watchdog are the wake-ups.
 
 Capture each sync response as it lands; async legs land in the ledger. Keep a running transcript of who did what.
 
@@ -125,7 +118,7 @@ For every agent in the ephemeral set (created in Step 3):
 - `mcp__trinity__stop_agent` (always — reversible).
 - `mcp__trinity__delete_agent` to fully remove it (this is the "spin down" the ephemeral pattern promises; it was authorized once in Step 3, so proceed — but if the run **failed**, stop but **do not delete**, so the operator can inspect it, and say so).
 
-Never stop or delete an agent that was **not** created by this run (i.e. anything `deployed: true` in the map). Those are persistent fleet members.
+Never stop or delete an agent that was **not** created by this run (i.e. anything `deployed: true` in the map). Those are persistent fleet members. Note the platform enforces this too: an agent-scoped MCP key can stop/delete **only agents it spawned** (trinity#1580) — teardown of anything else 403s, and sharing/permission grants/rename/credential ops are human-only for agent keys.
 
 ### Step 6: Report
 
@@ -144,17 +137,17 @@ Publish a guarded Trinity report (`report_type: <agent>.orchestration_run`, `dis
 
 ### Step 6b: Report back (async wake-up)
 
-Runs whenever this agent is woken about a parked run: the **completion event** fires, an **`orch-watch-*` watchdog** fires, or the operator asks **"status?"**.
+Runs whenever this agent is woken about a parked run: an **`agent.task.completed`/`agent.task.failed` event** fires, a **watchdog reminder** fires, or the operator asks **"status?"**.
 
-1. **Resolve the ledger entry** in `fleet/.orchestrate-runs.yaml` — by `payload.task_id` (event wake-up), by the `execution_id` in the watcher's name (watchdog), or every `status: pending` entry (manual status ask).
-2. **Duplicate-wake guard:** entry already `done`/`failed` → the other wake-up path got here first — delete any lingering `orch-watch-<execution_id>` schedule and exit silently.
+1. **Resolve the ledger entry** in `fleet/.orchestrate-runs.yaml` — by `payload.execution_id` (event wake-up), by the `execution_id` in the reminder message (watchdog), or every `status: pending` entry (manual status ask). **Event wake-up with no matching ledger entry** → it's one of the worker's own executions (the subscription fires for all of them) — end the turn silently.
+2. **Duplicate-wake guard:** entry already `done`/`failed` → the other wake-up path got here first — `cancel_reminder` any still-pending `reminder_id` on the entry and exit silently.
 3. **Fetch:** `get_execution_result(execution_id)`.
-   - **Still running** → if the operator asked, summarize progress; either way end the turn (the watchdog keeps watching).
+   - **Still running** → if the operator asked, summarize progress; if this was the watchdog reminder firing, re-arm it (`set_reminder`, same message, update the ledger's `reminder_id`); either way end the turn.
    - **Completed** → synthesize the outcome in the Step 6 report format.
    - **Failed / cancelled** → report the error instead; **stop but do not delete** that run's ephemerals (preserve for inspection — Step 5's rule) and mark the ledger entry `failed`.
 4. **Parked chain?** If the entry has `remaining:` steps, feed the fetched result into the next step's prompt and go back to Step 4 (same triage and machinery) — the final report-back happens at the end of the chain.
 5. **Deliver:** `send_message` to the entry's `notify` target (channel auto — routes to Telegram/Slack). If proactive messaging fails, fall back to `send_notification` (dashboard badge) so the outcome is never silently dropped.
-6. **Clean up:** `delete_agent_schedule("orch-watch-<execution_id>")` if present; mark the ledger entry `done` (or `failed`) with a `finished_at` timestamp; **then** tear down that run's ephemerals per Step 5. Publish the guarded Trinity report from Step 6 as usual.
+6. **Clean up:** `cancel_reminder(reminder_id)` if the entry still has a pending one (the event beat the watchdog); mark the ledger entry `done` (or `failed`) with a `finished_at` timestamp; **then** tear down that run's ephemerals per Step 5. Publish the guarded Trinity report from Step 6 as usual.
 
 ---
 
@@ -169,7 +162,9 @@ Runs whenever this agent is woken about a parked run: the **completion event** f
 | Ephemeral deploy rejected: name exists / reserved | Soft-deleted names stay reserved until purge — bump `fleet/.eph-seq` and retry (up to 3), then report |
 | Ephemeral deploy fails | Report the error; tear down anything already created this run; abort the task |
 | Task failed mid-chain | Stop ephemerals but **don't delete** them (preserve for inspection); report where it broke |
-| `chat_with_agent` returns `queued_timeout` | The task is still running — do **not** resend (duplicate-guard will kill the rerun); capture the `execution_id` and convert to an async dispatch (ledger entry + watchdog), then park |
-| Duplicate wake-up (event **and** watchdog both fired) | Ledger entry already `done`/`failed` → delete any lingering `orch-watch-*` watcher and exit silently |
+| `chat_with_agent` returns `queued_timeout` | The task is still running — do **not** resend (duplicate-guard will kill the rerun); capture the `execution_id` and convert to an async dispatch (ledger entry + reminder watchdog), then park |
+| Duplicate wake-up (event **and** watchdog both fired) | Ledger entry already `done`/`failed` → `cancel_reminder` any still-pending reminder on the entry and exit silently |
+| Event wake-up for an unknown `execution_id` | The worker's own scheduled/other execution tripped the subscription — not ours; end the turn silently (see Step 4c) |
 | Async execution ended `failed`/`cancelled` | Report the error via Step 6b delivery; stop but **don't delete** that run's ephemerals; mark the ledger entry `failed` |
-| Watchdog leak (`orch-watch-*` exists, execution terminal, ledger still `pending`) | Reconcile: run Step 6b for it (report + cleanup), then delete the watcher |
+| Stale ledger entry (`status: pending`, execution terminal, no wake-up came) | Reconcile on any turn that touches the ledger: run Step 6b for it (report + cleanup) |
+| Teardown returns 403 | Agent-scoped MCP keys may stop/delete **only agents they themselves spawned** (trinity#1580) — an ephemeral created under a different key (human session, another orchestrator) needs teardown from that key or a human; report it instead of retrying |

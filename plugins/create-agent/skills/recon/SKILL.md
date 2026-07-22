@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.2"
+  version: "1.2.1"
   created: 2026-04-06
   author: Ability.ai
   changelog:
+    - "1.2.1: /monitor Step 3 notes set_reminder (trinity#1296) — unconfirmed-but-promising signals arm a one-shot re-check (e.g. +7 days) instead of relying on the next sweep to re-notice; guarded, works locally without Trinity"
     - "1.2: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and /battlecard ends with a guarded recon.battlecard report (Reports tab history alongside the live dashboard); skipped silently off-Trinity"
     - "1.1: Wizards emit a template.yaml schedules: block; dropped Trinity CLI references"
     - "1.0: Initial version — competitive-intelligence agent wizard"
@@ -595,6 +596,8 @@ For each finding, classify:
 - **Signal strength:** High (confirmed, significant) / Medium (noteworthy) / Low (minor or unconfirmed)
 - **Dimension:** Which tracking dimension it falls under
 - **So what:** One sentence on what this means for the user's team
+
+For an unconfirmed-but-promising signal, on Trinity arm `set_reminder` (one-shot self-trigger, trinity#1296; e.g. +7 days, message naming the competitor and signal) to re-check it on schedule instead of hoping the next sweep re-notices. Skip silently when Trinity MCP isn't connected.
 
 ### Step 4: Update History
 

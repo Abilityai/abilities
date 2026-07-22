@@ -88,8 +88,8 @@ Apply decision rules **in priority order** — stop at the first match:
 **`escalate`:**
 1. Build escalation message from `pipeline.escalation.template` with substitutions.
 2. Determine `suggested_actions` key by inspecting last error (precondition kind, timeout, generic).
-3. File operator-queue item via Trinity MCP `send_notification` with `context: { pipeline_id, instance_id, stage, last_error }`. Capture returned `queue_id`.
-4. Append to `state.open_escalations[]`: `{ queue_id, filed_at, stage, reason }`.
+3. File the escalation as an operator-queue item: append an entry to `~/.trinity/operator-queue.json` with an agent-chosen **`request_id`** (e.g. `pipeline-$PIPELINE_ID-$INSTANCE_ID-<stage>-<attempt>` — unique per agent, and never a platform-reserved prefix: `queue-flood-`, `poison-`, `cb-dormant-`, `sync-failing-`, `git-bloat-`, `skill-not-found-`, `val_`), a title (≤300 chars), the question, and `context: { pipeline_id, instance_id, stage, last_error }`. The platform ingests the file within ~5s. (`send_notification` is a different subsystem — it creates a notification, not an operator-queue item, and returns no queue handle.)
+4. Append to `state.open_escalations[]`: `{ request_id, filed_at, stage, reason }`.
 5. Set `state.status = "escalated"`.
 6. Write state. Emit `pipeline.$PIPELINE_ID.$INSTANCE_ID.escalated` event.
 

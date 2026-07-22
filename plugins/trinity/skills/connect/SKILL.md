@@ -5,10 +5,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, AskUserQuestion
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.2: Explain the silent no-code failure mode — email OTP only reaches whitelisted addresses and the API 200s identically for unknown ones (anti-enumeration #186); self-signup is default-OFF (#1274) — so guide users to admin whitelisting instead of resend loops"
     - "1.1: Idempotent reconnect (PHASE 0) — when a valid profile already exists, (re)write `.mcp.json` in the current directory from the stored profile without an email round-trip, instead of just reporting 'already connected'. connect is now the single writer of `.mcp.json` that /trinity:onboard, /trinity:sync, and /trinity:loop delegate to"
     - "1.0: Initial version — connect to a Trinity instance via email OTP, provision an MCP API key, and write .mcp.json, with no CLI installation required"
 ---
@@ -86,6 +87,8 @@ If error:
 - Other: Show error detail
 
 Tell user: "Verification code sent to {EMAIL}. Check your inbox (and spam folder)."
+
+**If no code arrives within ~2 minutes**: the most likely cause is that {EMAIL} is not on the instance's whitelist — the API deliberately returns the same 200 for unknown emails (anti-enumeration, trinity#186), so a missing email is the only signal. The fix is admin-side: an instance admin adds the email to the whitelist, or the operator enables self-signup (`PUBLIC_ACCESS_REQUESTS_ENABLED`, **default OFF** since trinity#1274 — `POST /api/access/request` returns 403 until it's opted in). Tell the user exactly that instead of looping on resend.
 
 ### PHASE 3: Email Verification - Enter Code
 

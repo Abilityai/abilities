@@ -5,10 +5,11 @@ argument-hint: "<pipeline-slug>"
 allowed-tools: Read, Bash, Glob, Grep
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-05-23
   author: Ability.ai
   changelog:
+    - "1.2: Step 2 no longer hard-requires the legacy heartbeat.skill field (it failed the canonical template, which ships heartbeat.name/cron/message) — now requires heartbeat.message + heartbeat.name; Step 7 notes an uninstalled-skill message fails loudly as SKILL_NOT_FOUND at runtime (trinity#1410)"
     - "1.1: Heartbeat sanity matches the fixed schema (heartbeat.name/cron/message; 5-field cron — Trinity's scheduler format). heartbeat.pre_check now raises a WARNING: the pre-check hook is removed (Trinity's agent-global hook has no fire vocabulary — any stdout replaces the calling schedule's message); legacy skill/schedule_name fields get a rename note"
     - "1.0: Initial version — read-only pipeline.yaml linter checking schema, DAG acyclicity, referenced-skill existence, and precondition kinds; writes no files"
 ---
@@ -51,7 +52,8 @@ STAGE_COUNT=$(yq '.stages | length' "$PIPELINE_FILE")
 [ "$STAGE_COUNT" -gt 0 ] || error "No stages defined"
 
 yq '.heartbeat.cron' "$PIPELINE_FILE" >/dev/null || error "heartbeat.cron is required"
-yq '.heartbeat.skill' "$PIPELINE_FILE" >/dev/null || error "heartbeat.skill is required"
+yq '.heartbeat.message' "$PIPELINE_FILE" >/dev/null || error "heartbeat.message is required"
+yq '.heartbeat.name' "$PIPELINE_FILE" >/dev/null || error "heartbeat.name is required"
 ```
 
 Collect all errors and report at the end — don't stop on the first one.
@@ -119,7 +121,7 @@ For each precondition in `stages[].preconditions[]`:
 ### Step 7: Heartbeat sanity
 
 - `heartbeat.cron` is a parseable **5-field** cron expression (Trinity's scheduler format).
-- `heartbeat.message` names an installed skill (default `Run /pipeline-tick`; warn if the referenced skill directory is missing under `.claude/skills/`).
+- `heartbeat.message` names an installed skill (default `Run /pipeline-tick`; warn if the referenced skill directory is missing under `.claude/skills/` — and note it's no longer a soft failure at runtime: a schedule whose message names an uninstalled skill finalizes **FAILED with `SKILL_NOT_FOUND`** and raises an Operating Room item, trinity#1410).
 - Legacy fields → migrate: `heartbeat.skill` / `heartbeat.schedule_name` get an info-level note to rename to `message` / `name`. `heartbeat.pre_check` gets a **warning**: the pre-check hook is removed (Trinity's agent-global hook contract has no `fire` vocabulary — any stdout replaces the calling schedule's message). Delete the field, and if `~/.trinity/pre-check` still contains an add-pipeline block, re-run `/add-pipeline`'s Step 6 migration to strip it.
 
 ### Step 8: Sync ~/.trinity/ (only on pass)

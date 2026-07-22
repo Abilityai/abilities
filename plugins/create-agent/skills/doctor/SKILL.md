@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.4"
+  version: "1.4.1"
   created: 2026-05-25
-  updated: 2026-07-09
+  updated: 2026-07-22
   author: Ability.ai
   changelog:
+    - "1.4.1: Deploying-to-Trinity notes set_reminder (trinity#1296) — visit prep can fire exactly N days before a known appointment date instead of waiting for the weekly sweep; guarded, works locally without Trinity"
     - "1.4: Generated agent publishes structured summary reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section (summaries only, never raw records) and the visit-prep skill ends with a guarded doctor.visit_prep report; skipped silently off-Trinity"
     - "1.3: Adopt evidence-based /nutrition-plan (three-layer causal-biomarker model) and upgrade /supplement-check to a six-layer decision procedure with companion reference.md. Negative-personalization-first discipline across both."
     - "1.2: Vendor /document-extractor and /file-indexer from skill-library at scaffold time. Reduce /ingest-documents to a thin medical wrapper. Drop the inline /index-files skill."
@@ -245,6 +246,8 @@ Build this agent iteratively:
 ### Deploying to Trinity
 
 When you're ready to run this agent remotely (scheduled re-indexing, visit-prep reminders, always-on access):
+
+> On Trinity, visit prep gets sharper: once an appointment date is known, the agent can `set_reminder` (one-shot self-trigger, trinity#1296) to fire prep exactly N days before that date instead of waiting for the weekly sweep. Optional — everything works locally without it.
 
 ```bash
 pip install trinity-cli    # one-time install

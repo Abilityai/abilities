@@ -46,8 +46,9 @@ If `--from-stage` was passed, default to "Rewind". Otherwise default to "Retry c
 For each entry in `state.open_escalations[]`:
 
 ```bash
-QUEUE_ID=<id>
-# Mark resolved via Trinity MCP if available, else just clear locally
+REQUEST_ID=<request_id>
+# Resolve via Trinity MCP respond_to_operator_queue if available (find the item
+# with list_operator_queue and match request_id), else just clear locally
 ```
 
 Clear the array: `state.open_escalations = []`.

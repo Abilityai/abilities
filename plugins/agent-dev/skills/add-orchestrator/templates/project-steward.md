@@ -167,7 +167,7 @@ and a no-op run must be nearly free and leave no trace:
 
 For each entry in `open_dispatches`:
 
-1. `get_chat_history` with the dispatched agent; look for a reply after `sent_at`.
+1. `get_chat_history` with the dispatched agent; look for a reply after `sent_at`. (Push-style alternative as dispatch volume grows: subscribe once to the agent's backend-emitted `agent.task.completed` event, trinity#1578, and reconcile on completion instead of waiting for this sweep.)
 2. **Reply found**: post an "Agent report" relay comment on the task issue (format per
    standard §6), check the task off in the epic checklist if done (close the task issue),
    or leave open with the findings noted. Remove the tracker entry.

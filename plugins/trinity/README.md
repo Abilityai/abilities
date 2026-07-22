@@ -98,7 +98,7 @@ A deployed agent publishes results by calling one MCP tool: **`mcp__trinity__rep
 | `display_hint` | optional | `table` (`{columns, rows}`) · `kpi` (`{tiles:[{label,value,unit?}]}`) · `markdown` (`{markdown}`) · `timeline` (`{events:[{ts,label,detail}]}`) · omit → raw-JSON viewer |
 | `period_start` / `period_end` | optional | ISO-8601, for reports covering a window |
 
-**Reports complement `dashboard.yaml`:** the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only history* of what the agent accomplished. The convention `/create-agent` bakes into every generated agent is: **result-producing and scheduled skills end with a guarded `report` call** — guarded so it's skipped silently when the tool is absent (i.e. running locally, off Trinity). Reporting is an upgrade, never a requirement.
+**Reports complement `dashboard.yaml`:** the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only history* of what the agent accomplished (rolling — pruned past `agent_reports_retention_days`, default 90 days). The convention `/create-agent` bakes into every generated agent is: **result-producing and scheduled skills end with a guarded `report` call** — guarded so it's skipped silently when the tool is absent (i.e. running locally, off Trinity). Reporting is an upgrade, never a requirement.
 
 ### Three execution patterns
 

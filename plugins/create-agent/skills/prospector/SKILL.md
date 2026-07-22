@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.3"
+  version: "1.3.1"
   created: 2026-04-04
   author: Ability.ai
   changelog:
+    - "1.3.1: Scorecard 'revisit in Q[X]' verdicts note set_reminder (trinity#1296) — arm a one-shot self-trigger at that quarter so the revisit actually happens; guarded, works locally without Trinity"
     - "1.3: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and /research-company ends with a guarded prospector.company_brief report (Reports tab history alongside the live dashboard); skipped silently off-Trinity"
     - "1.2: Wizards emit a template.yaml schedules: block for declarative Trinity scheduling"
     - "1.1: Removed Trinity CLI references — deployment guidance is now MCP/onboard-based"
@@ -548,6 +549,8 @@ Score on a 1-5 scale for each criterion:
 ### Step 5: Save Scorecard
 
 Append or write the scorecard to `research/[company-name-slugified]-score.md`.
+
+On Trinity: a `revisit in Q[X]` verdict can arm `set_reminder` (`fire_at` = the start of that quarter, message naming the company and scorecard path — one-shot self-trigger, trinity#1296) so the revisit actually happens instead of living only in the file. Skip silently when Trinity MCP isn't connected.
 
 ## Outputs
 
