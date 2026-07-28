@@ -4,12 +4,13 @@ description: Create an executive chief of staff agent — asks about your tools,
 argument-hint: "[destination-path]"
 disable-model-invocation: false
 user-invocable: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.3.1"
+  version: "1.4"
   created: 2026-04-04
   author: Ability.ai
   changelog:
+    - "1.4: Trinity-connected deploy is the default next action — new Step 11 offers deploying the freshly created agent from its repository via /trinity:onboard when Trinity MCP is connected, gated by explicit AskUserQuestion confirmation; skipped silently when not connected"
     - "1.3.1: /track-decision Step 4 notes set_reminder (trinity#1296) — follow-ups with due dates arm a one-shot self-trigger that fires exactly at the deadline instead of waiting for the next sweep; guarded, works locally without Trinity"
     - "1.3: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and /daily-briefing ends with a guarded chief_of_staff.daily_briefing report (Reports tab history alongside the live dashboard); skipped silently off-Trinity"
     - "1.2: Wizard emits a template.yaml schedules: block so generated agents ship with declarative Trinity schedules"
@@ -1086,7 +1087,30 @@ If `gh` is not available, show manual instructions.
 
 ---
 
-## STEP 11: Completion
+## STEP 11: Offer Trinity Deployment (if connected)
+
+**Default approach:** when this session is already connected to Trinity, deploying the new agent from its repository is the default next action — but it **never happens without explicit confirmation**.
+
+**Detect the connection:** Trinity is connected when the `mcp__trinity__*` MCP tools are available in this session (probe with `mcp__trinity__list_agents`). If more than one Trinity server is connected, confirm which instance the tools reach before offering.
+
+**If Trinity is NOT connected:** skip this step silently — the Completion summary keeps `/trinity:onboard` as the deploy-later path. Trinity is the upgrade, not the gate.
+
+**If Trinity IS connected:** ask for confirmation — never deploy unprompted. Use AskUserQuestion:
+- **Question:** "Trinity is connected in this session. Deploy your Chief of Staff to Trinity now from [destination]?"
+- **Header:** "Deploy"
+- **Options:**
+  1. **Yes, deploy now (Recommended)** — deploy from the repository via `/trinity:onboard`
+  2. **Not now** — keep it local; deploy later with `/trinity:onboard` from the agent directory
+
+**If confirmed:** set the working directory to `[destination]`, then invoke `/trinity:onboard` (Skill tool). It owns the deployment end-to-end: deploys from the agent's repository (preferring the GitHub remote from Step 10 when one exists), injects credentials, and reconciles `template.yaml` schedules. Do **not** inline raw `mcp__trinity__deploy_local_agent` calls here — `/trinity:onboard` is the single source of truth for deployment. If `/trinity:onboard` isn't available (trinity plugin not installed), tell the user to run `/plugin install trinity@abilityai` and then `/trinity:onboard` from the agent directory — don't attempt a manual deploy.
+
+**If declined:** move on silently.
+
+**Carry the outcome forward:** if the deploy ran, reflect it in the Completion summary — a `✓ Deployed to Trinity — [instance URL]` line replacing any "deploy later" guidance; otherwise leave the summary as is.
+
+---
+
+## STEP 12: Completion
 
 Display:
 

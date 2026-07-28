@@ -60,7 +60,7 @@ Each wizard is a guided conversation that:
 2. Scaffolds a Trinity-compatible agent directory
 3. Generates customized CLAUDE.md, skills, docs (README + ARCHITECTURE + TARGET-ARCHITECTURE), and configuration
 4. Declares recommended `schedules:` in `template.yaml` (disabled by default — the operator chooses what runs)
-5. Optionally deploys to Trinity for remote execution
+5. If Trinity is connected in your session, offers to deploy the new agent to Trinity from its repository right away — the default next action, but always behind an explicit confirmation. Not connected (or declined) → deployment stays a later step via `/trinity:onboard`
 
 Generated agents ship with a `schedules:` block in `template.yaml` describing the recurring tasks the agent is designed to run. They're declared `enabled: false` — `/trinity:onboard` and `/trinity:sync` reconcile them onto your Trinity instance, and you turn on the ones you want.
 
