@@ -137,7 +137,9 @@ The multi-agent *definition* aligns with Trinity's `SystemManifest` — no paral
 | **canon-consume** | Read another agent's published data or a protocol — fresh, cited at `canon@<sha>`, staleness flagged |
 | **canon-reconcile** | Scheduled freshness pass — verify the own folder against its sources, stamp, push |
 
-The layer is **convention + skills on plain git** — no platform primitive. It's declared via `x-canon:` in `template.yaml` (the same `x-` extension pattern as `x-capabilities:`), which is how the orchestration layer sees it: `/discover-agents` scans it into a `canon:` field per map node, and `/orchestrate` serves reads of published facts from the canon repo instead of spending a chat turn — writes still route to the owning agent.
+The layer is **convention + skills on plain git** — no platform primitive. It's declared via `x-canon:` in `template.yaml` (the same `x-` extension pattern as `x-capabilities:`), which is how the orchestration layer sees it: `/discover-agents` scans it into a `canon:` field per map node (and reports **canon coverage** — N/M mapped agents enrolled), and `/orchestrate` serves reads of published facts from the canon repo instead of spending a chat turn — writes still route to the owning agent.
+
+**Fleet enrollment:** on an orchestrator (`fleet/system-map.yaml` present), `/add-canon` doesn't stop at the agent it runs in — it offers to enroll **all mapped agents or a subset** into the same canon: each target repo gets the runtime skills, its `x-canon:` declaration, the CLAUDE.md section, and the reconcile schedule (local repos → direct commit; repo-only → branch + PR, or authorized direct push), and each `agents/<name>/` folder is seeded in the canon (the one sanctioned cross-folder write — enrollment seeding). Targets need no clone up front: their canon skills self-heal it on first use. Idempotent — already-enrolled agents are counted and untouched, so re-running aligns only the remainder.
 
 ## Composing skills (hierarchical playbooks)
 

@@ -4,10 +4,11 @@ description: Discover the fleet — from live Trinity (list_agents), a curated r
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_info, mcp__trinity__get_agent_tags, mcp__trinity__list_tags
 user-invocable: true
 metadata:
-  version: "1.6"
+  version: "1.7"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.7: Canon coverage in the report — when at least one map node declares canon:, also count the mapped agents WITHOUT a declaration (N/M enrolled) so enrollment gaps surface on every scan; the fix is /add-canon's fleet-enrollment step on the orchestrator"
     - "1.6: Scan each agent's x-canon: declaration (the shared canonical-data layer installed by /add-canon) into a canon: field per map node — {repo, folder} — so /orchestrate can serve authoritative-data reads from the canon repo instead of a chat turn; cheap drift check when this orchestrator holds a clone of the same canon repo (declared folder missing ⇒ notes: flag); report gains a canon: line"
     - "1.5: Discovery source is now asked up front (new Step 0) — when Trinity MCP is connected, choose between the live Trinity fleet (Recommended default; roster from list_agents, each live agent's own source repo fetched for spec enrichment, sources.yaml not required), the local sources.yaml repo scan (the 1.4 behavior — the only source that surfaces catalog-only agents), or both (union); live agents absent from sources.yaml — previously invisible — now land as live-only map entries (match: live) in trinity/both runs, and local runs count them in the report instead of dropping them silently; Trinity absent → local mode automatically, no question; map header gains discovery_source:"
     - "1.4: Topology edges now sourced from DECLARED intent (fleet/system.yaml permissions, else orchestration.md §5) and labeled as such — live agent_permissions are not exposed over MCP (get_agent_auth is subscription auth status, not permissions; they live behind REST /api/agents/{name}/permissions and are set by deploy_system at deploy time), so 'live edges' were never obtainable; new Step 6c materializes the dashboard.yaml Fleet table rows (Trinity's real sections[]→widgets[] schema — the UI renders values, it reads no files)"
@@ -300,6 +301,8 @@ Scanned N repos (source: trinity — live fleet | local — sources.yaml | both)
   by role:       research 3 · comms 1 · ops 2 · …
   pipelines:     <agents owning long-running pipelines, with ids — omit line if none>
   canon:         <agents publishing to the shared canon repo, with folders — omit line if none>
+                 <coverage when a canon exists: N/M mapped agents enrolled — close the gap with
+                  /add-canon fleet enrollment on the orchestrator; omit if all enrolled>
   unreachable:   <repos needing gh auth, if any>
   name-only:     <low-confidence matches to verify, if any>
   out of scope:  <local run: K live agents not in sources.yaml — re-run with Trinity/Both to include>

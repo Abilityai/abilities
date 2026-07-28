@@ -1,13 +1,14 @@
 ---
 name: add-canon
-description: Give any agent a shared canonical-data layer — installs /canon-publish (commit this agent's own folder in the fleet's shared canon repo), /canon-consume (read other agents' published data at a cited ref), and /canon-reconcile (scheduled freshness pass over the agent's own folder). Seeds or adopts the canon repo convention (agents/<name>/ owned folders, protocols/, CONVENTIONS.md, CODEOWNERS). Convention + skills on plain git — no new platform primitive.
+description: Give any agent a shared canonical-data layer — installs /canon-publish (commit this agent's own folder in the fleet's shared canon repo), /canon-consume (read other agents' published data at a cited ref), and /canon-reconcile (scheduled freshness pass over the agent's own folder). Seeds or adopts the canon repo convention (agents/<name>/ owned folders, protocols/, CONVENTIONS.md, CODEOWNERS). In orchestrator fleets (fleet/system-map.yaml present) also enrolls mapped agents — all or a subset — into the same canon. Convention + skills on plain git — no new platform primitive.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.1: Fleet enrollment (new Step 9, orchestrator context) — when fleet/system-map.yaml exists, offer to enroll all mapped agents or a subset: install the runtime skills + x-canon: declaration + CLAUDE.md section + gitignore line + reconcile schedule into each target repo (local path → direct commit; repo-only → branch + PR, or authorized direct push), and seed each agents/<name>/ folder in the canon — the one sanctioned cross-folder write (enrollment seeding, now documented in CONVENTIONS.md); no clone created in targets (their runtime skills self-heal it on first use); idempotent — a target already declaring x-canon: is counted as enrolled and untouched"
     - "1.0: Initial version — seeds/adopts the shared canon repo (agents/<name>/ owned folders, protocols/, CONVENTIONS.md, CODEOWNERS), installs /canon-publish, /canon-consume, /canon-reconcile into the target agent, declares the layer via x-canon: in template.yaml, and wires the reconcile schedule (template.yaml schedules: + create_agent_schedule when Trinity MCP is present); own-folder-only direct writes, cross-folder changes via branch + PR; the canon lives as a gitignored side clone (not a submodule) that the runtime skills re-clone on fresh deploys"
 ---
 
@@ -42,6 +43,7 @@ Give an agent a **published data layer**: a separately-versioned git repository 
 | `x-canon:` block | `template.yaml` | declares the layer — repo, folder, write scope, reconcile cadence |
 | reconcile schedule | `template.yaml` `schedules:` + Trinity MCP | `canon-reconcile`, default cron `0 8 * * 1` |
 | CLAUDE.md `## Canonical Data (Canon)` section | agent repo | wires the skills + states the boundary and the rules |
+| fleet enrollment *(opt-in, Step 9 — orchestrator context)* | member repos + canon repo | same artifacts installed into all/subset of mapped agents; their folders seeded |
 
 ---
 
@@ -183,7 +185,38 @@ Same durable-then-live pattern as `/add-orchestrator`'s steward schedule:
 2. **If Trinity MCP is available**, install live via `create_agent_schedule` with its real params: `agent_name`, `name: "canon-reconcile"`, `cron_expression: "<from Q3>"`, `message: "Run /canon-reconcile"`, optional `description`. (No `schedule_name`/`cron`/`skill` params exist — the `message` is the prompt, so it names the skill.) Otherwise print that the pass runs manually until `/trinity:onboard` / `/trinity:sync` reconciles the schedule.
 3. If `template.yaml` is absent, warn: the schedule would exist live-only — invisible to `/trinity:sync` and fleet discovery.
 
-### Step 9: Summary
+### Step 9: Enroll the fleet (orchestrator context — opt-in)
+
+If this agent is an orchestrator (`fleet/system-map.yaml` exists), installing the layer into *itself* is only half the job — the canon stays one-sided until the members join. Offer enrollment; **skip this step silently when there is no fleet map** (plain single-agent install).
+
+**Q4 — Enroll fleet agents into the canon now?**
+- `All mapped agents` — every map node not already enrolled
+- `Pick a subset` — list the nodes (name · role · summary), multi-select
+- `Skip` — enroll later by re-running `/add-canon` here (this step is idempotent)
+
+**Q5 — Delivery for repo-only targets** (no local path — only asked if any):
+- `Branch + PR` (Recommended) — reviewable, lands via each repo's owner
+- `Direct commit to the default branch` — only for fleets where this orchestrator is explicitly authorized to write member repos
+
+For each selected target — skipping any whose `template.yaml` already declares `x-canon:` (already enrolled; count it, touch nothing):
+
+1. **Resolve a working copy.** Map ref `local:<path>` → operate on that directory directly. `github:Org/repo` → shallow-clone to a temp dir.
+2. **Install the layer into the target repo** — the same artifacts as Steps 5–8, target-adjusted: copy the three runtime skills into its `.claude/skills/` (respect existing dirs — skip, don't overwrite, and note it); append its `x-canon:` block (`folder: "agents/<target-name>/"`, same `repo`, same cadence default from Q3); append the CLAUDE.md section; add the `canon/` gitignore line; add the `canon-reconcile` `schedules:` entry (all grep-guarded). Do **not** clone the canon repo inside the target — its runtime skills self-heal the clone on first use.
+3. **Seed the target's folder in the canon repo** — `agents/<target-name>/profile.md` stub + CODEOWNERS comment line, exactly as Step 4 did for this agent, one commit for the whole enrollment batch. This is the **one sanctioned cross-folder write**: enrollment seeding by the installer (documented in CONVENTIONS.md). Everything after belongs to the owner.
+4. **Deliver.** Local target → commit in its repo: `canon: join the fleet canon (enrolled by <orchestrator>)`; its own git-sync hooks or `/sync-fleet-to-head` carry it from there. Repo-only target → per Q5: push a `canon/enroll-<name>` branch and open a PR (`gh pr create`), or commit to the default branch directly.
+5. **Live instances lag by design.** A deployed agent picks the enrollment up on its next session/redeploy (SessionStart rebase in git-sync fleets); until then it is enrolled-on-paper — `/discover-agents` shows the declaration, and the first canon-skill use re-clones `canon/`. Materializing its reconcile schedule on Trinity is that agent's own `/trinity:onboard` / `/trinity:sync` — never done from here.
+
+Fold the outcome into Step 10's summary:
+
+```
+### Fleet enrollment
+  enrolled now:      <n> (<names>) — local commit | PR <urls> | direct push
+  already enrolled:  <n> (x-canon: present — untouched)
+  skipped:           <n> (<names — no repo ref | unreachable | declined>)
+  note: live instances pick this up on next session/redeploy; first canon-skill use re-clones canon/
+```
+
+### Step 10: Summary
 
 Print:
 
@@ -208,9 +241,10 @@ Print:
 1. Fill agents/<name>/profile.md — what this agent publishes and what others may rely on.
 2. Move the first real facts out of working memory into the folder, then /canon-publish.
 3. Fill the CODEOWNERS line with the human counterpart's GitHub handle.
-4. Other agents join with /add-canon pointing at the same repo; they read you via /canon-consume <name>.
-5. (Orchestrator fleets) re-run /discover-agents — the map picks up x-canon: and /orchestrate
-   starts serving authoritative reads from the canon instead of a chat turn.
+4. Other agents join via Step 9 fleet enrollment (re-run /add-canon here any time), or by
+   running /add-canon themselves pointing at the same repo; they read you via /canon-consume <name>.
+5. (Orchestrator fleets) re-run /discover-agents — the map picks up x-canon: (with a canon
+   coverage line) and /orchestrate starts serving authoritative reads from the canon.
 ```
 
 ---
@@ -227,7 +261,10 @@ Print:
 | A target skill dir already exists | Ask per-skill: overwrite / skip / cancel |
 | `template.yaml` absent | Install anyway; warn the layer is undiscoverable and the schedule can't be recorded durably |
 | Seed push fails (no remote / rejected) | Commit stays local; say so — the layer works, sharing waits for a remote |
+| Enrollment target unreachable (no repo ref, clone failed) | Count as skipped with the reason; never block the rest of the batch |
+| Enrollment target already declares `x-canon:` | Already enrolled — skip idempotently, count it |
+| Enrollment target has no `template.yaml` | Install the repo artifacts anyway; warn its declaration can't be recorded (same caveat as Step 6) |
 
 ## Idempotency
 
-Re-running is safe: the clone, `CONVENTIONS.md`, `CODEOWNERS`, the owned folder, the `.gitignore` line, the `x-canon:` block, the CLAUDE.md section, and the `schedules:` entry are each seeded only when absent (grep-guarded where textual); skill copies prompt before overwrite. Nothing in the canon repo is ever overwritten by this installer — it only adds what's missing.
+Re-running is safe: the clone, `CONVENTIONS.md`, `CODEOWNERS`, the owned folder, the `.gitignore` line, the `x-canon:` block, the CLAUDE.md section, and the `schedules:` entry are each seeded only when absent (grep-guarded where textual); skill copies prompt before overwrite. Fleet enrollment (Step 9) is idempotent the same way — a target already declaring `x-canon:` is counted and untouched, so re-running enrolls only the not-yet-aligned remainder. Nothing in the canon repo is ever overwritten by this installer — it only adds what's missing.

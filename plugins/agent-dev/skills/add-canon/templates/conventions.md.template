@@ -21,6 +21,10 @@ protocols/          # inter-agent contracts — schemas, channels, cadences
   true (its `/canon-reconcile` pass verifies and stamps on a schedule).
 - **Everyone else — agent or human — changes someone's folder or `protocols/` via
   branch + PR.** CODEOWNERS routes the review. No exceptions for trivial edits.
+- **One sanctioned exception — enrollment seeding:** when an agent joins the canon
+  (`/add-canon`, including its fleet-enrollment step), the installer may create that
+  agent's `agents/<name>/` folder with its stub + CODEOWNERS line. Creation only —
+  everything after belongs to the owner.
 - Git history is the audit trail: no force-pushes, no history rewrites, ever.
 
 ## Canonical files

@@ -4,10 +4,11 @@ description: Make any agent a system-aware orchestrator — installs /discover-a
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.13"
+  version: "1.14"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.14: Bundled /discover-agents v1.7 — canon coverage line in the scan report (N/M mapped agents enrolled when the fleet has a canon), so an orchestrator that adopted /add-canon alone sees exactly which members are not yet aligned; /add-canon v1.1's fleet-enrollment step closes the gap from the orchestrator side"
     - "1.13: Canon-aware bundle — /discover-agents v1.6 scans each agent's x-canon: declaration (the shared canonical-data layer installed by the new sibling /add-canon) into a canon: field per map node with a cheap declared-folder drift check; /orchestrate v1.8 serves reads of published business facts from the canon repo (cited at canon@<sha>, staleness-flagged) instead of a chat turn and briefs the canon pointer into dispatches; orchestration.md gains a §3c data-layer subsection (offered as an upgrade insert on re-run, like §3b)"
     - "1.12: Bundled /orchestrate v1.7 — report-back subscriptions target the backend-emitted agent.task.completed/failed terminal events (trinity#1578) instead of a worker-emitted completion trailer, the deterministic fallback is a re-arming set_reminder one-shot (trinity#1296) instead of an orch-watch cron schedule, and teardown documents the #1580 spawn-provenance rule (agent keys can delete only agents they spawned); project-steward notes the agent.task.completed subscription as the push-style alternative to chat-history polling"
     - "1.11: Bundled /orchestrate v1.6 — dispatch is duration-aware and fire-and-park (never block-and-wait): quick tasks stay sync; long ones (or a queued_timeout receipt) go out chat_with_agent(parallel=true, async=true) with the execution_id parked in a run ledger (fleet/.orchestrate-runs.yaml) and the turn ended; dual wake-up — workers emit orchestration.task_completed via a standard prompt trailer the orchestrator pre-subscribes to ({{payload.task_id}}-templated message), plus a self-deleting orch-watch-<execution_id> watchdog schedule as deterministic fallback; new Step 6b report-back fetches the result, delivers via send_message (send_notification fallback), resumes parked chains, cleans up watcher + ledger, and only then tears down ephemerals"
