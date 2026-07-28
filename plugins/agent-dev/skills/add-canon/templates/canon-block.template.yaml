@@ -1,0 +1,9 @@
+# x-canon — declares this agent's participation in the fleet's shared canonical-data
+# layer (installed by /add-canon). The x- prefix keeps it clear of Trinity's native
+# template.yaml keys, same convention as /add-orchestrator's x-capabilities:.
+x-canon:
+  repo: "{{CANON_REPO}}"            # github:Org/repo or local path — the shared canon repo
+  clone_path: "canon/"              # where the clone lives inside this agent (gitignored)
+  folder: "agents/{{AGENT_NAME}}/"  # the one folder this agent owns and keeps current
+  writes: own-folder-only           # anything outside the folder goes via branch + PR
+  reconcile_cron: "{{CRON}}"        # freshness pass cadence — see schedules: (empty = manual only)

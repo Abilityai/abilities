@@ -1,0 +1,10 @@
+# CODEOWNERS — review routing for the canon repo.
+#
+# Agents own their agents/<name>/ folders by convention (declared in each agent's
+# template.yaml x-canon: block); this file maps each folder to its responsible HUMAN
+# counterpart so cross-folder PRs request the right review. Fill real GitHub handles —
+# never invent one. Uncomment a line once its handle is real.
+#
+# /agents/<name>/   @github-handle
+# /protocols/       @github-handle-of-fleet-operator
+# /CONVENTIONS.md   @github-handle-of-fleet-operator

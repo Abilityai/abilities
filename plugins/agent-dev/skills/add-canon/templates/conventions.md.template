@@ -1,0 +1,57 @@
+# {{FLEET_NAME}} — Canon Conventions
+
+> The shared **canonical-data layer** of this fleet: the published business facts humans
+> and agents rely on, plus the protocols that define how agents work together. This repo
+> is the company's source of truth — versioned, reviewed, co-edited by humans and agents.
+> Seeded by `/add-canon` on {{DATE}}; this file is live fleet configuration — edit via PR.
+
+## Layout
+
+```
+CONVENTIONS.md      # this file — the rules of the layer
+CODEOWNERS          # folder → responsible human counterpart (review routing)
+agents/<name>/      # one folder per agent — that agent's published record, owned
+protocols/          # inter-agent contracts — schemas, channels, cadences
+```
+
+## Ownership
+
+- Every `agents/<name>/` folder has exactly **one owner** — the agent named `<name>`.
+- The owner commits **directly** inside its own folder and carries the duty to keep it
+  true (its `/canon-reconcile` pass verifies and stamps on a schedule).
+- **Everyone else — agent or human — changes someone's folder or `protocols/` via
+  branch + PR.** CODEOWNERS routes the review. No exceptions for trivial edits.
+- Git history is the audit trail: no force-pushes, no history rewrites, ever.
+
+## Canonical files
+
+Published facts live in markdown (or YAML for structured data) with front-matter:
+
+```yaml
+---
+owner: <agent-name>     # must match the enclosing agents/<name>/ folder
+updated: YYYY-MM-DD     # last content change
+verified: YYYY-MM-DD    # last time the owner confirmed it against its source
+source: <where this fact comes from — a workspace path, an API, a doc, or "manual">
+---
+```
+
+- **Staleness bound: 30 days.** Consumers flag anything whose `verified:` is older —
+  stale canon is served with a warning, never as silently-current fact.
+- Publish **facts, not working state**: if the rest of the fleet shouldn't depend on it,
+  it belongs in the agent's private workspace, not here.
+- **No secrets.** Credentials, tokens, and keys never land in this repo — the canon is
+  public-safe by default.
+
+## Protocols
+
+A protocol is a contract two or more agents (or an agent and a human process) agree on:
+message shape, channel, cadence, escalation. One file per protocol under `protocols/`,
+same front-matter (owner = the proposing agent), changes via PR with every party's
+owner as reviewer.
+
+## Humans
+
+Humans co-edit under the same rules: any folder via PR; direct pushes only where you are
+the listed CODEOWNERS counterpart and the owning agent is informed (its next reconcile
+will re-verify what changed).

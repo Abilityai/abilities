@@ -49,6 +49,16 @@ prompt to ask the operator, never a hard stop.
 | --- | --- | --- | --- |
 <human-authored — one row per recurring domain of work; agent names must match §3>
 
+### 3c. Data layer (canonical data — /add-canon, informational)
+Where the fleet's **published truth** lives: agents that participate in the shared canon
+repo declare it via `x-canon:` (surfaced as `canon:` per node in the system map). Reads
+of published facts go to the canon folder (cited at `canon@<sha>`), not a chat turn;
+writes always route to the owning agent — own-folder-only, cross-folder via PR.
+
+| domain of fact | owning agent | canon folder | notes |
+| --- | --- | --- | --- |
+<human-authored — one row per canonical domain; empty until the fleet adopts /add-canon>
+
 ## 4. Edges — who calls whom (and why)
 The allow/deny is enforced by the manifest; the *why* is narrative and lives here.
 

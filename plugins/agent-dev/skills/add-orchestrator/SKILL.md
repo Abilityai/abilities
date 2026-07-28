@@ -4,10 +4,11 @@ description: Make any agent a system-aware orchestrator — installs /discover-a
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.12"
+  version: "1.13"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.13: Canon-aware bundle — /discover-agents v1.6 scans each agent's x-canon: declaration (the shared canonical-data layer installed by the new sibling /add-canon) into a canon: field per map node with a cheap declared-folder drift check; /orchestrate v1.8 serves reads of published business facts from the canon repo (cited at canon@<sha>, staleness-flagged) instead of a chat turn and briefs the canon pointer into dispatches; orchestration.md gains a §3c data-layer subsection (offered as an upgrade insert on re-run, like §3b)"
     - "1.12: Bundled /orchestrate v1.7 — report-back subscriptions target the backend-emitted agent.task.completed/failed terminal events (trinity#1578) instead of a worker-emitted completion trailer, the deterministic fallback is a re-arming set_reminder one-shot (trinity#1296) instead of an orch-watch cron schedule, and teardown documents the #1580 spawn-provenance rule (agent keys can delete only agents they spawned); project-steward notes the agent.task.completed subscription as the push-style alternative to chat-history polling"
     - "1.11: Bundled /orchestrate v1.6 — dispatch is duration-aware and fire-and-park (never block-and-wait): quick tasks stay sync; long ones (or a queued_timeout receipt) go out chat_with_agent(parallel=true, async=true) with the execution_id parked in a run ledger (fleet/.orchestrate-runs.yaml) and the turn ended; dual wake-up — workers emit orchestration.task_completed via a standard prompt trailer the orchestrator pre-subscribes to ({{payload.task_id}}-templated message), plus a self-deleting orch-watch-<execution_id> watchdog schedule as deterministic fallback; new Step 6b report-back fetches the result, delivers via send_message (send_notification fallback), resumes parked chains, cleans up watcher + ledger, and only then tears down ephemerals"
     - "1.10: Bundled /discover-agents v1.5 — discovery source is asked up front when Trinity MCP is connected (live Trinity fleet as the Recommended default · sources.yaml repo scan · both/union); trinity/both runs roster from list_agents, so live agents missing from sources.yaml are no longer invisible (they land as live-only entries, match: live) and fleet/sources.yaml is required only for the repo-scan sources; Step 8's first scan now also fires when Trinity is connected even if sources.yaml is still the example"
@@ -59,6 +60,8 @@ Drive (opt-in project-management layer — Q3 at install):
 **Design invariant (do not violate):** orchestration is **agent-owned**. Trinity supplies the substrate (shared folders, agent-to-agent permissions, MCP messaging, cron) but runs **no central DAG engine**. So the roll-out → work → tear-down lifecycle lives *inside* `/orchestrate` — stitched from existing MCP calls — never as a new platform primitive. The multi-agent *definition* aligns 1:1 with Trinity's `SystemManifest` (the same YAML `deploy_system` consumes); this skill does **not** invent a competing format.
 
 **Sibling layer — `/add-pipeline`:** this skill is the *inter*-agent layer (route / fan out / lifecycle across a fleet); `/add-pipeline` is the *intra*-agent one (a population of items crawling through a staged DAG inside a single agent, advanced by that agent's own heartbeat). They compose, same invariant on both sides: `/discover-agents` surfaces each fleet agent's pipelines (`pipelines:` per map node, scanned from `projects/*/pipeline.yaml`), and `/orchestrate` routes pipeline-shaped work *to* the owning agent rather than re-sequencing its stages as a cross-agent chain. Conversely, when one pipeline's instances are really isolated tenants, the answer is one agent per tenant via this orchestrator — add-pipeline's "multi-instance, not multi-tenant" boundary points here.
+
+**Data layer — `/add-canon`:** the third sibling is the fleet's *published-truth* layer — a shared, separately-versioned canon repo where each agent owns `agents/<name>/` (canonical business facts) and `protocols/` holds inter-agent contracts; writes are own-folder-only, cross-folder via PR. The integration mirrors `pipelines:`: `/discover-agents` scans each agent's `x-canon:` declaration into a `canon:` field per map node, `/orchestrate` serves reads of published facts from the canon folder (cited at `canon@<sha>`) instead of a chat turn — writes still route to the owning agent — and `orchestration.md` §3c records who owns which canonical domain. Install the layer itself with `/add-canon`; this skill only *consumes* the declarations.
 
 **What gets installed into the target agent:**
 
@@ -147,6 +150,8 @@ fi
 ```
 
 **Upgrade path — §3b ownership matrix:** if `fleet/orchestration.md` already exists but has no `### 3b` section (an install predating v1.8), offer to add it — never insert silently into an authored narrative. On yes, copy the `### 3b. Ownership matrix` section from the template, inserted after §3a (before `## 4`), with its table left empty for the human to fill. On no, skip; re-running offers again.
+
+**Upgrade path — §3c data layer:** same rule for `### 3c` (an install predating v1.13): offer to insert the `### 3c. Data layer` section from the template after §3b (before `## 4`), table left empty. Only relevant once the fleet adopts `/add-canon`, so mention that when offering.
 
 If the user pasted repos in Q2, append them under `repos:` in `fleet/sources.yaml` (one entry per line, preserving the header comments).
 
@@ -328,4 +333,4 @@ Print:
 
 ## Idempotency
 
-Re-running is safe: existing `fleet/sources.yaml`, `fleet/system-map.yaml`, and `fleet/orchestration.md` are never clobbered (only seeded when absent); the CLAUDE.md section, the `@fleet/orchestration.md` import, and the dashboard panel are each grep-guarded; the §3b ownership-matrix insert is grep-guarded on `### 3b` and applied only on an explicit yes; and skill copies prompt before overwrite. `/discover-agents` rewrites only the fenced `GENERATED:*` blocks in `orchestration.md` — your prose is never touched. To refresh, run `/discover-agents`; to re-wire a skill, delete its dir under `.claude/skills/` and re-run.
+Re-running is safe: existing `fleet/sources.yaml`, `fleet/system-map.yaml`, and `fleet/orchestration.md` are never clobbered (only seeded when absent); the CLAUDE.md section, the `@fleet/orchestration.md` import, and the dashboard panel are each grep-guarded; the §3b ownership-matrix and §3c data-layer inserts are grep-guarded on `### 3b`/`### 3c` and applied only on an explicit yes; and skill copies prompt before overwrite. `/discover-agents` rewrites only the fenced `GENERATED:*` blocks in `orchestration.md` — your prose is never touched. To refresh, run `/discover-agents`; to re-wire a skill, delete its dir under `.claude/skills/` and re-run.

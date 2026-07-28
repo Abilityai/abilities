@@ -4,10 +4,11 @@ description: Discover the fleet — from live Trinity (list_agents), a curated r
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_info, mcp__trinity__get_agent_tags, mcp__trinity__list_tags
 user-invocable: true
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.6: Scan each agent's x-canon: declaration (the shared canonical-data layer installed by /add-canon) into a canon: field per map node — {repo, folder} — so /orchestrate can serve authoritative-data reads from the canon repo instead of a chat turn; cheap drift check when this orchestrator holds a clone of the same canon repo (declared folder missing ⇒ notes: flag); report gains a canon: line"
     - "1.5: Discovery source is now asked up front (new Step 0) — when Trinity MCP is connected, choose between the live Trinity fleet (Recommended default; roster from list_agents, each live agent's own source repo fetched for spec enrichment, sources.yaml not required), the local sources.yaml repo scan (the 1.4 behavior — the only source that surfaces catalog-only agents), or both (union); live agents absent from sources.yaml — previously invisible — now land as live-only map entries (match: live) in trinity/both runs, and local runs count them in the report instead of dropping them silently; Trinity absent → local mode automatically, no question; map header gains discovery_source:"
     - "1.4: Topology edges now sourced from DECLARED intent (fleet/system.yaml permissions, else orchestration.md §5) and labeled as such — live agent_permissions are not exposed over MCP (get_agent_auth is subscription auth status, not permissions; they live behind REST /api/agents/{name}/permissions and are set by deploy_system at deploy time), so 'live edges' were never obtainable; new Step 6c materializes the dashboard.yaml Fleet table rows (Trinity's real sections[]→widgets[] schema — the UI renders values, it reads no files)"
     - "1.3: Also scan each repo's projects/*/pipeline.yaml (long-running pipelines installed by /add-pipeline) into a pipelines: field per map node — {id, stages} — so pipeline-owning agents are visible to /orchestrate routing and /profile-fleet introspection"
@@ -186,6 +187,11 @@ for pf in "$WORK"/pipeline-*.yaml; do
   P_STAGES=$(yq -r '.stages | length // 0' "$pf" 2>/dev/null)
   # → append {id: $P_ID, stages: $P_STAGES} to this entry's pipelines[] (skip if P_ID empty)
 done
+
+# CANON (optional) — the shared canonical-data layer declared by /add-canon
+CANON_REPO=$(  yq -r '.["x-canon"].repo // ""'   "$f" 2>/dev/null)
+CANON_FOLDER=$(yq -r '.["x-canon"].folder // ""' "$f" 2>/dev/null)
+# → both non-empty ⇒ set this entry's canon: {repo: $CANON_REPO, folder: $CANON_FOLDER}
 ```
 
 Normalize into a map entry (priority order):
@@ -200,10 +206,13 @@ Normalize into a map entry (priority order):
 | `lifecycle` | `x-capabilities.lifecycle` → `persistent` |
 | `resources`, `schedules` | from `template.yaml` → omit / `[]` |
 | `pipelines` | repo `projects/*/pipeline.yaml` → `{id, stages}` per file → `[]` |
+| `canon` | `x-canon:` → `{repo, folder}` → omit |
 
 Never invent `provides`. If neither native keywords nor `x-capabilities` exist, rely on `summary` + `tags`.
 
 A non-empty `pipelines:` marks the agent as the owner of that long-running work — `/orchestrate` routes pipeline-shaped tasks (a population of items through stages over many runs) *to* it rather than re-sequencing the stages across agents, and `/profile-fleet` uses the field as its fallback when a Trinity build lacks the pipeline MCP introspection tools. A `pipeline-<id>-heartbeat` entry in `schedules:` is corroborating evidence the pipeline is actually wired.
+
+A non-empty `canon:` marks the agent as a **publisher in the fleet's shared canonical-data layer** (`/add-canon`): its `folder` in the declared `repo` is its published record — the facts other agents may rely on. `/orchestrate` serves authoritative-data *reads* from that folder (cited at `canon@<sha>`) instead of spending a chat turn; writes still route to the owning agent (own-folder-only rule). **Drift check — cheap and local-only:** if *this* orchestrator itself holds a clone of the same canon repo (its own `x-canon.clone_path`, default `canon/`), verify each declaring agent's folder exists in it; missing ⇒ `notes: "canon declared but folder missing in <repo>"`. Never clone a canon repo just to run this check.
 
 ### Step 4: Note any `system.yaml` found in a scanned repo
 
@@ -290,6 +299,7 @@ Scanned N repos (source: trinity — live fleet | local — sources.yaml | both)
   catalog-only:  Y   (github://… / local:… — rollable on demand)
   by role:       research 3 · comms 1 · ops 2 · …
   pipelines:     <agents owning long-running pipelines, with ids — omit line if none>
+  canon:         <agents publishing to the shared canon repo, with folders — omit line if none>
   unreachable:   <repos needing gh auth, if any>
   name-only:     <low-confidence matches to verify, if any>
   out of scope:  <local run: K live agents not in sources.yaml — re-run with Trinity/Both to include>
@@ -325,4 +335,5 @@ try: mcp__trinity__report(report_type: "<agent>.fleet_scan", display_hint: "tabl
 | `template.yaml` unparseable / one bad field | Per-field extraction keeps the good fields; `notes: "partial parse"` |
 | Native `capabilities:` is a list (not a map) | Expected — read as `capability_keywords`; never index it with `.role` |
 | Deployed name ≠ template name | Repo-first match resolves it into `deployed_name`; that's what `/orchestrate` uses |
+| `x-canon:` declared but folder missing in this orchestrator's canon clone | `notes:` flag on the entry — the owner should re-run `/add-canon` (or `/canon-publish` its seed); never fixed from here |
 | Report tool present but key out of scope | Swallow the auth error; the map write already succeeded |

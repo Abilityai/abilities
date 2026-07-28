@@ -44,6 +44,7 @@
         "./skills/add-backlog",
         "./skills/add-git-sync",
         "./skills/add-orchestrator",
+        "./skills/add-canon",
         "./skills/add-pipeline",
         "./skills/add-pipeline-instance",
         "./skills/add-pipeline-stage",
