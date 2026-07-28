@@ -4,10 +4,11 @@ description: Give any agent a shared canonical-data layer — installs /canon-pu
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.3: Live-delivery guarantee — repo HEAD is not the running container: the reconcile schedule message now begins with git pull --ff-only, so even a container that never pulled since enrollment fetches the canon skills in the same run that first needs them (Step 8; every enrolled target inherits it); Step 9 delivery ends with an activation offer — run the orchestrator's /sync-fleet-to-head (or, without it, message each running enrolled agent to pull via Trinity MCP) so the fleet carries the skills in minutes instead of waiting for the next session or cron; enrollment summary gains live-delivery and undeliverable lines so agents that cannot receive the rollout (no git sync on Trinity, local-only container HEAD) are named, never silent"
     - "1.2: Access verification + deployment credential story — preflight checks gh auth (not just presence); adopting an existing github: canon runs a write probe (gh api permissions.push) and hard-stops before seeding when write access is missing; new /canon-doctor runtime skill (fourth in the set) — nine-check PASS/WARN/FAIL ladder incl. a push --dry-run write probe, context-aware fixes, dispatchable fleet-wide; new Step 6b seeds GH_TOKEN= into .env.example and documents the fine-grained-PAT + inject_credentials path so deployed instances can self-heal the clone and push; runtime skills v1.1 authenticate headlessly via a GH_TOKEN credential helper, add a git-identity fallback, and never prescribe interactive fixes to scheduled runs; fleet enrollment installs the doctor + seeds each target's .env.example, and its summary carries a credentials line"
     - "1.1: Fleet enrollment (new Step 9, orchestrator context) — when fleet/system-map.yaml exists, offer to enroll all mapped agents or a subset: install the runtime skills + x-canon: declaration + CLAUDE.md section + gitignore line + reconcile schedule into each target repo (local path → direct commit; repo-only → branch + PR, or authorized direct push), and seed each agents/<name>/ folder in the canon — the one sanctioned cross-folder write (enrollment seeding, now documented in CONVENTIONS.md); no clone created in targets (their runtime skills self-heal it on first use); idempotent — a target already declaring x-canon: is counted as enrolled and untouched"
     - "1.0: Initial version — seeds/adopts the shared canon repo (agents/<name>/ owned folders, protocols/, CONVENTIONS.md, CODEOWNERS), installs /canon-publish, /canon-consume, /canon-reconcile into the target agent, declares the layer via x-canon: in template.yaml, and wires the reconcile schedule (template.yaml schedules: + create_agent_schedule when Trinity MCP is present); own-folder-only direct writes, cross-folder changes via branch + PR; the canon lives as a gitignored side clone (not a submodule) that the runtime skills re-clone on fresh deploys"
@@ -213,11 +214,12 @@ Same durable-then-live pattern as `/add-orchestrator`'s steward schedule:
    - id: canon-reconcile
      name: Canon freshness pass
      cron: "<from Q3>"
-     message: "Run /canon-reconcile"
+     message: "First run git pull --ff-only in the agent repo (delivers any pending skill updates; report if it fails), then run /canon-reconcile"
      purpose: Verify this agent's published canonical data is still true — stamp, update, push
      enabled: true
    ```
-2. **If Trinity MCP is available**, install live via `create_agent_schedule` with its real params: `agent_name`, `name: "canon-reconcile"`, `cron_expression: "<from Q3>"`, `message: "Run /canon-reconcile"`, optional `description`. (No `schedule_name`/`cron`/`skill` params exist — the `message` is the prompt, so it names the skill.) Otherwise print that the pass runs manually until `/trinity:onboard` / `/trinity:sync` reconciles the schedule.
+   The pull-first message makes the schedule **self-delivering**: a deployed container keeps whatever it last pulled, so without it the first scheduled run can fire on an instance that doesn't have the skill yet. With it, a stale container fetches the canon skills in the same run that first needs them; a non-fast-forward pull (local-only commits) fails loudly and gets reported instead of silently running nothing.
+2. **If Trinity MCP is available**, install live via `create_agent_schedule` with its real params: `agent_name`, `name: "canon-reconcile"`, `cron_expression: "<from Q3>"`, `message:` the same pull-first prompt as above, optional `description`. (No `schedule_name`/`cron`/`skill` params exist — the `message` is the prompt, so it names the skill.) Otherwise print that the pass runs manually until `/trinity:onboard` / `/trinity:sync` reconciles the schedule.
 3. If `template.yaml` is absent, warn: the schedule would exist live-only — invisible to `/trinity:sync` and fleet discovery.
 
 ### Step 9: Enroll the fleet (orchestrator context — opt-in)
@@ -236,10 +238,11 @@ If this agent is an orchestrator (`fleet/system-map.yaml` exists), installing th
 For each selected target — skipping any whose `template.yaml` already declares `x-canon:` (already enrolled; count it, touch nothing):
 
 1. **Resolve a working copy.** Map ref `local:<path>` → operate on that directory directly. `github:Org/repo` → shallow-clone to a temp dir.
-2. **Install the layer into the target repo** — the same artifacts as Steps 5–8, target-adjusted: copy the four runtime skills into its `.claude/skills/` (respect existing dirs — skip, don't overwrite, and note it); append its `x-canon:` block (`folder: "agents/<target-name>/"`, same `repo`, same cadence default from Q3); append the CLAUDE.md section; add the `canon/` gitignore line; seed its `.env.example` `GH_TOKEN=` line (Step 6b's guard — each member's deployed instance needs its own token); add the `canon-reconcile` `schedules:` entry (all grep-guarded). Do **not** clone the canon repo inside the target — its runtime skills self-heal the clone on first use.
+2. **Install the layer into the target repo** — the same artifacts as Steps 5–8, target-adjusted: copy the four runtime skills into its `.claude/skills/` (respect existing dirs — skip, don't overwrite, and note it); append its `x-canon:` block (`folder: "agents/<target-name>/"`, same `repo`, same cadence default from Q3); append the CLAUDE.md section; add the `canon/` gitignore line; seed its `.env.example` `GH_TOKEN=` line (Step 6b's guard — each member's deployed instance needs its own token); add the `canon-reconcile` `schedules:` entry with Step 8's pull-first message (all grep-guarded). Do **not** clone the canon repo inside the target — its runtime skills self-heal the clone on first use.
 3. **Seed the target's folder in the canon repo** — `agents/<target-name>/profile.md` stub + CODEOWNERS comment line, exactly as Step 4 did for this agent, one commit for the whole enrollment batch. This is the **one sanctioned cross-folder write**: enrollment seeding by the installer (documented in CONVENTIONS.md). Everything after belongs to the owner.
 4. **Deliver.** Local target → commit in its repo: `canon: join the fleet canon (enrolled by <orchestrator>)`; its own git-sync hooks or `/sync-fleet-to-head` carry it from there. Repo-only target → per Q5: push a `canon/enroll-<name>` branch and open a PR (`gh pr create`), or commit to the default branch directly.
-5. **Live instances lag by design.** A deployed agent picks the enrollment up on its next session/redeploy (SessionStart rebase in git-sync fleets); until then it is enrolled-on-paper — `/discover-agents` shows the declaration, and the first canon-skill use re-clones `canon/`. Materializing its reconcile schedule on Trinity is that agent's own `/trinity:onboard` / `/trinity:sync` — never done from here.
+5. **Activate live containers — repo HEAD is not the running fleet.** Delivery lands the enrollment at each repo's HEAD, but a deployed instance keeps whatever it last pulled — fleets go weeks between pulls, so without this step every container stays enrolled-on-paper (declaration visible to `/discover-agents`, skills absent live). After the batch lands, **offer to activate now**: if the orchestrator has `/sync-fleet-to-head` (an `/add-orchestrator` install), run it — it pulls every fleet agent to HEAD non-destructively; without it, if Trinity MCP is present, message each running enrolled agent to `git pull --ff-only` (or use `git_pull` directly). If the user defers, say explicitly how the fleet converges anyway: next session/redeploy (SessionStart rebase in git-sync fleets), any scheduled fleet sync, and — the failsafe — Step 8's pull-first reconcile message, which fetches the skills in the same run that first needs them. Name the exceptions instead of letting them fail silently: an agent with **no git sync on Trinity** cannot receive the rollout at all until `initialize_github_sync` (or a redeploy); a container sitting on a **local-only commit** will fail the ff-only pull and needs a manual rebase.
+6. **Schedules stay the member's own.** Materializing an enrolled agent's reconcile schedule on Trinity is that agent's own `/trinity:onboard` / `/trinity:sync` — never done from here; until then the durable `schedules:` entry (with its pull-first message) is the record.
 
 Fold the outcome into Step 10's summary:
 
@@ -248,10 +251,15 @@ Fold the outcome into Step 10's summary:
   enrolled now:      <n> (<names>) — local commit | PR <urls> | direct push
   already enrolled:  <n> (x-canon: present — untouched)
   skipped:           <n> (<names — no repo ref | unreachable | declined>)
+  live delivery:     <synced now via /sync-fleet-to-head | pull messaged to <n> running agents |
+                     deferred — converges via next session, scheduled fleet sync, or the
+                     pull-first reconcile run (Step 8 failsafe)>
+  undeliverable:     <names — no git sync on Trinity (needs initialize_github_sync) |
+                     local-only container HEAD (needs manual rebase)> — or none
   credentials:       GH_TOKEN= seeded in each target's .env.example — the operator fills it per
                      deployed instance (a token cannot be verified from here); each member proves
                      its own setup with /canon-doctor (dispatchable via /orchestrate)
-  note: live instances pick this up on next session/redeploy; first canon-skill use re-clones canon/
+  note: first canon-skill use on each instance re-clones canon/
 ```
 
 ### Step 10: Summary
@@ -306,6 +314,8 @@ Print:
 | `template.yaml` absent | Install anyway; warn the layer is undiscoverable and the schedule can't be recorded durably |
 | Seed push fails (no remote / rejected) | Commit stays local; say so — the layer works, sharing waits for a remote |
 | Enrollment target unreachable (no repo ref, clone failed) | Count as skipped with the reason; never block the rest of the batch |
+| Enrollment landed at repo HEAD but running containers are stale | Expected, not broken — offer activation now (Step 9.5: `/sync-fleet-to-head` or per-agent pull via Trinity MCP); the pull-first reconcile message self-delivers on the first scheduled run regardless |
+| Enrollment target has no git sync on Trinity | Undeliverable to its live instance — name it in the summary; it receives the rollout only after `initialize_github_sync` or a redeploy |
 | Enrollment target already declares `x-canon:` | Already enrolled — skip idempotently, count it |
 | Enrollment target has no `template.yaml` | Install the repo artifacts anyway; warn its declaration can't be recorded (same caveat as Step 6) |
 
