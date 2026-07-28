@@ -4,10 +4,11 @@ description: "Publish this agent's canonical data — freshen the shared canon r
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.1: Deploy-ready auth — the self-heal clone is credential-aware (gh when logged in, else a GH_TOKEN/GITHUB_TOKEN credential helper wired at clone time that reads the env var at use — the token never lands on disk, else plain https for public repos); git-identity fallback before commit; clone/push remediation is context-aware (workstation gh auth login vs deployed GH_TOKEN via .env + inject_credentials) and points at /canon-doctor"
     - "1.0: Initial version — own-folder direct commits with updated: stamping and rebase-on-reject push retry; anything outside the folder (other agents' folders, protocols/, root files) goes out as a branch + PR via gh, never a direct push; self-heals a missing clone from x-canon.repo (fresh deploys)"
 ---
 
@@ -27,13 +28,22 @@ Read `template.yaml` → `x-canon:` (`repo`, `clone_path` — default `canon/` �
 
 ```bash
 [ -d canon/.git ] || case "$CANON_REPO" in
-  github:*) gh repo clone "${CANON_REPO#github:}" canon 2>/dev/null \
-              || git clone "https://github.com/${CANON_REPO#github:}" canon ;;
-  *)        git clone "$CANON_REPO" canon ;;
+  github:*)
+    SLUG="${CANON_REPO#github:}"
+    if gh auth status >/dev/null 2>&1; then
+      gh repo clone "$SLUG" canon
+    elif [ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]; then
+      # headless/deployed — credential helper reads the env token at use time; nothing secret lands on disk
+      git clone -c credential.helper='!f(){ echo username=x-access-token; echo "password=${GH_TOKEN:-$GITHUB_TOKEN}"; };f' \
+        "https://github.com/$SLUG" canon
+    else
+      git clone "https://github.com/$SLUG" canon   # public read works; pushes will need gh or GH_TOKEN
+    fi ;;
+  *) git clone "$CANON_REPO" canon ;;
 esac
 ```
 
-Note the re-clone in the report. Clone fails (auth, no access) → stop with the exact remote + `gh auth login` guidance.
+(`git clone -c` also persists the helper into the new clone's config, so later pulls/pushes authenticate the same way.) Note the re-clone in the report. Clone fails (auth, no access) → stop with the exact remote and the context-appropriate fix: on a workstation, `gh auth login`; on a deployed instance, `GH_TOKEN` (fine-grained PAT — canon repo only, Contents: Read and write) into `.env` via `inject_credentials` (`/trinity:onboard` Step 5e). `/canon-doctor` runs the full diagnostic ladder.
 
 ### Step 2: Freshen the clone
 
@@ -61,9 +71,10 @@ Every canonical file carries front-matter (see `canon/CONVENTIONS.md`). For each
 
 ### Step 5: Publish IN — direct commit + push
 
-Show a diffstat first (`git -C canon diff --stat` scoped to the folder). Then:
+Show a diffstat first (`git -C canon diff --stat` scoped to the folder). Then commit — with an identity fallback so a bare deployed container never fails the commit itself:
 
 ```bash
+git -C canon config user.email >/dev/null || { git -C canon config user.name "<name>"; git -C canon config user.email "<name>@agents.local"; }
 git -C canon add "agents/<name>/"
 git -C canon commit -m "canon(<name>): <one-line summary of what changed and why>"
 git -C canon push || { git -C canon pull --rebase --autostash && git -C canon push; }
@@ -102,7 +113,8 @@ Skipped:   <anything left unstaged, and why>
 | Situation | Action |
 |---|---|
 | No `x-canon:` | Stop → `/add-canon` |
-| Clone missing at `clone_path` (fresh deploy) | Self-heal: re-clone from `x-canon.repo`; stop only if the clone itself fails |
+| Clone missing at `clone_path` (fresh deploy) | Self-heal: re-clone from `x-canon.repo` (auth-aware — gh / env-token helper / plain https); stop only if the clone itself fails |
+| Clone or push denied (auth) | Context-aware fix: workstation → `gh auth login`; deployed → `GH_TOKEN` via `.env` + `inject_credentials`; `/canon-doctor` diagnoses the full ladder |
 | `pull --ff-only` fails (diverged) | Stop, show status + divergent commits — operator resolves |
 | Push rejected twice | Report the error verbatim; the commit is local — say so |
 | OUT change with no remote/`gh` | Branch committed locally; print manual PR steps |

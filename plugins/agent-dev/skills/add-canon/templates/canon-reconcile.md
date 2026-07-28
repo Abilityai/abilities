@@ -4,10 +4,11 @@ description: "Scheduled freshness pass over this agent's own folder in the share
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, mcp__trinity__report
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.1: Deploy-ready auth — self-heal clone inherits /canon-publish v1.1's auth-aware resolution (gh → GH_TOKEN/GITHUB_TOKEN credential helper → plain https); git-identity fallback before commit; auth-failure reports name the headless fix (GH_TOKEN via .env + inject_credentials) and /canon-doctor — never an interactive gh auth login a scheduled run can't execute"
     - "1.0: Initial version — walks the own folder, verifies each file against its source: front-matter (workspace path, API, doc), three outcomes (verified → bump verified:, changed → edit + bump both stamps, unverifiable → NEEDS-REVIEW.md row, never a guess), own-folder-only commit + push, guarded Trinity report; self-heals a missing clone from x-canon.repo (fresh deploys)"
 ---
 
@@ -21,7 +22,7 @@ The duty that makes the canon trustworthy: **is my published folder still true?*
 
 ### Step 1: Load config + freshen
 
-Read `template.yaml` → `x-canon:` (`repo`, `clone_path` default `canon/`, `folder`). No `x-canon:` block → stop with a one-line note (headless runs must fail loudly-but-cleanly, not hang). Clone missing at `clone_path` (fresh deploy — the path is gitignored) → **self-heal**: re-clone from `x-canon.repo` quietly and note it in the report; only a failed clone stops the run. Then `git -C canon pull --ff-only`; on divergence, **report and stop** — a reconcile must start from the shared truth, and force-anything is forbidden.
+Read `template.yaml` → `x-canon:` (`repo`, `clone_path` default `canon/`, `folder`). No `x-canon:` block → stop with a one-line note (headless runs must fail loudly-but-cleanly, not hang). Clone missing at `clone_path` (fresh deploy — the path is gitignored) → **self-heal**: re-clone from `x-canon.repo` quietly, using the same auth-aware resolution as `/canon-publish` Step 1 (gh when logged in → `GH_TOKEN`/`GITHUB_TOKEN` credential helper → plain https), and note it in the report; only a failed clone stops the run — and an auth failure must name the headless fix (`GH_TOKEN` into `.env` via `inject_credentials`; diagnose with `/canon-doctor`), never `gh auth login`, which a scheduled run cannot execute. Then `git -C canon pull --ff-only`; on divergence, **report and stop** — a reconcile must start from the shared truth, and force-anything is forbidden.
 
 ### Step 2: Walk the owned folder
 
@@ -42,9 +43,10 @@ Never invent a fact to fill a gap, and never delete a published fact just becaus
 
 ### Step 3: Publish (own folder only)
 
-Changes staged strictly under `agents/<name>/`:
+Changes staged strictly under `agents/<name>/` (identity fallback first, so a bare deployed container never fails the commit):
 
 ```bash
+git -C canon config user.email >/dev/null || { git -C canon config user.name "<name>"; git -C canon config user.email "<name>@agents.local"; }
 git -C canon add "agents/<name>/"
 git -C canon commit -m "canon(<name>): reconcile — <V> verified, <U> updated, <F> flagged"
 git -C canon push || { git -C canon pull --rebase --autostash && git -C canon push; }
@@ -67,7 +69,8 @@ Then publish a guarded Trinity report: `mcp__trinity__report(report_type: "<agen
 | Situation | Action |
 |---|---|
 | No `x-canon:` | One-line stop — run `/add-canon` (never hang a scheduled run) |
-| Clone missing at `clone_path` (fresh deploy) | Self-heal: re-clone from `x-canon.repo`; only a failed clone stops the run |
+| Clone missing at `clone_path` (fresh deploy) | Self-heal: re-clone from `x-canon.repo` (auth-aware); only a failed clone stops the run |
+| Clone/pull/push auth failure | Report names the headless fix — `GH_TOKEN` into `.env` via `inject_credentials` — and `/canon-doctor`; never an interactive `gh auth login` |
 | `pull --ff-only` fails (diverged) | Report and stop — no force, no rebase of shared history |
 | Source unreachable | Flag in NEEDS-REVIEW.md; keep the published fact and its stamps |
 | Push rejected twice | Report verbatim; commit stays local — next run retries |

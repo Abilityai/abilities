@@ -4,10 +4,11 @@ description: Make any agent a system-aware orchestrator — installs /discover-a
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.14"
+  version: "1.15"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.15: Access-verification guidance — preflight flags an installed-but-unauthenticated gh (private github: sources, /sync-fleet-to-head pushes, and registry ops all depend on it); Q3's project layer verifies registry-repo write access + issues enabled via gh api before wiring the autonomous steward (a bad grant would otherwise surface as a silently failing schedule); Step 9's summary documents the deployed-credential story — GH_TOKEN via .env + inject_credentials, same convention as /add-canon Step 6b — for GitHub-touching skills on a Trinity instance"
     - "1.14: Bundled /discover-agents v1.7 — canon coverage line in the scan report (N/M mapped agents enrolled when the fleet has a canon), so an orchestrator that adopted /add-canon alone sees exactly which members are not yet aligned; /add-canon v1.1's fleet-enrollment step closes the gap from the orchestrator side"
     - "1.13: Canon-aware bundle — /discover-agents v1.6 scans each agent's x-canon: declaration (the shared canonical-data layer installed by the new sibling /add-canon) into a canon: field per map node with a cheap declared-folder drift check; /orchestrate v1.8 serves reads of published business facts from the canon repo (cited at canon@<sha>, staleness-flagged) instead of a chat turn and briefs the canon pointer into dispatches; orchestration.md gains a §3c data-layer subsection (offered as an upgrade insert on re-run, like §3b)"
     - "1.12: Bundled /orchestrate v1.7 — report-back subscriptions target the backend-emitted agent.task.completed/failed terminal events (trinity#1578) instead of a worker-emitted completion trailer, the deterministic fallback is a re-arming set_reminder one-shot (trinity#1296) instead of an orch-watch cron schedule, and teardown documents the #1580 spawn-provenance rule (agent keys can delete only agents they spawned); project-steward notes the agent.task.completed subscription as the push-style alternative to chat-history polling"
@@ -103,6 +104,8 @@ mkdir -p .claude/skills
 # Recommended tooling used by the installed skills:
 command -v yq >/dev/null 2>&1 || warn "yq not installed — discover/compose parse YAML more robustly with it. Install: brew install yq"
 command -v gh >/dev/null 2>&1 || warn "gh not installed — github:Org/repo sources will fall back to shallow git clone. Install: brew install gh (and gh auth login)"
+command -v gh >/dev/null 2>&1 && ! gh auth status >/dev/null 2>&1 && \
+  warn "gh installed but not logged in — private github: sources, /sync-fleet-to-head pushes, and the project layer's registry ops will fail. Run: gh auth login"
 ```
 
 If `CLAUDE.md` is missing, ask the user to point to the right directory or run `/create-agent` first.
@@ -129,6 +132,8 @@ If any target skill directory already exists under `.claude/skills/`, ask per-sk
   - **Registry repo** — which GitHub repo hosts the project epics (default: this agent's own origin repo).
   - **Operator** — the human name `status:needs-operator` escalates to.
   - **Steward cadence** — cron for the sweep (default `0 7-19/2 * * 1-5`, i.e. every 2h during working hours, weekdays, server-local time).
+
+  Then **verify registry access before wiring the steward** — it runs unattended, so a bad grant surfaces as a silently failing schedule, not an error in front of anyone: `gh api "repos/$REGISTRY_REPO" --jq '{push: .permissions.push, issues: .has_issues}'` — expect `push: true, issues: true`. On failure, warn and have the user fix access (or pick another repo) before the first sweep; don't hard-stop the install — the layer is repairable. Note that a **deployed** steward additionally needs a `GH_TOKEN` in the instance's `.env` (see the Trinity note in Step 9's summary).
 
 ### Step 3: Scaffold the fleet directory
 
@@ -305,6 +310,9 @@ Print:
 
 ### Trinity MCP: <available | not detected>
 <if not: note that discover/compose still work locally; orchestrate + deploy need /trinity:onboard first>
+<if deploying this orchestrator to Trinity: GitHub-touching skills — /sync-fleet-to-head, /project-steward,
+ private github: sources — need a GH_TOKEN in the deployed .env (fine-grained PAT covering those repos;
+ injected by /trinity:onboard Step 5e via inject_credentials — same convention as /add-canon Step 6b)>
 
 ### Next steps
 1. Edit fleet/sources.yaml — add the repos (local paths and/or github:Org/repo) in the system.
@@ -328,6 +336,8 @@ Print:
 | A target skill dir already exists | Ask per-skill: overwrite / skip / cancel |
 | `template.yaml` absent | Skip Step 6 (capabilities block); note the agent isn't self-describing yet |
 | `gh` missing and a source is `github:...` | The installed `/discover-agents` falls back to `git clone --depth 1`; warn here |
+| `gh` installed but not authenticated | Warn at preflight; `github:` sources degrade to anonymous clone (public repos only) and Q3's registry probe catches the project layer |
+| Registry probe fails (Q3 — no push or issues disabled) | Warn, don't hard-stop — the user fixes access before the steward's first sweep |
 | Trinity MCP unavailable | Install anyway; discover + compose work locally; orchestrate/deploy print manual guidance |
 | `CLAUDE.md` already has `## Orchestration` | Leave the section; still grep-add the `@fleet/orchestration.md` import if it's missing |
 | `orchestration.md` `GENERATED:*` markers deleted by a user | `/discover-agents` re-inserts the section from template before refreshing (never guesses) |

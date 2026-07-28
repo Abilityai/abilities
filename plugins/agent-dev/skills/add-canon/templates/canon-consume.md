@@ -5,10 +5,11 @@ allowed-tools: Read, Bash, Glob, Grep
 user-invocable: true
 argument-hint: "<agent-or-protocol> [path]"
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.1: Self-heal clone inherits /canon-publish v1.1's auth-aware resolution (gh when logged in → GH_TOKEN/GITHUB_TOKEN credential helper → plain https for public repos), so a deployed instance can re-clone a private canon; clone failures point at /canon-doctor"
     - "1.0: Initial version — fresh read (pull --ff-only, degrade to last-known ref offline), fuzzy target resolution across agents/ and protocols/, citation at canon@<short-sha>, staleness flags from verified: stamps against the CONVENTIONS.md bound; self-heals a missing clone from x-canon.repo (fresh deploys)"
 ---
 
@@ -24,7 +25,7 @@ Read what another agent (or the fleet) has **published** — the canonical recor
 
 ### Step 1: Load config + freshen
 
-Read `template.yaml` → `x-canon:` (`repo`, `clone_path` default `canon/`). No `x-canon:` block → stop, point at `/add-canon`. Clone missing at `clone_path` (fresh deploy — the path is gitignored) → **self-heal**: re-clone from `x-canon.repo` (`gh repo clone` / `git clone`, same resolution as `/canon-publish`) and note it in the report. Then:
+Read `template.yaml` → `x-canon:` (`repo`, `clone_path` default `canon/`). No `x-canon:` block → stop, point at `/add-canon`. Clone missing at `clone_path` (fresh deploy — the path is gitignored) → **self-heal**: re-clone from `x-canon.repo` using the same auth-aware resolution as `/canon-publish` Step 1 (gh when logged in → `GH_TOKEN` credential helper on a deployed instance → plain https for public repos) and note it in the report. Then:
 
 ```bash
 git -C canon pull --ff-only 2>/dev/null || echo "OFFLINE_OR_DIVERGED"
@@ -67,8 +68,8 @@ Answer the actual question from the consumed data, citations inline, stale flags
 | Situation | Action |
 |---|---|
 | No `x-canon:` | Stop → `/add-canon` |
-| Clone missing at `clone_path` (fresh deploy) | Self-heal: re-clone from `x-canon.repo`; stop only if the clone itself fails |
-| Pull fails (offline / diverged) | Read local copy, mark the citation as possibly stale |
+| Clone missing at `clone_path` (fresh deploy) | Self-heal: re-clone from `x-canon.repo` (auth-aware); stop only if the clone itself fails — then point at `/canon-doctor` |
+| Pull fails (offline / diverged) | Read local copy, mark the citation as possibly stale; repeated auth failures → `/canon-doctor` |
 | Target not found | List published agents/protocols; suggest the owning agent — never guess |
 | File lacks front-matter stamps | Consume it, but flag `unstamped — freshness unknown` |
 | Asked to write/fix canon data | Refuse — that's `/canon-publish` (own folder) or a PR (someone else's) |
