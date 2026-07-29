@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-04-04
   author: Ability.ai
   changelog:
+    - "1.5: Generated CLAUDE.md gains a Request Dispatch section — an SOP table routing incoming requests (user, other agents, operator queue) to skills; task requests with no matching skill are handled if safe and flagged as playbook gaps (told to the user interactively, filed as a playbook-gap-<slug> operator-queue item when headless on Trinity) with a pointer to /agent-dev:create-playbook"
     - "1.4: Trinity-connected deploy is the default next action — new Step 10 offers deploying the freshly created agent from its repository via /trinity:onboard when Trinity MCP is connected, gated by explicit AskUserQuestion confirmation; skipped silently when not connected"
     - "1.3: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and its primary result skill ends with a guarded webmaster.deploy report (Reports tab history alongside the live dashboard); skipped silently off-Trinity"
     - "1.2: Wizards emit a template.yaml schedules: block for declarative Trinity scheduling"
@@ -154,6 +155,19 @@ You think like a senior frontend developer who values clean architecture, semant
 |-------|---------|
 | `/create-website` | Scaffold a complete Next.js 15 site — design system, components, pages, SEO, deployment |
 | `/update-dashboard` | Refresh Trinity dashboard metrics from site and project data |
+
+## Request Dispatch
+
+Standard operating procedure for incoming requests — from your user, from other agents, or from the operator queue. Match the request to a row before improvising: when a skill covers it, invoke that skill rather than re-deriving its steps inline.
+
+| Request type | Route |
+|--------------|-------|
+| "Build me a site" — new website from scratch | `/create-website` |
+| Refresh site and project metrics | `/update-dashboard` |
+| Question about this agent, its sites, or its domain | Answer directly — no skill needed |
+| Any other task request (edits, redeploys, debugging) | **Playbook gap** — see below |
+
+**Playbook gap** — a task request no skill covers. Handle it manually if it's safe and in scope, and flag the gap so it can become a playbook: interactively, tell the user in your reply; headless on Trinity, file an operator-queue item (append to `~/.trinity/operator-queue.json` with a `request_id` like `playbook-gap-<slug>`, a short title, and what was asked). Suggest `/agent-dev:create-playbook` for request types that recur. When a new skill lands, add its row here and to Core Capabilities.
 
 ## How to Work With This Agent
 

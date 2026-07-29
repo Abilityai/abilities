@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Skill
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-06-14
-  updated: 2026-06-18
+  updated: 2026-07-29
   author: Ability.ai
   changelog:
+    - "1.2: Audit Request Dispatch (new check 2k) — CLAUDE.md carries the SOP routing table: request-phrased rows, every user-invocable skill covered or deliberately internal, routes resolve, playbook-gap fallback with operator-queue escalation and /agent-dev:create-playbook pointer; scorecard + checklist rows added"
     - "1.1: Audit Documentation Coherence — README/ARCHITECTURE/TARGET-ARCHITECTURE present, current/target split intact, docs match skills and subagents"
     - "1.0: Initial version — read-only agent audit that hands off to /adjust-agent"
 ---
@@ -147,6 +148,16 @@ The agent should keep an honest current→target picture and a human-facing over
 
 This is the *detect* counterpart to a generated agent's own `/reconcile-docs` — the agent self-checks; this audit verifies the machinery is present and the docs aren't already drifting.
 
+### 2k. Request Dispatch
+
+The agent's SOP for incoming requests — from the user, other agents, or the operator queue.
+
+- `## Request Dispatch` section in CLAUDE.md with a request-routing table
+- Rows are phrased as *requests* (what gets asked), not restated skill names, and every route resolves to an existing skill
+- Every user-invocable skill in `.claude/skills/` has a dispatch row, or is deliberately internal (e.g. a vendored helper composed by another skill)
+- A **playbook-gap fallback** is present: unmatched task requests are handled if safe and flagged — to the user interactively, or as a `playbook-gap-<slug>` operator-queue item when headless on Trinity — with a pointer to `/agent-dev:create-playbook`
+- Cross-reference: the dispatch table and Core Capabilities agree (no skill listed in one but missing from the other)
+
 ---
 
 ## Step 3: Report
@@ -180,6 +191,7 @@ Produce a findings report — **no edits, no AskUserQuestion to apply anything**
 | Skill Quality | … |
 | Composition Integrity | … |
 | Documentation Coherence | … |
+| Request Dispatch | … |
 | Trinity Ready | … |
 | Hygiene | … |
 
@@ -205,8 +217,9 @@ This review changed nothing. To act on it:
 | 7 | Skill Quality | Frontmatter valid, permissions minimal, steps clear | High |
 | 8 | Composition Integrity | Invocations resolve, no cycles, autonomy transitive, Skill tool present | High |
 | 9 | Documentation Coherence | README/ARCHITECTURE/TARGET-ARCHITECTURE present, current/target split intact, docs match skills & subagents, /reconcile-docs exists | Medium |
-| 10 | Trinity Ready | template.yaml, .env.example, .gitignore, .mcp template | Low |
-| 11 | Hygiene | Git init, no secrets, naming convention | Low |
+| 10 | Request Dispatch | SOP routing table in CLAUDE.md — request-phrased rows, routes resolve, all user-invocable skills covered, playbook-gap fallback | Medium |
+| 11 | Trinity Ready | template.yaml, .env.example, .gitignore, .mcp template | Low |
+| 12 | Hygiene | Git init, no secrets, naming convention | Low |
 
 ---
 

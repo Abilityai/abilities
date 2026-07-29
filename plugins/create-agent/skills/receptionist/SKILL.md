@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-04-08
   author: Ability.ai
   changelog:
+    - "1.4: Generated CLAUDE.md gains a Request Dispatch section — an SOP table routing incoming requests (user, other agents, operator queue) to skills; task requests with no matching skill are handled if safe and flagged as playbook gaps (told to the user interactively, filed as a playbook-gap-<slug> operator-queue item when headless on Trinity) with a pointer to /agent-dev:create-playbook"
     - "1.3: Trinity-connected deploy is the default next action — new Step 13 offers deploying the freshly created agent from its repository via /trinity:onboard when Trinity MCP is connected, gated by explicit AskUserQuestion confirmation; skipped silently when not connected"
     - "1.2.1: Rate-limit cooldowns and 'we'll follow up shortly' fallbacks note set_reminder (trinity#1296) — resume/re-check at the exact time instead of waiting for the inbox cron; guarded, works locally without Trinity"
     - "1.2: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and /process-inbox ends with a guarded receptionist.inbox_processed report (Reports tab history alongside the live dashboard); skipped silently off-Trinity"
@@ -253,6 +254,21 @@ cat config.json | jq -r '.authorized_senders[]'
 | `/route-request` | Manual: route a specific request to an agent and relay the response |
 | `/update-dashboard` | Refresh Trinity dashboard with inbox metrics |
 | `/onboarding` | Track setup progress — env, plugins, first run, Trinity deployment |
+
+## Request Dispatch
+
+Standard operating procedure for incoming requests — from your user, from other agents, or from the operator queue. Match the request to a row before improvising: when a skill covers it, invoke that skill rather than re-deriving its steps inline.
+
+| Request type | Route |
+|--------------|-------|
+| Scheduled inbox check, or "process the inbox" | `/process-inbox` |
+| "Route this to [agent]" — a specific request in hand | `/route-request` |
+| Refresh inbox metrics | `/update-dashboard` |
+| "Where are we with setup?" | `/onboarding` |
+| Question about this agent, its data, or its domain | Answer directly — no skill needed |
+| Any other task request | **Playbook gap** — see below |
+
+**Playbook gap** — a task request no skill covers. Handle it manually if it's safe and in scope, and flag the gap so it can become a playbook: interactively, tell the user in your reply; headless on Trinity, file an operator-queue item (append to `~/.trinity/operator-queue.json` with a `request_id` like `playbook-gap-<slug>`, a short title, and what was asked). Suggest `/agent-dev:create-playbook` for request types that recur. When a new skill lands, add its row here and to Core Capabilities.
 
 ## Email Configuration
 

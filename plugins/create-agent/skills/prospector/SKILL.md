@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-04-04
   author: Ability.ai
   changelog:
+    - "1.5: Generated CLAUDE.md gains a Request Dispatch section — an SOP table routing incoming requests (user, other agents, operator queue) to skills; task requests with no matching skill are handled if safe and flagged as playbook gaps (told to the user interactively, filed as a playbook-gap-<slug> operator-queue item when headless on Trinity) with a pointer to /agent-dev:create-playbook"
     - "1.4: Trinity-connected deploy is the default next action — new Step 10 offers deploying the freshly created agent from its repository via /trinity:onboard when Trinity MCP is connected, gated by explicit AskUserQuestion confirmation; skipped silently when not connected"
     - "1.3.1: Scorecard 'revisit in Q[X]' verdicts note set_reminder (trinity#1296) — arm a one-shot self-trigger at that quarter so the revisit actually happens; guarded, works locally without Trinity"
     - "1.3: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and /research-company ends with a guarded prospector.company_brief report (Reports tab history alongside the live dashboard); skipped silently off-Trinity"
@@ -172,6 +173,20 @@ You think like a top-performing SDR who does their homework. Every piece of rese
 | `/research-company` | Deep-dive company research — [priority from Q4], plus supporting data |
 | `/score-fit` | Score a company against your [ICP from Q1] criteria |
 | `/update-dashboard` | Refresh Trinity dashboard with current prospecting metrics |
+
+## Request Dispatch
+
+Standard operating procedure for incoming requests — from your user, from other agents, or from the operator queue. Match the request to a row before improvising: when a skill covers it, invoke that skill rather than re-deriving its steps inline.
+
+| Request type | Route |
+|--------------|-------|
+| "Research [company]" — before a call, demo, or outreach sequence | `/research-company <company>` |
+| "Is [company] a fit?" — qualify a lead or a prospect list | `/score-fit <company>` |
+| Refresh prospecting metrics | `/update-dashboard` |
+| Question about this agent, its data, or its domain | Answer directly — no skill needed |
+| Any other task request | **Playbook gap** — see below |
+
+**Playbook gap** — a task request no skill covers. Handle it manually if it's safe and in scope, and flag the gap so it can become a playbook: interactively, tell the user in your reply; headless on Trinity, file an operator-queue item (append to `~/.trinity/operator-queue.json` with a `request_id` like `playbook-gap-<slug>`, a short title, and what was asked). Suggest `/agent-dev:create-playbook` for request types that recur. When a new skill lands, add its row here and to Core Capabilities.
 
 ## Research Sources
 

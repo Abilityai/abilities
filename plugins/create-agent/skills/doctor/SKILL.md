@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2026-05-25
-  updated: 2026-07-22
+  updated: 2026-07-29
   author: Ability.ai
   changelog:
+    - "1.6: Generated CLAUDE.md gains a Request Dispatch section — an SOP table routing incoming requests (user, other agents, operator queue) to skills; task requests with no matching skill are handled if safe and flagged as playbook gaps (told to the user interactively, filed as a playbook-gap-<slug> operator-queue item when headless on Trinity) with a pointer to /agent-dev:create-playbook"
     - "1.5: Trinity-connected deploy is the default next action — new Step 16 offers deploying the freshly created agent from its repository via /trinity:onboard when Trinity MCP is connected, gated by explicit AskUserQuestion confirmation; skipped silently when not connected"
     - "1.4.1: Deploying-to-Trinity notes set_reminder (trinity#1296) — visit prep can fire exactly N days before a known appointment date instead of waiting for the weekly sweep; guarded, works locally without Trinity"
     - "1.4: Generated agent publishes structured summary reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section (summaries only, never raw records) and the visit-prep skill ends with a guarded doctor.visit_prep report; skipped silently off-Trinity"
@@ -224,6 +225,24 @@ You operate on documents in the user's local repository. Nothing leaves this mac
 | `/supplement-check` | Build evidence-based supplement plans via a six-layer decision procedure; flag drug-supplement, CYP, and comorbidity contraindications |
 | `/document-extractor` | (vendored from skill-library) Walk a folder of documents and produce per-file markdown extracts |
 | `/file-indexer` | (vendored from skill-library) Refresh `memory/file_index.md` — a tree view of `documents/` and `Files/` for fast lookup |
+
+## Request Dispatch
+
+Standard operating procedure for incoming requests — from your user, from other agents, or from the operator queue. Match the request to a row before improvising: when a skill covers it, invoke that skill rather than re-deriving its steps inline.
+
+| Request type | Route |
+|--------------|-------|
+| First run — "set up my profile from these documents" | `/bootstrap-profile` |
+| New files dropped into `documents/` | `/ingest-documents` |
+| "New med / new diagnosis / update my records" | `/update-memory` |
+| "How are my labs trending?" | `/lab-trends` |
+| "I have an appointment coming up" | `/visit-prep` |
+| "What should I eat?" — dietary planning | `/nutrition-plan` |
+| "Should I take [supplement]?" — interactions and evidence | `/supplement-check` |
+| Question about this agent, its records, or its domain | Answer directly — no skill needed |
+| Any other task request | **Playbook gap** — see below |
+
+**Playbook gap** — a task request no skill covers. Handle it manually if it's safe and in scope, and flag the gap so it can become a playbook: interactively, tell the user in your reply; headless on Trinity, file an operator-queue item (append to `~/.trinity/operator-queue.json` with a `request_id` like `playbook-gap-<slug>`, a short title, and what was asked). Suggest `/agent-dev:create-playbook` for request types that recur. When a new skill lands, add its row here and to Core Capabilities.
 
 ## How to Work With This Agent
 

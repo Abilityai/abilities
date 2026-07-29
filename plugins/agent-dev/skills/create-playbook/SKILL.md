@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.10"
+  version: "2.11"
   created: 2025-02-10
-  updated: 2026-07-09
+  updated: 2026-07-29
   author: Ability.ai
   changelog:
+    - "2.11: New Step 9 registers the created skill in the agent's CLAUDE.md — Core Capabilities row + request-phrased Request Dispatch row when the table exists, and resolves the playbook-gap operator-queue item (playbook-gap-<slug>) the skill was created to close"
     - "2.10: Correct the stall-watchdog facts in the Long-Running-Task Rule — since trinity#1369 the no-output watchdog is 1800s (not 300s) and watches mcp__* tools only (Bash is unwatched, piping doesn't 're-arm' anything); add set_reminder as the Trinity-side way to verify a decoupled job's artifact without waiting for the next cron"
     - "2.9: Add the Reporting Rule to Design Constraints + a validation-checklist line — a skill that yields a surfaceable result (summary, batch, metrics) ends with a guarded mcp__trinity__report step (namespaced report_type, a display_hint, JSON payload) so scheduled/headless runs leave a visible record on the Trinity Reports tab; guarded to skip silently off-Trinity (reporting is an upgrade, never a gate)"
     - "2.8: Add the Long-Running-Task Rule to Design Constraints + a validation-checklist line — a headless/scheduled run is one agent turn and CANNOT host a >~10-min job (the harness auto-backgrounds it past the ~10-min sync Bash ceiling, active waiting is blocked, and ending the turn reaps every background task/monitor). Such work must be decoupled to an OS-level cron/systemd/sidecar + done-marker; the run only triggers and verifies the artifact moved. In-turn oversight is an interactive-only affordance, not a headless one"
@@ -182,6 +183,16 @@ cat [path]/SKILL.md | head -20
 ```
 
 Edits to existing skill files hot-reload without restart. A restart is only needed if the top-level skills directory (`~/.claude/skills/` or `.claude/skills/`) didn't exist before this session.
+
+### Step 9: Register in the Agent's CLAUDE.md
+
+If the agent's CLAUDE.md lists capabilities, register the new skill so it's discoverable and dispatchable:
+
+1. Add a row to `## Core Capabilities` (skill + purpose).
+2. If a `## Request Dispatch` table exists, add a row phrased as the *incoming request* that should route to this skill — what gets asked, not the skill name restated.
+3. If this skill was created to close a flagged **playbook gap**, resolve the flag: on Trinity, find the `playbook-gap-*` operator-queue item (`mcp__trinity__list_operator_queue`) and resolve it via `mcp__trinity__respond_to_operator_queue`, noting the new skill's name.
+
+Skip silently when CLAUDE.md has no such sections, or for internal helper skills not meant for direct dispatch.
 
 ---
 

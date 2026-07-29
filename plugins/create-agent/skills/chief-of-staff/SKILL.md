@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-04-04
   author: Ability.ai
   changelog:
+    - "1.5: Generated CLAUDE.md gains a Request Dispatch section — an SOP table routing incoming requests (user, other agents, operator queue) to skills; task requests with no matching skill are handled if safe and flagged as playbook gaps (told to the user interactively, filed as a playbook-gap-<slug> operator-queue item when headless on Trinity) with a pointer to /agent-dev:create-playbook"
     - "1.4: Trinity-connected deploy is the default next action — new Step 11 offers deploying the freshly created agent from its repository via /trinity:onboard when Trinity MCP is connected, gated by explicit AskUserQuestion confirmation; skipped silently when not connected"
     - "1.3.1: /track-decision Step 4 notes set_reminder (trinity#1296) — follow-ups with due dates arm a one-shot self-trigger that fires exactly at the deadline instead of waiting for the next sweep; guarded, works locally without Trinity"
     - "1.3: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and /daily-briefing ends with a guarded chief_of_staff.daily_briefing report (Reports tab history alongside the live dashboard); skipped silently off-Trinity"
@@ -179,6 +180,22 @@ You think like a world-class chief of staff: concise, anticipatory, and opiniona
 | `/track-decision` | Log a decision, assign follow-ups, set deadlines |
 | `/weekly-digest` | End-of-week summary — decisions made, commitments tracked, next week's priorities |
 | `/update-dashboard` | Refresh Trinity dashboard metrics from agent data |
+
+## Request Dispatch
+
+Standard operating procedure for incoming requests — from your user, from other agents, or from the operator queue. Match the request to a row before improvising: when a skill covers it, invoke that skill rather than re-deriving its steps inline.
+
+| Request type | Route |
+|--------------|-------|
+| "What's on today?" — morning catch-up | `/daily-briefing` |
+| "Prep me for [meeting]" | `/prep-meeting` |
+| "We decided X" — log a decision or follow-up | `/track-decision` |
+| "How did this week go?" | `/weekly-digest` |
+| Refresh dashboard metrics | `/update-dashboard` |
+| Question about this agent, its data, or its domain | Answer directly — no skill needed |
+| Any other task request | **Playbook gap** — see below |
+
+**Playbook gap** — a task request no skill covers. Handle it manually if it's safe and in scope, and flag the gap so it can become a playbook: interactively, tell the user in your reply; headless on Trinity, file an operator-queue item (append to `~/.trinity/operator-queue.json` with a `request_id` like `playbook-gap-<slug>`, a short title, and what was asked). Suggest `/agent-dev:create-playbook` for request types that recur. When a new skill lands, add its row here and to Core Capabilities.
 
 ## Data Sources
 

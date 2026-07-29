@@ -66,6 +66,10 @@ Generated agents ship with a `schedules:` block in `template.yaml` describing th
 
 **Best practice: each scheduled entry calls one playbook and nothing else** — no inline instructions or arguments in the cron prompt. Business logic belongs in the playbook the schedule triggers, so changing a scheduled task means editing that playbook, not the schedule.
 
+### Request Dispatch (SOP routing)
+
+Every generated CLAUDE.md carries a `## Request Dispatch` table — the agent's standard operating procedure for incoming requests, whether from its user, another agent, or the operator queue. A request that matches a row routes to that skill (invoke it, don't improvise its steps). A task request no skill covers is handled if safe and flagged as a **playbook gap** — told to the user interactively, or filed as a `playbook-gap-<slug>` operator-queue item when headless on Trinity — with a pointer to `/agent-dev:create-playbook`. Recurring requests become skills: `/create-agent:review` audits the table, and `/agent-dev:create-playbook` registers a dispatch row for each new skill.
+
 ### Current → target development model
 
 Every generated agent carries a clear picture of *what it is*, *how it runs today*, and *where it's going*:
