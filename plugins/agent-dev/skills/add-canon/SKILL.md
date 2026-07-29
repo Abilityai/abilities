@@ -4,10 +4,11 @@ description: Give any agent a shared canonical-data layer — installs /canon-pu
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.4: Two-zone lintable schema (Eugene decision 2026-07-29, ent#274) — every agents/<name>/ folder now follows the schema deterministic linting can enforce: facts.yaml (the purely lintable zone — structured claims with key/value/status/updated/review_by/source; keys are lowercase dotted subject.relation with one home across all folders) + docs/ prose with a linted front-matter envelope (owner/status/updated/review_by/tldr; statuses canonical|draft|superseded separate conviction levels — drafts may not be linked from profile.md) + files/ referenced artifacts; Step 4 seeds profile.md with the new envelope and an empty facts.yaml; CONVENTIONS.md template carries the full Lintable structure section (folder schema, restricted flat-YAML grammar, staleness via per-item review_by instead of a blanket 30-day bound); enforcement installs separately via the new sibling /add-canon-lint (deterministic linter + CI + optional required check) — runtime skills 1.2 gate publishes on it locally"
     - "1.3: Live-delivery guarantee — repo HEAD is not the running container: the reconcile schedule message now begins with git pull --ff-only, so even a container that never pulled since enrollment fetches the canon skills in the same run that first needs them (Step 8; every enrolled target inherits it); Step 9 delivery ends with an activation offer — run the orchestrator's /sync-fleet-to-head (or, without it, message each running enrolled agent to pull via Trinity MCP) so the fleet carries the skills in minutes instead of waiting for the next session or cron; enrollment summary gains live-delivery and undeliverable lines so agents that cannot receive the rollout (no git sync on Trinity, local-only container HEAD) are named, never silent"
     - "1.2: Access verification + deployment credential story — preflight checks gh auth (not just presence); adopting an existing github: canon runs a write probe (gh api permissions.push) and hard-stops before seeding when write access is missing; new /canon-doctor runtime skill (fourth in the set) — nine-check PASS/WARN/FAIL ladder incl. a push --dry-run write probe, context-aware fixes, dispatchable fleet-wide; new Step 6b seeds GH_TOKEN= into .env.example and documents the fine-grained-PAT + inject_credentials path so deployed instances can self-heal the clone and push; runtime skills v1.1 authenticate headlessly via a GH_TOKEN credential helper, add a git-identity fallback, and never prescribe interactive fixes to scheduled runs; fleet enrollment installs the doctor + seeds each target's .env.example, and its summary carries a credentials line"
     - "1.1: Fleet enrollment (new Step 9, orchestrator context) — when fleet/system-map.yaml exists, offer to enroll all mapped agents or a subset: install the runtime skills + x-canon: declaration + CLAUDE.md section + gitignore line + reconcile schedule into each target repo (local path → direct commit; repo-only → branch + PR, or authorized direct push), and seed each agents/<name>/ folder in the canon — the one sanctioned cross-folder write (enrollment seeding, now documented in CONVENTIONS.md); no clone created in targets (their runtime skills self-heal it on first use); idempotent — a target already declaring x-canon: is counted as enrolled and untouched"
@@ -30,7 +31,7 @@ Give an agent a **published data layer**: a separately-versioned git repository 
 
 **Design invariant (do not violate):** the canon layer is **convention + skills on plain git** — no new platform primitive, no new Trinity surface, no sync service. Git supplies versioning, review, audit trail, and human+agent co-editing; CODEOWNERS supplies per-folder review routing. Trinity involvement stays light and optional: the layer is declared in `template.yaml` (`x-canon:`) so `/discover-agents` can see it, and the reconcile schedule rides the normal `schedules:` machinery. Write scope is **own-folder-only**: an agent commits directly only inside `agents/<its-name>/`; anything else — another agent's folder, `protocols/`, root files — goes out as a **branch + PR**, never a direct push. Git history is the audit trail, so no extra approval gate sits in front of own-folder writes.
 
-**Sibling layers:** `/add-orchestrator` is the *routing* layer (its `/discover-agents` scans `x-canon:` into a `canon:` field per map node, and `/orchestrate` serves authoritative-data *reads* from the canon repo instead of spending a chat turn — writes still route to the owning agent). `/add-git-sync` is the *working-memory* durability layer — its hooks manage the agent's own repo, not the canon clone; the clone is gitignored here and synced by the canon skills at use time.
+**Sibling layers:** `/add-canon-lint` is the *law* of this layer — run once per fleet against the canon repo, it seeds a deterministic linter (stdlib Python, no LLM) + CI that mechanically enforce the two-zone schema below: every folder keeps `facts.yaml` (structured claims — the purely lintable zone, one home per key across the fleet) beside enveloped prose in `docs/`; the linter proves internal consistency on every push, `/canon-reconcile` verifies external truth on schedule. `/add-orchestrator` is the *routing* layer (its `/discover-agents` scans `x-canon:` into a `canon:` field per map node, and `/orchestrate` serves authoritative-data *reads* from the canon repo instead of spending a chat turn — writes still route to the owning agent). `/add-git-sync` is the *working-memory* durability layer — its hooks manage the agent's own repo, not the canon clone; the clone is gitignored here and synced by the canon skills at use time.
 
 **What gets installed into the target agent:**
 
@@ -42,7 +43,7 @@ Give an agent a **published data layer**: a separately-versioned git repository 
 | `.claude/skills/canon-doctor/SKILL.md` | agent repo | verify the layer end-to-end — credentials, clone, pull, push probe — exact fix per failure |
 | `GH_TOKEN=` placeholder | `.env.example` | deployment credential — fine-grained PAT scoped to the canon repo (Step 6b) |
 | `canon/` clone | agent repo root (gitignored) | working copy of the shared canon repo |
-| `agents/<name>/` (+ seed `profile.md`) | canon repo | this agent's owned folder — its published record |
+| `agents/<name>/` (+ seed `profile.md`, `facts.yaml`) | canon repo | this agent's owned folder — its published record, in the two-zone schema |
 | `CONVENTIONS.md`, `CODEOWNERS`, `protocols/` | canon repo (seeded once) | the shared rules of the layer |
 | `x-canon:` block | `template.yaml` | declares the layer — repo, folder, write scope, reconcile cadence |
 | reconcile schedule | `template.yaml` `schedules:` + Trinity MCP | `canon-reconcile`, default cron `0 8 * * 1` |
@@ -144,13 +145,18 @@ fi
 mkdir -p agents protocols
 [ -f protocols/.gitkeep ] || touch protocols/.gitkeep
 
-# This agent's owned folder + seed profile
+# This agent's owned folder — two-zone schema: profile envelope + empty lintable zone
+TODAY="$(date -u +%Y-%m-%d)"
+REVIEW_BY="$(date -u -v+30d +%Y-%m-%d 2>/dev/null || date -u -d '+30 days' +%Y-%m-%d)"  # BSD then GNU
 if [ ! -d "agents/$FOLDER_NAME" ]; then
   mkdir -p "agents/$FOLDER_NAME"
-  printf -- '---\nowner: %s\nupdated: %s\nverified: %s\nsource: manual\n---\n\n# %s — published profile\n\n<what this agent is, what it publishes here, and what other agents may rely on>\n' \
-    "$FOLDER_NAME" "$(date -u +%Y-%m-%d)" "$(date -u +%Y-%m-%d)" "$FOLDER_NAME" \
+  printf -- '---\nowner: %s\nstatus: canonical\nupdated: %s\nreview_by: %s\ntldr: "<one line — what this agent publishes and what others may rely on>"\n---\n\n# %s — published profile\n\n<what this agent is, what it publishes here, and what other agents may rely on;\nlink every canonical doc in docs/ from here — this file is the reachability root>\n' \
+    "$FOLDER_NAME" "$TODAY" "$REVIEW_BY" "$FOLDER_NAME" \
     > "agents/$FOLDER_NAME/profile.md"
 fi
+[ -f "agents/$FOLDER_NAME/facts.yaml" ] || \
+  printf '# purely lintable zone — the claims other agents may rely on (see CONVENTIONS.md)\nfacts: []\n' \
+    > "agents/$FOLDER_NAME/facts.yaml"
 
 # CODEOWNERS: add the folder line as a comment until a human handle is known — never fabricate a reviewer
 grep -q "agents/$FOLDER_NAME/" CODEOWNERS || \
@@ -239,7 +245,7 @@ For each selected target — skipping any whose `template.yaml` already declares
 
 1. **Resolve a working copy.** Map ref `local:<path>` → operate on that directory directly. `github:Org/repo` → shallow-clone to a temp dir.
 2. **Install the layer into the target repo** — the same artifacts as Steps 5–8, target-adjusted: copy the four runtime skills into its `.claude/skills/` (respect existing dirs — skip, don't overwrite, and note it); append its `x-canon:` block (`folder: "agents/<target-name>/"`, same `repo`, same cadence default from Q3); append the CLAUDE.md section; add the `canon/` gitignore line; seed its `.env.example` `GH_TOKEN=` line (Step 6b's guard — each member's deployed instance needs its own token); add the `canon-reconcile` `schedules:` entry with Step 8's pull-first message (all grep-guarded). Do **not** clone the canon repo inside the target — its runtime skills self-heal the clone on first use.
-3. **Seed the target's folder in the canon repo** — `agents/<target-name>/profile.md` stub + CODEOWNERS comment line, exactly as Step 4 did for this agent, one commit for the whole enrollment batch. This is the **one sanctioned cross-folder write**: enrollment seeding by the installer (documented in CONVENTIONS.md). Everything after belongs to the owner.
+3. **Seed the target's folder in the canon repo** — `agents/<target-name>/profile.md` stub + empty `facts.yaml` + CODEOWNERS comment line, exactly as Step 4 did for this agent, one commit for the whole enrollment batch. This is the **one sanctioned cross-folder write**: enrollment seeding by the installer (documented in CONVENTIONS.md). Everything after belongs to the owner.
 4. **Deliver.** Local target → commit in its repo: `canon: join the fleet canon (enrolled by <orchestrator>)`; its own git-sync hooks or `/sync-fleet-to-head` carry it from there. Repo-only target → per Q5: push a `canon/enroll-<name>` branch and open a PR (`gh pr create`), or commit to the default branch directly.
 5. **Activate live containers — repo HEAD is not the running fleet.** Delivery lands the enrollment at each repo's HEAD, but a deployed instance keeps whatever it last pulled — fleets go weeks between pulls, so without this step every container stays enrolled-on-paper (declaration visible to `/discover-agents`, skills absent live). After the batch lands, **offer to activate now**: if the orchestrator has `/sync-fleet-to-head` (an `/add-orchestrator` install), run it — it pulls every fleet agent to HEAD non-destructively; without it, if Trinity MCP is present, message each running enrolled agent to `git pull --ff-only` (or use `git_pull` directly). If the user defers, say explicitly how the fleet converges anyway: next session/redeploy (SessionStart rebase in git-sync fleets), any scheduled fleet sync, and — the failsafe — Step 8's pull-first reconcile message, which fetches the skills in the same run that first needs them. Name the exceptions instead of letting them fail silently: an agent with **no git sync on Trinity** cannot receive the rollout at all until `initialize_github_sync` (or a redeploy); a container sitting on a **local-only commit** will fail the ff-only pull and needs a manual rebase.
 6. **Schedules stay the member's own.** Materializing an enrolled agent's reconcile schedule on Trinity is that agent's own `/trinity:onboard` / `/trinity:sync` — never done from here; until then the durable `schedules:` entry (with its pull-first message) is the record.
@@ -277,8 +283,9 @@ Print:
 
 ### Canon repo: <repo ref>
 - canon/                      (local clone — gitignored in this agent)
-- agents/<name>/profile.md    (this agent's owned folder — seeded)
-- CONVENTIONS.md · CODEOWNERS · protocols/   (<seeded | already present>)
+- agents/<name>/profile.md    (owned folder — seeded; the index every canonical doc links from)
+- agents/<name>/facts.yaml    (the purely lintable zone — empty until you declare facts)
+- CONVENTIONS.md · CODEOWNERS · protocols/   (<seeded | already present>; two-zone schema documented)
 
 ### Declared
 - template.yaml x-canon:      (repo, folder, own-folder-only writes, reconcile cadence)
@@ -287,8 +294,12 @@ Print:
 
 ### Next steps
 1. Fill agents/<name>/profile.md — what this agent publishes and what others may rely on.
-2. Move the first real facts out of working memory into the folder, then /canon-publish.
+2. Move the first real facts out of working memory: mirror the claims others depend on into
+   facts.yaml (key/value/status/updated/review_by/source), back them with docs/ prose, then
+   /canon-publish.
 3. Fill the CODEOWNERS line with the human counterpart's GitHub handle.
+3b. Once per fleet: run /add-canon-lint against the canon repo — deterministic linting on
+   every push (internal consistency), leaving /canon-reconcile the external-truth residual.
 4. Before /trinity:onboard: put the canon PAT in .env as GH_TOKEN= (Step 6b); after deploy,
    run /canon-doctor ON the instance — it proves clone + push work before the schedule fires.
 5. Other agents join via Step 9 fleet enrollment (re-run /add-canon here any time), or by

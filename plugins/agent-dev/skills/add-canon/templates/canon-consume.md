@@ -1,14 +1,15 @@
 ---
 name: canon-consume
-description: "Read published canonical data from the fleet's shared canon repo — another agent's folder or a protocol — always fresh (pull first) and always cited at canon@<short-sha>, with staleness flagged from the verified: stamps. Read-only."
+description: "Read published canonical data from the fleet's shared canon repo — another agent's folder or a protocol — always fresh (pull first) and always cited at canon@<short-sha>, answering from the owner's facts.yaml (the structured claims zone) before opening prose, with staleness flagged from review_by: dates. Read-only."
 allowed-tools: Read, Bash, Glob, Grep
 user-invocable: true
 argument-hint: "<agent-or-protocol> [path]"
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.2: Two-zone fast path — resolve against the owner's facts.yaml first (key/value entries are the claims the fleet may rely on; cite the fact key in the citation) and open docs/ prose only when the question needs the explanation behind the claim; staleness now reads per-item review_by: dates (canonical + past due = flagged) instead of a blanket 30-day bound, with the verified:-stamp rule kept as fallback for v1-contract folders; status honored — draft and superseded items are never served as current fact"
     - "1.1: Self-heal clone inherits /canon-publish v1.1's auth-aware resolution (gh when logged in → GH_TOKEN/GITHUB_TOKEN credential helper → plain https for public repos), so a deployed instance can re-clone a private canon; clone failures point at /canon-doctor"
     - "1.0: Initial version — fresh read (pull --ff-only, degrade to last-known ref offline), fuzzy target resolution across agents/ and protocols/, citation at canon@<short-sha>, staleness flags from verified: stamps against the CONVENTIONS.md bound; self-heals a missing clone from x-canon.repo (fresh deploys)"
 ---
@@ -39,25 +40,31 @@ On failure, continue with the local copy but **say so** — the citation then re
 2. Else `protocols/<arg>*` matches → that protocol file.
 3. Else fuzzy: case-insensitive substring match over `agents/*/` names and `protocols/*` filenames. One hit → use it, noting the resolution. Multiple → list them and ask. Zero → list what *is* published (`ls agents/ protocols/`) and stop — **don't guess, and don't fall back to private sources silently**; if the data isn't in canon, say it isn't published and suggest asking the owning agent (or `/orchestrate` in orchestrator fleets).
 
-### Step 3: Read and cite
+### Step 3: Read and cite — facts first, prose second
 
-Read the resolved files. Every answer built from canon carries a citation:
+**Fast path:** if the target folder has `facts.yaml`, check whether its entries answer the question — they are precisely the claims the owner published for the fleet to rely on. Serve from a matching entry (`status: canonical` only — never serve `draft` or `superseded` as current fact; note a `superseded` hit as history) and cite the key:
 
 ```
-canon@<short-sha> (<commit date>) · agents/<owner>/<file> · updated: <stamp> · verified: <stamp>
+canon@<short-sha> (<commit date>) · agents/<owner>/facts.yaml · <key> · updated: <stamp> · review_by: <date>
+```
+
+Open `profile.md` / `docs/` prose only when the question needs the explanation *behind* the claim — then cite the file:
+
+```
+canon@<short-sha> (<commit date>) · agents/<owner>/<file> · updated: <stamp> · review_by: <date>
 ```
 
 `git -C canon rev-parse --short HEAD` supplies the sha.
 
 ### Step 4: Flag staleness — trust accordingly
 
-Read the staleness bound from `canon/CONVENTIONS.md` (default **30 days**). Any consumed file whose `verified:` stamp is older gets a visible flag:
+Per-item: anything `canonical` whose `review_by:` date is past gets a visible flag:
 
 ```
-⚠️ stale: verified <date> (> <bound> days ago) — treat with caution; the owner's /canon-reconcile should refresh it
+⚠️ stale: review_by <date> is past — treat with caution; the owner's /canon-reconcile should refresh it
 ```
 
-Never present stale canon as current fact without the flag.
+**v1-contract fallback** (folder has old `verified:` stamps, no `review_by:`): use the CONVENTIONS.md bound (default **30 days**) against `verified:`, as before. Never present stale canon as current fact without the flag.
 
 ### Step 5: Report
 

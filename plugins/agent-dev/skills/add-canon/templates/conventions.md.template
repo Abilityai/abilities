@@ -12,6 +12,7 @@ CONVENTIONS.md      # this file — the rules of the layer
 CODEOWNERS          # folder → responsible human counterpart (review routing)
 agents/<name>/      # one folder per agent — that agent's published record, owned
 protocols/          # inter-agent contracts — schemas, channels, cadences
+lint/ tools/ .github/   # deterministic linting, once /add-canon-lint has seeded it
 ```
 
 ## Ownership
@@ -21,37 +22,83 @@ protocols/          # inter-agent contracts — schemas, channels, cadences
   true (its `/canon-reconcile` pass verifies and stamps on a schedule).
 - **Everyone else — agent or human — changes someone's folder or `protocols/` via
   branch + PR.** CODEOWNERS routes the review. No exceptions for trivial edits.
-- **One sanctioned exception — enrollment seeding:** when an agent joins the canon
-  (`/add-canon`, including its fleet-enrollment step), the installer may create that
-  agent's `agents/<name>/` folder with its stub + CODEOWNERS line. Creation only —
-  everything after belongs to the owner.
+- **Sanctioned installer writes (creation/scaffolding only, never content):**
+  *enrollment seeding* — when an agent joins (`/add-canon`, incl. fleet enrollment), the
+  installer may create its `agents/<name>/` stub + CODEOWNERS line; *lint migration
+  seeding* — `/add-canon-lint` may scaffold `facts: []` and port front-matter envelopes
+  in pre-schema folders. Everything after belongs to the owner.
 - Git history is the audit trail: no force-pushes, no history rewrites, ever.
 
-## Canonical files
+## Lintable structure
 
-Published facts live in markdown (or YAML for structured data) with front-matter:
+> The two-zone schema below is the convention every folder follows. It becomes
+> **mechanically enforced** once `/add-canon-lint` seeds `tools/canon-lint/` + CI
+> (severities in `lint/rules.yaml`): the linter proves internal consistency on every
+> push; whether a fact still matches reality is each agent's scheduled
+> `/canon-reconcile` — the LLM residual the linter deliberately leaves out.
+
+### Folder schema — every `agents/<name>/`
+
+```
+agents/<name>/
+  profile.md      REQUIRED — identity + index; the reachability root; always status: canonical
+  facts.yaml      REQUIRED — the purely lintable zone: the claims other agents may rely on
+  docs/           prose zone — explanations and models; front-matter envelope linted, body never read
+  files/          shared artifacts (exports, specs, decks) — every file must be referenced somewhere
+  NEEDS-REVIEW.md reconcile's flag file — exempt from the schema
+```
+
+**The two-zone rule:** if the fleet may depend on it, it is an entry in `facts.yaml`; the doc is
+the explanation behind it. Prose stays free — the linter never reads past a doc's front matter.
+
+### `facts.yaml` — the purely lintable zone
+
+```yaml
+facts:
+  - key: operating-model.review-cadence   # lowercase dotted subject.relation — the conflict grain
+    value: "6 weeks — next review 2026-09-01"
+    status: canonical                     # canonical | draft | superseded
+    updated: 2026-07-23                   # last content change (YYYY-MM-DD)
+    review_by: 2026-09-01                 # verification due date — past due on canonical = stale
+    source: docs/operating-model.md       # local doc/file (must exist), URL, or an external ref
+```
+
+An empty zone is `facts: []`. A `key` has exactly **one home across all folders** (superseded
+entries excepted) — two folders claiming the same key is the conflict that kills silent drift.
+
+### Doc envelope — `profile.md` and every `docs/*.md`
 
 ```yaml
 ---
-owner: <agent-name>     # must match the enclosing agents/<name>/ folder
-updated: YYYY-MM-DD     # last content change
-verified: YYYY-MM-DD    # last time the owner confirmed it against its source
-source: <where this fact comes from — a workspace path, an API, a doc, or "manual">
+owner: <agent-name>      # must equal the enclosing agents/<name>/ folder
+status: canonical        # canonical | draft | superseded
+updated: YYYY-MM-DD
+review_by: YYYY-MM-DD    # verification due date; canonical + past due = stale
+tldr: "One line — what this doc establishes"
 ---
 ```
 
-- **Staleness bound: 30 days.** Consumers flag anything whose `verified:` is older —
-  stale canon is served with a warning, never as silently-current fact.
-- Publish **facts, not working state**: if the rest of the fleet shouldn't depend on it,
-  it belongs in the agent's private workspace, not here.
-- **No secrets.** Credentials, tokens, and keys never land in this repo — the canon is
-  public-safe by default.
+**Statuses separate conviction levels** (ideas must not dress as canon):
+- `canonical` — the fleet may rely on it; fully linted; must be linked from `profile.md`.
+- `draft` — sandbox-in-place; legal anywhere in the folder, exempt from staleness, and **must
+  not** be linked from `profile.md`.
+- `superseded` — kept for history; exempt from staleness and the one-home rule.
+
+### Restricted grammar (why these files stay boring)
+
+The lintable zone is a deliberate YAML subset so a zero-dependency linter can parse it exactly:
+flat `key: value` scalars only, full-line comments only, values containing `": "` must be quoted.
+Everything remains valid YAML for ordinary tools. Richer structure belongs in prose or `files/`.
+
+**Staleness and secrets:** consumers flag anything `canonical` past its `review_by:` — stale
+canon is served with a warning, never as silently-current fact. Publish **facts, not working
+state**. **No secrets** — credentials, tokens, and keys never land in this repo.
 
 ## Protocols
 
 A protocol is a contract two or more agents (or an agent and a human process) agree on:
 message shape, channel, cadence, escalation. One file per protocol under `protocols/`,
-same front-matter (owner = the proposing agent), changes via PR with every party's
+same doc envelope (owner = the proposing agent), changes via PR with every party's
 owner as reviewer.
 
 ## Humans

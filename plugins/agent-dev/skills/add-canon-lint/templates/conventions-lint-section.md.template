@@ -1,0 +1,80 @@
+## Lintable structure
+
+> Enforced deterministically by `tools/canon-lint/` on every push (`.github/workflows/canon-lint.yml`)
+> and locally by `/canon-publish` before every push. Severities live in `lint/rules.yaml` (change via PR).
+> The linter checks **internal consistency**; whether a fact matches reality is each agent's
+> weekly `/canon-reconcile` — the LLM residual the linter deliberately leaves out.
+
+### Folder schema — every `agents/<name>/`
+
+```
+agents/<name>/
+  profile.md      REQUIRED — identity + index; the reachability root; always status: canonical
+  facts.yaml      REQUIRED — the purely lintable zone: the claims other agents may rely on
+  docs/           prose zone — explanations and models; front-matter envelope linted, body never read
+  files/          shared artifacts (exports, specs, decks) — every file must be referenced somewhere
+  NEEDS-REVIEW.md reconcile's flag file — exempt from the schema
+```
+
+**The two-zone rule:** if the fleet may depend on it, it is an entry in `facts.yaml`; the doc is
+the explanation behind it. Prose stays free — the linter never reads past a doc's front matter.
+
+### `facts.yaml` — the purely lintable zone
+
+```yaml
+facts:
+  - key: operating-model.review-cadence   # lowercase dotted subject.relation — the conflict grain
+    value: "6 weeks — next review 2026-09-01"
+    status: canonical                     # canonical | draft | superseded
+    updated: 2026-07-23                   # last content change (YYYY-MM-DD)
+    review_by: 2026-09-01                 # verification due date — past due on canonical = lint FAIL
+    source: docs/operating-model.md       # local doc/file (must exist), URL, or an external ref
+```
+
+An empty zone is `facts: []`. A `key` has exactly **one home across all folders** (superseded
+entries excepted) — two folders claiming the same key is the lint failure that kills silent drift.
+
+### Doc envelope — `profile.md` and every `docs/*.md`
+
+```yaml
+---
+owner: <agent-name>      # must equal the enclosing agents/<name>/ folder
+status: canonical        # canonical | draft | superseded
+updated: YYYY-MM-DD
+review_by: YYYY-MM-DD    # verification due date; canonical + past due = lint FAIL
+tldr: "One line — what this doc establishes"
+---
+```
+
+**Statuses separate conviction levels** (ideas must not dress as canon):
+- `canonical` — the fleet may rely on it; fully linted; must be linked from `profile.md`.
+- `draft` — sandbox-in-place; legal anywhere in the folder, unlinted for staleness, and **must not**
+  be linked from `profile.md`.
+- `superseded` — kept for history; exempt from staleness and the one-home rule.
+
+### Restricted grammar (why these files stay boring)
+
+The lintable zone is a deliberate YAML subset so a zero-dependency linter can parse it exactly:
+flat `key: value` scalars only, full-line comments only, values containing `": "` must be quoted.
+Everything remains valid YAML for ordinary tools. Richer structure belongs in prose or `files/`.
+
+### Lint rules
+
+| Rule | What fails |
+|---|---|
+| `envelope` | missing/unparseable front matter, missing required keys, bad dates, bad status |
+| `fact-schema` | `facts.yaml` missing or malformed, incomplete entries, bad dates/status |
+| `key-grammar` | fact key not lowercase dotted `subject.relation` |
+| `one-home-per-key` | same non-superseded key homed in two folders (or twice in one) |
+| `ownership` | a file whose `owner:` differs from its enclosing folder |
+| `staleness` | anything `canonical` past its `review_by` |
+| `source-resolution` | a fact `source:` pointing at a local path that doesn't exist |
+| `reachability` | canonical doc missing from `profile.md`'s index; draft linked; orphan in `files/` |
+| `layout` (warn) | top-level entries outside the folder schema |
+
+**Migration note:** folders predating this section carry the v1 front matter
+(`verified:`/`source:`, no `status:`/`review_by:`/`tldr:`). Port: `status: canonical`,
+`review_by:` = old `verified:` + 30 days, `tldr:` from the doc's first heading; mirror
+load-bearing claims into `facts.yaml`. The installer's migration seeding (a sanctioned
+cross-folder write, like enrollment seeding) may scaffold `facts: []` and port envelopes —
+the *content* of every fact stays the owner's to declare.

@@ -1,13 +1,14 @@
 ---
 name: canon-publish
-description: "Publish this agent's canonical data — freshen the shared canon repo clone, review working changes, enforce the own-folder-only write rule (cross-folder changes split to a branch + PR), stamp updated: front-matter, commit and push."
+description: "Publish this agent's canonical data — freshen the shared canon repo clone, review working changes, enforce the own-folder-only write rule (cross-folder changes split to a branch + PR), stamp the two-zone schema (facts.yaml entries + doc envelopes), run the deterministic canon linter as the pre-push gate, commit and push."
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.2: Two-zone schema + local lint gate — stamping follows the new contract (docs: owner/status/updated/review_by/tldr envelope; facts.yaml entries: key/value/status/updated/review_by/source; updated: today on content change, review_by: pushed +30 days when it's missing or past); new Step 4b runs the canon repo's deterministic linter (tools/canon-lint, seeded by /add-canon-lint) scoped to this folder before any push — lint FAILs stop the publish (this local gate is what CI cannot be for direct own-folder pushes); linter absent → note /add-canon-lint once and continue; v1-contract folders (verified:/source:, no facts.yaml) still publish, with a one-line migration nudge"
     - "1.1: Deploy-ready auth — the self-heal clone is credential-aware (gh when logged in, else a GH_TOKEN/GITHUB_TOKEN credential helper wired at clone time that reads the env var at use — the token never lands on disk, else plain https for public repos); git-identity fallback before commit; clone/push remediation is context-aware (workstation gh auth login vs deployed GH_TOKEN via .env + inject_credentials) and points at /canon-doctor"
     - "1.0: Initial version — own-folder direct commits with updated: stamping and rebase-on-reject push retry; anything outside the folder (other agents' folders, protocols/, root files) goes out as a branch + PR via gh, never a direct push; self-heals a missing clone from x-canon.repo (fresh deploys)"
 ---
@@ -65,9 +66,25 @@ Split changed paths into:
 
 Nothing changed → say so and stop.
 
-### Step 4: Stamp the IN files
+### Step 4: Stamp the IN files (two-zone contract — see `canon/CONVENTIONS.md` § Lintable structure)
 
-Every canonical file carries front-matter (see `canon/CONVENTIONS.md`). For each changed IN file with front-matter: set `updated:` to today (UTC) and `verified:` to today; ensure `owner:` matches this agent's folder name. Files without front-matter (new files): add the block — `owner`, `updated`, `verified`, `source` (ask, or `manual` when the fact has no machine source).
+- **Changed docs** (`profile.md`, `docs/*.md`): set `updated:` to today (UTC); if `review_by:` is missing or already past, push it to today + 30 days; ensure `owner:` matches this agent's folder and `status:` is one of `canonical | draft | superseded`. New docs get the full envelope — `owner`, `status`, `updated`, `review_by`, `tldr` (one line, quoted).
+- **Changed `facts.yaml` entries**: same stamping (`updated:` today, `review_by:` forward when missing/past); every entry needs `key` (lowercase dotted `subject.relation`), `value`, `status`, `source`. A claim other agents will rely on that only exists in prose → offer to mirror it as a fact entry now.
+- **Draft discipline:** a doc you're linking from `profile.md` must be `status: canonical` — publishing a draft into the index is exactly what the linter rejects.
+- **v1-contract folder** (old `verified:` stamps, no `facts.yaml`): stamp the old way, publish, and add one line to the report — "folder predates the two-zone schema; migrate via /add-canon-lint's seeding or CONVENTIONS.md § Migration note."
+
+### Step 4b: Lint — the local gate CI cannot be
+
+Own-folder writes are direct pushes, so the repo's CI can only report them after the fact; **this** is the gate:
+
+```bash
+[ -f canon/tools/canon-lint/canon_lint.py ] && \
+  python3 canon/tools/canon-lint/canon_lint.py --repo canon --scope "agents/<name>" || true
+```
+
+- Linter present + **FAIL** findings in scope → **stop before committing**: show the findings, fix (or downgrade the item to `status: draft` and unlink it), re-run. Never push a red own folder — cross-folder `one-home-per-key` conflicts surfacing here are a dispute to settle with the other owner via PR, not to push past.
+- Linter present + warnings only → publish, include the warnings in the report.
+- Linter absent → continue (fleets without linting still publish); note once: "no deterministic linter in this canon — seed it with /add-canon-lint."
 
 ### Step 5: Publish IN — direct commit + push
 
@@ -118,5 +135,8 @@ Skipped:   <anything left unstaged, and why>
 | `pull --ff-only` fails (diverged) | Stop, show status + divergent commits — operator resolves |
 | Push rejected twice | Report the error verbatim; the commit is local — say so |
 | OUT change with no remote/`gh` | Branch committed locally; print manual PR steps |
-| File without front-matter | Add the block per CONVENTIONS.md before committing |
+| File without front-matter | Add the envelope per CONVENTIONS.md § Lintable structure before committing |
+| Lint FAIL in own folder (Step 4b) | Stop before commit — fix, or downgrade to `status: draft` and unlink; never push red |
+| Lint FAIL is a cross-folder key conflict | A drift dispute, not a push blocker to bypass — settle with the other owner via PR |
+| Linter missing in the canon repo | Publish normally; note `/add-canon-lint` once |
 | Secrets spotted in the diff (keys, tokens, credentials) | Refuse to publish that file; canon is public-safe by convention |

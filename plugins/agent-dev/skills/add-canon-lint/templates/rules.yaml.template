@@ -1,0 +1,28 @@
+# canon-lint configuration — read by tools/canon-lint/canon_lint.py
+# This file is live fleet configuration: change severities via PR, like CONVENTIONS.md.
+#
+# Severities: fail (blocks publish + CI red) · warn (reported, never blocks) · off
+# Grammar: this file uses the restricted flat grammar the linter parses itself —
+# full-line comments only, no nesting beyond the rules: map.
+#
+# Rules:
+#   layout            unexpected top-level entries in an agents/<name>/ folder
+#   envelope          profile.md + docs/*.md front matter parses, required keys present
+#   fact-schema       facts.yaml present, parses, entries complete, dates valid
+#   key-grammar       keys are lowercase dotted subject.relation
+#   one-home-per-key  a non-superseded key lives in exactly one folder — the drift killer
+#   ownership         owner equals the enclosing folder name
+#   staleness         canonical items past their review_by date
+#   source-resolution local fact sources (docs/, files/) must exist
+#   reachability      canonical docs indexed in profile.md, drafts unlinked, no orphan files
+version: 1
+rules:
+  layout: warn
+  envelope: {{SEVERITY}}
+  fact-schema: {{SEVERITY}}
+  key-grammar: {{SEVERITY}}
+  one-home-per-key: {{SEVERITY}}
+  ownership: {{SEVERITY}}
+  staleness: {{SEVERITY}}
+  source-resolution: {{SEVERITY}}
+  reachability: {{SEVERITY}}

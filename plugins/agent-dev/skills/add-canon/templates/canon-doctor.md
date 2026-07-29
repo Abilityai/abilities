@@ -1,13 +1,14 @@
 ---
 name: canon-doctor
-description: "Verify this agent's canon-layer setup end-to-end — declaration, tooling, credentials, clone, remote, pull, push permission, git identity, PR tooling — and report a PASS/WARN/FAIL ladder with the exact fix for each failure, context-aware (workstation vs deployed Trinity instance). Read-only against the canon repo: the write probe is a push --dry-run, nothing is committed or pushed."
+description: "Verify this agent's canon-layer setup end-to-end — declaration, tooling, credentials, clone, remote, pull, push permission, git identity, PR tooling, deterministic lint — and report a PASS/WARN/FAIL ladder with the exact fix for each failure, context-aware (workstation vs deployed Trinity instance). Read-only against the canon repo: the write probe is a push --dry-run, nothing is committed or pushed."
 allowed-tools: Read, Bash, Glob, Grep
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.1: Tenth check — lint: when the canon repo carries tools/canon-lint (seeded by /add-canon-lint), run it scoped to this agent's folder — PASS clean, WARN warnings-only or python3 missing, FAIL on failures (the next /canon-publish will refuse to push until they're fixed); linter absent → INFO pointing at /add-canon-lint; the verdict line now counts lint state so fleet-wide dispatch sees red folders, not just broken plumbing"
     - "1.0: Initial version — nine-check ladder (declaration → tooling/credentials → clone with self-heal attempt → remote matches declaration → pull --ff-only → push --dry-run write probe → git identity → PR tooling → CODEOWNERS filled), context-aware remediation (workstation: gh auth login / setup-git · deployed: GH_TOKEN via .env + inject_credentials), one-line verdict suitable for fleet-wide dispatch"
 ---
 
@@ -49,6 +50,10 @@ Cross-folder changes go out via `gh pr create`. `gh` present and authed → PASS
 ### 9 · CODEOWNERS entry
 The own-folder line in `canon/CODEOWNERS` is still the seeded comment (`# /agents/<name>/  @<github-handle … fill in>`) → INFO: fill in the human counterpart so cross-folder PRs route review. Not a failure — the layer works without it.
 
+### 10 · Lint — is this folder publishable?
+`canon/tools/canon-lint/canon_lint.py` present (seeded by `/add-canon-lint`) → run it scoped:
+`python3 canon/tools/canon-lint/canon_lint.py --repo canon --scope "agents/<name>"`. Clean → PASS. Warnings only → WARN. Failures → FAIL with the top findings — the next `/canon-publish` will refuse to push until they're fixed, and a scheduled `/canon-reconcile` will flag the judgment cases. `python3` missing → WARN (the publish gate can't run either — install it). Linter absent from the repo → INFO: deterministic linting not installed — one `/add-canon-lint` run per fleet.
+
 ## Report
 
 ```
@@ -62,6 +67,7 @@ Canon doctor — <agent> · repo <x-canon.repo> · context <workstation | headle
   7 identity       WARN (fallback <agent>@agents.local)
   8 pr tooling     WARN (no gh — cross-folder PRs manual)
   9 codeowners     INFO (handle not filled)
+  10 lint          PASS (folder clean — 4 facts, 2 docs)
 
   verdict: NOT READY — 1 FAIL. First fix: grant write on <slug> to the PAT/user (Contents: Read and write).
 ```

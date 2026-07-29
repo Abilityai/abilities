@@ -1,0 +1,20 @@
+# canon-lint — deterministic consistency check on every push and PR.
+# Stdlib-only Python; no pip install, no LLM, no network beyond checkout.
+# Division of labor: this workflow = internal consistency on every push;
+# each agent's weekly /canon-reconcile = external truth verification (the LLM residual).
+name: canon-lint
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run canon-lint
+        run: python tools/canon-lint/canon_lint.py --repo .

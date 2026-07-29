@@ -19,7 +19,8 @@ Develop and extend existing Claude Code agents with skills, memory systems, a fu
 /agent-dev:add-backlog        # Install the full GitHub Issues development workflow
 /agent-dev:add-git-sync       # Install auto-commit hooks for durable state
 /agent-dev:add-orchestrator   # Make the agent a system-aware orchestrator of other agents
-/agent-dev:add-canon          # Join the fleet's shared canonical-data repo (publish/consume/reconcile)
+/agent-dev:add-canon          # Join the fleet's shared canonical-data repo (publish/consume/reconcile/doctor)
+/agent-dev:add-canon-lint     # Install deterministic linting into the canon repo (two-zone schema, CI on every push)
 /agent-dev:add-pipeline       # Add a long-running multi-stage pipeline (+ instance/stage/validate helpers)
 ```
 
@@ -67,7 +68,8 @@ For autonomous processing of project-level issues:
 | **add-backlog** | Install the full GitHub Issues development workflow |
 | **add-git-sync** | Install auto-commit hooks for durable cross-session state |
 | **add-orchestrator** | Make the agent a system-aware orchestrator — installs `/discover-agents` (scan a repo list for Trinity specs into `fleet/system-map.yaml`), `/compose-system` (map → Trinity `SystemManifest` → `deploy_system`), and `/orchestrate` (route / fan out / run ephemeral agents). Aligns with Trinity's `SystemManifest`; orchestration stays agent-owned. |
-| **add-canon** | Give the agent a shared canonical-data layer — a fleet **canon repo** (`agents/<name>/` owned folders + `protocols/`) with `/canon-publish`, `/canon-consume`, `/canon-reconcile` runtime skills. Own-folder-only writes, cross-folder via PR |
+| **add-canon** | Give the agent a shared canonical-data layer — a fleet **canon repo** (`agents/<name>/` owned folders in the two-zone schema + `protocols/`) with `/canon-publish`, `/canon-consume`, `/canon-reconcile`, `/canon-doctor` runtime skills. Own-folder-only writes, cross-folder via PR |
+| **add-canon-lint** | Install deterministic consistency linting into the canon repo — stdlib-Python linter + CI on every push (schema, key grammar, one-home-per-key, ownership, staleness, reachability), `lint/rules.yaml` severities, optional required PR check. Run once per fleet |
 | **add-pipeline** | Install a long-running, multi-stage pipeline (heartbeat + status/recover/pause/resume runtime skills). Extend with `add-pipeline-instance` and `add-pipeline-stage`; lint with `validate-pipeline` |
 
 ### Development Workflow
@@ -129,13 +131,16 @@ The multi-agent *definition* aligns with Trinity's `SystemManifest` — no paral
 
 ### Canonical Data Layer
 
-`/add-canon` gives an agent a **published data layer**: a separately-versioned git repo — the fleet's **canon** — where each agent owns `agents/<name>/` (the canonical business facts humans and other agents rely on) and `protocols/` holds inter-agent contracts. Humans and agents co-edit under one rule: **own-folder-only direct writes; everything else via branch + PR** (CODEOWNERS routes review). Each agent carries the duty to keep its folder true — `/canon-reconcile` runs on a schedule, verifies every fact against its declared `source:`, stamps `verified:`, and flags what it can't verify instead of guessing.
+`/add-canon` gives an agent a **published data layer**: a separately-versioned git repo — the fleet's **canon** — where each agent owns `agents/<name>/` (the canonical business facts humans and other agents rely on) and `protocols/` holds inter-agent contracts. Humans and agents co-edit under one rule: **own-folder-only direct writes; everything else via branch + PR** (CODEOWNERS routes review). Every folder follows the **two-zone schema**: `facts.yaml` — the purely lintable zone, structured claims (`key` = lowercase dotted `subject.relation` with **one home per key fleet-wide**, plus `value`/`status`/`updated`/`review_by`/`source`) — beside free prose in `docs/` under a linted front-matter envelope, indexed from `profile.md`. Statuses (`canonical`/`draft`/`superseded`) separate conviction levels so ideas can't dress as canon. Each agent carries the duty to keep its folder true — `/canon-reconcile` runs on a schedule, verifies facts against their declared sources, re-stamps `review_by:`, and flags what it can't verify instead of guessing.
 
 | Skill Installed | Purpose |
 |------|----------|
-| **canon-publish** | Review + commit changes to the agent's own canon folder; cross-folder changes go out as a branch + PR |
-| **canon-consume** | Read another agent's published data or a protocol — fresh, cited at `canon@<sha>`, staleness flagged |
-| **canon-reconcile** | Scheduled freshness pass — verify the own folder against its sources, stamp, push |
+| **canon-publish** | Review + commit changes to the agent's own canon folder — lints before pushing; cross-folder changes go out as a branch + PR |
+| **canon-consume** | Read another agent's published data or a protocol — facts.yaml first, fresh, cited at `canon@<sha>`, staleness flagged |
+| **canon-reconcile** | Scheduled external-truth pass — lint first, verify facts and docs against their sources, re-stamp, push |
+| **canon-doctor** | Verify the layer end-to-end (credentials, clone, push probe, lint) — PASS/WARN/FAIL with the exact fix; dispatchable fleet-wide |
+
+**`/add-canon-lint`** (run once per fleet, against the canon repo itself) installs the layer's *law*: a deterministic linter — stdlib Python, no LLM — plus a GitHub Actions workflow that checks every push and PR for schema validity, key grammar, cross-folder key conflicts, ownership violations, staleness, dead sources, and unreachable docs; severities live in `lint/rules.yaml` (strict or report-only migration preset), with an optional required status check on PRs. **Division of labor:** the linter on every push = internal consistency; each agent's scheduled `/canon-reconcile` = external truth — the LLM residual the linter deliberately leaves out.
 
 The layer is **convention + skills on plain git** — no platform primitive. It's declared via `x-canon:` in `template.yaml` (the same `x-` extension pattern as `x-capabilities:`), which is how the orchestration layer sees it: `/discover-agents` scans it into a `canon:` field per map node (and reports **canon coverage** — N/M mapped agents enrolled), and `/orchestrate` serves reads of published facts from the canon repo instead of spending a chat turn — writes still route to the owning agent.
 
