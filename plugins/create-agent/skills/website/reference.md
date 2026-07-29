@@ -399,14 +399,24 @@ The `repoPath` must point at a real `content/*.json` file.
 export type Field =
   | { kind: "text"; name: string; label: string; help?: string }
   | { kind: "textarea"; name: string; label: string; help?: string; rows?: number }
+  | { kind: "toggle"; name: string; label: string; help?: string }
   | { kind: "list"; name: string; label: string; help?: string; item: "text" | "textarea"; addLabel?: string }
-  | { kind: "group"; name: string; label: string; fields: Field[] };
+  | { kind: "group"; name: string; label: string; fields: Field[] }
+  // A repeating group — a list of structured entries (news posts, announcements,
+  // page sections), each a movable/removable card of sub-fields. `itemLabel`
+  // names one entry in the "+ Add …" button.
+  | { kind: "items"; name: string; label: string; help?: string; itemLabel: string; fields: Field[] };
 
 export type SectionSchema = {
   section: string;       // url slug: /studio/[section]
   title: string;
   blurb: string;
   repoPath: string;      // e.g. "content/site.json"
+  // Word-for-word content (a founder's letter, a historical account, legal
+  // text): the editor shows an "edit with care" banner, the dashboard badges
+  // it, commits are flagged, and the save route pings STUDIO_NOTIFY_WEBHOOK
+  // if set.
+  verbatim?: boolean;
   fields: Field[];
 };
 
@@ -441,6 +451,19 @@ const SCHEMAS: SectionSchema[] = [
         ],
       },
       { kind: "list", name: "features", label: "Feature bullets", item: "textarea", addLabel: "Add feature" },
+      {
+        kind: "items",
+        name: "announcements",
+        label: "Announcements",
+        help: "Newest first — add new ones at the top.",
+        itemLabel: "announcement",
+        fields: [
+          { kind: "text", name: "title", label: "Title" },
+          { kind: "text", name: "date", label: "Date", help: "Shown exactly as written, e.g. “17 July 2026”." },
+          { kind: "textarea", name: "body", label: "Text", rows: 5 },
+          { kind: "text", name: "linkHref", label: "Button link (optional)" },
+        ],
+      },
     ],
   },
 ];
@@ -450,7 +473,9 @@ export function getSchema(section: string): SectionSchema | null {
 }
 
 // Dashboard listing.
-export const sections = SCHEMAS.map(({ section, title, blurb }) => ({ section, title, blurb }));
+export const sections = SCHEMAS.map(({ section, title, blurb, verbatim }) => ({
+  section, title, blurb, verbatim: Boolean(verbatim),
+}));
 
 // Rebuild a clean object containing ONLY schema-defined fields with the correct
 // types — so a submission can't inject arbitrary keys and the stored JSON always
@@ -462,8 +487,12 @@ export function buildFromSchema(fields: Field[], data: unknown): Record<string, 
     const v = src[f.name];
     if (f.kind === "text" || f.kind === "textarea") {
       out[f.name] = typeof v === "string" ? v : "";
+    } else if (f.kind === "toggle") {
+      out[f.name] = v === true;
     } else if (f.kind === "list") {
       out[f.name] = Array.isArray(v) ? v.map((x) => (typeof x === "string" ? x : String(x ?? ""))) : [];
+    } else if (f.kind === "items") {
+      out[f.name] = Array.isArray(v) ? v.map((item) => buildFromSchema(f.fields, item)) : [];
     } else if (f.kind === "group") {
       out[f.name] = buildFromSchema(f.fields, v);
     }
@@ -569,6 +598,68 @@ function ListControl({
   );
 }
 
+// A repeating group — a list of structured entries (news posts, announcements,
+// page sections), each rendered as a movable/removable card of sub-fields.
+function ItemsControl({
+  field, value, onChange,
+}: {
+  field: Extract<Field, { kind: "items" }>;
+  value: Record<string, unknown>[];
+  onChange: (v: Record<string, unknown>[]) => void;
+}) {
+  const items = Array.isArray(value) ? value : [];
+  const setItem = (i: number, v: Record<string, unknown>) =>
+    onChange(items.map((it, idx) => (idx === i ? v : it)));
+  const remove = (i: number) => onChange(items.filter((_, idx) => idx !== i));
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= items.length) return;
+    const next = [...items];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-4">
+      {items.map((item, i) => {
+        const obj = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+        return (
+          <div key={i}
+            className="rounded-[var(--radius-md)] border border-[hsl(var(--border-light))] bg-[hsl(var(--bg-page))] p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-xs font-medium text-[hsl(var(--text-muted))]">
+                {field.itemLabel} #{i + 1}
+              </span>
+              <div className="flex items-center gap-0.5">
+                <button type="button" onClick={() => move(i, -1)} disabled={i === 0}
+                  aria-label={`Move ${field.itemLabel} ${i + 1} up`} className={iconBtnClass}>↑</button>
+                <button type="button" onClick={() => move(i, 1)} disabled={i === items.length - 1}
+                  aria-label={`Move ${field.itemLabel} ${i + 1} down`} className={iconBtnClass}>↓</button>
+                <button type="button" onClick={() => remove(i)}
+                  aria-label={`Remove ${field.itemLabel} ${i + 1}`}
+                  className={cn(iconBtnClass, "hover:text-[hsl(var(--accent-primary))]")}>✕</button>
+              </div>
+            </div>
+            <div className="space-y-5">
+              {field.fields.map((sub) => (
+                <FieldRow key={sub.name} field={sub} value={obj[sub.name]}
+                  onChange={(v) => setItem(i, { ...obj, [sub.name]: v })} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        onClick={() => onChange([...items, {}])}
+        className="rounded-full border border-[hsl(var(--border-subtle))] px-4 py-2 text-sm font-medium text-[hsl(var(--text-primary))] transition-colors hover:bg-[hsl(var(--bg-page))]"
+      >
+        + Add {field.itemLabel}
+      </button>
+    </div>
+  );
+}
+
 // Renders a labelled field of any kind, recursing into groups.
 export function FieldRow({
   field, value, onChange, placeholder,
@@ -610,8 +701,21 @@ export function FieldRow({
           <TextareaControl value={typeof value === "string" ? value : ""} onChange={onChange}
             rows={field.rows} placeholder={placeholder?.[field.name]} />
         )}
+        {field.kind === "toggle" && (
+          <label className="inline-flex cursor-pointer items-center gap-2.5 text-sm text-[hsl(var(--text-primary))]">
+            <input type="checkbox" checked={value === true}
+              onChange={(e) => onChange(e.target.checked)}
+              className="h-5 w-5 accent-[hsl(var(--accent-primary))]" />
+            <span>{value === true ? "On" : "Off"}</span>
+          </label>
+        )}
         {field.kind === "list" && (
           <ListControl field={field} value={Array.isArray(value) ? (value as string[]) : []}
+            onChange={onChange} />
+        )}
+        {field.kind === "items" && (
+          <ItemsControl field={field}
+            value={Array.isArray(value) ? (value as Record<string, unknown>[]) : []}
             onChange={onChange} />
         )}
       </div>
@@ -749,7 +853,14 @@ export default async function StudioDashboard() {
       <div className="mt-8 space-y-4">
         {sections.map((s) => (
           <div key={s.section} className="rounded-[var(--radius-lg)] border border-[hsl(var(--border-light))] bg-[hsl(var(--bg-card))] p-6">
-            <h2 className="text-lg font-semibold tracking-tight text-[hsl(var(--text-primary))]">{s.title}</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-semibold tracking-tight text-[hsl(var(--text-primary))]">{s.title}</h2>
+              {s.verbatim ? (
+                <span className="rounded-full bg-[hsl(var(--accent-primary)/0.12)] px-2.5 py-0.5 text-xs font-medium text-[hsl(var(--text-primary))]">
+                  verbatim
+                </span>
+              ) : null}
+            </div>
             <p className="mt-1 text-sm text-[hsl(var(--text-muted))]">{s.blurb}</p>
             <div className="mt-4">
               <Link href={`/studio/${s.section}`}
@@ -780,6 +891,13 @@ import { requireStudioAuth } from "@/lib/studio/auth";
 import { getSchema } from "@/lib/studio/schema";
 import { getJsonFile, GithubError } from "@/lib/studio/github";
 import { Editor } from "./editor";
+
+// Where each section is visible on the live site ("" = the homepage) — the
+// "view page" link after a publish. EDIT to match the site's sections.
+const SECTION_PATHS: Record<string, string> = {
+  site: "",
+  home: "",
+};
 
 export const metadata: Metadata = { title: "Edit" };
 
@@ -822,7 +940,7 @@ export default async function EditSectionPage({
       <p className="mt-1 text-sm text-[hsl(var(--text-muted))]">{schema.blurb}</p>
       <div className="mt-6">
         <Editor schema={schema} initialData={loaded.data as Record<string, unknown>}
-          initialSha={loaded.sha} liveHref="/" />
+          initialSha={loaded.sha} liveHref={SECTION_PATHS[section] || "/"} />
       </div>
     </div>
   );
@@ -887,6 +1005,19 @@ export function Editor({
 
   return (
     <form onSubmit={onSubmit} className="space-y-7 pb-28">
+      {schema.verbatim ? (
+        <div className="rounded-[var(--radius-md)] border border-[hsl(var(--accent-primary)/0.5)] bg-[hsl(var(--accent-primary)/0.08)] p-4">
+          <p className="text-sm font-semibold text-[hsl(var(--text-primary))]">
+            ⚠️ Original words — edit with care
+          </p>
+          <p className="mt-1 text-sm text-[hsl(var(--text-muted))]">
+            This text is reproduced word-for-word from the original document. Change only what
+            needs changing; every edit is recorded and flagged. Don&rsquo;t &ldquo;fix&rdquo;
+            spellings unless you are certain.
+          </p>
+        </div>
+      ) : null}
+
       {schema.fields.map((field) => (
         <FieldRow key={field.name} field={field} value={data[field.name]}
           onChange={(v) => update(field.name, v)} />
@@ -975,14 +1106,18 @@ export async function POST(req: Request) {
 
   // Rebuild strictly from the schema so a submission can't inject arbitrary keys.
   const clean = buildFromSchema(schema.fields, payload.data);
+  const message = schema.verbatim
+    ? `content(${schema.section}): ⚠️ verbatim edit via Studio`
+    : `content(${schema.section}): edit via Studio`;
 
   try {
     const result = await putJsonFile({
       repoPath: schema.repoPath,
       data: clean,
       sha: typeof payload.sha === "string" ? payload.sha : null,
-      message: `content(${schema.section}): edit via Studio`,
+      message,
     });
+    if (schema.verbatim) void notifyVerbatim(schema.section, result.commitUrl);
     return NextResponse.json({
       ok: true,
       committed: result.committed,
@@ -993,6 +1128,25 @@ export async function POST(req: Request) {
     const status = err instanceof GithubError ? err.status : 500;
     const error = err instanceof Error ? err.message : "Save failed.";
     return NextResponse.json({ error }, { status: status >= 400 && status < 600 ? status : 500 });
+  }
+}
+
+// Heads-up to the site's maintainer when word-for-word content is edited —
+// posts to any JSON webhook (Slack, Discord, Trinity). Best-effort: never
+// blocks the save.
+async function notifyVerbatim(section: string, commitUrl?: string) {
+  const url = process.env.STUDIO_NOTIFY_WEBHOOK;
+  if (!url) return;
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        text: `⚠️ Verbatim content edited via Studio: ${section}${commitUrl ? ` — ${commitUrl}` : ""}`,
+      }),
+    });
+  } catch {
+    // Notification is best-effort; never block the save on it.
   }
 }
 ```
@@ -1052,6 +1206,10 @@ GITHUB_BRANCH=main
 
 # Local dev: write the working tree instead of committing. Leave UNSET in prod.
 # STUDIO_LOCAL_WRITE=1
+
+# Optional: JSON webhook (Slack/Discord/Trinity) pinged when a section marked
+# `verbatim` is edited — a heads-up for the maintainer, never a blocker.
+# STUDIO_NOTIFY_WEBHOOK=https://hooks.example.com/...
 ```
 
 ### The committer-email gotcha
@@ -1072,3 +1230,93 @@ nothing redeploys. Use the repo owner's GitHub noreply email
 
 That's it — the dashboard, editor, validation, and save all pick it up
 generically.
+
+## Multilingual sites (variant)
+
+Field-tested variant for sites in more than one language (a canonical language
+plus translations, e.g. English + Tibetan). Apply it as a **delta on the
+single-language templates above** — same five layers, three structural changes.
+Two rules make it safe:
+
+1. **The canonical language defines the shape.** One JSON pair (or more) per
+   section under `content/{en,<lang>}/` with identical keys. The canonical file
+   is always complete; translation files may hold blank strings / empty lists.
+2. **Never fabricate translations.** Blank means "not translated yet" and falls
+   back **per key** to the canonical value at render time — the site never
+   shows machine-translated or half-stale copy, and the owner fills gaps in
+   Studio at their own pace.
+
+### Content layer delta (Step 10)
+
+Split content per language — `content/en/home.json`, `content/bo/home.json`, …
+— and merge with per-key fallback in the `lib/` wrapper:
+
+```ts
+// Per-field fallback, recursing into objects: a translated string wins only
+// when non-empty, a translated list only when it has items (a list is
+// translated as a whole — mixing per-item would interleave languages mid-flow).
+function withEnFallback<T>(en: T, translated: unknown): T {
+  if (typeof en === "string") {
+    return (typeof translated === "string" && translated.trim() !== "" ? translated : en) as T;
+  }
+  if (Array.isArray(en)) {
+    return (Array.isArray(translated) && translated.length > 0 ? translated : en) as T;
+  }
+  if (en !== null && typeof en === "object") {
+    const t = (translated && typeof translated === "object" ? translated : {}) as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(en as Record<string, unknown>)) {
+      out[key] = withEnFallback(value, t[key]);
+    }
+    return out as T;
+  }
+  return en;
+}
+
+export const home = { en: enHome, bo: withEnFallback(enHome, boHome) };
+```
+
+Public routes: canonical language at the root (`/about`), translations under a
+prefix (`/bo/about`), toggled by a path-preserving language switcher in the
+header; translated routes carry hreflang alternates in the sitemap.
+
+### Studio delta (Step 10b)
+
+- **Schema** — `SectionSchema` gains `lang: "en" | "<lang>" | "all"`; one entry
+  per (section, language), each pointing `repoPath` at its own file. Lookup
+  becomes `getSchema(lang, section)`. Reuse one field-list builder per section
+  (`homeFields(script)`) so the language pair can't drift apart.
+- **Routes** — `app/studio/[section]/` becomes `app/studio/[lang]/[section]/`;
+  the save payload and the commit scope include the language
+  (`content(bo/home): edit via Studio`).
+- **Dashboard** — one card per logical section with an edit button per language
+  (`Edit English`, `Edit Tibetan · བོད་ཡིག`).
+- **Placeholders** — in a translation editor, load the canonical file and pass
+  its top-level string values as the `placeholder` prop (`FieldRow` already
+  accepts it), so the owner sees exactly what each blank field falls back to.
+  Best-effort — never block editing on it:
+
+  ```ts
+  let placeholder: Record<string, string> | undefined;
+  if (lang !== "en") {
+    const enSchema = getSchema("en", section);
+    if (enSchema) {
+      try {
+        const enLoaded = await getJsonFile(enSchema.repoPath);
+        placeholder = Object.fromEntries(
+          Object.entries((enLoaded.data ?? {}) as Record<string, unknown>)
+            .filter(([, v]) => typeof v === "string")
+        ) as Record<string, string>;
+      } catch { /* placeholders are a nicety */ }
+    }
+  }
+  ```
+
+- **Non-Latin scripts** — add a `script?: boolean` flag on text/textarea/list
+  fields; when set, the controls add `lang="<code>"`, a dedicated font variable
+  (e.g. `--font-tibetan`), and a looser line-height. Load the font in the root
+  layout alongside the Latin fonts.
+- **Language-neutral singletons** — a file that holds *all* renditions at once
+  (a multi-language announcement with per-language tabs on the site) gets
+  `lang: "all"` and a single editor at `/studio/all/<section>`, linked from the
+  owning section's dashboard card — instead of a per-language pair.

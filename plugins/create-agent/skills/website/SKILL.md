@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[project-name or description]"
 allowed-tools: Read, Write, Edit, Bash, Bash(gh *), Bash(vercel *), Glob, Grep, AskUserQuestion, mcp__vercel__deploy_to_vercel, mcp__vercel__list_teams, mcp__vercel__list_projects, mcp__vercel__get_project, mcp__vercel__list_deployments, mcp__vercel__get_deployment, mcp__vercel__get_deployment_build_logs
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-03-25
-  updated: 2026-06-03
+  updated: 2026-07-29
   author: Ability.ai
   changelog:
+    - "1.3: Field-tested Studio upgrades — repeating item groups + toggles, verbatim-section guard (banner, flagged commits, optional webhook), per-section live links, and a multilingual variant (per-language content with per-key fallback, [lang] editors)"
     - "1.2: JSON-backed content layer + optional zero-dependency Studio CMS (/studio) for self-service editing"
     - "1.1: Prefer Vercel CLI for deployment; fall back to Vercel MCP, then to manual"
 ---
@@ -40,6 +41,11 @@ Use AskUserQuestion:
   3. **Pages needed** — Homepage + what else? (about, pricing, blog, contact, etc.)
   4. **Brand basics** — Company/product name, tagline, primary color (hex or description like "deep blue")
   5. **Destination** — Where to create the project directory (default: `./$PROJECT_NAME`)
+
+If the description mentions more than one language, also ask **which languages
+and which is canonical** — a multilingual site switches the content layer and
+Studio to the multilingual variant
+([reference.md → Multilingual sites](./reference.md#multilingual-sites-variant)).
 
 ### Step 2: Choose Design Direction
 
@@ -217,14 +223,21 @@ clean and matches what Studio writes back). Every section/component renders from
 these wrappers — **no hardcoded copy in components**, which is what makes the
 content editable in Step 10b.
 
+**Multilingual sites:** split content per language (`content/en/…`,
+`content/bo/…`) with identical keys, keep the canonical language complete, and
+merge in the `lib/` wrapper with the per-key fallback helper — blank translation
+fields fall back to the canonical language by design; **never machine-fill
+them**. See [reference.md → Multilingual sites](./reference.md#multilingual-sites-variant).
+
 ### Step 10b: Add Studio CMS (optional)
 
 Offer a **self-service, in-site content editor** at `/studio` so a non-technical
 owner can edit the site's copy themselves — passphrase login, schema-driven
-forms, and each **Publish** commits the relevant `content/*.json` to GitHub
-(which the host auto-redeploys). It adds **zero npm dependencies** (Node
-`crypto` + `fetch` against the GitHub Contents API) and builds directly on the
-JSON content layer from Step 10.
+forms (text, textareas, toggles, lists, and repeating item groups for news
+posts / announcements / page sections), and each **Publish** commits the
+relevant `content/*.json` to GitHub (which the host auto-redeploys). It adds
+**zero npm dependencies** (Node `crypto` + `fetch` against the GitHub Contents
+API) and builds directly on the JSON content layer from Step 10.
 
 Use AskUserQuestion:
 - **Question:** "Add Studio — a self-service editor so non-developers can edit the site's copy without touching code?"
@@ -247,6 +260,16 @@ files (templates are in reference.md):
 - `app/studio/[section]/page.tsx`, `app/studio/[section]/editor.tsx`
 - `app/studio/api/{login,logout,save}/route.ts`
 
+Mark any word-for-word content (a founder's letter, a historical account, legal
+text) with `verbatim: true` in its schema — the editor shows an "edit with
+care" banner, the dashboard badges the section, commits are flagged ⚠️, and the
+optional `STUDIO_NOTIFY_WEBHOOK` pings the maintainer on every such edit.
+
+For a **multilingual site**, the editor routes become
+`app/studio/[lang]/[section]/…`, the schema gains a `lang` axis, and translation
+editors show canonical values as placeholders — apply the deltas in
+[reference.md → Multilingual sites](./reference.md#multilingual-sites-variant).
+
 Then:
 
 1. **Hide Studio from the public site** — guard the Header/Footer with
@@ -255,7 +278,7 @@ Then:
 2. **Add the Studio env vars** to `.env.example` (see reference.md → Environment
    variables): `STUDIO_PASSWORD`, `STUDIO_SESSION_SECRET`, `GITHUB_TOKEN`,
    `GITHUB_REPO`, `GITHUB_BRANCH`, optional `STUDIO_COMMIT_NAME/_EMAIL`,
-   `STUDIO_LOCAL_WRITE`.
+   `STUDIO_LOCAL_WRITE`, `STUDIO_NOTIFY_WEBHOOK`.
 3. **Generate the secrets locally** so the owner can test immediately:
    ```bash
    echo "STUDIO_SESSION_SECRET=$(openssl rand -base64 32)"
@@ -615,6 +638,7 @@ Display:
 | Studio: "page changed since you opened it" (409) | Optimistic-concurrency guard — the file changed since load. Reload the editor and re-apply the edit |
 | Studio: Publish succeeds but site never updates | Committer-email gotcha — `STUDIO_COMMIT_EMAIL` maps to an account the host won't deploy from, so the host blocked the deploy. Use the repo owner's GitHub noreply email |
 | Studio: public Header/Footer show on `/studio` | Add the `usePathname` guard (`if (pathname?.startsWith("/studio")) return null;`) to `header.tsx`/`footer.tsx` |
+| Multilingual: translated page shows canonical-language text | By design — blank translation fields fall back per key. Fill the field in that language's Studio editor; never machine-fill it |
 
 ---
 
