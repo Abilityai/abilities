@@ -23,7 +23,8 @@ The installer asks four questions and wires up everything else.
 |---|---|
 | `PROJECT_STANDARD.md` | Convention doc — the deployer's config surface. Skills read this at runtime; edit it to change behavior without touching skills. |
 | `/project-init` | Create or adopt a project: GitHub epic issue + idempotent label creation + workspace stub |
-| `/project-task` | Create task issues in the uniform format. **The only sanctioned task-creation path** — enforces full anatomy including the Validation section |
+| `/project-task` | Create task issues interactively. **The sanctioned interactive task-creation path** — enforces full anatomy including the Validation section. Supports `--headless` for cron/compose use. |
+| `/project-intake` | **New in v1.1.** Headless intake primitive: route actionable items from any source (meetings, email, Slack, issue trackers) into the registry. Dedupes by meaning, creates task issues or posts state-news comments, returns the issue number. Called by domain skills and crons — never interactive. |
 | `/project-steward` | Autonomous sweep: verify pending-verification claims, dispatch to owner agents, escalate stalls, classify quarantine, write digest |
 | `/project-reconcile` | Projection sync: push registry state into personal task views; process gestures (check/date-push/delete) back per the typed-reversibility contract. Includes Google Tasks adapter v1. |
 
@@ -31,11 +32,15 @@ The installer asks four questions and wires up everything else.
 
 **One registry, write-authoritative.** GitHub Issues is the sole record of portfolio state. No other system (personal task views, external tools) writes state back. Projections are read-only views.
 
+**Intake contract.** Work items enter the registry only through `/project-intake`. Projection surfaces are written only by `/project-reconcile`. Domain skills write workspace files freely. The roles are explicit and exclusive — no accidental cross-writes.
+
 **Approval-ready completion lattice from day one.** Every task moves: `open → pending-verification → done`. Human completion writes done directly. Agent completion triggers verification against the Definition of Done before closing. The `## Validation` section in every task body is the approval chain — enabling multi-step chains later = adding more rows, not a schema change.
 
 **Priority is human-only.** Priority changes only by explicit human speech act, logged with a reason. Observed behavior (staleness, projection gestures) surfaces as evidence for the human to act on — never a silent write.
 
 **Owner ≠ executor.** `owner:<actor>` is the accountable party (can be a human or agent); `agent:<name>` is who is executing right now. This distinction enables proper escalation and approval routing.
+
+**Workspace visibility is deployment config.** `project_files/<slug>/` may be local-only or git-synced to the agent's container — either way the standard works. The quarantine pass is idempotent wherever workspaces are visible.
 
 **Altitude above single-agent dev loops.** This plugin governs cross-actor work (humans + multiple agents collaborating on projects). For a single agent's own task backlog, see `agent-dev`'s `/add-backlog`.
 
@@ -64,7 +69,7 @@ The `/project-reconcile` skill ships with a Google Tasks adapter v1. To use it:
 
 1. Set `GOOGLE_TASKS_TOKEN` in your agent's `.env` (a valid OAuth2 access token with `tasks` scope).
 2. Set `GOOGLE_TASKS_LIST_ID` or let the reconciler prompt you to select one.
-3. Add `[#NN]` to each Google Task's title to key it to the GitHub issue number.
+3. Add `[#NN]` to each Google Task's title to key it to the GitHub issue number. Items without a key are treated as personal reminders and skipped (no alerts).
 
 Gesture semantics:
 - **Check/complete** → completion endorsement (closes done or sets pending-verification)

@@ -4,16 +4,17 @@ description: Install cross-actor project management into this agent — GitHub I
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-30
   author: Ability.ai
   changelog:
-    - "1.0: Initial version — corbin/Eugene PM-standard directive 2026-07-30; post-Gemini-review + cornelius adjudication; ships /project-init /project-task /project-steward /project-reconcile + PROJECT_STANDARD.md"
+    - "1.1: v1.1.0 — /project-intake (headless intake primitive), §13 Intake contract in PROJECT_STANDARD.md, headless mode for /project-task, reconciler unkeyed-item refinement (personal items excluded from sync-gap alerts), workspace visibility as deployment config"
+    - "1.0: Initial version — corbin/Eugene PM-standard directive 2026-07-30; ships /project-init /project-task /project-steward /project-reconcile + PROJECT_STANDARD.md"
 ---
 
 # Add Project Management
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `add-project-management v1.0 — recent: Initial version`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `add-project-management v1.1 — recent: /project-intake + §13 Intake contract`. Then proceed.
 
 Install a cross-actor project management standard into this agent. GitHub Issues become the single source of truth for all project and task state; humans, this agent, and fleet agents interact through a shared vocabulary of labels, task anatomy, and an approval-ready completion lattice.
 
@@ -25,9 +26,10 @@ Install a cross-actor project management standard into this agent. GitHub Issues
 |---|---|---|
 | `PROJECT_STANDARD.md` | repo root | Convention doc — the deployer's config surface. All four skills read it at runtime. Edit this file to change behavior; don't edit the skills. |
 | `/project-init` | `.claude/skills/project-init/SKILL.md` | Create or adopt a project: GitHub epic + idempotent labels + workspace stub |
-| `/project-task` | `.claude/skills/project-task/SKILL.md` | The only sanctioned task-creation path — enforces full anatomy including the Validation section |
+| `/project-task` | `.claude/skills/project-task/SKILL.md` | The only sanctioned interactive task-creation path — enforces full anatomy including the Validation section; supports `--headless` for cron/compose use |
 | `/project-steward` | `.claude/skills/project-steward/SKILL.md` | Autonomous sweep: verify pending-verification claims, dispatch, escalate, digest |
 | `/project-reconcile` | `.claude/skills/project-reconcile/SKILL.md` | Projection sync — Google Tasks adapter v1 + adapter contract for other surfaces |
+| `/project-intake` | `.claude/skills/project-intake/SKILL.md` | Headless intake primitive: route actionable items from any source into the registry, dedupe by meaning, return issue number. Called by other skills and crons — never interactive. |
 
 ---
 
@@ -89,6 +91,7 @@ ls .claude/skills/project-init 2>/dev/null && echo "project-init: EXISTS" || ech
 ls .claude/skills/project-task 2>/dev/null && echo "project-task: EXISTS" || echo "project-task: missing"
 ls .claude/skills/project-steward 2>/dev/null && echo "project-steward: EXISTS" || echo "project-steward: missing"
 ls .claude/skills/project-reconcile 2>/dev/null && echo "project-reconcile: EXISTS" || echo "project-reconcile: missing"
+ls .claude/skills/project-intake 2>/dev/null && echo "project-intake: EXISTS" || echo "project-intake: missing"
 ls PROJECT_STANDARD.md 2>/dev/null && echo "PROJECT_STANDARD.md: EXISTS" || echo "PROJECT_STANDARD.md: missing"
 ```
 
@@ -104,6 +107,7 @@ mkdir -p .claude/skills/project-init
 mkdir -p .claude/skills/project-task
 mkdir -p .claude/skills/project-steward
 mkdir -p .claude/skills/project-reconcile
+mkdir -p .claude/skills/project-intake
 ```
 
 ### Step 5: Write PROJECT_STANDARD.md
@@ -126,7 +130,7 @@ Write `PROJECT_STANDARD.md` to the repo root with the values from Step 2 substit
 | Thing | Location | Notes |
 |---|---|---|
 | Registry (single source of truth) | GitHub issues in `{{REGISTRY}}` | One **epic issue** per project (`project` label); one task issue per task (`task` + `project:<slug>`) |
-| Workspace (files, drafts, outputs) | `project_files/<slug>/` in the managing agent's repo | Free-form except `project.md` (charter). Path recorded in the epic body. **May be local-only**: if gitignored, Trinity runs use the epic body as authoritative context. |
+| Workspace (files, drafts, outputs) | `project_files/<slug>/` in the managing agent's repo | Free-form except `project.md` (charter). Path recorded in the epic body. **Visibility is deployment config**: if git-synced to the agent's container, the steward reads workspaces directly; if local-only / gitignored, Trinity runs use the epic body as authoritative context. The quarantine pass is idempotent wherever workspaces are visible. |
 | Steward state, digests, run log | `project-steward/` in the managing agent's repo | Written only by `/project-steward`; tracked in git after each material run |
 
 **Invariant 1 — One registry, write-authoritative.** The registry (GitHub Issues) is the sole authoritative record for portfolio state: scope, status, and priority. No other system writes state back. Projections are read-only views; they do not own state.
@@ -283,7 +287,7 @@ DoD check:
 
 ## 9. Workspace discovery and quarantine (Invariant 6)
 
-The steward auto-stubs any `project_files/<slug>/` folder with no corresponding epic into a quarantine epic (`status:unclassified`). Unclassified projects are:
+The steward auto-stubs any `project_files/<slug>/` folder with no corresponding epic into a quarantine epic (`status:unclassified`). The quarantine pass runs wherever `project_files/` is visible — it is idempotent and safe on any deployment config (local-only, git-synced container, or absent entirely when workspaces live elsewhere). Unclassified projects are:
 - Excluded from all projections
 - Excluded from priority tracking (no priority label)
 - Classified lazily: one batch line in the weekly digest ("N unclassified folders: <names>"), never per-item interrupts
@@ -322,7 +326,7 @@ Projections are external views of the registry (Google Tasks, Fibery, etc.). The
 
 **Absence is never authoritative.** An item missing from a projection could be filtered, unsynced, or stale — never act on absence.
 
-**Unkeyed items are refused.** A projection item with no `[#NN]` key cannot be synced — the reconciler reports a sync-gap alert for human review.
+**Unkeyed items are personal and out of scope.** A projection item with no `[#NN]` key is treated as a personal reminder — the reconciler counts them but does not alert. Sync-gap alerts fire only for keyed items (`[#NN]`) whose issue number does not resolve in the registry.
 
 **Adapter contract** (implement this to add a new projection surface):
 ```
@@ -337,6 +341,17 @@ The reconciler calls these methods. See Google Tasks adapter v1 in `/project-rec
 `PENDING_VERIFICATION_MAX_AGE_HOURS = {{PV_MAX_AGE}}`
 
 Deployers: edit this number to match your team's review SLA.
+
+## 13. Intake contract
+
+Intake skills and domain skills may write workspace content freely (`project_files/<slug>/`). Work items enter the registry ONLY through `/project-intake`. Material state changes (decisions, status shifts, blockers) land as a one-line comment on the relevant epic. Intake skills NEVER write projection surfaces directly — only `/project-reconcile` touches projections.
+
+| Writer | May write | Must not write |
+|---|---|---|
+| Intake / domain skills | `project_files/<slug>/` | GitHub task issues directly (use `/project-intake`) |
+| `/project-intake` | GitHub task issues, epic one-line state-news comments | Projection surfaces |
+| `/project-reconcile` | Projection surfaces, reconcile log | Registry task issues (read-only; gesture processing is the one exception) |
+| `/project-steward` | GitHub issue labels, comments, steward state | Projection surfaces |
 ```
 
 Substitute all `{{AGENT_NAME}}` with `$AGENT_NAME`, `{{OPERATOR}}` with `$OPERATOR`, `{{REGISTRY}}` with `$REGISTRY`, `{{DATE}}` with `$DATE`, `{{PV_MAX_AGE}}` with `$PV_MAX_AGE` before writing.
@@ -512,27 +527,48 @@ Write `.claude/skills/project-task/SKILL.md`:
 ````markdown
 ---
 name: project-task
-description: Create a task issue in the uniform format per PROJECT_STANDARD.md — the ONLY sanctioned task-creation path. Enforces full anatomy (Objective / Definition of Done / Context / Validation) and adds the task to the parent epic's Tasks checklist. Approval-ready from day one.
-argument-hint: "[project-slug]"
+description: Create a task issue in the uniform format per PROJECT_STANDARD.md — the ONLY sanctioned task-creation path. Enforces full anatomy (Objective / Definition of Done / Context / Validation) and adds the task to the parent epic's Tasks checklist. Approval-ready from day one. Supports --headless for cron/compose use.
+argument-hint: "[project-slug | --headless --project=<slug> --title=\"...\" --objective=\"...\" --dod=\"item1|item2\" --owner=<actor> [--priority=p2] [--agent=<name>] [--context=\"...\"]]"
 allowed-tools: Bash, Read, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.1: Add --headless mode — all fields as arguments, no AskUserQuestion, returns issue number; callable from /project-intake and crons"
     - "1.0: Initial version — full anatomy enforcement including Validation section (approval chain), owner/agent label distinction, epic checklist update"
 ---
 
 # Project Task
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-task v1.0 — recent: Initial version`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-task v1.1 — recent: Add --headless mode`. Then proceed.
 
 ## Purpose
 
 Create a task issue in the uniform format. This is the **only sanctioned way to create task issues** in a managed project — it enforces the full anatomy including the `## Validation` section (the approval chain), applies the correct labels, and links the task into the parent epic's checklist.
 
 **Never create task issues directly via `gh issue create` outside this skill.** The anatomy enforcement and epic linkage are the point.
+
+## Modes
+
+**Interactive mode** (default): run as `/project-task [project-slug]`. Collects missing fields via AskUserQuestion. For human use.
+
+**Headless mode**: run with `--headless` and all fields as arguments. Never calls AskUserQuestion. Returns just the created issue number on stdout. For use by `/project-intake`, crons, and other skills that compose task creation programmatically.
+
+Headless arguments:
+| Argument | Required | Notes |
+|---|---|---|
+| `--project=<slug>` | yes | Project slug from `project:<slug>` label |
+| `--title="..."` | yes | Plain imperative title |
+| `--objective="..."` | yes | What this task accomplishes |
+| `--dod="item1\|item2"` | yes | Pipe-separated DoD items |
+| `--owner=<actor>` | yes | Accountable party |
+| `--priority=pN` | no | Default: inherit from epic |
+| `--agent=<name>` | no | Executing agent label (if immediately assignable) |
+| `--context="..."` | no | Additional context beyond the epic link |
+
+In headless mode, if any required argument is missing, exit immediately with: `ERROR: --<field> is required in headless mode`
 
 ## State dependencies
 
@@ -549,18 +585,25 @@ Read `PROJECT_STANDARD.md`. Resolve `$REGISTRY` and `$AGENT_NAME` from §1 and �
 
 ### Step 2: Select parent project
 
-If `$ARGUMENTS` is provided and names a project slug, use it. Otherwise list active projects:
+**Headless mode**: parse `--project` from `$ARGUMENTS`. Fetch the epic directly:
+```bash
+gh issue list --repo "$REGISTRY" --label "project:$PROJECT_SLUG" --label project --state open \
+  --json number,title,labels,body -q '.[0]'
+```
+If not found, exit with `ERROR: No open epic found for project:$PROJECT_SLUG`.
 
+**Interactive mode**: if `$ARGUMENTS` names a project slug, use it. Otherwise list active projects:
 ```bash
 gh issue list --repo "$REGISTRY" --label project --state open \
   --json number,title,labels --limit 20
 ```
-
 Ask the user which project this task belongs to. Resolve the slug from the `project:<slug>` label on the chosen epic.
 
 ### Step 3: Gather task inputs
 
-Use AskUserQuestion:
+**Headless mode**: read all fields directly from `--` arguments (no AskUserQuestion). If a required argument is missing, exit with `ERROR: --<field> is required in headless mode`. Parse `--dod` by splitting on `|` to produce the checklist items.
+
+**Interactive mode**: use AskUserQuestion:
 - **Title** — plain imperative sentence (e.g. "Draft the trademark response letter")
 - **Objective** — what this task accomplishes (1–2 sentences)
 - **Definition of Done** — 2–5 concrete, checkable finish-line items
@@ -631,8 +674,14 @@ gh issue edit $EPIC_NUMBER --repo "$REGISTRY" --body-file /tmp/epic-updated.md
 
 The appended line format: `- [ ] #$TASK_NUMBER $TITLE`
 
-### Step 7: Summary
+### Step 7: Output
 
+**Headless mode**: print exactly one line — the issue number — and exit:
+```
+#$TASK_NUMBER
+```
+
+**Interactive mode**: print the full summary:
 ```
 Task created: #$TASK_NUMBER — $TITLE
 Project:      [Project] $PROJECT_NAME (epic #$EPIC_NUMBER)
@@ -988,9 +1037,9 @@ def mark_complete(key):
 ### Step 5: Match and diff
 
 For each projection item:
-- **Unkeyed** (no `[#NN]` in title): add to sync-gap alert list. Do not attempt to match.
+- **Unkeyed** (no `[#NN]` in title): personal reminder — increment `personal_count`, skip entirely. Do not add to sync-gap alerts. Personal items are out of scope for registry sync.
 - **Keyed**: look up issue `#NN` in the registry map.
-  - **Not in registry**: either the issue was closed (check recently-closed list) or the key is wrong. Add to sync-gap alert list.
+  - **Not in registry**: check recently-closed list. If not there either, this is a sync-gap (keyed but unresolvable — the issue number may be wrong or the issue was deleted). Add to `sync_gap_alerts`.
   - **Found**: record the pair for gesture detection.
 
 For each matched pair, detect gestures:
@@ -1074,12 +1123,13 @@ Write `project-steward/reconcile-log/google-tasks-$(date -u +%Y-%m-%d).json`:
   "list_id": "$LIST_ID",
   "run_at": "<ISO timestamp>",
   "matched": N,
+  "personal_items": N,
   "gestures": {
     "check": [...],
     "date_push": [...],
     "delete_proposal": [...]
   },
-  "unkeyed": [...],
+  "sync_gap_alerts": [...],
   "registry_writes": [...],
   "projection_writes": [...]
 }
@@ -1096,8 +1146,9 @@ Print the reconcile report:
 ```
 ## Reconcile: google-tasks
 
-Matched:    N of M projection items to registry issues
-Synced:     N items updated in projection (new/closed)
+Matched:        N of M projection items to registry issues
+Personal items: N items skipped — no [#NN] key; out of scope for registry sync
+Synced:         N items updated in projection (new/closed)
 
 Gestures processed:
   check (completion endorsements): N
@@ -1106,8 +1157,8 @@ Gestures processed:
   date-push (defer signals): N (no registry writes — logged as evidence)
   delete (soft-skip proposals): N (registry items survive — confirm to action)
 
-Sync-gap alerts (unkeyed items — cannot sync without [#NN] key):
-  - "<title>" — add [#NN] prefix to key this item
+Sync-gap alerts (keyed items whose [#NN] number does not resolve in registry):
+  - "[#NN] <title>" — issue #NN not found; check if deleted or number is wrong
 
 Soft-skip proposals (awaiting confirmation):
   - #NN <title> — deleted from projection; confirm to close or ignore
@@ -1115,10 +1166,185 @@ Soft-skip proposals (awaiting confirmation):
 Evidence log: project-steward/reconcile-log/google-tasks-YYYY-MM-DD.json
 ```
 
-If there are sync-gap alerts or soft-skip proposals, ask the user if they want to take action on them now.
+If there are sync-gap alerts (keyed but unresolvable) or soft-skip proposals, ask the user if they want to take action on them now. Personal items are never surfaced for action.
 ````
 
-### Step 10: Create GitHub labels
+### Step 10: Write /project-intake skill
+
+Write `.claude/skills/project-intake/SKILL.md`:
+
+````markdown
+---
+name: project-intake
+description: Headless intake primitive — routes actionable items from any source (meetings, email, Slack, issue trackers) into the GitHub Issues registry. Dedupes by meaning (not exact title), creates task issues with full anatomy (Objective / Definition of Done / Context / Validation), or posts one-line state-news comments on the relevant epic. Returns the issue number. Never interactive — called by other skills and crons.
+argument-hint: "--project=<slug> --title=\"...\" --source=\"<url-or-note>\" [--owner=<actor>] [--priority=p2] [--agent=<name>] [--dod=\"item1|item2\"] [--objective=\"...\"] [--context=\"...\"] [--state-news]"
+allowed-tools: Bash, Read, Grep
+user-invocable: false
+metadata:
+  version: "1.0"
+  created: 2026-07-30
+  author: add-project-management
+  changelog:
+    - "1.0: Initial version — headless intake primitive, dedupe by meaning, task creation with full anatomy, state-news comment path, epic Tasks checklist linkage"
+---
+
+# Project Intake
+
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-intake v1.0 — recent: Initial version`. Then proceed.
+
+## Purpose
+
+Route any actionable item from any source into the managed registry. **This skill is headless** — it never calls AskUserQuestion. It is called by domain skills, meeting-summary flows, crons, and composed pipelines. Output: the created or duplicate issue number.
+
+**This skill is the only sanctioned programmatic path for creating task issues.** `/project-task` is for interactive human creation; `/project-intake` is for automated and composed creation.
+
+## Arguments
+
+| Argument | Required | Description |
+|---|---|---|
+| `--project=<slug>` | yes | Target project slug (from `project:<slug>` label) |
+| `--title="..."` | yes | Plain imperative title for the actionable item |
+| `--source="..."` | yes | URL or short description of origin (meeting link, email subject, Slack permalink, ticket URL) |
+| `--owner=<actor>` | no | Accountable party. Defaults to the project's primary owner from the epic. |
+| `--priority=pN` | no | p1/p2/p3. Inherits from epic if omitted. |
+| `--agent=<name>` | no | Executing agent label if immediately assignable. |
+| `--dod="item1\|item2"` | no | Pipe-separated DoD items. Default: single item derived from title. |
+| `--objective="..."` | no | Objective text. Defaults to the title. |
+| `--context="..."` | no | Additional context beyond the source link. |
+| `--state-news` | no | Flag: item is project-state news, not a task. Post a one-line comment on the epic; return `EPIC:#NN`. |
+
+## State dependencies
+
+| Source | Location | Read | Write |
+|---|---|---|---|
+| Convention doc | `PROJECT_STANDARD.md` | Yes | No |
+| GitHub issues | `$REGISTRY` via `gh` | Yes | Yes (task issue + epic checklist or one-line comment) |
+
+## Process
+
+### Step 1: Read the standard
+
+Read `PROJECT_STANDARD.md`. Resolve `$REGISTRY` and `$AGENT_NAME` from §1 and §2.
+
+### Step 2: Parse and validate arguments
+
+Parse all `--key=value` and flag arguments from `$ARGUMENTS`.
+
+Validate:
+- `--project` present → look up the epic:
+  ```bash
+  gh issue list --repo "$REGISTRY" --label "project:$PROJECT_SLUG" --label project --state open \
+    --json number,title,labels,body -q '.[0]'
+  ```
+  If no epic found: exit with `ERROR: No open epic for project:$PROJECT_SLUG`
+- `--title` present. If missing: exit with `ERROR: --title is required`
+- `--source` present. If missing: exit with `ERROR: --source is required`
+
+Resolve defaults from the epic:
+- `OWNER`: if not provided, extract from epic's `owner:*` labels (first match).
+- `PRIORITY`: if not provided, read from epic's `priority:*` label.
+- `OBJECTIVE`: if not provided, use the title.
+- `DOD`: if not provided, generate: `- [ ] $TITLE completed and verified against source`
+
+### Step 3: State-news path
+
+If `--state-news` flag is set:
+
+Post a one-line comment on the epic:
+```bash
+gh issue comment $EPIC_NUMBER --repo "$REGISTRY" \
+  --body "**State update** ($(date -u +%Y-%m-%d)): $TITLE — source: $SOURCE"
+```
+
+Output exactly: `EPIC:$EPIC_NUMBER`
+
+Exit.
+
+### Step 4: Deduplicate by meaning
+
+Fetch all open task issues for this project:
+```bash
+gh issue list --repo "$REGISTRY" \
+  --label "task" --label "project:$PROJECT_SLUG" \
+  --state open --json number,title --limit 100
+```
+
+For each existing issue title, check if the incoming title means the same thing:
+
+1. **Exact title match** (case-insensitive) → definite duplicate.
+2. **Semantic overlap**: tokenize both titles, strip common stop words (a, an, the, and, or, for, to, of, in, on, at, by, with, from, into), compare the core verb+noun tokens. If ≥ 70% of the incoming tokens appear in an existing title (or vice versa), treat as duplicate.
+
+On duplicate detected: output `DUPLICATE:#$EXISTING_NUMBER` and exit.
+
+If no duplicate, proceed.
+
+### Step 5: Ensure owner label exists
+
+```bash
+gh label create "owner:$OWNER" --repo "$REGISTRY" \
+  --color "0052cc" --description "Accountable: $OWNER" 2>/dev/null || true
+```
+
+### Step 6: Create the task issue
+
+Build the body:
+
+```bash
+cat > /tmp/intake-body.md << 'INTAKEBODY'
+## Objective
+$OBJECTIVE
+
+## Definition of Done
+$DOD_ITEMS
+
+## Context
+Epic: $EPIC_URL
+Source: $SOURCE
+$EXTRA_CONTEXT
+
+## Validation
+- [ ] $AGENT_NAME — verify all Definition of Done items against the done claim
+INTAKEBODY
+```
+
+(Substitute all variables before writing; omit `$EXTRA_CONTEXT` line if `--context` was not provided.)
+
+Create the issue:
+```bash
+gh issue create --repo "$REGISTRY" \
+  --title "$TITLE" \
+  --label "task,project:$PROJECT_SLUG,owner:$OWNER,priority:$PRIORITY" \
+  --body-file /tmp/intake-body.md
+```
+
+Capture `$TASK_NUMBER` from the output URL (`...issues/NN`).
+
+If `--agent` was provided:
+```bash
+gh issue edit $TASK_NUMBER --repo "$REGISTRY" --add-label "agent:$ASSIGNED_AGENT"
+```
+
+### Step 7: Link into parent epic
+
+Read the current epic body, append the new task to the `## Tasks` checklist, and update:
+```bash
+gh issue view $EPIC_NUMBER --repo "$REGISTRY" --json body -q .body > /tmp/intake-epic.md
+# Append the new task line to the Tasks section
+printf '\n- [ ] #%s %s' "$TASK_NUMBER" "$TITLE" >> /tmp/intake-epic.md
+gh issue edit $EPIC_NUMBER --repo "$REGISTRY" --body-file /tmp/intake-epic.md
+```
+
+(Insert the line after the last existing checklist item in `## Tasks`, or directly after the `## Tasks` header if the section is empty.)
+
+### Step 8: Output
+
+Print exactly one line and exit:
+```
+#$TASK_NUMBER
+```
+````
+
+### Step 11: Create GitHub labels
 
 Create all labels needed by the standard. All operations are idempotent (`2>/dev/null || true`):
 
@@ -1138,7 +1364,7 @@ gh label create "priority:p3" --repo "$REGISTRY" --color "c5def5" --description 
 
 Note: `owner:*`, `agent:*`, and `project:<slug>` labels are created dynamically by `/project-init` per project.
 
-### Step 11: Update CLAUDE.md
+### Step 12: Update CLAUDE.md
 
 Read the current CLAUDE.md and append a Project Management section if it doesn't already exist:
 
@@ -1151,7 +1377,8 @@ This agent manages projects via GitHub Issues in `$REGISTRY`. Issues are the sin
 | Skill | Purpose |
 |---|---|
 | `/project-init` | Create or adopt a managed project (epic + labels + workspace stub) |
-| `/project-task` | Create task issues in the standard format — the **only** sanctioned task-creation path |
+| `/project-task` | Create task issues interactively — the sanctioned interactive task-creation path; use `--headless` for composed/cron use |
+| `/project-intake` | Headless intake primitive — route actionable items from any source into the registry, dedupe by meaning, return issue number |
 | `/project-steward` | Autonomous sweep: verify completions, dispatch work, escalate stalls, write digest |
 | `/project-reconcile` | Sync projection surfaces (Google Tasks, etc.) against the registry |
 
@@ -1164,7 +1391,7 @@ This agent manages projects via GitHub Issues in `$REGISTRY`. Issues are the sin
 **Priority changes:** only by explicit human speech act, logged with a reason.
 ```
 
-### Step 12: Create steward state directories
+### Step 13: Create steward state directories
 
 ```bash
 mkdir -p project-steward/digests
@@ -1178,7 +1405,7 @@ Commit the scaffolding:
 git add project-steward && git commit -m "chore: scaffold project-steward state directory" 2>/dev/null || true
 ```
 
-### Step 13: Register steward schedule (if scheduled)
+### Step 14: Register steward schedule (if scheduled)
 
 If `$SCHEDULE` was chosen (not manual-only), add the schedule to `template.yaml` if it exists:
 
@@ -1191,7 +1418,7 @@ if [ -f template.yaml ]; then
 fi
 ```
 
-### Step 14: Summary
+### Step 15: Summary
 
 Print:
 
@@ -1203,15 +1430,16 @@ Print:
 |---|---|
 | `PROJECT_STANDARD.md` | Convention doc — edit to change behavior |
 | `.claude/skills/project-init/SKILL.md` | /project-init |
-| `.claude/skills/project-task/SKILL.md` | /project-task |
+| `.claude/skills/project-task/SKILL.md` | /project-task (interactive + --headless) |
 | `.claude/skills/project-steward/SKILL.md` | /project-steward |
 | `.claude/skills/project-reconcile/SKILL.md` | /project-reconcile |
+| `.claude/skills/project-intake/SKILL.md` | /project-intake (headless intake primitive) |
 
 ### Configuration
 - Registry: $REGISTRY
 - Operator: $OPERATOR
 - Agent: $AGENT_NAME
-- Pending-verification max age: $PV_MAX_AGENT h
+- Pending-verification max age: $PV_MAX_AGE h
 - Steward schedule: $SCHEDULE (or "manual only")
 
 ### Labels created
