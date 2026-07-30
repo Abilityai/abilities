@@ -51,6 +51,7 @@
         "./skills/add-pipeline-stage",
         "./skills/validate-pipeline",
         "./skills/agent-fleet-analysis",
+        "./skills/agent-fleet-migrate",
         "./skills/backlog",
         "./skills/groom",
         "./skills/roadmap",
