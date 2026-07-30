@@ -1,0 +1,29 @@
+{
+  "name": "add-project-management",
+  "description": "Install cross-actor project management into any agent — GitHub Issues as the single source of truth, uniform task anatomy with approval-ready completion lattice (open → pending-verification → done), autonomous project steward with escalation ladder, and projection sync (Google Tasks adapter v1). Works standalone; no dependency on fleet infrastructure.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "homepage": "https://github.com/abilityai/abilities",
+  "repository": "https://github.com/abilityai/abilities",
+  "license": "MIT",
+  "keywords": [
+    "project-management",
+    "github",
+    "issues",
+    "tasks",
+    "orchestration",
+    "multi-agent",
+    "cross-actor",
+    "approval",
+    "completion-lattice",
+    "pending-verification",
+    "steward",
+    "projection",
+    "google-tasks",
+    "portfolio",
+    "governance"
+  ]
+}
