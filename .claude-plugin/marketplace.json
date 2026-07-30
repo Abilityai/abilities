@@ -34,9 +34,9 @@
     {
       "name": "agent-dev",
       "source": "./plugins/agent-dev",
-      "description": "Develop and extend existing agents — add skills, memory systems, GitHub backlog workflow, git-sync hooks, and planning tools",
+      "description": "Develop and extend existing agents — add skills, memory systems, GitHub backlog workflow, git-sync hooks, planning tools, and fleet analysis",
       "category": "developer-tools",
-      "tags": ["agent", "development", "skills", "memory", "backlog", "github", "git-sync", "hooks", "planning", "workflow"],
+      "tags": ["agent", "development", "skills", "memory", "backlog", "github", "git-sync", "hooks", "planning", "workflow", "fleet-analysis"],
       "skills": [
         "./skills/create-playbook",
         "./skills/adjust-playbook",
@@ -50,6 +50,7 @@
         "./skills/add-pipeline-instance",
         "./skills/add-pipeline-stage",
         "./skills/validate-pipeline",
+        "./skills/agent-fleet-analysis",
         "./skills/backlog",
         "./skills/groom",
         "./skills/roadmap",

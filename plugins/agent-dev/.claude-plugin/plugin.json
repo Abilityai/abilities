@@ -1,7 +1,7 @@
 {
   "name": "agent-dev",
-  "description": "Develop and extend existing agents \u2014 add skills, memory systems, GitHub Issues development workflow (backlog, roadmap, groom, claim, autoplan, commit, sprint, work-loop), long-running multi-stage pipelines (add-pipeline + heartbeat / status / recover / pause / resume runtime skills), system-aware orchestration (add-orchestrator \u2014 discover / compose / orchestrate a multi-agent system via Trinity's SystemManifest), and a shared canonical-data layer (add-canon \u2014 a fleet canon repo with publish / consume / reconcile / doctor runtime skills; add-canon-lint \u2014 deterministic consistency linting of the canon repo: two-zone schema, one-home-per-key facts, CI on every push)",
-  "version": "1.8.1",
+  "description": "Develop and extend existing agents \u2014 add skills, memory systems, GitHub Issues development workflow (backlog, roadmap, groom, claim, autoplan, commit, sprint, work-loop), long-running multi-stage pipelines (add-pipeline + heartbeat / status / recover / pause / resume runtime skills), system-aware orchestration (add-orchestrator \u2014 discover / compose / orchestrate a multi-agent system via Trinity's SystemManifest), a shared canonical-data layer (add-canon \u2014 a fleet canon repo with publish / consume / reconcile / doctor runtime skills; add-canon-lint \u2014 deterministic consistency linting of the canon repo: two-zone schema, one-home-per-key facts, CI on every push), and fleet analysis (agent-fleet-analysis \u2014 scan directories of agents in any paradigm, score fleet maturity / migration readiness, recommend a fleet architecture, map every gap to an installable marketplace skill, and emit a PDF report plus an agent-executable markdown work order)",
+  "version": "1.9.0",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"
@@ -48,6 +48,13 @@
     "canon",
     "canonical-data",
     "source-of-truth",
-    "data-layer"
+    "data-layer",
+    "fleet-analysis",
+    "maturity-score",
+    "migration-readiness",
+    "audit",
+    "report",
+    "n8n",
+    "langchain"
   ]
 }
