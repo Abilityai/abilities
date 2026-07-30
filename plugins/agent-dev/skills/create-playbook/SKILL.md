@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.11"
+  version: "2.12"
   created: 2025-02-10
-  updated: 2026-07-29
+  updated: 2026-07-30
   author: Ability.ai
   changelog:
+    - "2.12: Add the Library-Grade Rule to Design Constraints + Step 5b library-target question — a skill destined for a shared skills library declares a requires: frontmatter contract (env keys, packages, binaries), references credentials only as named env vars (never .env reads, no interactive auth, materialize-from-env when a tool demands a credential file), fails with named missing-key errors, and passes a deterministic env-coherence + secret-scan check before contribution"
     - "2.11: New Step 9 registers the created skill in the agent's CLAUDE.md — Core Capabilities row + request-phrased Request Dispatch row when the table exists, and resolves the playbook-gap operator-queue item (playbook-gap-<slug>) the skill was created to close"
     - "2.10: Correct the stall-watchdog facts in the Long-Running-Task Rule — since trinity#1369 the no-output watchdog is 1800s (not 300s) and watches mcp__* tools only (Bash is unwatched, piping doesn't 're-arm' anything); add set_reminder as the Trinity-side way to verify a decoupled job's artifact without waiting for the next cron"
     - "2.9: Add the Reporting Rule to Design Constraints + a validation-checklist line — a skill that yields a surfaceable result (summary, batch, metrics) ends with a guarded mcp__trinity__report step (namespaced report_type, a display_hint, JSON payload) so scheduled/headless runs leave a visible record on the Trinity Reports tab; guarded to skip silently off-Trinity (reporting is an upgrade, never a gate)"
@@ -138,6 +139,13 @@ See **The Composition Rule** in Design Constraints. Never call another skill's `
 
 Default to project scope unless specified.
 
+### Step 5b: Library Target?
+
+Ask: **Is this skill destined for a shared skills library** — a catalog repo distributed to many agents — rather than just this agent?
+
+- If YES: apply **The Library-Grade Rule** (Design Constraints) during generation — the `requires:` frontmatter block, env-var-only credentials, named missing-key errors, no host-specific assumptions — and run its deterministic check before finishing.
+- If NO (default): proceed as agent-local.
+
 ### Step 6: Generate Skill
 
 Use the appropriate template:
@@ -163,6 +171,7 @@ Present summary before creating:
 **Automation**: [autonomous/gated/manual/n/a]
 **Location**: [path]
 **Self-Improving**: [yes/no]
+**Library-Grade**: [yes/no]
 
 **State Dependencies**: [list or "none"]
 **Process**: [N] steps
@@ -356,6 +365,32 @@ When gathering requirements for Tier 3 playbooks, ask: "Can this complete in und
 
 - **Guard it.** The tool exists only on Trinity (it publishes under the agent's own key). If `mcp__trinity__report` isn't available — e.g. running locally — skip the step **silently**. Reporting is an upgrade, never a gate: the skill must produce its result with or without Trinity.
 - **Not for conversational replies** — only result-producing and scheduled runs.
+
+**The Library-Grade Rule (shared skills library)**: A skill destined for a **shared skills library** — a catalog repo synced to many agents — is the same artifact held to a stricter portability contract. The consuming agent is unknown at authoring time: possibly headless, differently credentialed, on a different host. Library-grade skills MUST:
+
+- **Declare their contract in frontmatter** — a `requires:` block listing every env key the skill reads plus its runtime deps, so a platform or reviewer can check fulfillment before the skill ever runs:
+  ```yaml
+  requires:
+    env: [SLACK_BOT_TOKEN]      # every credential/config key the skill reads
+    packages: [playwright]      # runtime packages (pip/npm), if any
+    binaries: [ffmpeg]          # required executables, if any
+  ```
+  Keep `automation:` and `user-invocable` accurate — they are part of the same contract.
+- **Reference credentials only as named env vars** — never read `.env` or other credential files directly. The environment is the interface; how keys get there is the consuming platform's business, and coupling to the delivery mechanism breaks the skill the moment it changes.
+- **Fail with a named, actionable error when a key is missing** — e.g. "`SLACK_BOT_TOKEN` not set — add it to this agent's credentials" — never a silent skip or a generic failure.
+- **Never assume interactive credential acquisition** (`gcloud auth login`, browser OAuth) — the consuming agent may be headless.
+- **Materialize-from-env** when a tool demands a credential *file*: write the env var's content to a temp file at runtime and point the tool at it. The env var stays the contract; the file is the skill's own runtime artifact.
+- **Carry no host-specific assumptions** — no absolute paths, no workspace files not shipped inside the skill directory; reference bundled scripts via `${CLAUDE_SKILL_DIR}`.
+
+Deterministic pre-contribution check (env coherence + secrets):
+
+```bash
+# Env keys the skill actually references (excluding harness substitutions):
+grep -rhoE '[$]\{?[A-Z][A-Z0-9_]{2,}\}?' [path]/SKILL.md [path]/scripts/ 2>/dev/null \
+  | tr -d '${}' | sort -u | grep -v -e '^ARGUMENTS' -e '^CLAUDE_'
+```
+
+Every name in that list must appear in `requires.env` — and every declared key must actually be referenced (no decorative declarations). Then scan the skill directory for literal secrets (tokens, keys, passwords): there must be none. **A failed check is a blocker for contribution, never an advisory.**
 
 ---
 

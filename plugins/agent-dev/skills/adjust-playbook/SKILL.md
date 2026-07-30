@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[playbook-name] [what to change] [--archive]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.7"
+  version: "1.8"
   created: 2025-02-10
-  updated: 2026-07-07
+  updated: 2026-07-30
   author: Ability.ai
   changelog:
+    - "1.8: Add the Promote to Library-Grade adjustment (+ Step 3 change type) — audit a proven agent-local skill against /create-playbook's Library-Grade Rule (requires: frontmatter contract, env-var-only credentials, named missing-key errors, no host-specific assumptions), run the deterministic env-coherence + secret-scan check as a blocker, then prep the contribution to the library repo"
     - "1.7: Add the Long-Running-Task line to the Autonomous Validation Checklist — a headless run can't host a >~10-min job (auto-backgrounded past the ~10-min sync Bash ceiling, then reaped at turn-end); such work is decoupled to an OS-level cron/systemd/sidecar + done-marker and the run only triggers + verifies the artifact moved (mirrors /create-playbook 2.8)"
     - "1.6: On every change, prepend a newest-first changelog entry, bump metadata.version, and ensure the what's-new banner is present after the H1"
     - "1.5: Add Composition Rule support — Compose adjustment (replace inlined logic with a skill call), downstream-caller detection on breaking changes, transitive autonomous check"
@@ -106,6 +107,7 @@ From `$ARGUMENTS` or conversation context, identify:
 | **Add state** | "also track X", "read from Y" |
 | **Update checklist** | "add verification for Z" |
 | **Fix issue** | "it's failing because...", "handle the edge case" |
+| **Promote to library** | "make this library-grade", "prep it for the skills library" |
 
 If unclear, ask:
 ```
@@ -375,6 +377,18 @@ Invoke `/child-skill` (namespace cross-plugin: `/plugin:child-skill`).
 - Never call the child's `scripts/`/`reference.md`/templates directly — go through the entry point.
 
 See [The Composition Rule](../create-playbook/SKILL.md#design-constraints) and [Composing skills](../../README.md#composing-skills-hierarchical-playbooks).
+
+### Promote to Library-Grade
+
+When a proven agent-local skill should move to a **shared skills library** (a catalog repo distributed to many agents), audit it against [The Library-Grade Rule](../create-playbook/SKILL.md#design-constraints) and fix the gaps:
+
+1. **Add the `requires:` frontmatter block** — every env key the skill reads (`requires.env`), plus runtime deps (`requires.packages` / `requires.binaries`); verify `automation:` and `user-invocable` are accurate
+2. **Convert credential access to env-var-only** — replace any direct `.env`/credential-file reads and interactive auth assumptions; add named missing-key errors; materialize-from-env where a tool demands a credential file
+3. **Strip host-specific assumptions** — absolute paths, workspace files not shipped inside the skill directory; reference bundled scripts via `${CLAUDE_SKILL_DIR}`
+4. **Run the deterministic check** from the Library-Grade Rule (env coherence + secret scan) — any failure is a **blocker**, not an advisory
+5. **Prep the contribution** — copy the skill directory into the library repo per its contribution guide (changelog seeded, banner present) and open the PR there
+
+Promotion is non-breaking locally: the agent-local copy keeps working unchanged; the library copy is what gets reviewed.
 
 ### Fix an Issue
 
