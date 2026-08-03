@@ -62,8 +62,8 @@ argument-hint: "[optional args]"
 ```
 
 Key frontmatter fields:
-- `allowed-tools`: Comma-separated list (NOT YAML array)
-- `disable-model-invocation`: If true, Claude executes steps without additional reasoning
+- `allowed-tools`: tools granted permission-free use while the skill runs — space/comma-separated string or YAML list (both accepted; this repo's convention is comma-separated strings)
+- `disable-model-invocation`: if true, Claude never auto-invokes the skill — slash/user invocation only. Keep false on any scheduled skill (the scheduler's message reaches the skill via model invocation)
 - `argument-hint`: Shows users expected arguments
 
 ## Adding a New Plugin
@@ -85,7 +85,7 @@ Key frontmatter fields:
 
 ## Marketplace Registration (Critical)
 
-**Skills must be explicitly declared in `marketplace.json`.** Claude Code does NOT auto-discover skills from the `skills/` directory - they must be listed in a `skills` array for each plugin entry:
+**Skills are explicitly declared in `marketplace.json`.** Current Claude Code auto-discovers skills from a plugin's `skills/` directory, but this repo keeps the explicit `skills` array as a curated allowlist — it makes the registry reviewable and keeps older clients in sync. Keep it complete: a skill missing from the array is invisible on clients that honor the array as a subset filter:
 
 ```json
 {

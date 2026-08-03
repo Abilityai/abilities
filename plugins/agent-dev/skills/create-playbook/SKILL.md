@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.12"
+  version: "2.13"
   created: 2025-02-10
-  updated: 2026-07-30
+  updated: 2026-08-03
   author: Ability.ai
   changelog:
+    - "2.13: Trinity-first docs refresh (verified vs Claude Code 2.1.220) — ship the five tier templates as bundled supporting files (Step 6 pointed at a nonexistent templates/ dir; now ${CLAUDE_SKILL_DIR}/templates/); reframe the frontmatter reference as engine fields vs Trinity platform fields (add disallowed-tools, background:, ${CLAUDE_PROJECT_DIR}, allowed-tools grant semantics + accepted formats, name≡directory note; requires:/automation:/schedule: documented as platform contract, not caveat); replace the Routines advisory with the Trinity scheduling path (schedule: → template.yaml → create_agent_schedule; message invokes by slash name; timeout ≤ agent cap); add the Scheduled-Invocation Rule (scheduled playbooks keep disable-model-invocation: false, schedule messages use the slash name) and the Foreground-Fork Rule (headless-bound context: fork must set background: false — forks run in background by default since 2.1.218 and are reaped at turn-end) with matching validation-checklist lines; official supporting-file names in Step 4b; description/name coaching in Step 2"
     - "2.12: Add the Library-Grade Rule to Design Constraints + Step 5b library-target question — a skill destined for a shared skills library declares a requires: frontmatter contract (env keys, packages, binaries), references credentials only as named env vars (never .env reads, no interactive auth, materialize-from-env when a tool demands a credential file), fails with named missing-key errors, and passes a deterministic env-coherence + secret-scan check before contribution"
     - "2.11: New Step 9 registers the created skill in the agent's CLAUDE.md — Core Capabilities row + request-phrased Request Dispatch row when the table exists, and resolves the playbook-gap operator-queue item (playbook-gap-<slug>) the skill was created to close"
     - "2.10: Correct the stall-watchdog facts in the Long-Running-Task Rule — since trinity#1369 the no-output watchdog is 1800s (not 300s) and watches mcp__* tools only (Bash is unwatched, piping doesn't 're-arm' anything); add set_reminder as the Trinity-side way to verify a decoupled job's artifact without waiting for the next cron"
@@ -32,7 +33,7 @@ metadata:
 Create a new skill. Determines the right complexity tier and generates from the appropriate template.
 
 > For concepts and patterns, see the [README](../../README.md).
-> For template details, see [templates/](../../templates/).
+> Tier templates are bundled with this skill in [templates/](templates/) — reference them at runtime via `${CLAUDE_SKILL_DIR}/templates/`.
 
 ---
 
@@ -51,8 +52,8 @@ If similar skill exists, ask: update it, create variant, or proceed with new?
 
 Ask or extract from context:
 
-1. **Name**: lowercase-with-hyphens, descriptive
-2. **Purpose**: One sentence - what does it accomplish?
+1. **Name**: lowercase-with-hyphens, descriptive. For project/personal skills the **directory name is the command** (`name:` is display-only); for plugin skills `name:` sets the command segment — keep name and directory identical so they never drift.
+2. **Purpose** → the `description:` field: third person, *what it does + when to use it*, key use case first — the skill listing truncates `description` + `when_to_use` at 1,536 characters.
 3. **Tools needed**: Which tools will it use?
 
 ### Step 3: Determine Complexity Tier
@@ -100,7 +101,7 @@ Ask these questions to classify:
 
 Ask: Does this skill need supporting files (templates, example outputs, helper scripts)?
 
-- If YES: plan a `scripts/`, `examples/`, or `reference.md` alongside SKILL.md, referenced from the main file so Claude knows when to load them. Keep SKILL.md under 500 lines — move large reference material to separate files.
+- If YES: plan supporting files alongside SKILL.md using the official names — `reference.md` (detailed docs), `examples.md` (usage examples), `scripts/` (executables), `templates/` (files to fill in) — each referenced from SKILL.md so Claude knows when to load them (they load only when referenced, never automatically). Point at bundled scripts via `${CLAUDE_SKILL_DIR}`. Keep SKILL.md under 500 lines — move large reference material to separate files.
 - If NO: proceed.
 
 ### Step 4c: Self-Improvement Option
@@ -148,17 +149,17 @@ Ask: **Is this skill destined for a shared skills library** — a catalog repo d
 
 ### Step 6: Generate Skill
 
-Use the appropriate template:
+Read the appropriate template (bundled with this skill) and fill in the gathered requirements:
 
 | Tier | Template |
 |------|----------|
-| 1 | `templates/simple-skill.md` |
-| 2 | `templates/stateful-skill.md` |
-| 3 (autonomous) | `templates/autonomous-template.md` |
-| 3 (gated) | `templates/gated-template.md` |
-| 3 (manual) | `templates/manual-template.md` |
+| 1 | `${CLAUDE_SKILL_DIR}/templates/simple-skill.md` |
+| 2 | `${CLAUDE_SKILL_DIR}/templates/stateful-skill.md` |
+| 3 (autonomous) | `${CLAUDE_SKILL_DIR}/templates/autonomous-template.md` |
+| 3 (gated) | `${CLAUDE_SKILL_DIR}/templates/gated-template.md` |
+| 3 (manual) | `${CLAUDE_SKILL_DIR}/templates/manual-template.md` |
 
-Fill in the template with gathered requirements.
+Replace every `[bracketed]` placeholder; drop optional sections (e.g. `## Composes`) that don't apply.
 
 ### Step 7: Confirm and Create
 
@@ -191,7 +192,7 @@ After confirmation:
 cat [path]/SKILL.md | head -20
 ```
 
-Edits to existing skill files hot-reload without restart. A restart is only needed if the top-level skills directory (`~/.claude/skills/` or `.claude/skills/`) didn't exist before this session.
+Edits to existing skill files hot-reload without restart. A restart is only needed if the top-level skills directory (`~/.claude/skills/` or `.claude/skills/`) didn't exist before this session. Plugin-hosted skills refresh with `/reload-plugins`.
 
 ### Step 9: Register in the Agent's CLAUDE.md
 
@@ -250,8 +251,9 @@ user-invocable: true
 ---
 name: playbook-name
 description: What it does
-automation: gated        # project convention (see note below)
-schedule: "0 9 * * 1"    # project convention, optional
+automation: gated        # Trinity platform field (see note below)
+schedule: "0 9 * * 1"    # Trinity platform field, optional
+disable-model-invocation: false   # keep false for scheduled playbooks (Scheduled-Invocation Rule)
 allowed-tools: [tools]   # include `Skill` if it invokes other skills
 effort: high             # optional: low/medium/high/xhigh/max
 user-invocable: true
@@ -273,18 +275,20 @@ user-invocable: true
 
 ---
 
-## Frontmatter: Official vs Project Conventions
+## Frontmatter: Engine Fields vs Trinity Platform Fields
 
-Skills here use a mix of official Claude Code frontmatter and project-specific fields.
+Skills here run on the Claude Code engine and deploy to the Trinity platform, and their frontmatter mixes both layers — **both are load-bearing**. The engine ignores unknown frontmatter by design, so platform fields are safe extensions, not hacks.
 
-**Official Claude Code fields** (https://code.claude.com/docs/en/skills.md):
-- `name`, `description`, `allowed-tools`, `argument-hint`
-- `user-invocable`, `disable-model-invocation`
+**Engine fields** (Claude Code — https://code.claude.com/docs/en/skills.md):
+- `name`, `description`, `argument-hint`
+- `allowed-tools` — a permission *grant*: listed tools run without prompts while the skill's turn is active, and the grant clears on the next user message. It does **not** restrict Claude to those tools. Accepts space/comma-separated strings or YAML lists; supports Bash rule syntax (`Bash(git add *)`) and `${CLAUDE_SKILL_DIR}` substitution
+- `disallowed-tools` — the actual restriction: tools removed while the skill is active
+- `user-invocable`, `disable-model-invocation` — ⚠️ scheduled playbooks must keep `disable-model-invocation: false` (see the Scheduled-Invocation Rule)
 - `when_to_use` — additional trigger context; combined with `description`, capped at 1,536 chars in skill listing
 - `arguments` — named positional args: `arguments: [issue, branch]` → `$issue`, `$branch` in content
-- `model`, `effort` — override model/effort level (`low`/`medium`/`high`/`xhigh`/`max`)
+- `model`, `effort` — override model/effort while the skill is active (`model: inherit` keeps the session model; effort `low`/`medium`/`high`/`xhigh`/`max`)
 - `shell` — `bash` (default) or `powershell` for `!` command blocks
-- `context: fork` + `agent:` — run the skill in a subagent
+- `context: fork` + `agent:` + `background:` — run the skill in a subagent; forks run in the **background by default** — set `background: false` for anything bound for scheduled/headless use (see the Foreground-Fork Rule)
 - `paths:` — glob patterns to scope auto-activation
 - `hooks:` — skill-scoped lifecycle hooks
 
@@ -293,16 +297,18 @@ Skills here use a mix of official Claude Code frontmatter and project-specific f
 - `$name` — named arg from `arguments:` frontmatter
 - `${CLAUDE_SESSION_ID}` — current session ID
 - `${CLAUDE_EFFORT}` — active effort level
-- `${CLAUDE_SKILL_DIR}` — absolute path to the skill's directory (use for bundled scripts)
+- `${CLAUDE_SKILL_DIR}` — absolute path to the skill's directory (use for bundled scripts and templates)
+- `${CLAUDE_PROJECT_DIR}` — project root (the same path hooks receive)
 
-**Project-specific (not official Claude Code)**:
+**Trinity platform fields** (this plugin's playbook model — read by the platform and fleet tooling, not by the engine):
 - `metadata:` block with `version`, `changelog` (newest-first), `author` — **required on every skill**: bump `version` and prepend a `changelog` entry on each edit, and pair it with the what's-new banner after the H1 (see the repo `CLAUDE.md` → "Skill Changelog & What's-New Banner")
 - `automation: autonomous | gated | manual`
-- `schedule: "<cron>"`
+- `schedule: "<cron>"` — the durable schedule declaration; see below
+- `requires:` — the library-grade dependency contract (env keys, packages, binaries) — see the Library-Grade Rule
 
-The project fields are load-bearing for the `agent-dev` plugin's playbook model. They work locally but won't be recognized by tooling that only reads official Claude Code frontmatter. Anthropic's official path for cloud-hosted scheduled execution is **Routines** — create one with `/schedule` in the CLI or at claude.ai/code/routines. Routines run on Anthropic infrastructure without a local machine.
+**How a `schedule:` becomes a live schedule (Trinity):** the per-skill `schedule:` feeds the agent's `template.yaml` `schedules:` block — the durable/discovery copy, which Trinity never reads at agent creation. `/trinity:onboard` / `/trinity:sync` materialize it into live schedules via `create_agent_schedule`. The schedule's `message` is the prompt the agent receives — **it must invoke the skill by its slash name** — and its `timeout_seconds` must fit the agent's execution cap (default 3600s). The skill must also work when invoked manually, without Trinity — Trinity is the upgrade, never the gate.
 
-When generating Tier 3 playbooks, keep the project fields (the rest of the plugin depends on them) and optionally add official fields like `model:`, `context: fork`, or `paths:` when they fit.
+When generating Tier 3 playbooks, keep the platform fields (the rest of the plugin depends on them) and add engine fields like `model:`, `context: fork`, or `paths:` when they fit.
 
 ---
 
@@ -336,6 +342,7 @@ After completing this skill's primary task, consider tactical improvements:
 - If a task is larger, break it into multiple scheduled runs (e.g., "process 50 items" not "process all items")
 - Build checkpoints where state is saved — if interrupted, the next run can resume
 - Long processes → multiple scheduled tasks with handoff via state files
+- On Trinity this is a hard ceiling, not just a heuristic: a schedule's `timeout_seconds` must fit the agent's execution cap (default 3600s / 60 min) — 45 minutes is the headroom that survives it
 
 When gathering requirements for Tier 3 playbooks, ask: "Can this complete in under 45 minutes? If not, how should we chunk it?"
 
@@ -344,6 +351,11 @@ When gathering requirements for Tier 3 playbooks, ask: "Can this complete in und
 - Autonomous playbooks MUST NOT contain any `[APPROVAL GATE]` markers
 - If the workflow needs human approval at any point, it MUST be `gated` or `manual`, not `autonomous`
 - When user requests autonomous + approval gates, explain the incompatibility and ask them to choose
+
+**The Scheduled-Invocation Rule**: A scheduled playbook must stay invocable by the scheduler:
+
+- Keep `disable-model-invocation: false` (the default). A natural-language schedule message reaches the skill through *model* invocation, which `disable-model-invocation: true` blocks — it also blocks preloading into subagents.
+- Write the schedule `message` to invoke the skill by its **slash name** (`/skill-name args`), never as a paraphrase — on Trinity a message naming a missing skill fails loudly as `SKILL_NOT_FOUND`; a paraphrase that half-matches just drifts silently.
 
 **The Single-Task Rule for Scheduled Skills**: Autonomous playbooks execute in a single context window. Iterating over multiple *different* tasks (e.g., "process all backlog items") fills that window with context from each prior item, adding noise to every subsequent step.
 
@@ -358,6 +370,8 @@ When gathering requirements for Tier 3 playbooks, ask: "Can this complete in und
 - **≤ ~10 min:** run it as one **foreground, un-piped, streaming** Bash call, in-turn. Don't pipe through `tail`/`grep` (buffers output and hides live progress from the transcript).
 - **> ~10 min** (a FAISS/index rebuild, full bootstrap, bulk embedding, a big migration): it **must run outside the agent turn** — an **OS-level job** (container cron / systemd unit / small non-LLM sidecar) that builds the artifact and writes a **done-marker**. The scheduled skill only **triggers it and does the fast parts**: check the marker / artifact freshness and, if fresh, run the quick follow-ups. On Trinity, the triggering run can also `set_reminder` (one-shot deferred self-trigger, trinity#1296) to come back and verify the artifact landed instead of waiting for the next cron tick.
 - **Always verify the artifact moved** (mtime advanced *and* a stats count > 0) before declaring success — never trust the exit code or `business_status`. A run that ends without the artifact changing is a **failure**, not a `skipped`.
+
+**The Foreground-Fork Rule (headless forks)**: `context: fork` skills run in the **background by default**. A headless/scheduled run is one agent turn, and turn-end reaps every background task (see the Long-Running-Task Rule) — so a scheduled playbook that invokes a background-forked skill can silently lose it. Any skill that uses `context: fork` and is bound for scheduled/headless use — or is composed by a playbook that is — must set `background: false` (wait for the fork's result in-turn), or not fork at all.
 
 **The Composition Rule**: When a playbook needs work another skill already does, it **invokes that skill by name** (``Invoke `/child-skill` ``, `Skill` in `allowed-tools`) — it never inlines the child's steps, calls its internal scripts/files directly, or paraphrases what it does. The parent holds only the orchestration; the child stays the single source of truth, so its fixes propagate automatically. Call the unversioned name to ride latest; pin `/child-vN` only to freeze. Composition is a DAG (no cycles, keep it shallow). See [Composing skills](../../README.md#composing-skills-hierarchical-playbooks) for the full rule.
 
@@ -407,6 +421,8 @@ Before generating any autonomous playbook, verify:
 - [ ] **Idempotent or safe to retry** — can re-run without causing duplicate effects
 - [ ] **Single-task scope** — processes one task type per invocation; iteration over varied items happens across invocations, not within one
 - [ ] **Composed children are autonomous-safe** — autonomy is transitive: recurse into every `/invoked` skill; none of them may contain `[APPROVAL GATE]` or human decision points, and the whole tree must fit the 45-minute / single-task budget
+- [ ] **Invocable when scheduled** — `disable-model-invocation` is false/absent, and the schedule message invokes the skill by slash name (the Scheduled-Invocation Rule)
+- [ ] **No background forks** — the skill and every composed child using `context: fork` sets `background: false` (the Foreground-Fork Rule) — a background fork is reaped at turn-end in a headless run
 - [ ] **Result-producing runs report** — a skill that yields a surfaceable result ends with a guarded `mcp__trinity__report` step (the Reporting Rule), skipped silently when the tool is absent — so a scheduled/headless run leaves a visible record on the Reports tab
 
 If any check fails, the playbook cannot be autonomous. Recommend `gated` instead.

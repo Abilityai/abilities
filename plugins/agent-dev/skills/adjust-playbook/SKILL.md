@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[playbook-name] [what to change] [--archive]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.8"
+  version: "1.9"
   created: 2025-02-10
-  updated: 2026-07-30
+  updated: 2026-08-03
   author: Ability.ai
   changelog:
+    - "1.9: Trinity-first docs refresh (verified vs Claude Code 2.1.220) — new Change Invocation & Context Controls adjustment (context: fork / agent / background, paths, user-invocable, disable-model-invocation, disallowed-tools) with two guards: disable-model-invocation: true breaks a scheduled playbook (the scheduler's message reaches the skill via model invocation), and a headless-bound context: fork without background: false loses the fork at turn-end (forks background by default since 2.1.218); autonomous validation checklist gains matching scheduled-invocation + foreground-fork lines; Routines advisory replaced with the Trinity scheduling path (schedule: → template.yaml → create_agent_schedule, message invokes by slash name, timeout ≤ agent cap); Step 1 also scans plugins/*/skills/; model override notes model: inherit"
     - "1.8: Add the Promote to Library-Grade adjustment (+ Step 3 change type) — audit a proven agent-local skill against /create-playbook's Library-Grade Rule (requires: frontmatter contract, env-var-only credentials, named missing-key errors, no host-specific assumptions), run the deterministic env-coherence + secret-scan check as a blocker, then prep the contribution to the library repo"
     - "1.7: Add the Long-Running-Task line to the Autonomous Validation Checklist — a headless run can't host a >~10-min job (auto-backgrounded past the ~10-min sync Bash ceiling, then reaped at turn-end); such work is decoupled to an OS-level cron/systemd/sidecar + done-marker and the run only triggers + verifies the artifact moved (mirrors /create-playbook 2.8)"
     - "1.6: On every change, prepend a newest-first changelog entry, bump metadata.version, and ensure the what's-new banner is present after the H1"
@@ -49,6 +50,9 @@ ls .claude/skills/$0/SKILL.md 2>/dev/null
 
 # Check personal skills
 ls ~/.claude/skills/$0/SKILL.md 2>/dev/null
+
+# Check plugin skills (when inside a plugin/marketplace repo)
+ls plugins/*/skills/$0/SKILL.md 2>/dev/null
 ```
 
 If not provided or not found, list available playbooks:
@@ -61,6 +65,11 @@ done
 echo "=== Personal Playbooks ==="
 for d in ~/.claude/skills/*/; do
   [ -f "$d/SKILL.md" ] && grep -l "automation:" "$d/SKILL.md" 2>/dev/null && basename "$d"
+done
+
+echo "=== Plugin Playbooks (when inside a plugin/marketplace repo) ==="
+for d in plugins/*/skills/*/; do
+  [ -f "$d/SKILL.md" ] && grep -l "automation:" "$d/SKILL.md" 2>/dev/null && echo "$d"
 done
 ```
 
@@ -284,8 +293,10 @@ Autonomous playbooks run unattended — there is no human to approve gates. Befo
 - [ ] **Idempotent or safe to retry** — can re-run without causing duplicate effects
 - [ ] **Single-task scope** — processes one task type per invocation; iteration over varied items happens across invocations, not within one
 - [ ] **Composed children are autonomous-safe** — autonomy is transitive: recurse into every `/invoked` skill; none may contain `[APPROVAL GATE]` or human decision points, and the whole tree must fit the 45-minute / single-task budget
+- [ ] **Invocable when scheduled** — `disable-model-invocation` is false/absent, and the schedule message invokes the skill by slash name — a natural-language message reaches the skill via model invocation, which `disable-model-invocation: true` blocks
+- [ ] **No background forks** — the skill and every composed child using `context: fork` sets `background: false` — a background fork is reaped at turn-end in a headless run
 
-> **Alternative**: For cloud-hosted scheduled execution without a local machine, use Anthropic's Routines (`/schedule` in CLI). The project `schedule:` field runs locally; Routines run on Anthropic infrastructure.
+> **How schedules go live (Trinity):** the `schedule:` field is the durable declaration — it feeds the agent's `template.yaml` `schedules:` block, and `/trinity:onboard` / `/trinity:sync` materialize it into live schedules via `create_agent_schedule`. The schedule's `message` must invoke the skill by its slash name, and its `timeout_seconds` must fit the agent's execution cap (default 3600s). The skill must also work when invoked manually — Trinity is the upgrade, never the gate.
 
 If existing playbook has approval gates, you MUST either:
 1. Remove all `[APPROVAL GATE]` sections (and their associated user interaction steps)
@@ -319,7 +330,9 @@ Update frontmatter:
 schedule: "0 9 * * 1-5"  # Weekdays at 9am
 ```
 
-Provide cron reference if user needs it.
+Provide cron reference if user needs it (5-field, standard syntax).
+
+On Trinity, editing frontmatter changes only the durable declaration — the live schedule updates when `/trinity:sync` reconciles it (or via `update_agent_schedule` directly). Keep the schedule's `message` invoking the skill by slash name.
 
 ### Add State Dependency
 
@@ -342,7 +355,7 @@ Add item to Completion Checklist:
 Update frontmatter to override model or effort level for this skill's invocations:
 
 ```yaml
-model: sonnet        # or opus, haiku, or a full model ID
+model: sonnet        # or opus, haiku, a full model ID, or `inherit` to keep the session model
 effort: high         # low / medium / high / xhigh / max
 ```
 
@@ -362,6 +375,25 @@ hooks:
 ```
 
 All standard hook events are supported. These hooks fire only while the skill is loaded.
+
+### Change Invocation & Context Controls
+
+Engine frontmatter controlling who can invoke the skill and where it runs:
+
+```yaml
+user-invocable: false          # hide from the / menu (background knowledge)
+disable-model-invocation: true # user-only — Claude won't auto-invoke it
+paths: ["src/frontend/**"]     # auto-activate only when working under matching paths
+disallowed-tools: WebSearch    # remove tools while the skill is active
+context: fork                  # run in an isolated subagent
+agent: Explore                 # subagent type for the fork (Explore/Plan skip CLAUDE.md)
+background: false              # wait for the fork's result in-turn (forks background by default)
+```
+
+Two guards before applying:
+
+- **⚠️ `disable-model-invocation: true` on a scheduled playbook breaks the schedule** — the scheduler's natural-language message reaches the skill via model invocation. If `automation:`/`schedule:` indicate a scheduled skill, refuse and explain (see create-playbook's Scheduled-Invocation Rule).
+- **⚠️ `context: fork` without `background: false` on a headless-bound skill loses the fork** — forks run in the background by default, and turn-end reaps them in a headless run. Require `background: false` (or no fork) for anything scheduled or composed by a scheduled playbook.
 
 ### Replace Inlined Logic with a Skill Call (Compose)
 
