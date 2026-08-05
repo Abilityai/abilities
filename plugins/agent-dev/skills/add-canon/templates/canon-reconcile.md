@@ -4,10 +4,11 @@ description: "Scheduled freshness pass over this agent's own folder in the share
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, mcp__trinity__report
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.3: Relation docs (docs/relations/*.md, CONVENTIONS.md § Relations) reconcile mechanically — they are self-sourced (the owner's log IS the record; no external source to re-verify): enforce the 10-event cap (fold overflow into Earlier:), flag any Open-threads item older than 30 days as a NEEDS-REVIEW row — the dropped-thread alarm the convention exists for — and treat a rel doc past review_by: with no new events as dormant, not wrong (push review_by: forward, content untouched); report gains a relations line when threads have aged"
     - "1.2: Two-zone schema + linter-first — new Step 1b runs the canon repo's deterministic linter scoped to this folder (tools/canon-lint, seeded by /add-canon-lint): its staleness findings become the verification worklist (never re-derive what it already proved) and its other FAILs are repaired mechanically where safe (envelope stamps, ownership) or flagged; Step 2 walks facts.yaml entries as the primary verification units (each entry's source) plus canonical docs, with three outcomes per item — verified (push review_by +30d), changed (update value/content + updated: today + review_by forward), unverifiable (NEEDS-REVIEW.md row); drafts and superseded items are skipped by design; v1-contract folders (verified: stamps, no facts.yaml) still reconcile the old way with a migration note in the report"
     - "1.1: Deploy-ready auth — self-heal clone inherits /canon-publish v1.1's auth-aware resolution (gh → GH_TOKEN/GITHUB_TOKEN credential helper → plain https); git-identity fallback before commit; auth-failure reports name the headless fix (GH_TOKEN via .env + inject_credentials) and /canon-doctor — never an interactive gh auth login a scheduled run can't execute"
     - "1.0: Initial version — walks the own folder, verifies each file against its source: front-matter (workspace path, API, doc), three outcomes (verified → bump verified:, changed → edit + bump both stamps, unverifiable → NEEDS-REVIEW.md row, never a guess), own-folder-only commit + push, guarded Trinity report; self-heals a missing clone from x-canon.repo (fresh deploys)"
@@ -55,6 +56,11 @@ Three outcomes, exactly one per item:
    - **Changed** → edit the `value`/content to match reality, set `updated:` today **and** push `review_by:` forward.
    - **Unverifiable** (source unreachable, `manual`, ambiguous) → leave stamps alone; upsert one row into `agents/<name>/NEEDS-REVIEW.md` (`| item (fact key or file) | why unverifiable | since |` — dedup on item, keep the earliest `since`). A verified-later item gets its row removed.
 
+**Relation docs** (`docs/relations/*.md` — CONVENTIONS.md § Relations) are **self-sourced**: the owner's log *is* the record, so there is no external source to re-verify. Reconcile them mechanically instead:
+   - **Cap** — more than 10 events → fold the oldest into the `Earlier:` rolling summary.
+   - **Open-thread aging** — any Open-threads item older than 30 days is the dropped-thread alarm this convention exists for: upsert a NEEDS-REVIEW.md row (`relation <counterpart>: thread open since <date> — <one-line ask>`) and count it as flagged. Never resolve or delete the thread itself — whether it's truly dead is the owner's call, made in conversation, not on a schedule.
+   - **Dormancy** — a rel doc past `review_by:` with no new events is *dormant, not wrong*: push `review_by:` forward and leave content untouched; the event dates already say how current the relationship is.
+
 Never invent a fact to fill a gap, and never delete a published fact just because its source is unreachable today — that's what the flag is for. **v1-contract folder** (old `verified:` stamps, no `facts.yaml`): reconcile the old way (bump `verified:`) and add one migration-nudge line to the report.
 
 ### Step 3: Publish (own folder only)
@@ -76,6 +82,7 @@ Nothing to commit (all verified, no stamp older than today) → fine, report and
 Canon reconcile — agents/<name>/ @ canon@<short-sha>
   lint: <clean | <n> findings — <m> repaired, <k> flagged | no linter (/add-canon-lint)>
   verified unchanged: <V>   updated: <U>   flagged unverifiable: <F>
+  relations: <r> doc(s) · <t> open thread(s) aged >30d   (omit line when no relation docs)
   needs-review rows: <total open>   pushed: <yes | no — local only | error>
 ```
 

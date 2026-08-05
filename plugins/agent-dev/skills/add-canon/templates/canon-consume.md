@@ -1,14 +1,15 @@
 ---
 name: canon-consume
-description: "Read published canonical data from the fleet's shared canon repo — another agent's folder or a protocol — always fresh (pull first) and always cited at canon@<short-sha>, answering from the owner's facts.yaml (the structured claims zone) before opening prose, with staleness flagged from review_by: dates. Read-only."
+description: "Read published canonical data from the fleet's shared canon repo — another agent's folder or a protocol — always fresh (pull first) and always cited at canon@<short-sha>, answering from the owner's facts.yaml (the structured claims zone) before opening prose, with staleness flagged from review_by: dates. `<agent> relations` serves both sides of a collaboration record with divergence named. Read-only."
 allowed-tools: Read, Bash, Glob, Grep
 user-invocable: true
 argument-hint: "<agent-or-protocol> [path]"
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.3: Relations mode — `/canon-consume <agent> relations` serves both sides of a collaboration record (the counterpart's docs/relations/<self>.md and this agent's own docs/relations/<counterpart>.md) and notes divergence explicitly — open threads or events one side logged that the other didn't are the dropped-thread signal CONVENTIONS.md § Relations defines; plain agent reads gain a one-line footer when a relation pair exists"
     - "1.2: Two-zone fast path — resolve against the owner's facts.yaml first (key/value entries are the claims the fleet may rely on; cite the fact key in the citation) and open docs/ prose only when the question needs the explanation behind the claim; staleness now reads per-item review_by: dates (canonical + past due = flagged) instead of a blanket 30-day bound, with the verified:-stamp rule kept as fallback for v1-contract folders; status honored — draft and superseded items are never served as current fact"
     - "1.1: Self-heal clone inherits /canon-publish v1.1's auth-aware resolution (gh when logged in → GH_TOKEN/GITHUB_TOKEN credential helper → plain https for public repos), so a deployed instance can re-clone a private canon; clone failures point at /canon-doctor"
     - "1.0: Initial version — fresh read (pull --ff-only, degrade to last-known ref offline), fuzzy target resolution across agents/ and protocols/, citation at canon@<short-sha>, staleness flags from verified: stamps against the CONVENTIONS.md bound; self-heals a missing clone from x-canon.repo (fresh deploys)"
@@ -40,6 +41,8 @@ On failure, continue with the local copy but **say so** — the citation then re
 2. Else `protocols/<arg>*` matches → that protocol file.
 3. Else fuzzy: case-insensitive substring match over `agents/*/` names and `protocols/*` filenames. One hit → use it, noting the resolution. Multiple → list them and ask. Zero → list what *is* published (`ls agents/ protocols/`) and stop — **don't guess, and don't fall back to private sources silently**; if the data isn't in canon, say it isn't published and suggest asking the owning agent (or `/orchestrate` in orchestrator fleets).
 
+**Relations mode** — `[path]` is the literal word `relations` (e.g. `/canon-consume dev relations`): serve **both sides** of the collaboration record (CONVENTIONS.md § Relations) — the counterpart's view of this agent, `agents/<arg>/docs/relations/<self>.md`, and this agent's own view, `agents/<self>/docs/relations/<arg>.md` (`<self>` from `x-canon.folder`). Then compare the pair and **name the divergence explicitly**: open threads or events one side logged that the other didn't — that asymmetry is the dropped-thread signal the convention exists to surface. One side missing → say which side has no record; both missing → "no relationship record on either side — starts on first real interaction." Reading the own view here is fine (still read-only); appending the current interaction to it is `/canon-publish`'s job, not this skill's.
+
 ### Step 3: Read and cite — facts first, prose second
 
 **Fast path:** if the target folder has `facts.yaml`, check whether its entries answer the question — they are precisely the claims the owner published for the fleet to rely on. Serve from a matching entry (`status: canonical` only — never serve `draft` or `superseded` as current fact; note a `superseded` hit as history) and cite the key:
@@ -68,7 +71,7 @@ Per-item: anything `canonical` whose `review_by:` date is past gets a visible fl
 
 ### Step 5: Report
 
-Answer the actual question from the consumed data, citations inline, stale flags where they apply, and a one-line footer: `source: canon@<sha> · <n> file(s) from agents/<owner>/ (and protocols/ if used)`.
+Answer the actual question from the consumed data, citations inline, stale flags where they apply, and a one-line footer: `source: canon@<sha> · <n> file(s) from agents/<owner>/ (and protocols/ if used)`. On a plain agent read (not relations mode), if a relation pair exists between this agent and the target, add one footer line: `relations: collaboration record exists on <both sides | their side only | your side only> — /canon-consume <agent> relations`.
 
 ## Error handling
 
