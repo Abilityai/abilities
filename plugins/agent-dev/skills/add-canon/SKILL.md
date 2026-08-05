@@ -4,10 +4,11 @@ description: Give any agent a shared canonical-data layer — installs /canon-pu
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.5: Content guidance — the layer now teaches *what's worth publishing*, not just how (field evidence: fleets fill facts.yaml with self-describing registry data while docs/ and protocols/ sit empty): CONVENTIONS.md template gains a 'What belongs here (the publish test)' section — would another agent decide something differently knowing this? — with the four content types that earn their place (stewarded domain facts · settled positions with the why · protocols · open needs as docs/open-needs.md) and the two anti-patterns (self-describing registry data; process state, which belongs in messages/events, not a durable repo); canon-publish 1.3 applies the test as Step 4's first review gate; the seeded facts.yaml stub carries the test inline; Step 10 next-steps reworded from 'mirror the claims others depend on' to 'publish what others would decide differently on'"
     - "1.4: Two-zone lintable schema (Eugene decision 2026-07-29, ent#274) — every agents/<name>/ folder now follows the schema deterministic linting can enforce: facts.yaml (the purely lintable zone — structured claims with key/value/status/updated/review_by/source; keys are lowercase dotted subject.relation with one home across all folders) + docs/ prose with a linted front-matter envelope (owner/status/updated/review_by/tldr; statuses canonical|draft|superseded separate conviction levels — drafts may not be linked from profile.md) + files/ referenced artifacts; Step 4 seeds profile.md with the new envelope and an empty facts.yaml; CONVENTIONS.md template carries the full Lintable structure section (folder schema, restricted flat-YAML grammar, staleness via per-item review_by instead of a blanket 30-day bound); enforcement installs separately via the new sibling /add-canon-lint (deterministic linter + CI + optional required check) — runtime skills 1.2 gate publishes on it locally"
     - "1.3: Live-delivery guarantee — repo HEAD is not the running container: the reconcile schedule message now begins with git pull --ff-only, so even a container that never pulled since enrollment fetches the canon skills in the same run that first needs them (Step 8; every enrolled target inherits it); Step 9 delivery ends with an activation offer — run the orchestrator's /sync-fleet-to-head (or, without it, message each running enrolled agent to pull via Trinity MCP) so the fleet carries the skills in minutes instead of waiting for the next session or cron; enrollment summary gains live-delivery and undeliverable lines so agents that cannot receive the rollout (no git sync on Trinity, local-only container HEAD) are named, never silent"
     - "1.2: Access verification + deployment credential story — preflight checks gh auth (not just presence); adopting an existing github: canon runs a write probe (gh api permissions.push) and hard-stops before seeding when write access is missing; new /canon-doctor runtime skill (fourth in the set) — nine-check PASS/WARN/FAIL ladder incl. a push --dry-run write probe, context-aware fixes, dispatchable fleet-wide; new Step 6b seeds GH_TOKEN= into .env.example and documents the fine-grained-PAT + inject_credentials path so deployed instances can self-heal the clone and push; runtime skills v1.1 authenticate headlessly via a GH_TOKEN credential helper, add a git-identity fallback, and never prescribe interactive fixes to scheduled runs; fleet enrollment installs the doctor + seeds each target's .env.example, and its summary carries a credentials line"
@@ -155,7 +156,7 @@ if [ ! -d "agents/$FOLDER_NAME" ]; then
     > "agents/$FOLDER_NAME/profile.md"
 fi
 [ -f "agents/$FOLDER_NAME/facts.yaml" ] || \
-  printf '# purely lintable zone — the claims other agents may rely on (see CONVENTIONS.md)\nfacts: []\n' \
+  printf '# purely lintable zone — the claims other agents may rely on (see CONVENTIONS.md)\n# publish test: would another agent decide something differently knowing this?\n# if it only describes this agent (version, schedule counts), keep it out of canon\nfacts: []\n' \
     > "agents/$FOLDER_NAME/facts.yaml"
 
 # CODEOWNERS: add the folder line as a comment until a human handle is known — never fabricate a reviewer
@@ -294,9 +295,10 @@ Print:
 
 ### Next steps
 1. Fill agents/<name>/profile.md — what this agent publishes and what others may rely on.
-2. Move the first real facts out of working memory: mirror the claims others depend on into
-   facts.yaml (key/value/status/updated/review_by/source), back them with docs/ prose, then
-   /canon-publish.
+2. Publish what others would decide differently on (CONVENTIONS.md § What belongs here):
+   stewarded domain facts, settled decisions with the why, protocols, open needs — as
+   facts.yaml entries (key/value/status/updated/review_by/source) backed by docs/ prose,
+   then /canon-publish. Registry data about yourself (version, schedule counts) stays out.
 3. Fill the CODEOWNERS line with the human counterpart's GitHub handle.
 3b. Once per fleet: run /add-canon-lint against the canon repo — deterministic linting on
    every push (internal consistency), leaving /canon-reconcile the external-truth residual.

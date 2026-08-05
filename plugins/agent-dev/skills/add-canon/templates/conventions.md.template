@@ -29,6 +29,38 @@ lint/ tools/ .github/   # deterministic linting, once /add-canon-lint has seeded
   in pre-schema folders. Everything after belongs to the owner.
 - Git history is the audit trail: no force-pushes, no history rewrites, ever.
 
+## What belongs here (the publish test)
+
+The structure below says *how* to publish; this section says *what's worth publishing*.
+The test, for every candidate fact or doc: **would another agent — or a human — decide
+something differently knowing this?** If yes, publish it. If it only describes you, it
+belongs in your workspace, not here.
+
+Four kinds of content earn their place:
+
+1. **Stewarded domain facts** — every agent is the fleet's sensor for some slice of
+   reality (pipeline counts, pricing floors, client health, routing rules). Publish the
+   *reading*, not the sensor's configuration.
+2. **Settled positions, with the why** — decisions taken, options rejected, exclusions
+   and their rationale, each with provenance. This is what stops re-litigation and what
+   a new agent inherits on day one. Keep conviction honest: an active exploration is
+   `draft`; a settled position is `canonical`.
+3. **Protocols** — every *recurring* cross-agent interaction (how to request research,
+   how a handoff escalates) deserves a contract file under `protocols/`. Highest
+   leverage per byte in this repo.
+4. **Open needs** — what you need and cannot produce yourself ("need primary-source
+   data on X"), published as `docs/open-needs.md` and linked from your profile, so
+   other agents can fill gaps unprompted instead of waiting to be asked.
+
+Two anti-patterns account for most low-value canon:
+
+- **Self-describing registry data** — your version, your schedule count, your internal
+  cadences. Nobody decides differently knowing them, and they rot within weeks. (Apply
+  the test honestly: an escalation channel or a routing rule *does* pass it.)
+- **Process state** — active runs, pending requests, this-week focus. That is
+  coordination traffic for messages and events; in a durable repo it is stale residue
+  within hours.
+
 ## Lintable structure
 
 > The two-zone schema below is the convention every folder follows. It becomes

@@ -4,10 +4,11 @@ description: "Publish this agent's canonical data — freshen the shared canon r
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.3: Publish test as the first review gate (Step 4) — before stamping, each new/changed claim must pass 'would another agent decide something differently knowing this?'; self-describing registry data (agent version, schedule counts, internal cadences) is working state and stays out of the publish, reported rather than silently committed; process state (active runs, pending requests) never publishes — it belongs in messages/events, not a durable repo"
     - "1.2: Two-zone schema + local lint gate — stamping follows the new contract (docs: owner/status/updated/review_by/tldr envelope; facts.yaml entries: key/value/status/updated/review_by/source; updated: today on content change, review_by: pushed +30 days when it's missing or past); new Step 4b runs the canon repo's deterministic linter (tools/canon-lint, seeded by /add-canon-lint) scoped to this folder before any push — lint FAILs stop the publish (this local gate is what CI cannot be for direct own-folder pushes); linter absent → note /add-canon-lint once and continue; v1-contract folders (verified:/source:, no facts.yaml) still publish, with a one-line migration nudge"
     - "1.1: Deploy-ready auth — the self-heal clone is credential-aware (gh when logged in, else a GH_TOKEN/GITHUB_TOKEN credential helper wired at clone time that reads the env var at use — the token never lands on disk, else plain https for public repos); git-identity fallback before commit; clone/push remediation is context-aware (workstation gh auth login vs deployed GH_TOKEN via .env + inject_credentials) and points at /canon-doctor"
     - "1.0: Initial version — own-folder direct commits with updated: stamping and rebase-on-reject push retry; anything outside the folder (other agents' folders, protocols/, root files) goes out as a branch + PR via gh, never a direct push; self-heals a missing clone from x-canon.repo (fresh deploys)"
@@ -68,7 +69,7 @@ Nothing changed → say so and stop.
 
 ### Step 4: Stamp the IN files (two-zone contract — see `canon/CONVENTIONS.md` § Lintable structure)
 
-- **Changed docs** (`profile.md`, `docs/*.md`): set `updated:` to today (UTC); if `review_by:` is missing or already past, push it to today + 30 days; ensure `owner:` matches this agent's folder and `status:` is one of `canonical | draft | superseded`. New docs get the full envelope — `owner`, `status`, `updated`, `review_by`, `tldr` (one line, quoted).
+- **The publish test comes first — content, then stamps.** For each new or changed claim: *would another agent (or a human) decide something differently knowing this?* If it only describes this agent — its version, schedule counts, internal cadences — it is working state, not canon: leave it out of the publish and say so in the report (see `canon/CONVENTIONS.md` § What belongs here, where present). Process state (active runs, pending requests) never publishes — that traffic belongs in messages/events. (`profile.md`, `docs/*.md`): set `updated:` to today (UTC); if `review_by:` is missing or already past, push it to today + 30 days; ensure `owner:` matches this agent's folder and `status:` is one of `canonical | draft | superseded`. New docs get the full envelope — `owner`, `status`, `updated`, `review_by`, `tldr` (one line, quoted).
 - **Changed `facts.yaml` entries**: same stamping (`updated:` today, `review_by:` forward when missing/past); every entry needs `key` (lowercase dotted `subject.relation`), `value`, `status`, `source`. A claim other agents will rely on that only exists in prose → offer to mirror it as a fact entry now.
 - **Draft discipline:** a doc you're linking from `profile.md` must be `status: canonical` — publishing a draft into the index is exactly what the linter rejects.
 - **v1-contract folder** (old `verified:` stamps, no `facts.yaml`): stamp the old way, publish, and add one line to the report — "folder predates the two-zone schema; migrate via /add-canon-lint's seeding or CONVENTIONS.md § Migration note."
