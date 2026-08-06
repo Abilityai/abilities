@@ -11,6 +11,7 @@ Set up, connect, deploy, and sync Claude Code agents to the Trinity Deep Agent O
 ## Usage
 
 ```
+/trinity:start-here           # New to Trinity? The guided journey — start with this one
 /trinity:deploy-new-instance  # Set up a Trinity instance + create an ops agent to manage it
 /trinity:connect              # One-time: authenticate and configure MCP
 /trinity:onboard              # Per-agent: make compatible and deploy
@@ -23,6 +24,7 @@ Set up, connect, deploy, and sync Claude Code agents to the Trinity Deep Agent O
 
 | Skill | Description |
 |-------|-------------|
+| **start-here** | Guided, resumable first journey — what Trinity is → get an instance → connect MCP + live smoke test → first agent alive. Routes each step to the specialist skill; answers platform questions live via `ask_trinity` once connected |
 | **deploy-new-instance** | Deploy Trinity on any server (or connect to existing) and scaffold a full ops agent |
 | **connect** | Authenticate with Trinity instance, configure MCP server connection |
 | **onboard** | Full onboarding flow — compatibility check, file creation, deploy to remote |

@@ -22,6 +22,15 @@
 
 ## Quick Start
 
+**New to Trinity?** Paste this into Claude Code, then run `/trinity:start-here`:
+
+```bash
+/plugin marketplace add abilityai/abilities
+/plugin install trinity@abilityai
+```
+
+`/trinity:start-here` is the guided journey — what Trinity is → get an instance → connect MCP (with a live smoke test) → your first agent alive. Resumable at every step; nothing is deployed until you choose it.
+
 ```bash
 # Add the abilities marketplace (one-time)
 /plugin marketplace add abilityai/abilities

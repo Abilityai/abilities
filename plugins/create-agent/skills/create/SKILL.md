@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.1"
+  version: "2.2"
   created: 2026-04-16
-  updated: 2026-06-14
+  updated: 2026-08-06
   author: Ability.ai
   changelog:
+    - "2.2: Cross-link /trinity:start-here — newcomers to Trinity itself get pointed at the guided journey before picking a wizard"
     - "2.1: List the read-only /review-agent wizard alongside /adjust-agent in the menu"
     - "2.0: Add the doctor wizard (personal medical records) to the menu"
 ---
@@ -20,6 +21,8 @@ metadata:
 > ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `create vX.Y — recent: <summary>`. Then proceed.
 
 Your single entry point for creating agents, websites, and projects. Lists all available creation paths and launches the right one.
+
+> 🧭 **New to Trinity itself?** Run `/trinity:start-here` first — a guided, resumable journey from "what is Trinity" to a connected instance with your first agent alive. (Install with `/plugin install trinity@abilityai`.) This menu is one of its stops.
 
 ## Available Wizards
 
