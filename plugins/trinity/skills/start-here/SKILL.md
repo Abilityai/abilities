@@ -1,15 +1,16 @@
 ---
 name: start-here
-description: Guided first journey into Trinity — one command that takes a newcomer from "what is Trinity?" through choosing their path, installing or connecting an instance, wiring the MCP connection, and getting a first agent alive — with a live smoke test at every step. A resumable concierge, not a manual — each stage hands off to the specialist skill that owns it (connect, deploy-new-instance, onboard, the create-agent wizards), and once the MCP is connected, platform questions are answered live from Trinity's own documentation via ask_trinity instead of static text.
+description: Guided first journey into Trinity — one command that takes a newcomer from "what is Trinity?" through choosing their path, installing or connecting an instance, wiring the MCP connection, and getting a first agent alive — with a live smoke test at every step. A resumable concierge, not a manual — each stage hands off to the specialist skill that owns it (connect, deploy-new-instance, onboard, the create-agent wizards), and platform questions are always answered from live documentation, never static text — before any instance exists via the public Trinity Docs Q&A endpoint (Vertex AI Search over docs/user-docs, resynced on every release) and the user-docs index on GitHub, after connecting via the instance's own ask_trinity MCP tool.
 argument-hint: "[reset]"
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Bash, AskUserQuestion, Skill, mcp__trinity__list_agents, mcp__trinity__get_fleet_health, mcp__trinity__ask_trinity, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-08-06
   author: Ability.ai
   changelog:
+    - "1.1: Ground the whole journey in live docs — pre-connect questions now go to the public Trinity Docs Q&A endpoint (Vertex AI Search over docs/user-docs, no auth, no instance needed) and Stage 0 orients against the live user-docs index on GitHub; the static narrative is demoted to a fallback for when the network is down"
     - "1.0: Initial version — resumable five-stage guided journey (orient → choose your door → get an instance → connect MCP + smoke test → first agent alive), routing every operational step to the specialist skill that owns it and using ask_trinity as the live documentation channel once connected"
 ---
 
@@ -22,9 +23,29 @@ The front door to Trinity. One command walks a newcomer from *"what is this?"* t
 **Design rules (bind every stage):**
 
 1. **Route, don't duplicate.** Every operational step belongs to a specialist skill — `/trinity:connect`, `/trinity:deploy-new-instance`, `/trinity:onboard`, `/create-agent:create`, `/agent-dev:agent-fleet-analysis`. This skill sequences them and carries the user's state; it never re-implements their flows.
-2. **Live documentation over static claims.** The only static narrative in this skill is the short orientation block in Stage 0. Once the MCP is connected, answer every platform question with `mcp__trinity__ask_trinity` — a grounded, documentation-backed answer from the user's own instance. Do not improvise platform facts from memory; if not yet connected, say so and point to https://ability.ai and https://github.com/Abilityai/trinity.
+2. **Live documentation over static claims — at every stage.** Never improvise platform facts from memory. Two grounded channels cover the whole journey (see **Live documentation channels** below): before any instance exists, the public Trinity Docs Q&A endpoint and the live `docs/user-docs` index on GitHub; after connecting, the instance's own `mcp__trinity__ask_trinity`. The short Stage 0 block is a network-down fallback, not the source of truth.
 3. **Zero commitment until chosen.** The tour door deploys nothing and asks for no credentials. Stages that create or deploy things happen only after the user picks them.
 4. **Always resumable.** State persists across sessions; re-running this skill continues where the user left off.
+
+## Live documentation channels
+
+**Pre-connect (no instance, no auth, works from any laptop):**
+
+1. **Trinity Docs Q&A** — a public endpoint backed by Vertex AI Search over the platform's `docs/user-docs/**`, onboarding docs, and the Trinity Compatible Agent Guide, re-indexed automatically on every push to the platform's main branch — always current:
+
+   ```bash
+   curl -sS -m 30 -X POST -H "Content-Type: application/json" \
+     "https://us-central1-mcp-server-project-455215.cloudfunctions.net/ask-trinity" \
+     -d '{"question": "<the user'\''s question>"}'
+   ```
+
+   Response: `{"answer": "...", "state": "SUCCEEDED", "session_id": "..."}`. Contract notes: pass `session_id` back for multi-turn follow-ups, but treat it as an **opaque string** (it exceeds 2^53 — numeric handling corrupts it); sessions expire silently (~30 min) — if the returned `session_id` differs from the one you sent, context was lost, mention nothing and carry on; errors come back as `{"error": "..."}` or, from Google's frontend, as HTML.
+
+2. **The user-docs index** — fetch `https://raw.githubusercontent.com/abilityai/trinity/main/docs/user-docs/README.md` to see the current documentation map, and deep-link the user to specific pages as `https://github.com/abilityai/trinity/blob/main/docs/user-docs/<path>`.
+
+**Post-connect:** prefer `mcp__trinity__ask_trinity` (the instance's own docs tool — same grounded corpus, plus it lives where the user's fleet lives). The public endpoint remains the fallback whenever the instance is unreachable.
+
+**Channel routine:** any time the user asks anything about Trinity — at any stage — answer through whichever channel is available, quote the grounded answer, and offer the relevant user-docs deep link when one exists.
 
 ## Journey State
 
@@ -73,7 +94,9 @@ Trinity runs Claude Code agents as an always-on fleet.
 This tour is free — nothing gets deployed until you choose it.
 ```
 
-Then ask (AskUserQuestion) whether they have questions before moving on. If they do and no MCP connection exists yet, answer briefly, flag that deep answers come from the instance itself in Stage 3, and offer to continue.
+Then **orient against the live docs** (rule 2): fetch the user-docs index (channel 2 above) and add one live line under the block — the newest release from its *What's New* section with the deep link, e.g. *"Current release: v<A.B> — what's new: <link>"* (always the version the fetch returned — never a remembered one). If the fetch fails, skip this line silently; the static block stands alone.
+
+Then ask (AskUserQuestion) whether they have questions before moving on. Answer every question through the public Docs Q&A endpoint (multi-turn — keep the `session_id`), quoting the grounded answer with a deep link where one fits. There is no "wait until you're connected" — the docs are live from the first minute.
 
 → Write state (`stage: 1`), go to Stage 1.
 
@@ -148,6 +171,9 @@ Print a recap of what they now have (checklist built from `completed`), then the
                              /trinity:loop (bounded remote loops),
                              schedules & channels: just ask — the live
                              docs answer via ask_trinity
+- Docs assistant anywhere  → claude mcp add trinity-docs -- npx -y @abilityai/trinity-docs-mcp
+                             (the same grounded Q&A in any session, no
+                             instance required)
 ```
 
 Mark state `stage: 5`, `completed` += "journey-complete". Re-running the skill later greets them as a returning user and offers the hand-off menu directly.
@@ -164,5 +190,5 @@ Mark state `stage: 5`, `completed` += "journey-complete". Re-running the skill l
 
 ## Notes for maintainers
 
-- **Never grow the Stage 0 narrative.** It is deliberately the only static platform text in this skill; everything else must come from `ask_trinity` at run time. If the platform changes, this block is the entire drift surface to review.
+- **Never grow the Stage 0 narrative.** It is deliberately a network-down fallback; every other platform fact must come from the live channels at run time. The drift surface to review when the platform changes is exactly three things: the Stage 0 block, the Docs Q&A endpoint URL, and the user-docs raw/deep-link URLs — the docs *content* behind them keeps itself current (resynced to Vertex on every push to main).
 - This skill's hand-off targets are contracts: `connect` (single `.mcp.json` writer), `deploy-new-instance`, `onboard`, `create-agent:create`, `agent-dev:agent-fleet-analysis`. If any of those are renamed or resharded, update the routes here in the same change.
