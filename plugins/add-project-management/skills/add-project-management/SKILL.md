@@ -1,22 +1,25 @@
 ---
 name: add-project-management
-description: Install cross-actor project management into this agent — GitHub Issues as single source of truth, uniform task anatomy with approval-ready completion lattice (open → pending-verification → done), autonomous project steward, and projection sync with Google Tasks adapter v1. Writes PROJECT_STANDARD.md + four runtime skills. No dependency on fleet infrastructure.
+description: Install cross-actor project management into this agent — GitHub Issues as single source of truth, uniform task anatomy with approval-ready completion lattice (open → pending-verification → done), loop closure in both directions (the agent closes loops with the user; the user is handed the loops only they can close with other people or agents), autonomous project steward, and projection sync with Google Tasks adapter v1. Writes PROJECT_STANDARD.md + five runtime skills. No dependency on fleet infrastructure.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-07-30
   author: Ability.ai
   changelog:
+    - "1.2: Loop closure (Invariant 7) — §14 in PROJECT_STANDARD.md makes silence a failure mode in both directions: inbound, every run closes with what's true / what's waiting on the operator / what happens next unprompted, operator-initiated results notify the operator, and an unanswered ask gets louder with age; outbound, work parked on a person or agent outside the registry gets waiting-on:<actor>, ages in the digest's Your open loops on a 3d/7d/14d ladder, and comes with a drafted nudge the human sends (the agent never contacts third parties). /project-steward 1.1 (Step 3c open-loop pass), /project-task 1.2 + /project-intake 1.1 (--waiting-on), §3/§7/§8 additions, §14 upgrade path for existing standards"
     - "1.1: v1.1.0 — /project-intake (headless intake primitive), §13 Intake contract in PROJECT_STANDARD.md, headless mode for /project-task, reconciler unkeyed-item refinement (personal items excluded from sync-gap alerts), workspace visibility as deployment config"
     - "1.0: Initial version — corbin/Eugene PM-standard directive 2026-07-30; ships /project-init /project-task /project-steward /project-reconcile + PROJECT_STANDARD.md"
 ---
 
 # Add Project Management
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `add-project-management v1.1 — recent: /project-intake + §13 Intake contract`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `add-project-management v1.2 — recent: loop closure (Invariant 7)`. Then proceed.
 
 Install a cross-actor project management standard into this agent. GitHub Issues become the single source of truth for all project and task state; humans, this agent, and fleet agents interact through a shared vocabulary of labels, task anatomy, and an approval-ready completion lattice.
+
+It also installs a **loop-closure discipline** (standard §14), because tracked work still dies of silence: the agent closes every loop it owes the operator — reporting back to the person, not just to the issue log, and making an unanswered question louder rather than letting it expire — and it hands the operator the loops only a human can close, the ones parked on a client, a vendor, a colleague, or an agent in another fleet, aged and pre-drafted but never sent on the human's behalf.
 
 **Altitude note:** this plugin governs *cross-actor* work (humans + multiple agents collaborating on projects). For a single agent's own dev-loop task backlog, use `agent-dev`'s `/add-backlog` instead.
 
@@ -100,6 +103,8 @@ If any exist, ask:
 - **Skip existing, install missing only**
 - **Cancel**
 
+**Upgrade path — §14 Loop closure.** `PROJECT_STANDARD.md` is the deployer's live configuration, so a kept file is never silently rewritten. But an install predating v1.2 has no `## 14. Loop closure` section, and the loop-closure behavior in `/project-steward` reads it. If the file exists and `grep -q '## 14. Loop closure' PROJECT_STANDARD.md` fails, offer to append just that section (plus the `waiting-on:<actor>` row in §3, the two comment formats in §7, and the four escalation rows in §8) with the deployer's existing config values. On no, skip and note that `/project-steward`'s open-loop pass will be inert until the section exists.
+
 ### Step 4: Create skill directories
 
 ```bash
@@ -123,7 +128,7 @@ Write `PROJECT_STANDARD.md` to the repo root with the values from Step 2 substit
 > and `/project-reconcile` syncs projections against the registry.
 > **{{AGENT_NAME}}** is the managing agent; **{{OPERATOR}}** is the operator (the human this standard escalates to).
 >
-> Version: 1.0 ({{DATE}})
+> Version: 1.1 ({{DATE}})
 
 ## 1. Registry
 
@@ -150,6 +155,7 @@ Write `PROJECT_STANDARD.md` to the repo root with the values from Step 2 substit
 | `project:<slug>` | Membership — ties task issues to their project epic |
 | `owner:<actor>` | Accountable party (human or agent name). Distinct from the executor. |
 | `agent:<name>` | Currently executing agent (may differ from owner) |
+| `waiting-on:<actor>` | **Open loop** — a person or agent *outside* this registry owes a response before this moves. Only the human can close it (§14); the standard drafts the chase, never sends it. |
 | `status:active` | Being worked; steward manages normally |
 | `status:blocked` | External dependency blocking progress (state blocker in a comment) |
 | `status:needs-decision` | Blocked on the named owner's decision. Reserved for genuine blocks — never used simply because a human owns a task. |
@@ -271,6 +277,21 @@ DoD check:
 <verbatim or tightly summarized result, with links/paths>
 ```
 
+**Waiting-on notice** — posted when a task parks on someone outside the registry (§14):
+```
+### Waiting on <actor> — YYYY-MM-DD
+Asked: <what was asked, one line>
+Channel: <email | Slack | call | letter | agent chat>
+Expected back: <date, or "no commitment">
+Closes when: <the observable answer or artifact that ends the wait>
+```
+
+**Loop closed** — posted when an open loop resolves, whichever way it resolved:
+```
+### Loop closed YYYY-MM-DD — <answered | dropped | routed around>
+<what came back, or why we stopped waiting>
+```
+
 ## 8. Staleness and escalation policy (Invariant 4)
 
 **Escalation never mutates P1/P2 priority.** The system may change how it asks (channel, framing, frequency) — never what it claims the human values.
@@ -284,6 +305,10 @@ DoD check:
 | Dispatch, 24h no reply (re-ping sent) | `status:blocked` + digest escalation; no further auto-pings |
 | `pending-verification` past {{PV_MAX_AGE}}h | `status:needs-decision` + notify operator |
 | P3 only, 21 days no activity | Digest-only mention; no notification |
+| `waiting-on:*` unanswered 3 days | Digest "Your open loops" + a drafted nudge for {{OPERATOR}} to send. The system never contacts the third party itself (§14). |
+| `waiting-on:*` unanswered, every 7 days after that | Re-draft the nudge, age called out, notify |
+| `waiting-on:*` unanswered 14 days | `status:needs-decision` — chase harder, drop it, or route around it. Never auto-dropped. |
+| Operator ask (`status:needs-decision`) unanswered across 2 digests | Move to the top of the digest with its age stated. An ask is never retired by going stale (§14). |
 
 ## 9. Workspace discovery and quarantine (Invariant 6)
 
@@ -352,6 +377,35 @@ Intake skills and domain skills may write workspace content freely (`project_fil
 | `/project-intake` | GitHub task issues, epic one-line state-news comments | Projection surfaces |
 | `/project-reconcile` | Projection surfaces, reconcile log | Registry task issues (read-only; gesture processing is the one exception) |
 | `/project-steward` | GitHub issue labels, comments, steward state | Projection surfaces |
+
+## 14. Loop closure (Invariant 7)
+
+**Invariant 7 — No loop closes by silence.** Every request that enters this system leaves it with an explicit answer delivered to whoever opened it. A task that dies still gets a closing line; a question nobody answered gets re-asked, not forgotten; a wait nobody ended gets escalated, not quietly aged out. Silence is a failure mode, never an outcome.
+
+Two directions, both tracked by {{AGENT_NAME}}.
+
+### 14a. Inbound — loops {{AGENT_NAME}} owes {{OPERATOR}}
+
+Anything {{OPERATOR}} asked for, and anything {{AGENT_NAME}} promised, stays open until {{OPERATOR}} has been told the outcome **in a channel they actually read**. A comment on an issue nobody opened is not closure.
+
+1. **Every run ends with a closing statement** — what is now true, what is waiting on {{OPERATOR}}, and what {{AGENT_NAME}} will do next unprompted (or "nothing until you say"). Interactive skills print it as their last lines; the steward writes it as the digest's opening lines.
+2. **Every ask is tracked until answered.** A `status:needs-decision` item carries its age in every subsequent digest. Unanswered across two digests → it moves to the top with the age stated. An ask is never retired for being stale.
+3. **Dead work is closed out loud.** Superseded, rejected, or obsolete tasks get a `### Loop closed` comment naming why, then close. Nothing rots silently in `open`.
+4. **Report to the person, not just to the record.** Results of work {{OPERATOR}} personally initiated go to them via notification *in addition to* the issue log.
+
+### 14b. Outbound — loops {{OPERATOR}} owes other people or agents
+
+Work regularly parks on someone this system cannot dispatch to: a client, a lawyer, a vendor, a colleague, an agent in another fleet. Only the human can close those — so {{AGENT_NAME}}'s job is to make them impossible to forget.
+
+1. **Name the loop.** Label the task `waiting-on:<actor>` and post the `### Waiting on` comment (§7): who, what was asked, what closing it looks like.
+2. **Age it in public.** Every digest carries a **Your open loops** section — every `waiting-on:*` task, oldest first, with its age and the one sentence that would close it.
+3. **Hand over a ready-to-send nudge.** At 3 days unanswered, and weekly after that, the digest includes a drafted follow-up message {{OPERATOR}} can send as-is. **Drafting is the agent's job; sending is the human's** — {{AGENT_NAME}} never contacts a third party on {{OPERATOR}}'s behalf under this standard. External effects stay gated behind a human.
+4. **Force the call at 14 days.** A loop nobody answered in two weeks is usually dead: `status:needs-decision` asking {{OPERATOR}} to chase harder, drop it, or route around it. Never auto-dropped.
+5. **Fleet agents are dispatches, not waiting-on.** If the counterpart is an agent this system can reach, it is a dispatch (§10) with its own re-ping ladder. `waiting-on:` is only for actors outside the dispatch protocol.
+
+**Closing is a write.** When a loop resolves — answered, dropped, or routed around — post `### Loop closed` (§7), remove the `waiting-on:*` label, and note it in the next digest. An unrecorded close is indistinguishable from a forgotten one.
+
+*Deployers: the 3-day nudge / 7-day re-nudge / 14-day decision ladder is the default. Edit these numbers to match how your counterparties actually respond.*
 ```
 
 Substitute all `{{AGENT_NAME}}` with `$AGENT_NAME`, `{{OPERATOR}}` with `$OPERATOR`, `{{REGISTRY}}` with `$REGISTRY`, `{{DATE}}` with `$DATE`, `{{PV_MAX_AGE}}` with `$PV_MAX_AGE` before writing.
@@ -528,21 +582,22 @@ Write `.claude/skills/project-task/SKILL.md`:
 ---
 name: project-task
 description: Create a task issue in the uniform format per PROJECT_STANDARD.md — the ONLY sanctioned task-creation path. Enforces full anatomy (Objective / Definition of Done / Context / Validation) and adds the task to the parent epic's Tasks checklist. Approval-ready from day one. Supports --headless for cron/compose use.
-argument-hint: "[project-slug | --headless --project=<slug> --title=\"...\" --objective=\"...\" --dod=\"item1|item2\" --owner=<actor> [--priority=p2] [--agent=<name>] [--context=\"...\"]]"
+argument-hint: "[project-slug | --headless --project=<slug> --title=\"...\" --objective=\"...\" --dod=\"item1|item2\" --owner=<actor> [--priority=p2] [--agent=<name>] [--waiting-on=<actor>] [--context=\"...\"]]"
 allowed-tools: Bash, Read, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.2: Loop closure — optional waiting-on actor (label + ### Waiting on comment) puts a task parked on an outside party into the steward's aging ladder; interactive output ends with the §14a closing statement (waiting on you / next without you)"
     - "1.1: Add --headless mode — all fields as arguments, no AskUserQuestion, returns issue number; callable from /project-intake and crons"
     - "1.0: Initial version — full anatomy enforcement including Validation section (approval chain), owner/agent label distinction, epic checklist update"
 ---
 
 # Project Task
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-task v1.1 — recent: Add --headless mode`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-task v1.2 — recent: loop closure (waiting-on + closing statement)`. Then proceed.
 
 ## Purpose
 
@@ -566,6 +621,7 @@ Headless arguments:
 | `--owner=<actor>` | yes | Accountable party |
 | `--priority=pN` | no | Default: inherit from epic |
 | `--agent=<name>` | no | Executing agent label (if immediately assignable) |
+| `--waiting-on=<actor>` | no | Parks the task as an open loop on an actor outside the registry — applies `waiting-on:<actor>` and posts the `### Waiting on` comment (standard §14b) |
 | `--context="..."` | no | Additional context beyond the epic link |
 
 In headless mode, if any required argument is missing, exit immediately with: `ERROR: --<field> is required in headless mode`
@@ -611,6 +667,7 @@ Ask the user which project this task belongs to. Resolve the slug from the `proj
 - **Owner** — who is accountable (human or agent name)
 - **Assigned agent** (optional) — if ready to dispatch now, which agent executes it? Leave blank if not yet assigned.
 - **Priority** — default: inherit from the parent epic
+- **Waiting on** (optional) — is this parked on a response from someone *outside* this registry (a client, vendor, colleague, another fleet's agent)? Name them. This applies `waiting-on:<actor>` and posts the `### Waiting on` comment, which is what puts the loop into the steward's aging ladder and the operator's digest (standard §14b). A loop nobody named is a loop nobody chases.
 
 ### Step 4: Build the Validation section
 
@@ -658,6 +715,13 @@ If an assigned agent was named, add the `agent:*` label:
 gh issue edit $TASK_NUMBER --repo "$REGISTRY" --add-label "agent:$ASSIGNED_AGENT"
 ```
 
+If a **waiting-on** actor was named, create the label idempotently, apply it, and post the `### Waiting on` comment per standard §7 (who, what was asked, channel, what closes it):
+```bash
+gh label create "waiting-on:$WAITING_ON" --repo "$REGISTRY" --color "d4c5f9" \
+  --description "Open loop: awaiting $WAITING_ON" 2>/dev/null || true
+gh issue edit $TASK_NUMBER --repo "$REGISTRY" --add-label "waiting-on:$WAITING_ON"
+```
+
 ### Step 6: Link into parent epic
 
 Add the task to the epic's `## Tasks` checklist:
@@ -681,15 +745,17 @@ The appended line format: `- [ ] #$TASK_NUMBER $TITLE`
 #$TASK_NUMBER
 ```
 
-**Interactive mode**: print the full summary:
+**Interactive mode**: print the full summary, ending with the closing statement required by standard §14a — what is now true, what is waiting on the human, and what happens next without them:
 ```
 Task created: #$TASK_NUMBER — $TITLE
 Project:      [Project] $PROJECT_NAME (epic #$EPIC_NUMBER)
 Owner:        $OWNER
 Priority:     $PRIORITY
 Validation:   $VALIDATION_SUMMARY
+Waiting on:   $WAITING_ON (open loop — you close this one) | nobody
 
-Next: /project-steward — run a sweep to dispatch this task to its agent owner
+Waiting on you: <the one thing, or "nothing">
+Next without you: <what the steward will do on its own, or "nothing until you say">
 ```
 ````
 
@@ -700,33 +766,37 @@ Write `.claude/skills/project-steward/SKILL.md`. Substitute `$SCHEDULE` for the 
 ````markdown
 ---
 name: project-steward
-description: Autonomous sweep of all managed projects per PROJECT_STANDARD.md. Verifies pending-verification claims against Definition of Done, dispatches next work to explicitly-labeled owner agents (Trinity when available; triage-only when not), escalates stalls per the staleness policy, runs the quarantine classification pass, and writes a digest. Never asks a human anything mid-run.
+description: Autonomous sweep of all managed projects per PROJECT_STANDARD.md. Verifies pending-verification claims against Definition of Done, dispatches next work to explicitly-labeled owner agents (Trinity when available; triage-only when not), escalates stalls per the staleness policy, sweeps open loops (ages every waiting-on item and drafts the operator's follow-ups), runs the quarantine classification pass, and writes a digest that closes the loop with the operator. Never asks a human anything mid-run.
 automation: autonomous
 schedule: "$SCHEDULE"
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 effort: high
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.1: Loop closure (Invariant 7) — Step 3c open-loop pass ages every waiting-on:* task on the 3d/7d/14d ladder and drafts sendable nudges (never sends them), detects and records closes; digest opens with a closing statement and carries Your open loops + Loops closed; unanswered needs-decision asks get louder with age instead of aging out; operator-initiated results notify the operator directly; state.json gains open_loops (rebuildable from labels)"
     - "1.0: Initial version — completion lattice verification, owner/agent distinction, Invariant 4 escalation ladder (never mutates P1/P2), unclassified quarantine pass, Trinity-optional dispatch"
 ---
 
 # Project Steward
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-steward v1.0 — recent: Initial version`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-steward v1.1 — recent: loop closure (Invariant 7)`. Then proceed.
 
 ## Purpose
 
 Keep every managed project moving without the operator having to push it. Each run:
 1. Reconcile outstanding dispatches (read agent replies, post relay comments, verify done claims)
 2. Review every open project epic: verify pending-verification tasks, dispatch next work, escalate stalls
-3. Run the quarantine pass: auto-stub unregistered workspace folders
-4. Write the digest (material runs only)
+3. Sweep open loops (Invariant 7): age every `waiting-on:*` task, draft the operator's nudges, keep unanswered asks alive
+4. Run the quarantine pass: auto-stub unregistered workspace folders
+5. Write the digest (material runs only), opening with what the operator now knows and what is waiting on them
 
 **This skill never asks a human anything mid-run.** Anything ambiguous gets `status:needs-decision` and moves on. It is the sole writer of steward update comments on GitHub issues.
+
+**It does close loops, in both directions (standard §14).** Nothing it touched ends in silence: work the operator initiated is reported back to the operator, an unanswered ask is re-surfaced with its age rather than dropped, and every loop parked on a third party is aged in the digest with a ready-to-send nudge. It drafts those nudges; **it never sends them** — contacting a client, vendor, or outside colleague is the human's act, always.
 
 **Deliberate non-composition:** this skill dispatches only to owners explicitly named by `agent:*` labels — no routing judgment. The interactive disambiguation that `/orchestrate` provides would hang an unattended run.
 
@@ -778,6 +848,8 @@ Most runs will find nothing to do. Before writing anything, compute whether ANY 
 - A staleness breach
 - New/edited epics or label changes since last run
 - A `pending-verification` task past max-age
+- A `waiting-on:*` loop crossing a nudge threshold (3 days, then weekly, then 14 days) — a quiet loop still ages
+- A `status:needs-decision` ask that has now gone unanswered across two digests
 - Unclassified workspace folders not yet stubbed
 
 **If none: stop.** Update `last_run` in `project-steward/state.json` only — do NOT commit, do NOT write a digest, do NOT notify, do NOT post any comment. Quiet runs leave no trace.
@@ -794,7 +866,7 @@ Most runs will find nothing to do. Before writing anything, compute whether ANY 
 
 1. Sync: `git pull --rebase --autostash origin main` (continue on failure; note it in the digest).
 2. Read `PROJECT_STANDARD.md` (resolving runtime variables as above).
-3. Read `project-steward/state.json` (create with empty defaults if missing: `{"last_run": null, "carry_over": [], "open_dispatches": []}`).
+3. Read `project-steward/state.json` (create with empty defaults if missing: `{"last_run": null, "carry_over": [], "open_dispatches": [], "open_loops": []}`). Each `open_loops` entry is `{issue, actor, asked_at, last_nudge, digests_carried}` — bookkeeping only; the `waiting-on:*` labels on GitHub are the truth, so a lost state file costs nudge timing, never a loop.
 4. Pull the registry:
    ```bash
    gh issue list --repo "$REGISTRY" --label project --state open \
@@ -841,6 +913,30 @@ Classify the project's next actionable task:
 - **auto-inline**: has `agent:$AGENT_NAME`; fits the remaining run budget (~15 min); touches only reading/analysis, workspace writes, or GitHub comments (no email, no external spend, no gated external effects) → execute it this run.
 - **needs-human**: everything else (missing owner, judgment call, gated external effect, human approval required) → `status:needs-decision` + digest.
 
+### Step 3c: Open-loop pass (Invariant 7 — standard §14)
+
+Two sweeps, both cheap, both run every material run. Neither ever contacts anyone outside the registry.
+
+**Outbound — loops the operator owes other people or agents.** Fetch every open task carrying a `waiting-on:*` label:
+```bash
+gh issue list --repo "$REGISTRY" --state open --json number,title,labels,url,updatedAt --limit 100 \
+  --jq '[.[] | select(any(.labels[].name; startswith("waiting-on:")))]'
+```
+
+For each, resolve the actor from the label and the loop's age from `state.json.open_loops` (falling back to the date on the issue's `### Waiting on` comment, else the label-application event). Then:
+
+| Age since asked | Action |
+|---|---|
+| < 3 days | List it in the digest's **Your open loops** section with its age. No nudge, no notification. |
+| ≥ 3 days, and ≥ 7 days since the last nudge | Draft a short, sendable follow-up message to the actor (2–4 sentences: what was asked, when, why it matters now, what response closes it) and put it in the digest verbatim under that loop. Record `last_nudge` in `state.json.open_loops`. |
+| ≥ 14 days | Set `status:needs-decision`, post one steward update asking the operator to chase harder, drop it, or route around it. Keep listing it. **Never auto-drop a loop.** |
+
+Detect closure while you're here: if the task's comments show the awaited answer arrived (an `### Agent report`, a `### Loop closed`, or the operator's own comment saying it landed), post `### Loop closed YYYY-MM-DD — answered` per §7, remove the `waiting-on:*` label, drop the state entry, and note the close in the digest. A close nobody recorded reads exactly like a loop nobody remembered.
+
+**Never send the nudge.** The steward drafts; the operator sends. Emailing a client, vendor, or outside colleague on the operator's behalf is out of scope for this skill under every configuration.
+
+**Inbound — loops this agent owes the operator.** For every open `status:needs-decision` item, count how many digests have carried it since the ask was posted. At two or more, promote it to the top of the digest's **Needs decision** section with the age stated plainly ("asked 9 days ago, 4 digests"). An ask is never retired for going stale — it gets louder, not quieter.
+
 ### Step 4: Act (deterministic priority order, per project)
 
 Take exactly one action per project, in this order:
@@ -859,6 +955,12 @@ Take exactly one action per project, in this order:
 4. **auto-dispatch, Trinity unavailable (triage-only mode)**: note in digest that dispatch was skipped; task remains open.
 5. **auto-inline, run budget left**: execute the task now; post result as agent-report comment on the task issue; close if DoD met; check off in epic. Max one inline task per run.
 6. **needs-human**: set `status:needs-decision`, post one steward update saying exactly what decision is needed.
+   **Wait ≠ decision.** If what's missing is a *response from someone outside the registry* rather than a call only the operator can make, this is an open loop, not a decision: create the label idempotently, apply it, post the `### Waiting on` comment (§7), and let Step 3c age it. Don't spend a `needs-decision` on a wait — that's how a decision queue turns into noise the operator stops reading.
+   ```bash
+   gh label create "waiting-on:$ACTOR" --repo "$REGISTRY" --color "d4c5f9" \
+     --description "Open loop: awaiting $ACTOR" 2>/dev/null || true
+   gh issue edit "$ISSUE" --repo "$REGISTRY" --add-label "waiting-on:$ACTOR"
+   ```
 7. **Next task exists but no actionable path**: if active project with zero tasks, draft 1–3 candidate next tasks as a proposal in a steward comment, set `status:needs-decision`.
 8. **Nothing to do** (work in flight, within staleness thresholds) → no comment, no label change. Silence is valid.
 
@@ -883,26 +985,34 @@ Batch these into one digest line: "N unclassified folder(s) auto-stubbed: <names
 
 ### Step 6: Write the digest (material runs only)
 
-Skipped entirely on no-op runs. One file per day — `project-steward/digests/YYYY-MM-DD.md` — created on the first material run and updated by later ones (append a `## Run HH:MM UTC` section):
+Skipped entirely on no-op runs. One file per day — `project-steward/digests/YYYY-MM-DD.md` — created on the first material run and updated by later ones (append a `## Run HH:MM UTC` section).
 
-- **Needs decision** (top): each `status:needs-decision` item with the one decision required
+Open with the **closing statement** (standard §14a) — three lines, before any section: what is now true, what is waiting on the operator, and what the steward will do next unprompted. A digest that opens with a table of statuses makes the operator do the reading; one that opens with these three lines has already closed the loop.
+
+Then the sections:
+
+- **Needs decision** (top): each `status:needs-decision` item with the one decision required; items unanswered across 2+ digests come first with their age stated
+- **Your open loops**: every `waiting-on:*` task, oldest first — actor, age, and the one sentence that would close it; loops past 3 days carry the drafted follow-up message verbatim, ready for the operator to send
 - **Blocked**: blocker + age
 - **Pending-verification**: items waiting, age vs max-age SLA
 - **Dispatched this run**: agent, task, issue link
 - **Verified this run**: task, pass/fail
 - **Reconciled**: agent reports relayed since last run
+- **Loops closed**: loops that resolved since the last digest, and how (answered / dropped / routed around)
 - **Worked inline**: tasks executed inline, result links
 - **Quarantine**: N folders stubbed
 - **Healthy/quiet**: one line each
 - **Carry-over + mode**: projects not reviewed; note if triage-only
 
-If (and only if) there are needs-decision items, blockers, past-max-age pending-verification, or errors: send a short summary via `mcp__trinity__send_notification` (when Trinity available) linking the digest path. Quiet days: digest file is written but no notification sent.
+If (and only if) there are needs-decision items, blockers, past-max-age pending-verification, a loop crossing a nudge threshold, or errors: send a short summary via `mcp__trinity__send_notification` (when Trinity available) linking the digest path. Standing open loops that crossed no threshold this run stay in the digest without a notification — the list is always visible, the interruption is not.
+
+**Results the operator personally asked for go to the operator** (standard §14a.4): when this run finished work the operator initiated by name, `send_notification` with the outcome, even on an otherwise quiet day. The issue log is the record; the notification is the loop closing.
 
 ### Step 7: Write updated state
 
-1. Update `project-steward/state.json`: `last_run`, `carry_over`, `open_dispatches`.
+1. Update `project-steward/state.json`: `last_run`, `carry_over`, `open_dispatches`, `open_loops`.
 2. Prepend one summary line to `project-steward/run_log.txt`:
-   `YYYY-MM-DD HH:MM UTC | reviewed N | dispatched N | verified N | inline N | needs-decision N | quarantine N | mode`
+   `YYYY-MM-DD HH:MM UTC | reviewed N | dispatched N | verified N | inline N | needs-decision N | loops N (nudged N, closed N) | quarantine N | mode`
 3. Push steward state (scoped — never add any other path):
    ```bash
    git add project-steward && \
@@ -917,7 +1027,7 @@ If (and only if) there are needs-decision items, blockers, past-max-age pending-
 - **Trinity MCP absent**: continue in triage-only mode; record in digest. Dispatch state is untouched — next healthy run resumes.
 - **Single project fails mid-review**: post a steward update describing the defect, set `status:needs-decision`, continue with the next project.
 - **Partial run (interrupted)**: safe to re-run — the changed-since-last-update check and dispatch tracker make all writes idempotent.
-- **State file corrupt**: move to `state.json.bak-YYYY-MM-DD`, rebuild defaults, rebuild `open_dispatches` conservatively from recent dispatch receipt comments that lack a matching agent-report relay.
+- **State file corrupt**: move to `state.json.bak-YYYY-MM-DD`, rebuild defaults, rebuild `open_dispatches` conservatively from recent dispatch receipt comments that lack a matching agent-report relay, and rebuild `open_loops` from the live `waiting-on:*` labels (ages from each issue's `### Waiting on` comment). Nudge timing resets; no loop is lost.
 ````
 
 ### Step 9: Write /project-reconcile skill
@@ -1177,20 +1287,21 @@ Write `.claude/skills/project-intake/SKILL.md`:
 ---
 name: project-intake
 description: Headless intake primitive — routes actionable items from any source (meetings, email, Slack, issue trackers) into the GitHub Issues registry. Dedupes by meaning (not exact title), creates task issues with full anatomy (Objective / Definition of Done / Context / Validation), or posts one-line state-news comments on the relevant epic. Returns the issue number. Never interactive — called by other skills and crons.
-argument-hint: "--project=<slug> --title=\"...\" --source=\"<url-or-note>\" [--owner=<actor>] [--priority=p2] [--agent=<name>] [--dod=\"item1|item2\"] [--objective=\"...\"] [--context=\"...\"] [--state-news]"
+argument-hint: "--project=<slug> --title=\"...\" --source=\"<url-or-note>\" [--owner=<actor>] [--priority=p2] [--agent=<name>] [--waiting-on=<actor>] [--dod=\"item1|item2\"] [--objective=\"...\"] [--context=\"...\"] [--state-news]"
 allowed-tools: Bash, Read, Grep
 user-invocable: false
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.1: Loop closure — optional --waiting-on opens the loop explicitly (label + ### Waiting on comment), so an item captured as \"X owes us an answer\" enters the steward's aging ladder instead of sitting silently in the backlog"
     - "1.0: Initial version — headless intake primitive, dedupe by meaning, task creation with full anatomy, state-news comment path, epic Tasks checklist linkage"
 ---
 
 # Project Intake
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-intake v1.0 — recent: Initial version`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-intake v1.1 — recent: --waiting-on opens the loop explicitly`. Then proceed.
 
 ## Purpose
 
@@ -1208,6 +1319,7 @@ Route any actionable item from any source into the managed registry. **This skil
 | `--owner=<actor>` | no | Accountable party. Defaults to the project's primary owner from the epic. |
 | `--priority=pN` | no | p1/p2/p3. Inherits from epic if omitted. |
 | `--agent=<name>` | no | Executing agent label if immediately assignable. |
+| `--waiting-on=<actor>` | no | The item is parked on an actor outside the registry — applies `waiting-on:<actor>` and posts the `### Waiting on` comment so the steward ages it and the operator sees it in "Your open loops" (standard §14b). Use this whenever intake captures "X owes us an answer". |
 | `--dod="item1\|item2"` | no | Pipe-separated DoD items. Default: single item derived from title. |
 | `--objective="..."` | no | Objective text. Defaults to the title. |
 | `--context="..."` | no | Additional context beyond the source link. |
@@ -1324,6 +1436,18 @@ If `--agent` was provided:
 gh issue edit $TASK_NUMBER --repo "$REGISTRY" --add-label "agent:$ASSIGNED_AGENT"
 ```
 
+If `--waiting-on` was provided, open the loop explicitly (label + `### Waiting on` comment per standard §7) so it enters the steward's aging ladder rather than sitting silently:
+```bash
+gh label create "waiting-on:$WAITING_ON" --repo "$REGISTRY" --color "d4c5f9" \
+  --description "Open loop: awaiting $WAITING_ON" 2>/dev/null || true
+gh issue edit $TASK_NUMBER --repo "$REGISTRY" --add-label "waiting-on:$WAITING_ON"
+gh issue comment $TASK_NUMBER --repo "$REGISTRY" --body "### Waiting on $WAITING_ON — $(date -u +%Y-%m-%d)
+Asked: $TITLE
+Channel: $SOURCE
+Expected back: no commitment recorded
+Closes when: $WAITING_ON responds — see Definition of Done"
+```
+
 ### Step 7: Link into parent epic
 
 Read the current epic body, append the new task to the `## Tasks` checklist, and update:
@@ -1362,7 +1486,7 @@ gh label create "priority:p2" --repo "$REGISTRY" --color "ff9f1c" --description 
 gh label create "priority:p3" --repo "$REGISTRY" --color "c5def5" --description "Low priority" 2>/dev/null || true
 ```
 
-Note: `owner:*`, `agent:*`, and `project:<slug>` labels are created dynamically by `/project-init` per project.
+Note: `owner:*`, `agent:*`, `waiting-on:*`, and `project:<slug>` labels are per-actor/per-project and are created dynamically — `owner:*`/`project:<slug>` by `/project-init`, `waiting-on:<actor>` by whichever skill first parks a task on that actor.
 
 ### Step 12: Update CLAUDE.md
 
@@ -1384,11 +1508,13 @@ This agent manages projects via GitHub Issues in `$REGISTRY`. Issues are the sin
 
 **Convention doc:** `PROJECT_STANDARD.md` — edit this file to change standard behavior without touching skills.
 
-**Label taxonomy:** `project`, `task`, `project:<slug>`, `owner:<actor>`, `agent:<name>`, `status:active|blocked|needs-decision|paused|pending-verification|unclassified`, `priority:p1|p2|p3`.
+**Label taxonomy:** `project`, `task`, `project:<slug>`, `owner:<actor>`, `agent:<name>`, `waiting-on:<actor>`, `status:active|blocked|needs-decision|paused|pending-verification|unclassified`, `priority:p1|p2|p3`.
 
 **Completion lattice:** open → pending-verification → done. Done is absorbing; only the operator can reopen.
 
 **Priority changes:** only by explicit human speech act, logged with a reason.
+
+**Loop closure (§14):** nothing here ends in silence. Every run closes with what is now true, what is waiting on you, and what happens next without you. Work you asked for is reported back to you, not just filed on an issue; an unanswered question gets louder with age instead of disappearing. Work parked on someone outside this registry is labeled `waiting-on:<actor>`, aged in every digest under **Your open loops**, and comes with a drafted follow-up you can send — **you send it; the agent never contacts a third party for you**.
 ```
 
 ### Step 13: Create steward state directories
@@ -1397,7 +1523,7 @@ This agent manages projects via GitHub Issues in `$REGISTRY`. Issues are the sin
 mkdir -p project-steward/digests
 mkdir -p project-steward/reconcile-log
 touch project-steward/run_log.txt
-echo '{"last_run": null, "carry_over": [], "open_dispatches": []}' > project-steward/state.json
+echo '{"last_run": null, "carry_over": [], "open_dispatches": [], "open_loops": []}' > project-steward/state.json
 ```
 
 Commit the scaffolding:
@@ -1445,7 +1571,12 @@ Print:
 ### Labels created
 `project`, `task`, `status:active`, `status:blocked`, `status:needs-decision`, `status:paused`, `status:pending-verification`, `status:unclassified`, `priority:p1`, `priority:p2`, `priority:p3`
 
-(`owner:*`, `agent:*`, `project:<slug>` created per project by /project-init)
+(`owner:*`, `agent:*`, `project:<slug>` created per project by /project-init; `waiting-on:<actor>` created on first use when a task parks on someone outside the registry)
+
+### Loop closure (standard §14)
+Nothing in this system ends in silence, in either direction:
+- **Toward you** — every run closes with what is now true, what is waiting on you, and what happens next without you. Work you asked for gets reported back to you, not just filed on an issue. An unanswered question gets louder with age instead of quietly expiring.
+- **Toward everyone else** — work parked on a person or agent outside the registry gets `waiting-on:<actor>`, appears in every digest under **Your open loops** with its age, and comes with a drafted follow-up at 3 days (then weekly) that you can send as-is. At 14 days it forces a call: chase, drop, or route around. **The agent drafts; you send** — it never contacts a third party on your behalf.
 
 ### Next steps
 1. Create your first project:
@@ -1481,6 +1612,6 @@ Your agent now manages cross-actor projects with an approval-ready completion la
 | `gh` not authenticated | Stop, explain `! gh auth login` with repo+issues scope |
 | Registry repo not accessible (403) | Stop, show exact error; token must have repo+issues scope on the registry repo |
 | Skills already exist | Ask: overwrite, skip existing, or cancel |
-| `PROJECT_STANDARD.md` already exists | Ask: overwrite (with new config) or keep existing |
+| `PROJECT_STANDARD.md` already exists | Ask: overwrite (with new config) or keep existing. If kept and it predates §14, offer the loop-closure section insert (Step 3) — the steward's open-loop pass is inert without it |
 | `template.yaml` not found | Skip the schedule-registration step; note it in the summary |
 | Label creation fails | Continue, note which failed (they can be created manually later) |

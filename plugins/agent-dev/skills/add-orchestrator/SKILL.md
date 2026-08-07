@@ -4,10 +4,11 @@ description: Make any agent a system-aware orchestrator — installs /discover-a
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.15"
+  version: "1.16"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.16: Loop closure across the bundle — fleet/project-standard.md gains §12 (silence is a failure mode, both directions: the agent closes its loops with the operator; the operator is handed the loops only a human can close with people or agents outside the fleet), a waiting-on:<actor> label, the ### Waiting on / ### Loop closed comment formats, and a 3d/7d/14d nudge ladder in §8; bundled /project-steward v1.2 (Step 4b open-loop pass, digest opens with the closing statement and carries Your open loops, operator-initiated results notify the operator) and /orchestrate v1.9 (a run isn't done until delivery to the requester succeeds; every report ends with Your open loops / Waiting on you / Next without you). The agent drafts follow-ups, the human sends them — nothing here contacts a third party. Re-runs offer the §12 insert into an existing standard"
     - "1.15: Access-verification guidance — preflight flags an installed-but-unauthenticated gh (private github: sources, /sync-fleet-to-head pushes, and registry ops all depend on it); Q3's project layer verifies registry-repo write access + issues enabled via gh api before wiring the autonomous steward (a bad grant would otherwise surface as a silently failing schedule); Step 9's summary documents the deployed-credential story — GH_TOKEN via .env + inject_credentials, same convention as /add-canon Step 6b — for GitHub-touching skills on a Trinity instance"
     - "1.14: Bundled /discover-agents v1.7 — canon coverage line in the scan report (N/M mapped agents enrolled when the fleet has a canon), so an orchestrator that adopted /add-canon alone sees exactly which members are not yet aligned; /add-canon v1.1's fleet-enrollment step closes the gap from the orchestrator side"
     - "1.13: Canon-aware bundle — /discover-agents v1.6 scans each agent's x-canon: declaration (the shared canonical-data layer installed by the new sibling /add-canon) into a canon: field per map node with a cheap declared-folder drift check; /orchestrate v1.8 serves reads of published business facts from the canon repo (cited at canon@<sha>, staleness-flagged) instead of a chat turn and briefs the canon pointer into dispatches; orchestration.md gains a §3c data-layer subsection (offered as an upgrade insert on re-run, like §3b)"
@@ -56,8 +57,11 @@ Maintenance (keep the fleet + its narrative honest over time):
 Drive (opt-in project-management layer — Q3 at install):
   /project-init         create/adopt a managed project (epic + workspace) per fleet/project-standard.md
   /project-steward      autonomous sweep: reconcile dispatches, dispatch next work to labeled owners,
-                        escalate stalls, write a daily digest — never asks mid-run
+                        escalate stalls, age the operator's open loops, write a daily digest —
+                        never asks mid-run
 ```
+
+**Loop closure (standard §12) runs through the whole bundle.** Silence is a failure mode, not an outcome, in both directions. Inbound: `/orchestrate` isn't done until the requester has actually been told the outcome — including when the run failed — and the steward's digest opens with what's now true, what's waiting on the operator, and what happens next unprompted. Outbound: work parked on somebody the fleet can't dispatch to — a client, a vendor, a colleague, an agent in another fleet — is labeled `waiting-on:<actor>`, aged in every digest under **Your open loops**, and handed to the operator with a drafted follow-up. **The agent drafts; the human sends** — nothing in this bundle contacts a third party on the operator's behalf.
 
 **Design invariant (do not violate):** orchestration is **agent-owned**. Trinity supplies the substrate (shared folders, agent-to-agent permissions, MCP messaging, cron) but runs **no central DAG engine**. So the roll-out → work → tear-down lifecycle lives *inside* `/orchestrate` — stitched from existing MCP calls — never as a new platform primitive. The multi-agent *definition* aligns 1:1 with Trinity's `SystemManifest` (the same YAML `deploy_system` consumes); this skill does **not** invent a competing format.
 
@@ -128,7 +132,7 @@ If any target skill directory already exists under `.claude/skills/`, ask per-sk
 
 **Q3 — Add the project-management layer?** (opt-in — this installs an *autonomous, scheduled* driver, so it is never bundled silently)
 - `No` — skip; re-run this skill later to add it.
-- `Yes` — install `/project-init` + `/project-steward` and seed `fleet/project-standard.md`. Then gather three parameters:
+- `Yes` — install `/project-init` + `/project-steward` and seed `fleet/project-standard.md` (which carries the §12 loop-closure discipline: the steward reports back to the operator rather than only filing on issues, and ages the operator's `waiting-on:<actor>` loops with drafted-but-unsent follow-ups). Then gather three parameters:
   - **Registry repo** — which GitHub repo hosts the project epics (default: this agent's own origin repo).
   - **Operator** — the human name `status:needs-operator` escalates to.
   - **Steward cadence** — cron for the sweep (default `0 7-19/2 * * 1-5`, i.e. every 2h during working hours, weekdays, server-local time).
@@ -158,6 +162,8 @@ fi
 **Upgrade path — §3b ownership matrix:** if `fleet/orchestration.md` already exists but has no `### 3b` section (an install predating v1.8), offer to add it — never insert silently into an authored narrative. On yes, copy the `### 3b. Ownership matrix` section from the template, inserted after §3a (before `## 4`), with its table left empty for the human to fill. On no, skip; re-running offers again.
 
 **Upgrade path — §3c data layer:** same rule for `### 3c` (an install predating v1.13): offer to insert the `### 3c. Data layer` section from the template after §3b (before `## 4`), table left empty. Only relevant once the fleet adopts `/add-canon`, so mention that when offering.
+
+**Upgrade path — §12 loop closure:** `fleet/project-standard.md` is live fleet configuration and is never clobbered, so an install predating v1.16 has no `## 12. Loop closure` — and `/project-steward`'s open-loop pass reads it. If the file exists and `grep -q '## 12. Loop closure' fleet/project-standard.md` fails, offer to append that section from the template (plus the `waiting-on:<actor>` row in §3, the two comment formats in §6, and the open-loop ladder paragraph in §8), substituting the existing `{{AGENT_NAME}}`/`{{OPERATOR}}` values. On no, skip and say the steward's loop pass stays inert until the section exists.
 
 If the user pasted repos in Q2, append them under `repos:` in `fleet/sources.yaml` (one entry per line, preserving the header comments).
 
@@ -298,7 +304,7 @@ Print:
 - /profile-fleet      → interview + introspect agents, correct the orchestration.md narrative
 - /fleet-reconcile    → fold already-verified deltas into the doc surfaces — no new evidence
 - /project-init       → create/adopt a managed project (epic + workspace)   [if Q3 = yes]
-- /project-steward    → autonomous project driver — sweep, dispatch, digest [if Q3 = yes]
+- /project-steward    → autonomous project driver — sweep, dispatch, close loops, digest [if Q3 = yes]
 
 ### Files
 - fleet/sources.yaml       (edit this — your repo list)
@@ -323,7 +329,8 @@ Print:
 4. /compose-system             — (provisioning NEW agents only) derive agent_permissions from §5, dry-run, deploy.
 5. /orchestrate <task>         — put the fleet to work (routes by the map + orchestration.md).
 6. Keep it honest over time     — /sync-fleet-to-head (agents on latest code), /profile-fleet (narrative matches reality), /fleet-reconcile (fold verified deltas into the docs cheaply).
-7. (Project layer) /project-init <name> — bring the first project under management; the steward sweeps it on schedule.
+7. (Project layer) /project-init <name> — bring the first project under management; the steward sweeps it on schedule,
+   closes its loops back to you, and hands you the ones only you can close with people outside the fleet.
 ```
 
 ---
@@ -344,4 +351,4 @@ Print:
 
 ## Idempotency
 
-Re-running is safe: existing `fleet/sources.yaml`, `fleet/system-map.yaml`, and `fleet/orchestration.md` are never clobbered (only seeded when absent); the CLAUDE.md section, the `@fleet/orchestration.md` import, and the dashboard panel are each grep-guarded; the §3b ownership-matrix and §3c data-layer inserts are grep-guarded on `### 3b`/`### 3c` and applied only on an explicit yes; and skill copies prompt before overwrite. `/discover-agents` rewrites only the fenced `GENERATED:*` blocks in `orchestration.md` — your prose is never touched. To refresh, run `/discover-agents`; to re-wire a skill, delete its dir under `.claude/skills/` and re-run.
+Re-running is safe: existing `fleet/sources.yaml`, `fleet/system-map.yaml`, and `fleet/orchestration.md` are never clobbered (only seeded when absent); the CLAUDE.md section, the `@fleet/orchestration.md` import, and the dashboard panel are each grep-guarded; the §3b ownership-matrix and §3c data-layer inserts are grep-guarded on `### 3b`/`### 3c`, and the standard's §12 loop-closure insert on `## 12. Loop closure`, each applied only on an explicit yes; and skill copies prompt before overwrite. `/discover-agents` rewrites only the fenced `GENERATED:*` blocks in `orchestration.md` — your prose is never touched. To refresh, run `/discover-agents`; to re-wire a skill, delete its dir under `.claude/skills/` and re-run.

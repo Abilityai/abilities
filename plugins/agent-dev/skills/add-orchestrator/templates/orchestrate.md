@@ -1,13 +1,14 @@
 ---
 name: orchestrate
-description: Put the fleet to work — read fleet/system-map.yaml + live Trinity MCP to route a task to the best-fit agent, fan out across many, or roll out a catalog agent ephemerally (deploy → chat → tear down). Orchestration is agent-owned; no central DAG. Long tasks dispatch fire-and-park (async + run ledger) and report back on completion via the platform's agent.task.* terminal events or a set_reminder watchdog wake-up.
+description: Put the fleet to work — read fleet/system-map.yaml + live Trinity MCP to route a task to the best-fit agent, fan out across many, or roll out a catalog agent ephemerally (deploy → chat → tear down). Orchestration is agent-owned; no central DAG. Long tasks dispatch fire-and-park (async + run ledger) and report back on completion via the platform's agent.task.* terminal events or a set_reminder watchdog wake-up. Every run closes the loop with whoever asked — outcome delivered to them, plus the open loops only they can close with people or agents outside the fleet.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__fan_out, mcp__trinity__deploy_system, mcp__trinity__deploy_local_agent, mcp__trinity__stop_agent, mcp__trinity__start_agent, mcp__trinity__delete_agent, mcp__trinity__get_execution_result, mcp__trinity__create_agent_schedule, mcp__trinity__delete_agent_schedule, mcp__trinity__list_agent_schedules, mcp__trinity__subscribe_to_event, mcp__trinity__list_event_subscriptions, mcp__trinity__send_message, mcp__trinity__send_notification
 user-invocable: true
 metadata:
-  version: "1.8"
+  version: "1.9"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.9: Loop closure — a run ends with the requester, not the ledger: the entry stays pending until delivery actually succeeds (delivery_failed retry; failures and dead agents get delivered too, never silence), and every report ends with three required lines — Your open loops (who outside the fleet owes what, with a drafted follow-up the user sends), Waiting on you, Next without you. Dead-ends at people or other fleets' agents are handed back as the user's loops (filed as waiting-on:<actor> when the project layer is installed), never as 'blocked'"
     - "1.8: Canon-aware routing — a read of published business facts checks the map's canon: fields first: if the owning agent publishes to the fleet's shared canon repo (/add-canon) and this orchestrator holds a clone, answer from agents/<folder>/ there (cited at canon@<sha>, staleness-flagged) instead of spending a chat_with_agent turn; dispatched briefs include the relevant canon pointer so workers read published truth instead of re-asking; writes still route to the owning agent (own-folder-only rule)"
     - "1.7: Platform-native wake-ups — the report-back subscription now targets the backend-emitted agent.task.completed/agent.task.failed terminal events (trinity#1578; no completion trailer, works even when the worker crashes or forgets, covers sync-turned-async runs) with a no-match-→-silent-exit guard for shared workers; the deterministic fallback is a re-arming set_reminder one-shot (trinity#1296) instead of a self-deleting orch-watch cron (reminder_id in the ledger, cancel_reminder on event-first wake-up); Step 5/error table note #1580 — agent keys can tear down only agents they spawned (403 otherwise)"
     - "1.6: Async dispatch + report-back — Step 4 is duration-aware and fire-and-park: quick tasks stay sync; long ones (or a queued_timeout receipt) go out chat_with_agent(parallel=true, async=true) with the execution_id parked in a run ledger (fleet/.orchestrate-runs.yaml) and the turn ended. Dual wake-up: a completion trailer on the dispatched prompt (worker emits orchestration.task_completed; orchestrator pre-subscribes with a {{payload.task_id}}-templated message) plus a self-deleting orch-watch-<execution_id> watchdog schedule as deterministic fallback. New Step 6b report-back fetches the result, delivers via send_message (send_notification fallback), resumes parked chains, cleans up watcher + ledger, and only then tears down ephemerals (Step 5 now runs after results are in hand). Error table gains queued_timeout conversion, duplicate wake-up, failed/cancelled execution, and watchdog-leak reconciliation"
@@ -30,6 +31,10 @@ Drive the fleet. Given a task, decide **who** should do it (matching against `fl
 **Invariant:** this agent owns the orchestration. Trinity brokers the calls (`chat_with_agent`, `fan_out`) and the lifecycle (`deploy_*` / `stop_agent` / `delete_agent`); there is no central DAG engine. Multi-step flows are sequenced *here*, in this skill.
 
 **Dispatch contract: fire-and-park.** Anything long runs async — park the `execution_id` in the run ledger (`fleet/.orchestrate-runs.yaml`), tell the user it's dispatched, and end the turn. The worker's backend-emitted `agent.task.completed`/`agent.task.failed` event (trinity#1578) or a `set_reminder` watchdog wakes this agent for the report-back (Step 6b). Never block a turn waiting on another agent — no sleeps, no in-turn polling loops.
+
+**Loop contract: the run ends with the requester, not with the ledger.** Parking a task opens a loop with whoever asked, and only *delivering the outcome to them* closes it. A ledger entry marked `done` that nobody was told about is an unclosed loop wearing a closed label — so an entry stays `pending` until delivery actually succeeds (Step 6b.5). The same rule covers the failure cases: an agent that died, a route that turned out to be impossible, a task abandoned mid-chain — the requester hears about it. Silence is never how a dispatch ends.
+
+**Hand back the loops this fleet cannot close.** Routing regularly dead-ends at somebody outside the map — a client who owes an answer, a vendor's support queue, a colleague who has to approve, an agent in someone else's fleet. Those are the user's loops to close, and the useful thing is not "blocked" but a name, an ask, and a message ready to send. Report them explicitly (Step 6) and, when the fleet runs the project-management layer, file them as `waiting-on:<actor>` tasks so `/project-steward` ages them in the digest instead of letting them evaporate. **Draft the outreach; never send it** — contacting a third party on the user's behalf is the human's act.
 
 ---
 
@@ -136,7 +141,13 @@ Agents:
   - <agent> (<deployed | ephemeral>) → <one-line result>
 Ephemerals torn down: <list | none>
 Result: <synthesized outcome>
+
+Your open loops: <who outside the fleet owes what, and by when — or "none">
+Waiting on you: <the one thing, or "nothing">
+Next without you: <what this agent does unprompted, or "nothing until you say">
 ```
+
+The last three lines are the loop closure, and they are not optional. **Your open loops** names every dependency the fleet cannot chase itself — person or agent, what was asked, how long it has been sitting — and offers a drafted message for each ("want me to draft the follow-up to Dana?" → draft it; the user sends it). **Waiting on you** is the single decision or input that unblocks the most work. **Next without you** tells the user what happens if they do nothing, so silence on their side is an informed choice rather than a dropped thread.
 
 Publish a guarded Trinity report (`report_type: <agent>.orchestration_run`, `display_hint: markdown`). Guard against **both** the tool being absent **and** an auth-scope error (the report tool needs an agent-scoped key; an admin/user MCP key raises a permission error) — swallow either and continue.
 
@@ -151,8 +162,8 @@ Runs whenever this agent is woken about a parked run: an **`agent.task.completed
    - **Completed** → synthesize the outcome in the Step 6 report format.
    - **Failed / cancelled** → report the error instead; **stop but do not delete** that run's ephemerals (preserve for inspection — Step 5's rule) and mark the ledger entry `failed`.
 4. **Parked chain?** If the entry has `remaining:` steps, feed the fetched result into the next step's prompt and go back to Step 4 (same triage and machinery) — the final report-back happens at the end of the chain.
-5. **Deliver:** `send_message` to the entry's `notify` target (channel auto — routes to Telegram/Slack). If proactive messaging fails, fall back to `send_notification` (dashboard badge) so the outcome is never silently dropped.
-6. **Clean up:** `cancel_reminder(reminder_id)` if the entry still has a pending one (the event beat the watchdog); mark the ledger entry `done` (or `failed`) with a `finished_at` timestamp; **then** tear down that run's ephemerals per Step 5. Publish the guarded Trinity report from Step 6 as usual.
+5. **Deliver — this is the loop closing.** `send_message` to the entry's `notify` target (channel auto — routes to Telegram/Slack). If proactive messaging fails, fall back to `send_notification` (dashboard badge). If **both** fail, leave the entry `pending` with `delivery_failed: <ISO timestamp>` and retry on the next turn that touches the ledger — never mark a run `done` that its requester was never told about. Failures are delivered too: "the researcher died on this, here's how far it got" is a closed loop; nothing is not.
+6. **Clean up:** `cancel_reminder(reminder_id)` if the entry still has a pending one (the event beat the watchdog); mark the ledger entry `done` (or `failed`) with a `finished_at` timestamp **only once delivery succeeded**; **then** tear down that run's ephemerals per Step 5. Publish the guarded Trinity report from Step 6 as usual.
 
 ---
 
@@ -163,6 +174,8 @@ Runs whenever this agent is woken about a parked run: an **`agent.task.completed
 | No `fleet/system-map.yaml` | Send user to `/discover-agents`; stop |
 | Trinity MCP absent | Produce the routing plan only; explain that execution needs `/trinity:connect` first |
 | No agent matches the task | Say so; suggest adding a suitable repo to `fleet/sources.yaml`, or a catalog agent to roll out |
+| Task depends on a person or agent outside the fleet | Not a routing failure — a loop the user owns. Name the actor, say what to ask, offer the drafted message, and (if the project layer is installed) file it as a `waiting-on:<actor>` task so `/project-steward` ages it. Never contact them directly |
+| Both `send_message` and `send_notification` fail on report-back | Keep the ledger entry `pending` with `delivery_failed`; retry on the next ledger-touching turn. An undelivered result is an open loop, not a finished run |
 | Chosen deployed agent unhealthy | Report health; offer an alternate or abort |
 | Ephemeral deploy rejected: name exists / reserved | Soft-deleted names stay reserved until purge — bump `fleet/.eph-seq` and retry (up to 3), then report |
 | Ephemeral deploy fails | Report the error; tear down anything already created this run; abort the task |

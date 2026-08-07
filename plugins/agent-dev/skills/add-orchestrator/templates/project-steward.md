@@ -1,16 +1,17 @@
 ---
 name: project-steward
-description: Autonomous sweep of all fleet-managed projects (GitHub epics labeled "project" in the registry repo named by fleet/project-standard.md). Reconciles outstanding agent dispatches, reviews each project against the standard, dispatches next work to explicitly-labeled owner agents via Trinity, escalates stalls, and writes a daily digest. Use manually to force a sweep, or ask "what's the state of my projects".
+description: Autonomous sweep of all fleet-managed projects (GitHub epics labeled "project" in the registry repo named by fleet/project-standard.md). Reconciles outstanding agent dispatches, reviews each project against the standard, dispatches next work to explicitly-labeled owner agents via Trinity, escalates stalls, ages the open loops only the operator can close (waiting-on items — drafting follow-ups, never sending them), and writes a daily digest that opens by closing the loop with the operator. Use manually to force a sweep, or ask "what's the state of my projects".
 automation: autonomous
 schedule: "0 7-19/2 * * 1-5"
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__list_agents, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__get_chat_history, mcp__trinity__send_notification
 effort: high
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-07-03
   author: orchestrator
   changelog:
+    - "1.2: Loop closure (standard §12) — new Step 4b open-loop pass ages every waiting-on:* task on the 3d/7d/14d ladder, drafts sendable follow-ups (never sends them) and records closes; triage gains a waiting-on class so a wait no longer burns a needs-operator; digest opens with the closing statement and carries Your open loops + Loops closed; operator-initiated results notify the operator directly; unanswered asks get louder with age; state.json gains open_loops (rebuildable from labels)"
     - "1.1: Ownership-matrix awareness — when orchestration.md §3b lists C/I agents for the task's domain, note C in the dispatch brief and address I in the digest; advisory etiquette only, never a gate or an extra dispatch"
     - "1.0: Initial bundle version — adopted from a production orchestrator's project-steward v1.6 (six field-hardened releases: gh bootstrap, GH_TOKEN from the origin remote, REST-labels scope pre-flight, no-op discipline for high-frequency cadence, time-based dispatch thresholds, GitHub-as-state-carrier) and universalized: registry repo + operator read from fleet/project-standard.md, needs-operator label, inline class = agent:<self>, owners resolved via system-map deployed_name and checked against orchestration.md §5 before dispatch"
 ---
@@ -23,12 +24,21 @@ metadata:
 
 Keep every fleet-managed project moving without the operator having to push it. Each run:
 reconcile what agents reported back, review every open project epic for drift and
-staleness, dispatch the next unit of work to its explicitly-named owner agent, and
-surface only what genuinely needs the operator in a daily digest.
+staleness, dispatch the next unit of work to its explicitly-named owner agent, sweep the
+open loops nobody in the fleet can close, and surface only what genuinely needs the
+operator in a daily digest.
 
 This playbook is the **sole writer of the project issue log** (see
 `fleet/project-standard.md` §2). It never asks a human anything mid-run: anything
 ambiguous gets `status:needs-operator` and moves on.
+
+**It closes loops in both directions** (standard §12). Nothing it touched ends in silence:
+the digest opens by telling the operator what is now true and what is waiting on them, work
+the operator initiated is reported back to the operator rather than only filed on an issue,
+an unanswered ask gets louder with age instead of expiring, and every task parked on a
+person or agent *outside* the fleet is aged in the digest with a ready-to-send follow-up.
+It drafts those follow-ups; **it never sends them** — contacting a client, vendor, or
+outside colleague is the human's act, always.
 
 **Deliberate non-composition:** this playbook does **not** invoke `/orchestrate` to
 dispatch. Autonomy is transitive — `/orchestrate` disambiguates weak matches
@@ -128,8 +138,10 @@ and a no-op run must be nearly free and leave no trace:
 - After Step 1 (registry pull) and the Step 2 reconciliation scan, compute whether ANY
   actionable condition exists: an unreconciled dispatch with a reply waiting or past a
   time threshold, an active epic whose next task is dispatchable/inlinable, a staleness
-  breach, a closure candidate, or registry changes since `last_run` (new/edited epics,
-  label changes by the operator).
+  breach, a closure candidate, a `waiting-on:*` loop crossing a nudge threshold (3d, then
+  weekly, then 14d — a quiet loop still ages), a `status:needs-operator` ask now unanswered
+  across two digests, or registry changes since `last_run` (new/edited epics, label changes
+  by the operator).
 - **If none: stop.** Update `last_run` in the local `state.json` only — do NOT commit, do
   NOT write or update a digest, do NOT notify, do NOT post any comment. The next material
   run's commit will carry the state file.
@@ -155,7 +167,10 @@ and a no-op run must be nearly free and leave no trace:
 1. Read `fleet/project-standard.md` — conventions are loaded fresh each run. Resolve
    `$REGISTRY` and `$SELF` (see Runtime resolution).
 2. Read `fleet/project-steward/state.json` (create with empty defaults if missing:
-   `{"last_run": null, "carry_over": [], "open_dispatches": []}`).
+   `{"last_run": null, "carry_over": [], "open_dispatches": [], "open_loops": []}`). Each
+   `open_loops` entry is `{issue, actor, asked_at, last_nudge, digests_carried}` — bookkeeping
+   only; the `waiting-on:*` labels on GitHub are the truth, so a lost state file costs nudge
+   timing, never a loop.
 3. Pull the registry:
    ```bash
    gh issue list --repo "$REGISTRY" --label project --state open \
@@ -208,6 +223,16 @@ First classify the project's next actionable task into one of three autonomy cla
   posts the result as an agent-report comment.
 - **needs-human**: everything else (missing owner, unsanctioned §5 edge, gated external
   effect, judgment call) → `status:needs-operator` + digest.
+- **waiting-on**: the blocker is a *response from someone outside the fleet* (client, vendor,
+  colleague, another fleet's agent) rather than a call only the operator can make → this is an
+  open loop, not a decision: create the label idempotently, apply it, post the `### Waiting on`
+  comment (standard §6), and let Step 4b age it. Don't spend a `needs-operator` on a wait —
+  that is how a decision queue turns into noise the operator stops reading.
+  ```bash
+  gh label create "waiting-on:$ACTOR" --repo "$REGISTRY" --color "d4c5f9" \
+    --description "Open loop: awaiting $ACTOR" 2>/dev/null || true
+  gh issue edit "$ISSUE" --repo "$REGISTRY" --add-label "waiting-on:$ACTOR"
+  ```
 
 Then take exactly one action, in priority order:
 
@@ -241,29 +266,78 @@ Then update labels and post at most **one** steward update comment per project, 
 if something changed since the last one (compare against the most recent
 `### Steward update` comment — re-runs on the same day must be no-ops).
 
+### Step 4b: Open-loop pass (standard §12)
+
+Two cheap sweeps, every material run. Neither ever contacts anyone outside the fleet.
+
+**Outbound — loops the operator owes other people or agents.** Fetch every open task carrying
+a `waiting-on:*` label:
+
+```bash
+gh issue list --repo "$REGISTRY" --state open --json number,title,labels,url,updatedAt --limit 100 \
+  --jq '[.[] | select(any(.labels[].name; startswith("waiting-on:")))]'
+```
+
+Resolve each loop's actor from the label and its age from `fleet/project-steward/state.json`
+`open_loops` (falling back to the date on the issue's `### Waiting on` comment, else the
+label-application event). Then:
+
+| Age since asked | Action |
+|---|---|
+| < 3 days | List in the digest's **Your open loops** with its age. No nudge, no notification. |
+| ≥ 3 days, and ≥ 7 since the last nudge | Draft a short sendable follow-up (2–4 sentences: what was asked, when, why it matters now, what response closes it) into the digest verbatim under that loop; record `last_nudge`. |
+| ≥ 14 days | `status:needs-operator` + one steward update asking the operator to chase harder, drop it, or route around it. Keep listing it. **Never auto-drop a loop.** |
+
+Detect closure while you are there: if the task's comments show the awaited answer arrived,
+post `### Loop closed YYYY-MM-DD — answered` (standard §6), remove the `waiting-on:*` label,
+drop the state entry, and note the close in the digest. A close nobody recorded reads exactly
+like a loop nobody remembered.
+
+**Never send the nudge.** The steward drafts; the operator sends. Reaching out to a client,
+vendor, or outside colleague on the operator's behalf is out of scope for this playbook under
+every configuration (standard §9.8).
+
+**Inbound — loops this agent owes the operator.** For every open `status:needs-operator` item,
+count the digests carried since the ask was posted. At two or more, promote it to the top of
+the digest's **Needs operator** section with its age stated plainly ("asked 9 days ago, 4
+digests"). An ask never retires for going stale — it gets louder, not quieter.
+
 ### Step 5: Write the digest (material runs only)
 
 Skipped entirely on no-op runs. One file per day — `fleet/project-steward/digests/YYYY-MM-DD.md` —
 created by the day's first material run and updated in place by later ones (append a
-`## Run HH:MM` section rather than rewriting history). Contents:
+`## Run HH:MM` section rather than rewriting history).
 
-- **Needs operator** (top): each `status:needs-operator` item with the one decision required.
+Open with the **closing statement** (standard §12a) — three lines, before any section: what is
+now true, what is waiting on the operator, and what the steward will do next unprompted. A
+digest that opens with a table of statuses makes the operator do the reading; one that opens
+with those three lines has already closed the loop. Then:
+
+- **Needs operator** (top): each `status:needs-operator` item with the one decision required; items unanswered across 2+ digests come first, age stated.
+- **Your open loops**: every `waiting-on:*` task, oldest first — actor, age, and the one sentence that would close it; loops past 3 days carry the drafted follow-up verbatim, ready to send.
 - **Blocked**: blocker + age.
 - **Worked autonomously**: inline tasks executed this run, with result links.
 - **Dispatched today**: agent, task, issue link.
 - **Reconciled**: agent reports relayed since last run.
+- **Loops closed**: loops resolved since the last digest, and how (answered / dropped / routed around).
 - **Healthy/quiet**: one line each.
 - **Carry-over + mode**: projects not reviewed this run; note if triage-only.
 
-If (and only if) there are needs-operator items, blockers, or errors: send a short summary
-via `mcp__trinity__send_notification` linking the digest path. Quiet days produce a digest
-file but no notification.
+If (and only if) there are needs-operator items, blockers, a loop crossing a nudge threshold,
+or errors: send a short summary via `mcp__trinity__send_notification` linking the digest path.
+Quiet days produce a digest file but no notification, and standing loops that crossed no
+threshold this run stay in the digest without one — the list is always visible, the
+interruption is not.
+
+**Results the operator personally asked for go to the operator** (standard §12a.4): when this
+run finished work the operator initiated by name, notify with the outcome even on an otherwise
+quiet day. The issue log is the record; the notification is the loop closing.
 
 ### Step 6: Write updated state
 
-1. Update `state.json`: `last_run`, `carry_over`, `open_dispatches` (with `sent_at`, `repinged_at`).
+1. Update `state.json`: `last_run`, `carry_over`, `open_dispatches` (with `sent_at`, `repinged_at`), `open_loops`.
 2. Prepend one summary line to `fleet/project-steward/run_log.txt`:
-   `YYYY-MM-DD HH:MM | reviewed N | dispatched N | inline N | reconciled N | needs-operator N | mode`.
+   `YYYY-MM-DD HH:MM | reviewed N | dispatched N | inline N | reconciled N | needs-operator N | loops N (nudged N, closed N) | mode`.
 3. Push steward state (scoped — never add any other path):
    ```bash
    git add fleet/project-steward && git commit -m "steward: run $(date +%Y-%m-%d)" \
@@ -280,6 +354,8 @@ file but no notification.
 - [ ] Every reviewed epic has exactly one `status:*` label
 - [ ] Every dispatch has: receipt comment + tracker entry + healthy-agent check + sanctioned §5 edge
 - [ ] No steward comment posted where nothing changed (idempotency held)
+- [ ] Every `waiting-on:*` loop aged, listed, and (past 3 days) carrying a drafted nudge — none sent
+- [ ] Digest opens with the closing statement: what's true, what's on the operator, what happens next unprompted
 - [ ] Digest written; notification sent only if warranted
 - [ ] `state.json` and `run_log.txt` updated
 - [ ] Run completed under 45 minutes (else halve the project cap via Self-Improvement)
@@ -298,7 +374,8 @@ file but no notification.
   and the dispatch tracker make all writes idempotent.
 - **State file corrupt**: move it to `state.json.bak-YYYY-MM-DD`, rebuild defaults, and
   rebuild `open_dispatches` conservatively from the most recent "Dispatched" receipts that
-  lack a matching "Agent report" comment.
+  lack a matching "Agent report" comment; rebuild `open_loops` from the live `waiting-on:*`
+  labels (ages from each issue's `### Waiting on` comment). Nudge timing resets; no loop is lost.
 
 ## Self-Improvement
 

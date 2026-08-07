@@ -6,7 +6,7 @@
 > **{{AGENT_NAME}}** is the managing agent; fleet agents execute dispatched work;
 > **{{OPERATOR}}** is the operator (the human this standard escalates to).
 >
-> Version: 1.0 ({{DATE}})
+> Version: 1.1 ({{DATE}})
 
 ## 1. Where projects live
 
@@ -44,6 +44,7 @@ Duplicate state is a bug.
 | `status:paused` | Deliberately on hold; steward skips it (no staleness escalation) |
 | `priority:p1` / `priority:p2` / `priority:p3` | p1 = steward reviews first and escalates fastest |
 | `agent:<name>` | Owner agent for dispatchable work (`agent:{{AGENT_NAME}}` when the managing agent does the work itself). Names must match `fleet/system-map.yaml` |
+| `waiting-on:<actor>` | **Open loop** — a person or agent *outside this fleet* owes a response before this moves. Not dispatchable: only {{OPERATOR}} can close it (§12) |
 
 Rules: every epic carries `project`, exactly one `status:*`, one `priority:*`, and at least
 one `agent:*`. Slugs are kebab-case. Labels are created idempotently by `/project-init`.
@@ -128,6 +129,23 @@ Sent to `<agent>` via Trinity chat. Expected deliverable: <summary>.
 <verbatim or tightly summarized result, with links/paths>
 ```
 
+**Waiting-on notice** — posted when a task parks on someone outside the fleet (§12):
+
+```markdown
+### Waiting on <actor> — YYYY-MM-DD
+Asked: <what was asked, one line>
+Channel: <email | Slack | call | letter | other fleet's agent>
+Expected back: <date, or "no commitment">
+Closes when: <the observable answer or artifact that ends the wait>
+```
+
+**Loop closed** — posted when an open loop resolves, whichever way it resolved:
+
+```markdown
+### Loop closed YYYY-MM-DD — <answered | dropped | routed around>
+<what came back, or why we stopped waiting>
+```
+
 ## 7. Lifecycle
 
 ```
@@ -152,6 +170,13 @@ commits referencing the issue):
   steward update.
 - **14 days** → steward sets `status:needs-operator` and puts it at the top of the digest.
 - `status:paused` projects are exempt.
+
+Open loops (`waiting-on:*`, §12) age on their own ladder, measured from the `### Waiting on`
+comment: **3 days** unanswered → digest entry plus a drafted nudge for {{OPERATOR}} to send;
+**every 7 days** after that → re-drafted, age called out; **14 days** → `status:needs-operator`
+to chase, drop, or route around. A `status:needs-operator` ask that {{OPERATOR}} has not
+answered across two digests moves to the top with its age stated — an ask is never retired
+for going stale.
 
 ## 9. Dispatch protocol
 
@@ -212,6 +237,58 @@ project_files/<slug>/
 explicitly-labeled owners (no routing judgment), because `/orchestrate`'s interactive
 disambiguation would hang an autonomous run. Ad-hoc cross-agent work still goes through
 `/orchestrate`; *managed project* work goes through this standard.
+
+## 12. Loop closure
+
+**No loop closes by silence.** Every request that enters this fleet leaves it with an
+explicit answer delivered to whoever opened it. A task that dies still gets a closing line;
+a question nobody answered gets re-asked, not forgotten; a wait nobody ended gets escalated,
+not quietly aged out. Silence is a failure mode, never an outcome. Two directions, both
+tracked by {{AGENT_NAME}}.
+
+### 12a. Inbound — loops {{AGENT_NAME}} owes {{OPERATOR}}
+
+Anything {{OPERATOR}} asked for, and anything {{AGENT_NAME}} promised, stays open until
+{{OPERATOR}} has been told the outcome **in a channel they actually read**. A comment on an
+issue nobody opened is not closure.
+
+1. **Every run ends with a closing statement** — what is now true, what is waiting on
+   {{OPERATOR}}, and what {{AGENT_NAME}} will do next unprompted (or "nothing until you
+   say"). Interactive skills print it last; the steward writes it as the digest's opening lines.
+2. **Every ask is tracked until answered.** A `status:needs-operator` item carries its age in
+   every subsequent digest; unanswered across two digests it moves to the top with the age
+   stated. Never retired for being stale.
+3. **Dead work is closed out loud.** Superseded, rejected, or obsolete tasks get a
+   `### Loop closed` comment naming why, then close. Nothing rots silently in `open`.
+4. **Report to the person, not just the record.** Results of work {{OPERATOR}} personally
+   initiated go to them by notification *in addition to* the issue log.
+
+### 12b. Outbound — loops {{OPERATOR}} owes other people or agents
+
+Work routinely parks on someone this fleet cannot dispatch to: a client, a lawyer, a vendor,
+a colleague, an agent in someone else's fleet. Only the human can close those, so
+{{AGENT_NAME}}'s job is to make them impossible to forget.
+
+1. **Name the loop** — label the task `waiting-on:<actor>` and post the `### Waiting on`
+   comment (§6): who, what was asked, what closing it looks like.
+2. **Age it in public** — every digest carries a **Your open loops** section: each
+   `waiting-on:*` task, oldest first, with its age and the one sentence that would close it.
+3. **Hand over a ready-to-send nudge** — at 3 days unanswered and weekly after, the digest
+   includes a drafted follow-up {{OPERATOR}} can send as-is. **Drafting is the agent's job;
+   sending is the human's.** {{AGENT_NAME}} never contacts a third party on {{OPERATOR}}'s
+   behalf (§9.8 — external effects stay gated).
+4. **Force the call at 14 days** — `status:needs-operator`: chase harder, drop it, or route
+   around it. Never auto-dropped.
+5. **Fleet agents are dispatches, not waiting-on** — if the counterpart is reachable through
+   the map, it is a dispatch (§9) with its own re-ping ladder. `waiting-on:` is only for
+   actors outside the dispatch protocol.
+
+**Closing is a write.** When a loop resolves — answered, dropped, or routed around — post
+`### Loop closed` (§6), remove the `waiting-on:*` label, and note it in the next digest. An
+unrecorded close is indistinguishable from a forgotten one.
+
+*The 3d / 7d / 14d ladder is the default; edit these numbers to match how your
+counterparties actually respond.*
 
 Change this standard deliberately: it is read by both skills at runtime, so edits here
 change fleet behavior without touching the skills.

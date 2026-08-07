@@ -132,7 +132,9 @@ The `/add-memory` skill copies memory skills directly into the agent (no plugin 
 | **profile-fleet** | Interview + introspect the agents, reconcile reality vs declared config, and correct the `orchestration.md` narrative behind a gate |
 | **fleet-reconcile** | Fold already-verified deltas (session fixes, audit corrections) into every doc surface behind one gate — no new evidence |
 | **project-init** *(opt-in)* | Create/adopt a managed project (GitHub epic + workspace) per `fleet/project-standard.md` |
-| **project-steward** *(opt-in)* | Autonomous scheduled project driver — sweep, dispatch to labeled owners, escalate, digest |
+| **project-steward** *(opt-in)* | Autonomous scheduled project driver — sweep, dispatch to labeled owners, escalate, age the operator's open loops, digest |
+
+**Nothing ends in silence (standard §12).** The bundle treats an unclosed loop as a defect in both directions. Inbound: `/orchestrate` isn't finished until the person who asked has actually been told the outcome — successes *and* failures — and every report ends with *your open loops / waiting on you / next without you*; the steward's digest opens the same way. Outbound: work parked on somebody the fleet can't dispatch to (a client, a vendor, a colleague, an agent in another fleet) is labeled `waiting-on:<actor>`, aged in every digest, and handed over with a follow-up drafted at 3 days and weekly after — **the agent drafts it, the human sends it.** Nothing in the bundle contacts a third party on the operator's behalf.
 
 **Two modes, not one pipeline:** to *describe and route over a fleet that already exists on Trinity*, run `/discover-agents` then `/orchestrate` — the map is the read surface, **skip `/compose-system`**. To *provision a new system* from catalog repos, go `/discover-agents` → `/compose-system` → `deploy_system` → `/orchestrate`.
 
