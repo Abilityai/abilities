@@ -4,11 +4,12 @@ description: Scan one or more directories of agents in ANY paradigm — Claude C
 allowed-tools: Read, Bash, Write, Glob, Grep, mcp__trinity__share_file
 user-invocable: true
 metadata:
-  version: "2.3"
+  version: "2.3.1"
   created: 2026-07-30
-  updated: 2026-07-30
+  updated: 2026-08-07
   author: Ability.ai
   changelog:
+    - "2.3.1: Upgrade-path table now names `agent-dev:add-project-management` — the skill moved into the agent-dev plugin, and this was the one row emitting an un-namespaced command into generated work orders"
     - "2.3: Marketplace integration — published into the agent-dev plugin (abilities marketplace); frontmatter normalized to marketplace conventions (comma-separated allowed-tools)"
     - "2.2: Universal agent discovery — classify n8n / framework (LangChain, CrewAI, AutoGen) / freeform-coded agents as first-class inventory entries (paradigm field), scan depth 2 -> 3; Migration Readiness score (0-100) for non-Claude-Code agents; marketplace upgrade paths — every recommendation maps to an installable abilities-marketplace skill (add-orchestrator, add-memory, kb-agent, add-canon, create-agent:custom, trinity:onboard); new 'Making your agents useful' report section; JSON schema + report script additions (paradigm column, upgrade_paths)"
     - "2.1: Markdown report twin (agent-executable work order) alongside the PDF; roadmap reframed to agent-speed (hours, not weeks); multiple scan paths per invocation; empty CLAUDE.md scores 0 for identity; local-run output path fallback; schema field name fix (maturity_score)"
@@ -321,7 +322,7 @@ Every architecture recommendation must resolve to a **runnable install** from th
 | Knowledge brain (Cornelius pattern) | `create-agent:kb-agent` | No Knowledge Brain agent exists in the fleet |
 | Migrate an n8n / framework / freeform agent | `create-agent:custom` (scaffold) + port the extracted logic | Every non-`claude-code` agent worth keeping |
 | Shared facts layer | `agent-dev:add-canon` | ≥ 2 agents where one produces facts another consumes |
-| Cross-actor project management | `add-project-management` | The hub coordinates work across humans + agents |
+| Cross-actor project management | `agent-dev:add-project-management` | The hub coordinates work across humans + agents |
 | Audit / refine an existing agent | `create-agent:review` + `create-agent:adjust` | Any Claude Code agent scoring 40–79 |
 | Deploy autonomous, 24/7 | `trinity:onboard` | Phase 4, per agent |
 

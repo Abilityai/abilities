@@ -34,9 +34,9 @@
     {
       "name": "agent-dev",
       "source": "./plugins/agent-dev",
-      "description": "Develop and extend existing agents — add skills, memory systems, GitHub backlog workflow, git-sync hooks, planning tools, and fleet analysis",
+      "description": "Develop and extend existing agents — add skills, memory systems, GitHub backlog workflow, cross-actor project management, git-sync hooks, planning tools, and fleet analysis",
       "category": "developer-tools",
-      "tags": ["agent", "development", "skills", "memory", "backlog", "github", "git-sync", "hooks", "planning", "workflow", "fleet-analysis"],
+      "tags": ["agent", "development", "skills", "memory", "backlog", "github", "git-sync", "hooks", "planning", "workflow", "fleet-analysis", "project-management", "cross-actor"],
       "skills": [
         "./skills/create-playbook",
         "./skills/adjust-playbook",
@@ -50,6 +50,7 @@
         "./skills/add-pipeline-instance",
         "./skills/add-pipeline-stage",
         "./skills/validate-pipeline",
+        "./skills/add-project-management",
         "./skills/agent-fleet-analysis",
         "./skills/agent-fleet-migrate",
         "./skills/backlog",
@@ -123,9 +124,9 @@
     {
       "name": "add-project-management",
       "source": "./plugins/add-project-management",
-      "description": "Install cross-actor project management into any agent — GitHub Issues as single source of truth, uniform task anatomy with approval-ready completion lattice (open → pending-verification → done), autonomous project steward with invariant-driven escalation, and projection sync with Google Tasks adapter v1. No fleet infrastructure required.",
-      "category": "productivity",
-      "tags": ["project-management", "github", "issues", "tasks", "orchestration", "multi-agent", "cross-actor", "approval", "completion-lattice", "pending-verification", "steward", "projection", "google-tasks", "portfolio", "governance"],
+      "description": "DEPRECATED — moved into the agent-dev plugin; run /agent-dev:add-project-management instead. Pointer stub kept for one release so existing installs do not break; it installs nothing.",
+      "category": "deprecated",
+      "tags": ["deprecated", "moved", "project-management", "agent-dev"],
       "skills": [
         "./skills/add-project-management"
       ]

@@ -22,6 +22,7 @@ Develop and extend existing Claude Code agents with skills, memory systems, a fu
 /agent-dev:add-canon          # Join the fleet's shared canonical-data repo (publish/consume/reconcile/doctor)
 /agent-dev:add-canon-lint     # Install deterministic linting into the canon repo (two-zone schema, CI on every push)
 /agent-dev:add-pipeline       # Add a long-running multi-stage pipeline (+ instance/stage/validate helpers)
+/agent-dev:add-project-management  # Install the cross-actor project-management standard (GitHub Issues as the registry)
 ```
 
 ### Development Workflow
@@ -78,6 +79,7 @@ For autonomous processing of project-level issues:
 | **add-canon** | Give the agent a shared canonical-data layer — a fleet **canon repo** (`agents/<name>/` owned folders in the two-zone schema + `protocols/`) with `/canon-publish`, `/canon-consume`, `/canon-reconcile`, `/canon-doctor` runtime skills. Own-folder-only writes, cross-folder via PR |
 | **add-canon-lint** | Install deterministic consistency linting into the canon repo — stdlib-Python linter + CI on every push (schema, key grammar, one-home-per-key, ownership, staleness, reachability), `lint/rules.yaml` severities, optional required PR check. Run once per fleet |
 | **add-pipeline** | Install a long-running, multi-stage pipeline (heartbeat + status/recover/pause/resume runtime skills). Extend with `add-pipeline-instance` and `add-pipeline-stage`; lint with `validate-pipeline` |
+| **add-project-management** | Install the cross-actor project-management standard — GitHub Issues as the single write-authoritative registry, uniform task anatomy, the `open → pending-verification → done` completion lattice, loop closure in both directions, and projection sync (Google Tasks adapter v1). Writes `PROJECT_STANDARD.md` + five runtime skills (`/project-init`, `/project-task`, `/project-intake`, `/project-steward`, `/project-reconcile`). **Altitude:** governs humans + multiple agents on shared projects; for one agent's own dev-loop backlog use `add-backlog`. Moved here from its own plugin in 1.12.0 |
 | **agent-fleet-analysis** | Scan one or more directories of agents in **any paradigm** — Claude Code, n8n exports, framework apps (LangChain/CrewAI/AutoGen), freeform-coded LLM loops — score each (Fleet Maturity for Claude Code, Migration Readiness for the rest), recommend a fleet architecture (hub, knowledge brain, memory, canon layer) with every gap mapped to an installable marketplace skill, and emit an A4 PDF report + an agent-executable markdown work order |
 | **agent-fleet-migrate** | Execute the fleet-analysis work order — the *execute* half of the pair. Non-destructive: each agent is copied (or scaffolded, for non-Claude-Code paradigms) into `fleet-migrated/`, its logic extracted per paradigm (n8n node graphs, framework code, freeform prompts), every fix delegated to a named marketplace skill, every copy verified through `/create-agent:review`, ending with a before/after maturity report, capability coverage matrix, and a **gated** Trinity deploy offer. Sources are never mutated |
 
