@@ -4,10 +4,11 @@ description: Turn fleet/system-map.yaml into a Trinity SystemManifest (fleet/sys
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__deploy_system, mcp__trinity__list_systems, mcp__trinity__get_system_manifest, mcp__trinity__restart_system, mcp__trinity__list_templates
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.3: Repository-first members — `github:Org/repo` is stated as the only source that makes a manifest reproducible; a repo-less member is flagged `# NEEDS-REPO` with the push-and-update-the-map fix (local template/deploy_local_agent demoted to stopgaps), and Step 3 names the instance GitHub token (Settings → GitHub token, Contents: Read) as the prerequisite for private members"
     - "1.2: Derive agent_permissions from fleet/orchestration.md §5 (Permissions & boundaries) as the source of intent; fall back to the preset topology with a note when §5 is empty — closing the loop narrative → enforced permissions"
     - "1.1: Front-load the two-mode distinction — this is the PROVISION path (stand up NEW agents); skip it for a fleet already on Trinity (the map + /orchestrate is enough). Guarded report swallows auth-scope failures"
     - "1.0: Initial version — composes a Trinity SystemManifest from the system map, validates via dry_run, deploys on explicit approval, and always writes fleet/system.yaml for version control"
@@ -60,15 +61,19 @@ Use `AskUserQuestion`:
 
 ### Step 3: Resolve `template` refs
 
-Each member needs a Trinity `template` ref. Resolve from the map's `source`/`ref`:
+Each member needs a Trinity `template` ref. **A system is built out of repositories.** `github:Org/repo` is the only member source that makes the manifest reproducible — the whole point of declaring a system in a file is that re-running it anywhere rebuilds the same fleet, and that only holds if each member's `template` names a repo and a branch, not a machine's disk. Treat a member with no repo as unfinished work, not as a supported variant.
+
+Resolve from the map's `source`/`ref`:
 
 | Map entry | `template:` in manifest |
 |---|---|
-| `source: github:Org/repo` | `github:Org/repo` |
-| `deployed: true` but local source | needs a registered Trinity template — check `mcp__trinity__list_templates`; if present use `local:<template-name>`, else flag |
-| local source, not deployed, no template | **cannot deploy via manifest** — flag it: onboard it first (`/trinity:onboard` in that repo) or deploy via `deploy_local_agent`; still list it in `fleet/system.yaml` with a `# NEEDS-TEMPLATE` comment |
+| `source: github:Org/repo` | `github:Org/repo` — the target state for every member |
+| `deployed: true` but local source | needs a registered Trinity template — check `mcp__trinity__list_templates`; if present use `local:<template-name>`, else flag. Also flag it as **repo-less**: push it to GitHub and switch the map's `source` so the manifest becomes reproducible |
+| local source, not deployed, no template | **cannot deploy via manifest** — the fix is to give it a repo (`gh repo create <name> --private --source=. --push`, then set `source: github:Org/repo` in the map). Stopgaps: onboard it first (`/trinity:onboard` in that repo) or deploy it with `deploy_local_agent`. List it in `fleet/system.yaml` with a `# NEEDS-REPO` comment either way |
 
 Don't drop un-deployable members silently — include them commented/flagged so the manifest is a complete picture, and list them in the Step 6 report.
+
+**Prerequisite for private members:** Trinity clones each `github:` member itself, so it needs a token that can read those repos — a fine-grained PAT with *Contents: Read* under **Settings → GitHub token** on the instance (it beats the shared admin token, and it's what a private-repo fleet depends on). Public repos clone without one. A member whose repo the resolved token can't read fails the deploy loudly at creation, naming the repo — check the token before a fan-out deploy rather than reading it out of a half-built system.
 
 ### Step 4: Build the manifest
 

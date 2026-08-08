@@ -6,10 +6,11 @@ disable-model-invocation: true
 user-invocable: true
 allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__list_operator_queue, mcp__trinity__get_operator_queue_item, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
 metadata:
-  version: "2.4.0"
+  version: "2.5.0"
   created: 2025-02-05
   author: eugene
   changelog:
+    - "2.5.0: Name the deploy path sync serves — repo-deployed agents (the default: create_agent with template: github:owner/repo) hold a clone tracking the branch, so push/pull IS the update mechanism and nothing is ever uploaded; a remote whose .trinity-remote.yaml `source` reads local-archive has no repo binding and is reported with the initialize_github_sync fix instead of silently no-opping"
     - "2.4.0: `pull` no longer blanket-discards before fast-forwarding — it stashes uncommitted work (tracked + untracked) and pops it back, discarding only known runtime paths, and uses `git pull --ff-only`. Fixes a data-loss hazard where a scheduled pull onto the remote's autonomous-loop commits wiped uncommitted agent-value edits (skills, memory, registries) via `git checkout -- .`"
     - "2.3.1: Added the canonical Trinity MCP connection prerequisite — delegates to /trinity:connect (the single connection owner) when the mcp__trinity__* tools aren't live, consistent with /trinity:loop and /trinity:onboard"
     - "2.3.0: Unified remote registry — sync's config is now `.trinity-remote.yaml` (was `.trinity-sync.yaml`), the same file `/trinity:onboard` writes and `/trinity:loop` reads. Fixes the onboard→sync handoff (sync now resolves the agent name onboard recorded instead of re-guessing). Schema gains onboard's machine-maintained `instance`/`profile`/`deployed_at` fields; migrates legacy single-remote files in place"
@@ -606,6 +607,10 @@ Before switching branches on remote, verify:
 ## GitHub Repository
 
 Both agents sync through the shared GitHub repository. GitHub is the source of truth. All meaningful changes must be committed and pushed.
+
+**This is the same repository the agent was deployed from.** Agents are deployed repository-first — `/trinity:onboard` creates them with `mcp__trinity__create_agent(template: "github:owner/repo[@branch]")`, so the remote workspace is a **clone tracking that branch**, and sync is simply how it advances: commit → push → the remote pulls. Nothing is uploaded; the branch tip *is* the deployed state.
+
+If a remote's `source` in `.trinity-remote.yaml` reads `local-archive`, that agent was deployed from a tar.gz snapshot and has no repo binding — sync has nothing to advance. Say so plainly and point at `mcp__trinity__initialize_github_sync` (or `/trinity:onboard`) to put it on the repo path; don't silently no-op.
 
 ## Key Rules
 

@@ -5,11 +5,12 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Skill, AskUserQuestion
 user-invocable: true
 argument-hint: "[report.md | report.json | fleet-path ...] [--target dir]"
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-07-30
   updated: 2026-07-30
   author: Ability.ai
   changelog:
+    - "1.1: Deploy gate is repository-first — each migrated agent gets a GitHub repo as its final migration step (gh repo create --source=. --push) so /trinity:onboard deploys by cloning it and deploy_system can name it as template: github:Org/repo; names the instance GitHub token (Settings → GitHub token, Contents: Read) as the read prerequisite, and requires repo-less agents to be recorded in the report with what the local-file fallback costs"
     - "1.0: Initial version — execute the agent-fleet-analysis work order: non-destructive copies, per-paradigm logic extraction (n8n / framework / freeform), composed marketplace fixes, per-agent review gate + maturity re-score, capability coverage matrix, gated deploy handoff"
 ---
 
@@ -36,7 +37,7 @@ Execute the work order that `/agent-dev:agent-fleet-analysis` produces. The anal
 | Memory / hub / canon wiring | `/agent-dev:add-memory` · `/agent-dev:add-orchestrator` · `/agent-dev:add-canon` — driven by the work order's `upgrade_paths`, which already names the skill per agent |
 | **Verification gate** | `/create-agent:review` per migrated copy |
 | Numeric before/after | `/agent-dev:agent-fleet-analysis` re-run on the target workspace |
-| Deploy handoff (gated) | `/trinity:onboard` per agent, or `mcp__trinity__deploy_system` for the fleet |
+| Deploy handoff (gated) | A GitHub repo per migrated agent, then `/trinity:onboard` per agent (deploys from the repo), or `mcp__trinity__deploy_system` naming each member `github:Org/repo` |
 
 Execution is **sequential in the main loop** — one agent at a time, in manifest order. Slower than fan-out, but every composed skill resolves exactly as it does when the user runs it directly.
 
@@ -258,6 +259,17 @@ Deployment never runs inside the migration loop. Offer, don't do:
 
 - **Trinity MCP available:** offer `/trinity:onboard` per migrated agent, or `mcp__trinity__deploy_system` for the whole fleet. Only on explicit approval, and only for agents with status `migrated`.
 - **No Trinity connection:** print the local handoff instead — each migrated copy is a complete local agent: `cd <target>/<name> && claude`, credentials via its `.env.example`. Trinity is the upgrade, never the gate.
+
+**Give each migrated agent a repo first.** Trinity deploys agents by **cloning their GitHub repository**, and a fleet manifest can only name `template: github:Org/repo` — so the last migration step for each agent is a repo, not a directory:
+
+```bash
+cd <target>/<name> && git init -q && git add -A && git commit -qm "Migrated agent" \
+  && gh repo create <name> --private --source=. --push
+```
+
+Then the instance needs to be able to read them: a fine-grained PAT with *Contents: Read* under **Settings → GitHub token** on the Trinity instance (public repos clone without one). With that in place, `/trinity:onboard` deploys each agent from its repo and `deploy_system` can name the whole fleet by ref — reproducible, and updatable by `git push` afterwards.
+
+Migrated agents that stay repo-less can still deploy from local files, but say what that costs: no reproducible source, no `git push` update path, and they can't be members of a system manifest. Record which agents ended up repo-less in the report.
 
 ---
 

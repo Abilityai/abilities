@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-04-30
   author: Ability.ai
   changelog:
+    - "1.3: First-run setup now also seeds the instance GitHub token (Settings → GitHub token — fine-grained PAT, Contents: Read) alongside the MCP API key, in both the SSH and local-Docker paths — it is what the default deploy path (create_agent from github:owner/repo) clones with, so a private-repo fleet is unblocked before the first agent is deployed"
     - "1.2: Align with Trinity v0.7.0+ first-run flow — mandatory web setup with admin email replaces the removed setup token (#49), OWASP password complexity enforced (generator now keeps a special char), note that start.sh auto-generates AGENT_AUTH_SECRET/REDIS_* and probes DOCKER_GID"
     - "1.1: Scaffold the ops agent by cloning trinity-ops-public instead of generating files inline — agents now ship with the full, maintained skill set"
     - "1.0.1: Add a /bug-report skill to generated ops agents, and fix six production deploy gaps — port checks, Dockerfile, and macOS sed compatibility"
@@ -308,6 +309,11 @@ Trinity is running. Complete the first-run setup, then create an API key for the
 3. Log in with that admin email (or username admin) + password
 4. Go to: Settings → Platform API Keys
 5. Click "Create New Key" — copy the value
+6. While you're in Settings, add your GitHub token (Settings → GitHub token):
+   a fine-grained PAT with Contents: Read on the repos your agents live in.
+   Agents are deployed by cloning their GitHub repo, so this is what makes the
+   normal deploy path work — required for private repos, recommended for public
+   ones (it lifts GitHub's anonymous rate limits).
 ```
 
 Use AskUserQuestion (tool requires ≥2 options):
@@ -423,7 +429,7 @@ Verify:
 curl -sf http://localhost:8000/health && echo healthy
 ```
 
-Open `http://localhost:{FRONTEND_PORT}/` — the first visit shows the first-run setup screen: enter an admin email + the admin password (same rules and same authority as PATH B; the setup token is gone). Then Settings → Platform API Keys → create and copy the MCP key.
+Open `http://localhost:{FRONTEND_PORT}/` — the first visit shows the first-run setup screen: enter an admin email + the admin password (same rules and same authority as PATH B; the setup token is gone). Then Settings → Platform API Keys → create and copy the MCP key. Add your GitHub token too (Settings → GitHub token — fine-grained PAT, Contents: Read): agents deploy by cloning their GitHub repo, so private-repo agents need it.
 
 Set `SSH_HOST=""` (empty — local, no SSH).
 

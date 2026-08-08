@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2026-04-04
   author: Ability.ai
   changelog:
+    - "1.6: Repository-first deployment — the GitHub-repo step is framed as the deploy path (Trinity clones the repo and tracks the branch; skipping means an upload-only deploy with no reproducible source), and the deploy offer now states what /trinity:onboard actually does: create_agent(template: github:owner/repo@branch) when a remote exists — schedules materialized at creation, updates via git push + git_pull — falling back to a local-file deploy that offers promotion onto the repo path"
     - "1.5: Generated CLAUDE.md gains a Request Dispatch section — an SOP table routing incoming requests (user, other agents, operator queue) to skills; task requests with no matching skill are handled if safe and flagged as playbook gaps (told to the user interactively, filed as a playbook-gap-<slug> operator-queue item when headless on Trinity) with a pointer to /agent-dev:create-playbook"
     - "1.4: Trinity-connected deploy is the default next action — new Step 10 offers deploying the freshly created agent from its repository via /trinity:onboard when Trinity MCP is connected, gated by explicit AskUserQuestion confirmation; skipped silently when not connected"
     - "1.3: Generated agent publishes structured reports via mcp__trinity__report — CLAUDE.md gains a 'Reporting to Trinity' section and its primary result skill ends with a guarded webmaster.deploy report (Reports tab history alongside the live dashboard); skipped silently off-Trinity"
@@ -188,7 +189,9 @@ Build this agent iteratively:
 
 ### Deploying to Trinity
 
-When you're ready to run this agent remotely (scheduled tasks, always-on, API access), run `/trinity:onboard` from this directory. It configures Trinity compatibility and publishes the agent to your instance.
+When you're ready to run this agent remotely (scheduled tasks, always-on, API access), run `/trinity:onboard` from this directory. It configures Trinity compatibility and deploys the agent to your instance.
+
+**Deploy from the repository.** Push this agent to GitHub and add a GitHub token to your Trinity instance (Settings → GitHub token, fine-grained PAT with *Contents: Read*) before onboarding. Trinity then clones the repo and tracks the branch, so the deployed agent is always a named commit and updates ship with `git push` — no re-uploading. Deploying from local files still works and stays the fallback for an agent with no repo yet.
 
 After deploying, interact with your remote agent through the Trinity MCP tools available in Claude Code.
 
@@ -733,6 +736,8 @@ Use AskUserQuestion:
 
 If `gh` is not available, show manual instructions.
 
+> **Why this matters:** the repo is the deploy path. Trinity deploys an agent by **cloning its GitHub repository** and tracking the branch, so a pushed repo means the deployed agent is a named commit and every later change ships with `git push`. Skipping is fine — deployment falls back to uploading local files — but that agent has no reproducible source until a repo exists.
+
 ---
 
 ## STEP 10: Offer Trinity Deployment (if connected)
@@ -750,7 +755,7 @@ If `gh` is not available, show manual instructions.
   1. **Yes, deploy now (Recommended)** — deploy from the repository via `/trinity:onboard`
   2. **Not now** — keep it local; deploy later with `/trinity:onboard` from the agent directory
 
-**If confirmed:** set the working directory to `[destination]`, then invoke `/trinity:onboard` (Skill tool). It owns the deployment end-to-end: deploys from the agent's repository (preferring the GitHub remote from Step 9 when one exists), injects credentials, and reconciles `template.yaml` schedules. Do **not** inline raw `mcp__trinity__deploy_local_agent` calls here — `/trinity:onboard` is the single source of truth for deployment. If `/trinity:onboard` isn't available (trinity plugin not installed), tell the user to run `/plugin install trinity@abilityai` and then `/trinity:onboard` from the agent directory — don't attempt a manual deploy.
+**If confirmed:** set the working directory to `[destination]`, then invoke `/trinity:onboard` (Skill tool). It owns the deployment end-to-end, and it is **repository-first**: with a pushed GitHub remote (Step 9) it deploys via `create_agent(template: "github:owner/repo@branch")` — Trinity clones the repo, tracks the branch, and materializes the `template.yaml` schedules at creation, after which every change ships by `git push` + `git_pull` instead of re-uploading the agent. Without a remote it falls back to a local-file deploy and offers to promote the agent onto the repo path afterwards. Either way it injects credentials and reconciles schedules. Do **not** inline raw `mcp__trinity__create_agent` / `mcp__trinity__deploy_local_agent` calls here — `/trinity:onboard` is the single source of truth for deployment. If `/trinity:onboard` isn't available (trinity plugin not installed), tell the user to run `/plugin install trinity@abilityai` and then `/trinity:onboard` from the agent directory — don't attempt a manual deploy.
 
 **If declined:** move on silently.
 

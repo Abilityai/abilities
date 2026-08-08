@@ -169,7 +169,8 @@ Connect, deploy, and sync agents to the [Trinity](https://github.com/abilityai/t
 After connection, Trinity MCP tools are available directly:
 - `mcp__trinity__list_agents` — List all remote agents
 - `mcp__trinity__chat_with_agent` — Send messages to remote agents
-- `mcp__trinity__deploy_local_agent` — Deploy agent to Trinity
+- `mcp__trinity__create_agent` — Deploy an agent from its GitHub repo (`template: "github:owner/repo"`) — the default path
+- `mcp__trinity__deploy_local_agent` — Deploy from a local archive — the fallback path
 
 ### dev-methodology
 
@@ -218,18 +219,19 @@ Abilities supports a four-step workflow for building agents that appreciate over
 
 ```
 1. Scaffold              2. Develop                    3. Deploy              4. Iterate
-/create-agent:*          /agent-dev:create-playbook    /trinity:onboard       /trinity:sync
-                         /agent-dev:add-memory         trinity deploy .       git push
-                         /agent-dev:add-backlog                               /create-agent:adjust
+/create-agent:*          /agent-dev:create-playbook    gh repo create ...     git push
+                         /agent-dev:add-memory         /trinity:onboard       /trinity:sync
+                         /agent-dev:add-backlog        (deploys from the      /create-agent:adjust
+                                                        repo Trinity clones)
 ```
 
 **Scaffold** — Use a wizard like `/create-agent:prospector` or `/create-agent:custom` to get a fully configured agent with CLAUDE.md, skills, Trinity files, and an onboarding tracker.
 
 **Develop** — Use `/agent-dev:create-playbook` to add capabilities, `/agent-dev:add-memory` to add persistence, `/agent-dev:add-backlog` for task management, and `/agent-dev:add-orchestrator` to make an agent aware of — and able to drive — other agents.
 
-**Deploy** — Run `/trinity:connect` once to authenticate, then `/trinity:onboard` for each agent. Or use the [Trinity CLI](https://pypi.org/project/trinity-cli/): `trinity deploy .`
+**Deploy** — **from the agent's GitHub repository.** Run `/trinity:connect` once to authenticate, add a GitHub token to your instance (Settings → GitHub token — a fine-grained PAT with *Contents: Read*), push each agent to a repo, then run `/trinity:onboard` in its directory. Trinity clones the repo and tracks the branch, so the deployed agent is a named commit, its `template.yaml` schedules are materialized at creation, and every later change ships with `git push`. Deploying from local files remains available as the fallback for an agent that has no repo yet — `/trinity:onboard` offers to move it onto the repo path afterwards.
 
-**Iterate** — Push changes with `git push` or `/trinity:sync`. Use `/create-agent:adjust` to audit and improve.
+**Iterate** — Push changes with `git push`, then `/trinity:sync` (or `mcp__trinity__git_pull`) to advance the deployed agent to the new commit. Use `/create-agent:adjust` to audit and improve.
 
 ---
 
@@ -280,8 +282,10 @@ Simplified deployment to the [Trinity](https://github.com/abilityai/trinity) pla
 
 ```bash
 /trinity:connect                        # One-time authentication
-/trinity:onboard                        # Deploy agent to Trinity
-/trinity:sync                           # Sync local/remote changes
+#  then: Settings → GitHub token on your instance (fine-grained PAT, Contents: Read)
+#  then: gh repo create <agent> --private --source=. --push
+/trinity:onboard                        # Deploy the agent — from its GitHub repo
+/trinity:sync                           # Ship changes: push locally, remote pulls
 ```
 
 **What is Trinity?** Sovereign infrastructure for autonomous AI agents:

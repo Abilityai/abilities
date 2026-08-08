@@ -4,12 +4,13 @@ description: Onboard this agent to Trinity platform. Creates required files, con
 argument-hint: "[analyze]"
 disable-model-invocation: false
 user-invocable: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__create_agent, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__get_agent_github_pat_status, mcp__trinity__set_agent_github_pat, mcp__trinity__initialize_github_sync, mcp__trinity__git_pull, mcp__trinity__get_git_sync_state, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
 metadata:
-  version: "4.15"
+  version: "5.0"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "5.0: Repository-first deployment — Path A (default) creates the agent from its GitHub repo via create_agent(template: github:owner/repo@branch), which Trinity clones and tracks in source mode; Path B (local tar.gz via deploy_local_agent) stays as the fallback for repos that don't exist yet, and now offers initialize_github_sync to promote the agent onto the repo path. New Step 4b gates deploy on GitHub readiness (token tier + pushed remote) before any deploy runs, new 'Deployment paths' section states the doctrine, Step 5f is path-aware (github: templates materialize template.yaml schedules at creation, ent#89), Step 6 teaches push→git_pull as the update loop, and the PAT troubleshooting section is rewritten against the real resolver (per-agent → per-user → global, ent#162) incl. the tokenless public-repo path (ent#123) and create-time access validation (#218)"
     - "4.15: Platform-truth refresh (Trinity dev 62ae49f9) — prerequisites point at /trinity:connect (trinity_mcp_ keys, no manual copy), stall-watchdog claim corrected (1800s, mcp__* tools only, #1369), schedule timeout inherits the agent's 60-min cap (not 15), chat_with_agent queued_timeout receipt at ~25s + agent.task.* event report-back (#1578), reports pruned past agent_reports_retention_days (90d), display-label-vs-slug note"
     - "4.14: Next Steps now includes 'Publish structured reports' — deployed agents end result-producing/scheduled skills with a guarded mcp__trinity__report call so output lands on the Reports tab (append-only history complementing the live dashboard.yaml snapshot), guarded to skip silently off-Trinity"
     - "4.13: New 'Long-running jobs inside a run' subsection — a headless/scheduled execution is a single agent turn and CANNOT host a job longer than the ~10-min synchronous Bash window (a hard platform ceiling): the harness auto-backgrounds it, active waiting is blocked, and ending the turn reaps every background task/monitor (fires `killed`, not `completed`). >~10-min work must decouple to an OS-level cron/systemd/sidecar + done-marker; the run only triggers/verifies. Annotated the Async Task row and added a timeout_seconds Rule accordingly. Always verify the artifact moved, never trust exit code/business_status"
@@ -125,6 +126,25 @@ Your agent's **identity** lives in Git:
 | `content/`, `session-files/` | Runtime data | ✗ No (gitignored) |
 
 When you modify skills locally and push to GitHub, the remote agent pulls those changes and immediately has the new capabilities.
+
+### Deployment paths — the repository is the default
+
+There are two ways to get an agent onto Trinity, and they are **not equal**. The repository path is the one the platform is built around; the local-archive path exists for the cases the repository path can't cover.
+
+| | **Path A — from the GitHub repo** (default) | **Path B — from local files** (fallback) |
+|---|---|---|
+| Call | `mcp__trinity__create_agent(template: "github:owner/repo[@branch]")` | `mcp__trinity__deploy_local_agent(archive: <base64 tar.gz>)` |
+| What lands remotely | Trinity **clones the repo** into the agent workspace and tracks the branch | An unpacked snapshot of your working directory |
+| Ongoing updates | `git push` locally → `mcp__trinity__git_pull` remotely (or `/trinity:sync`) | Re-archive and re-deploy the whole agent |
+| Reproducible | Yes — the deployed state is a commit anyone can name | No — it's whatever your disk held that minute |
+| Declared `schedules:` | **Materialized at creation** — Trinity reads `template.yaml` from the repo (trinity-enterprise#89) | Created afterwards by this skill (Step 5f) |
+| Needs | A pushed repo + a GitHub token Trinity can read it with (public repos: no token needed) | Nothing but local files |
+
+**The sequence, in order:** connect (`/trinity:connect`) → **configure the GitHub token** → **push the agent to a repo** → deploy from the repo. Step 4b enforces it.
+
+**Use Path B when** the agent has no repo yet, the repo can't be reached from the instance (air-gapped or self-hosted GitHub), or you're deploying a throwaway. After a Path-B deploy, promote the agent onto the repo path with `mcp__trinity__initialize_github_sync` so subsequent updates are git-native — a long-lived agent should not stay on the archive path.
+
+**Credentials travel the same way on both paths.** `.env` is gitignored, so it is never in the clone *or* the archive — inject it after deploy (Step 5e).
 
 ### Local Orchestrator Pattern
 
@@ -298,16 +318,16 @@ These are especially useful for orchestrator agents monitoring worker fleets, an
 
 ```
 STEP 1        STEP 1b
-Check    →    Ask Goal  → ─┬─────────────────────────────────────────────┐
-State                      │                                             │
-                           ▼ (Deploy to Trinity)                         ▼ (Adapt only)
-                    STEP 2         STEP 3        STEP 4         STEP 5   │
-                    Get       →    Create   →    Configure →    Deploy   │
-                    Credentials     Files         MCP            Remote   │
-                                                                         │
-                                   STEP 3 (partial)                      │
-                                   Create Files ──────────────────────────┘
-                                   (templates only)
+Check    →    Ask Goal  → ─┬─────────────────────────────────────────────────────┐
+State                      │                                                     │
+                           ▼ (Deploy to Trinity)                                 ▼ (Adapt only)
+                    STEP 2       STEP 3      STEP 4     STEP 4b     STEP 5       │
+                    Get      →   Create  →   Verify  →  GitHub  →   Deploy       │
+                    Connected    Files       MCP        readiness   (repo first) │
+                                                        (token+repo)             │
+                                             STEP 3 (partial)                    │
+                                             Create Files ────────────────────────┘
+                                             (templates only)
 ```
 
 **Two paths available:**
@@ -502,6 +522,42 @@ session-files/
 
 ---
 
+## STEP 4b: GitHub Readiness (gate for the default deploy path)
+
+**SKIP if the user chose "Adapt only."**
+
+Deployment is repository-first (see *Deployment paths* above), so establish the repo and the token **before** deploying — not as a recovery step after a local deploy. Two things must be true.
+
+**1. The agent is a pushed GitHub repo.**
+
+```bash
+git remote get-url origin 2>/dev/null
+git status --porcelain            # uncommitted work won't be in the clone
+git log origin/$(git branch --show-current)..HEAD --oneline 2>/dev/null | head   # unpushed commits
+```
+
+| Finding | Action |
+|---|---|
+| No `origin` | Offer to create one: `gh repo create <agent-name> --private --source=. --push`. If `gh` is missing or the user declines, note that deploy falls back to Path B and continue. |
+| Uncommitted changes | Commit them — Trinity clones the **remote**, so anything uncommitted simply won't exist on the deployed agent. |
+| Unpushed commits | `git push` — same reason. Never deploy from a branch whose tip only exists locally. |
+| Clean and pushed | Ready for Path A. Record `owner/repo` and the current branch. |
+
+**2. Trinity can read that repo.** Resolution order at creation is **per-agent PAT → the creating user's personal token (Settings) → the platform/admin token** (ent#162).
+
+- **Public repo:** no token needed — Trinity clones anonymously (ent#123). Still recommended to avoid GitHub's anonymous rate limits.
+- **Private repo:** a token is **required**. Have the user add a fine-grained PAT with **Contents: Read** under **Settings → GitHub token** in the Trinity UI (that's the personal-token tier and it beats the shared admin token). Full instructions in *Troubleshooting: GitHub PAT* below.
+- Don't guess: there is no MCP call that reports the user/global token tier before an agent exists. Ask the user to confirm a token is configured, and rely on the fact that `create_agent` **fails loudly** (400, naming the repo) if the resolved token can't read it — see the error table.
+
+**Then choose the path** and carry it into Step 5:
+
+- **Path A (default):** clean, pushed repo that Trinity can read.
+- **Path B (fallback):** anything else — no repo, unreachable repo, or the user deliberately wants a snapshot deploy.
+
+State the chosen path in one line before deploying (e.g. *"Deploying from `github:acme/my-agent@main`"*), so a wrong path is caught before it lands.
+
+---
+
 ## STEP 5: Deploy to Trinity
 
 **SKIP THIS ENTIRE STEP if user chose "Adapt only" — go directly to Step 6.**
@@ -545,7 +601,36 @@ If it exists, parse it as the unified remote registry (a `remotes:` map keyed by
 
 ### 5c. Deploy Agent
 
-Deploy using the MCP tool:
+**Already deployed?** If Step 5b found a remote for this instance and `mcp__trinity__get_agent` confirms the agent exists, this is an *update*, not a create:
+
+- **Repo-deployed agent (Path A):** do **not** call `create_agent` again — the name is taken and the workspace is a clone. Push locally, then `mcp__trinity__git_pull(agent_name)` (or run `/trinity:sync push`). Skip to 5e/5f.
+- **Archive-deployed agent (Path B):** re-deploying with `deploy_local_agent` creates a new version (`my-agent-2`) and stops the old one. Prefer promoting it to Path A first (5c-B, final note).
+
+Otherwise deploy via the path chosen in Step 4b.
+
+#### 5c-A. Deploy from the GitHub repository (default)
+
+```
+mcp__trinity__create_agent(
+  name: [agent-name from template.yaml],
+  template: "github:[owner]/[repo]",     # add @branch for a non-default branch
+  source_branch: [branch],               # e.g. "main"
+  resources: { cpu: "[cpu]", memory: "[memory]" }   # from template.yaml — see the note below
+)
+```
+
+Trinity clones the repo into the agent workspace, tracks that branch in **source mode (pull-only)**, materializes the repo's declared `schedules:` (Step 5f), and starts the agent.
+
+Notes that bite if ignored:
+
+- **`resources` must be passed explicitly.** For a dynamic `github:owner/repo` reference, Trinity does not read `resources:` out of your `template.yaml` — it uses what the call passes, and omitting it silently applies the platform default (`cpu: "2"`, `memory: "4g"`, unless the instance sets its own). Read the values from `template.yaml` and forward them (cpu integer strings `"1"`/`"2"`/…, memory lowercase-g `"4g"`). The repo's declared `schedules:` *are* read from `template.yaml`; `resources:` are not — don't generalize from one to the other.
+- **The branch must exist on the remote** — a bad branch is rejected at creation, not silently.
+- **`@branch` in the template string and `source_branch` mean the same thing;** pass either, and if you pass both keep them identical.
+- **The deployed state is the remote's tip**, not your working tree. This is the point of the path — but it means Step 4b's "clean and pushed" check is load-bearing.
+
+#### 5c-B. Deploy from local files (fallback)
+
+Use when Step 4b landed on Path B.
 
 ```
 mcp__trinity__deploy_local_agent(
@@ -559,6 +644,19 @@ To create the archive:
 tar -czf /tmp/agent.tar.gz --exclude='.git' --exclude='node_modules' --exclude='__pycache__' --exclude='.venv' --exclude='.env' -C "$(pwd)" .
 base64 -i /tmp/agent.tar.gz
 ```
+
+**After a Path-B deploy, offer to promote the agent onto the repository path** — unless it's deliberately throwaway:
+
+```
+mcp__trinity__initialize_github_sync(
+  agent_name: [agent-name],
+  repo_owner: [owner],
+  repo_name: [repo],
+  private: true
+)
+```
+
+This creates the repo (when asked), pushes the deployed workspace to it, and wires git sync — after which updates are `git push` + `git_pull` like any Path-A agent. Say plainly why: an archive-deployed agent has no reproducible source, and every future change means re-uploading the whole directory.
 
 After deploy succeeds, write the tracking file. This is the shared **remote registry** — the same `.trinity-remote.yaml` that `/trinity:sync` uses for multi-remote config and `/trinity:loop` reads to find this agent's remote counterpart. Record the deployed instance as a named remote (default `prod`) under a `remotes:` block:
 
@@ -575,8 +673,11 @@ remotes:
     instance: [TRINITY_URL]
     profile: [CLI profile name if used, or "default"]
     deployed_at: [ISO 8601 timestamp]
+    source: github:[owner]/[repo]   # Path A — omit or use "local-archive" for Path B
     description: Deployed via /trinity:onboard
 ```
+
+The `source` field records **how** this remote was deployed, so a later run (or `/trinity:sync`) knows whether updates flow through `git_pull` or a re-archive. A remote reading `local-archive` is a standing invitation to promote it (5c-B).
 
 Save this as `.trinity-remote.yaml` in the agent directory.
 
@@ -588,7 +689,13 @@ Save this as `.trinity-remote.yaml` in the agent directory.
 mcp__trinity__get_agent(name: "[agent-name]")
 ```
 
-Confirm the agent is running.
+Confirm the agent is running. **On Path A, also confirm the clone actually landed on the commit you expect:**
+
+```
+mcp__trinity__get_git_sync_state(agent_name: "[agent-name]")
+```
+
+Check the tracked repo and branch match what you deployed. A running container whose workspace is empty or on the wrong branch is the failure mode this check exists to catch — verify the state, don't infer it from "running".
 
 ### 5e. Inject Credentials
 
@@ -610,7 +717,14 @@ If the agent has no credentials of its own, skip this step.
 
 ### 5f. Reconcile Schedules
 
-If `template.yaml` has a `schedules:` block (see Step 3a), materialize it onto the freshly-deployed agent so the design catalog and the live instance agree.
+If `template.yaml` has a `schedules:` block (see Step 3a), make sure the design catalog and the live instance agree.
+
+**Path A does most of this for you.** When an agent is created from a `github:` repo, Trinity reads `template.yaml` from that repo **at creation** and materializes the declared schedules itself (trinity-enterprise#89) — so this step is a *verification*, and it usually reports "in sync" with nothing to create. Two cases still need you:
+
+- Trinity could not read `template.yaml` (token can't reach the repo, or an anonymous request hit GitHub's rate limit) — schedules come back empty. The reconcile below fills them in; also treat it as a signal that the token tier is weaker than you thought.
+- The repo's `template.yaml` is behind your local one — the remote's copy is what was read. Push, then re-run the reconcile.
+
+**Path B always needs the full reconcile** — an archive deploy materializes no schedules.
 
 1. **Read declared schedules** from `template.yaml`.
 2. **List what's already live:** `mcp__trinity__list_agent_schedules(agent_name: "[agent-name]")`.
@@ -653,6 +767,7 @@ Your agent is now live on Trinity.
 ### Summary
 - **Agent**: [agent-name]
 - **Trinity URL**: [trinity-url]
+- **Deployed from**: [github:owner/repo@branch — or "local archive (no repo yet)"]
 - **Status**: Running
 
 ### Files Created
@@ -668,10 +783,10 @@ Your agent is now live on Trinity.
 1. **Interact with your remote agent:**
    Use `mcp__trinity__chat_with_agent` with your agent name and message.
 
-2. **Sync local changes to remote:**
-   ```
-   /trinity:sync
-   ```
+2. **Ship changes the git-native way:**
+   Commit locally → `git push` → the remote pulls. `/trinity:sync` runs that loop for you, or call `mcp__trinity__git_pull(agent_name)` directly. On a repo-deployed agent this is the *only* update mechanism you need — never re-archive, and never re-run `create_agent` for an agent that already exists.
+
+   *(If this agent was deployed from a local archive, close that gap first — `mcp__trinity__initialize_github_sync` puts it on the repo path; see Step 5c-B.)*
 
 3. **Set up scheduled tasks:**
    Declare them in `template.yaml` under `schedules:` (see Step 3a), then re-run onboard or `/trinity:sync` to reconcile them onto the instance. For one-off changes, `mcp__trinity__create_agent_schedule` / `toggle_agent_schedule` act directly on the live agent.
@@ -715,7 +830,8 @@ Your agent is now Trinity-compatible and ready for deployment when you're ready.
 ### When You're Ready to Deploy
 
 1. Run `/trinity:connect` to authenticate and configure MCP, then reconnect with `/mcp`
-2. Run `/trinity:onboard` and choose "Deploy to Trinity"
+2. Push this agent to a GitHub repo (`gh repo create <name> --private --source=. --push`) and add a fine-grained PAT with **Contents: Read** under **Settings → GitHub token** on your instance — deployment is repository-first
+3. Run `/trinity:onboard` and choose "Deploy to Trinity"
 
 ### Add Cross-Session Durability (Optional)
 
@@ -748,19 +864,38 @@ Only perform Step 1 (check state), then present a report without making any chan
 | MCP tools not available | Run `/trinity:connect` (writes `.mcp.json`), then reconnect with `/mcp` — full restart only as a fallback |
 | Deployment failed | Confirm the connection is live (`mcp__trinity__list_agents`); re-run `/trinity:connect` if the profile expired |
 | Deploy rejected on `resources` (e.g. `invalid literal for int() with base 10: '0.5'`) | `template.yaml` has an invalid cpu/memory. cpu must be integer (`"1"`/`"2"`/`"4"`/`"8"`/`"16"`), memory must use the `g` suffix (`"1g"`..`"32g"`). Fix `template.yaml` and redeploy — see Step 3a |
-| Agent already exists | Will update existing agent |
-| Git clone/pull fails on remote | Configure GitHub PAT in Trinity (see below) |
+| Agent already exists | Path A: don't re-create — push + `git_pull` (Step 5c). Path B: `deploy_local_agent` creates a new version (`my-agent-2`) and stops the old one |
+| `Repository '<owner/repo>' was not found or is private` (400) | The repo is private and no token resolved. Add a personal GitHub token in **Settings → GitHub token**, or make the repo public. This fires *before* the container is created — nothing to clean up |
+| `not found or PAT does not have access` (400) | A token resolved but can't read that repo — its repository scope doesn't include it, or it expired. Re-scope/replace it |
+| `Branch '<x>' not found` (400) | The branch isn't on the remote. Push it, or pass the real one via `github:owner/repo@branch` |
+| `Bidirectional git sync requires write credentials` (400) | A tokenless create asked for a write-mode workspace. Deploy in source mode (the default — just omit any bidirectional flag), or configure a token |
+| `GitHub is unreachable` (502) | Transient — the anonymous access probe couldn't reach GitHub. Retry, or add a token (the token path tolerates transient errors that the tokenless path fails closed on) |
+| Git clone/pull fails on remote | Configure the GitHub PAT (see below) — check the tier that actually resolved |
 
 ---
 
 ## Troubleshooting: GitHub PAT for Private Repos
 
-If Trinity fails to clone or pull from your GitHub repository after deployment, the most common cause is a missing or incorrectly configured GitHub Personal Access Token (PAT).
+The GitHub token is the prerequisite of the default deploy path — configure it *before* deploying (Step 4b), not after a failure. If Trinity can't clone or pull your repository, a missing or wrongly-scoped token is almost always why.
 
 ### When is a PAT Required?
 
 - **Private repositories** — Always required
-- **Public repositories** — Not required, but recommended to avoid rate limits
+- **Public repositories** — Not required (Trinity clones anonymously in source mode), but recommended: anonymous requests share GitHub's rate limit, and when they trip it Trinity can silently fail to read your `template.yaml` — costing you the auto-materialized schedules
+
+### Which token gets used (resolution order)
+
+Trinity resolves one token per agent **at creation time**, in this order:
+
+| Tier | Source | Set with |
+|------|--------|----------|
+| 1. Per-agent | A token bound to this one agent | `mcp__trinity__set_agent_github_pat(agent_name, pat)` — validated on save, requires an agent restart |
+| 2. Per-user | The creating user's **personal** token | Trinity UI → **Settings → GitHub token** |
+| 3. Global | The platform/admin token | Admin settings, or `GITHUB_PAT` in Trinity's `.env` |
+
+**Prefer tier 2 for your own agents.** The personal token wins over the shared admin one, so a non-admin isn't confined to whatever repos the admin token happens to see — and it's read live, so rotating it doesn't require touching each agent. Reach for tier 1 (`set_agent_github_pat`) only when one agent needs a *different* identity than the rest — for example, an agent that also needs `gh`/API access inside its container, since a per-agent token is exposed there as `GITHUB_PAT`/`GH_TOKEN`/`GITHUB_TOKEN`.
+
+Check what an existing agent resolved with `mcp__trinity__get_agent_github_pat_status(agent_name)` — it reports whether the agent has its own token or falls back to the global one (it never returns the value).
 
 ### Creating a Fine-Grained PAT
 
@@ -773,23 +908,32 @@ If Trinity fails to clone or pull from your GitHub repository after deployment, 
    - **Permissions**: Under "Repository permissions", set **Contents** to **Read-only**
 4. Click **Generate token** and copy the token (starts with `github_pat_`)
 
+Read-only is enough for the default (source-mode, pull-only) deploy. Only grant **Contents: Read and write** if the agent itself pushes back to the repo.
+
 ### Configuring the PAT in Trinity
 
-**Option 1: Via Trinity Settings UI (Recommended)**
+**Option 1: Your personal token in the Trinity UI (Recommended — tier 2)**
 
 1. Log in to your Trinity dashboard
-2. Go to **Settings**
-3. Find the **GitHub PAT** field
-4. Paste your token and save
+2. Go to **Settings → GitHub token**
+3. Paste your token, test it, and save
 
-**Option 2: Via Environment Variable**
+**Option 2: Bind it to a single agent (tier 1)**
 
-Add to your Trinity `.env` file:
+```
+mcp__trinity__set_agent_github_pat(agent_name: "[agent-name]", pat: "github_pat_...")
+```
+
+The token is validated against GitHub before saving and encrypted at rest; **restart the agent** for it to take effect. Pass an empty string to clear it and revert to the tiers below.
+
+**Option 3: The platform-wide token (tier 3 — admin)**
+
+Set it in admin settings, or add to Trinity's `.env`:
 ```bash
 GITHUB_PAT=github_pat_your_token_here
 ```
 
-Then restart Trinity services.
+Then restart Trinity services. This is the shared fallback for every agent whose owner has no personal token — prefer Option 1 for your own work.
 
 ### Verifying the PAT Works
 
@@ -815,3 +959,10 @@ For remote operations, schedules, and credentials, use MCP tools directly:
 - `mcp__trinity__chat_with_agent` — Execute tasks on remote agent
 - `mcp__trinity__list_agent_schedules` / `create_agent_schedule` / `update_agent_schedule` / `toggle_agent_schedule` / `delete_agent_schedule` / `trigger_agent_schedule` / `get_schedule_executions` — Manage scheduled tasks (prefer declaring them in `template.yaml`; see Step 3a)
 - `mcp__trinity__list_agents` — View deployed agents
+
+Deployment and git surface:
+- `mcp__trinity__create_agent` — **the default deploy** (`template: "github:owner/repo[@branch]"`)
+- `mcp__trinity__deploy_local_agent` — fallback deploy from a local tar.gz
+- `mcp__trinity__initialize_github_sync` — promote an archive-deployed agent onto the repo path
+- `mcp__trinity__git_pull` / `get_git_sync_state` / `get_git_status` / `get_git_log` — the update loop for repo-deployed agents
+- `mcp__trinity__set_agent_github_pat` / `get_agent_github_pat_status` — per-agent GitHub identity

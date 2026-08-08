@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Skill
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-06-14
   updated: 2026-07-29
   author: Ability.ai
   changelog:
+    - "1.3: Trinity-readiness check (2h) now audits repository deployability — remote present, tree clean, branch pushed, plus the instance GitHub token note for private repos — because Trinity deploys an agent by cloning its repo; a repo-less agent is reported as deploy-by-upload-only (no reproducible source) with the one-command fix"
     - "1.2: Audit Request Dispatch (new check 2k) — CLAUDE.md carries the SOP routing table: request-phrased rows, every user-invocable skill covered or deliberately internal, routes resolve, playbook-gap fallback with operator-queue escalation and /agent-dev:create-playbook pointer; scorecard + checklist rows added"
     - "1.1: Audit Documentation Coherence — README/ARCHITECTURE/TARGET-ARCHITECTURE present, current/target split intact, docs match skills and subagents"
     - "1.0: Initial version — read-only agent audit that hands off to /adjust-agent"
@@ -132,6 +133,11 @@ Real findings:
 - `.env.example` documenting required variables
 - `.mcp.json.template` with Trinity server config
 - `.gitignore` excluding `.env`, `.mcp.json`, `*.pem`, `*.key`, `.claude/projects/`, `.claude/todos/`
+- **Deployable from its repository** — Trinity deploys an agent by cloning its GitHub repo, so this is the difference between a reproducible deployment and an upload:
+  - a `git remote` exists (`git remote get-url origin`)
+  - the working tree is clean and the branch is pushed — anything uncommitted or unpushed simply won't exist on the deployed agent
+  - if the repo is private, note that the instance needs a GitHub token (**Settings → GitHub token**, *Contents: Read*) to clone it
+  - no remote → finding: *deploys by upload only; no reproducible source*. Not a blocker (the local-file path works), but the fix is one command: `gh repo create <name> --private --source=. --push`
 
 ### 2i. Project Hygiene
 - Git initialized

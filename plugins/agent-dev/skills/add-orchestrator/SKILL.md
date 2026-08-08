@@ -4,10 +4,11 @@ description: Make any agent a system-aware orchestrator — installs /discover-a
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.16"
+  version: "1.17"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.17: Step 9 summary separates the two GitHub tokens a deployed orchestrator depends on — the INSTANCE token (Settings → GitHub token) is what Trinity clones `github:` members with (the default create_agent/deploy_system path, required for private repos), while GH_TOKEN in the agent's .env only authenticates the agent's own gh/git calls; a private-repo fleet needs both. Bundled runtime skills: compose-system 1.3 + orchestrate 1.10 (repository-first members and rollouts)"
     - "1.16: Loop closure across the bundle — fleet/project-standard.md gains §12 (silence is a failure mode, both directions: the agent closes its loops with the operator; the operator is handed the loops only a human can close with people or agents outside the fleet), a waiting-on:<actor> label, the ### Waiting on / ### Loop closed comment formats, and a 3d/7d/14d nudge ladder in §8; bundled /project-steward v1.2 (Step 4b open-loop pass, digest opens with the closing statement and carries Your open loops, operator-initiated results notify the operator) and /orchestrate v1.9 (a run isn't done until delivery to the requester succeeds; every report ends with Your open loops / Waiting on you / Next without you). The agent drafts follow-ups, the human sends them — nothing here contacts a third party. Re-runs offer the §12 insert into an existing standard"
     - "1.15: Access-verification guidance — preflight flags an installed-but-unauthenticated gh (private github: sources, /sync-fleet-to-head pushes, and registry ops all depend on it); Q3's project layer verifies registry-repo write access + issues enabled via gh api before wiring the autonomous steward (a bad grant would otherwise surface as a silently failing schedule); Step 9's summary documents the deployed-credential story — GH_TOKEN via .env + inject_credentials, same convention as /add-canon Step 6b — for GitHub-touching skills on a Trinity instance"
     - "1.14: Bundled /discover-agents v1.7 — canon coverage line in the scan report (N/M mapped agents enrolled when the fleet has a canon), so an orchestrator that adopted /add-canon alone sees exactly which members are not yet aligned; /add-canon v1.1's fleet-enrollment step closes the gap from the orchestrator side"
@@ -317,8 +318,17 @@ Print:
 ### Trinity MCP: <available | not detected>
 <if not: note that discover/compose still work locally; orchestrate + deploy need /trinity:onboard first>
 <if deploying this orchestrator to Trinity: GitHub-touching skills — /sync-fleet-to-head, /project-steward,
- private github: sources — need a GH_TOKEN in the deployed .env (fine-grained PAT covering those repos;
+ reading private github: sources — need a GH_TOKEN in the deployed .env (fine-grained PAT covering those repos;
  injected by /trinity:onboard Step 5e via inject_credentials — same convention as /add-canon Step 6b)>
+
+### Two different GitHub tokens — don't conflate them
+- **The instance token** (Trinity UI → Settings → GitHub token): what *Trinity* clones with. It's what makes
+  the default deploy path work — `create_agent(template: github:Org/repo)` and every `github:` member in a
+  `deploy_system` manifest. Required for private repos; public ones clone without it.
+- **GH_TOKEN in this agent's .env**: what *this agent's own* `gh`/git commands run as inside its container.
+  It never affects how Trinity clones fleet members.
+A fleet of private repos needs both: the instance token to deploy the members, the agent token for the
+orchestrator's own repo work.
 
 ### Next steps
 1. Edit fleet/sources.yaml — add the repos (local paths and/or github:Org/repo) in the system.

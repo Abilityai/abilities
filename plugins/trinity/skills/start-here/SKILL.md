@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Bash, AskUserQuestion, Skill, mcp__trinity__list_agents, mcp__trinity__get_fleet_health, mcp__trinity__ask_trinity, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-08-06
   author: Ability.ai
   changelog:
+    - "1.2: Stage 4 teaches the repository-first deploy sequence — push the agent to GitHub and add the instance's GitHub token (Settings → GitHub token) before /trinity:onboard, which then deploys by cloning the repo; the local-file deploy is named as the fallback that offers promotion afterwards"
     - "1.1: Ground the whole journey in live docs — pre-connect questions now go to the public Trinity Docs Q&A endpoint (Vertex AI Search over docs/user-docs, no auth, no instance needed) and Stage 0 orients against the live user-docs index on GitHub; the static narrative is demoted to a fallback for when the network is down"
     - "1.0: Initial version — resumable five-stage guided journey (orient → choose your door → get an instance → connect MCP + smoke test → first agent alive), routing every operational step to the specialist skill that owns it and using ask_trinity as the live documentation channel once connected"
 ---
@@ -148,7 +149,11 @@ This is the moment the session becomes a control plane.
 
 Goal — the user exchanges a real message with an agent running on *their* instance. Branch on their situation:
 
-- **They built an agent locally** (door "build"): from the agent's directory, `/trinity:onboard` deploys it. Then, from here, `mcp__trinity__chat_with_agent` — send a short real task, show the reply.
+- **They built an agent locally** (door "build"): deployment is **repository-first**, so set that up before deploying — it's two small steps and it's how every later update reaches the agent:
+  1. **Push the agent to GitHub** (`gh repo create <name> --private --source=. --push` from its directory) — Trinity deploys by cloning the repo, so the repo is the deliverable.
+  2. **Add a GitHub token** in the instance UI under **Settings → GitHub token** (a fine-grained PAT, *Contents: Read*) — required for private repos, recommended for public ones.
+
+  Then, from the agent's directory, `/trinity:onboard` deploys it from that repo and reports which commit landed. (No repo, or GitHub unreachable? onboard falls back to a local-file deploy — fine to get moving, and it offers to put the agent on the repo path afterwards.) Then, from here, `mcp__trinity__chat_with_agent` — send a short real task, show the reply.
 - **The instance already has agents** (seeded fleet or door "bring" after migration): pick one from `list_agents` and `chat_with_agent` it with a hello-task.
 - **Neither yet:** offer `/create-agent:create` now, or `chat_with_agent` against any seeded agent just to feel the loop.
 

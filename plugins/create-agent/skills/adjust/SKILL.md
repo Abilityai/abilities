@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-04-04
   updated: 2026-06-18
   author: Ability.ai
   changelog:
+    - "1.3: Trinity-readiness focus option names repository deployability, matching /review-agent 2h"
     - "1.2: Apply Documentation Coherence fixes — generate missing README/ARCHITECTURE/TARGET-ARCHITECTURE + /reconcile-docs, fix descriptive targets, flag prescriptive-source drift"
     - "1.1: Compose /review-agent for the audit instead of an inline rubric (Composition Rule — single-sourced); add Skill to allowed-tools; add composition-aware fix guidance"
     - "1.0: Initial version"
@@ -107,7 +108,7 @@ Use AskUserQuestion:
   3. Add recommended schedules
   4. Improve CLAUDE.md structure (identity, capabilities, guidelines)
   5. Documentation coherence (README, ARCHITECTURE, TARGET-ARCHITECTURE, /reconcile-docs)
-  6. Trinity readiness (template.yaml, .env, .gitignore)
+  6. Trinity readiness (template.yaml, .env, .gitignore, deployable from its GitHub repo)
   7. Skill quality review
   8. Other (describe)
 

@@ -60,7 +60,8 @@ Each wizard is a guided conversation that:
 2. Scaffolds a Trinity-compatible agent directory
 3. Generates customized CLAUDE.md, skills, docs (README + ARCHITECTURE + TARGET-ARCHITECTURE), and configuration
 4. Declares recommended `schedules:` in `template.yaml` (disabled by default — the operator chooses what runs)
-5. If Trinity is connected in your session, offers to deploy the new agent to Trinity from its repository right away — the default next action, but always behind an explicit confirmation. Not connected (or declined) → deployment stays a later step via `/trinity:onboard`
+5. Offers to create a GitHub repo for the agent and push it — the repo is the deploy path, since Trinity deploys an agent by **cloning its repository**
+6. If Trinity is connected in your session, offers to deploy the new agent right away via `/trinity:onboard` — from its repo when one exists — as the default next action, but always behind an explicit confirmation. Not connected (or declined) → deployment stays a later step via `/trinity:onboard`
 
 Generated agents ship with a `schedules:` block in `template.yaml` describing the recurring tasks the agent is designed to run. They're declared `enabled: false` — `/trinity:onboard` and `/trinity:sync` reconcile them onto your Trinity instance, and you turn on the ones you want.
 
@@ -86,7 +87,7 @@ All generated agents work locally first — Trinity deployment is the natural up
 
 1. **Add capabilities**: `/agent-dev:create-playbook` — add new skills/playbooks
 2. **Add memory**: `/agent-dev:add-memory` — choose appropriate memory system
-3. **Deploy to Trinity**: `/trinity:onboard` — deploy for remote execution
+3. **Deploy to Trinity**: push the agent to GitHub, add a GitHub token on your instance (Settings → GitHub token — fine-grained PAT, *Contents: Read*), then `/trinity:onboard` — it deploys by cloning the repo, so updates afterwards are just `git push`. No repo yet? It falls back to a local-file deploy and offers to move the agent onto the repo path
 4. **Orchestrate a fleet**: `/agent-dev:add-orchestrator` — make this agent system-aware, able to discover and drive other agents
 
 **Compose, don't copy.** When one of an agent's skills needs work another skill already does, it should *invoke that skill by name* (``Invoke `/child-skill` ``, `Skill` in `allowed-tools`) rather than inline its steps or call its internal scripts — so the child stays the single source of truth and its fixes propagate automatically. See [Composing skills (hierarchical playbooks)](../agent-dev/README.md#composing-skills-hierarchical-playbooks).

@@ -5,10 +5,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, AskUserQuestion
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.3: Next steps carry the deploy sequence — add the instance GitHub token (Settings → GitHub token) before /trinity:onboard, which deploys an agent from its GitHub repo"
     - "1.2: Explain the silent no-code failure mode — email OTP only reaches whitelisted addresses and the API 200s identically for unknown ones (anti-enumeration #186); self-signup is default-OFF (#1274) — so guide users to admin whitelisting instead of resend loops"
     - "1.1: Idempotent reconnect (PHASE 0) — when a valid profile already exists, (re)write `.mcp.json` in the current directory from the stored profile without an email round-trip, instead of just reporting 'already connected'. connect is now the single writer of `.mcp.json` that /trinity:onboard, /trinity:sync, and /trinity:loop delegate to"
     - "1.0: Initial version — connect to a Trinity instance via email OTP, provision an MCP API key, and write .mcp.json, with no CLI installation required"
@@ -224,8 +225,11 @@ MCP: Configured in .mcp.json
 
 Next steps:
 1. Restart Claude Code to load the MCP server
-2. Run /trinity:onboard to deploy an agent
-3. Use mcp__trinity__list_agents to see your agents
+2. Add your GitHub token on the instance (Settings → GitHub token — fine-grained
+   PAT, Contents: Read). Agents deploy by cloning their GitHub repo; private
+   repos need this, public repos don't.
+3. Run /trinity:onboard from an agent directory to deploy it from its repo
+4. Use mcp__trinity__list_agents to see your agents
 ```
 
 ## Error Handling

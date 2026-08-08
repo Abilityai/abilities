@@ -4,10 +4,11 @@ description: Add git-as-state hooks to an agent — auto-commits on Stop, rebase
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-21
   author: Ability.ai
   changelog:
+    - "1.1: State why the hooks pair with deployment — Trinity deploys by cloning the repo and tracking the branch, so these hooks keep the branch tip the real agent state and make git_pull//trinity:sync carry work forward"
     - "1.0: Initial version — installs git-as-state hooks (Stop auto-commit, SessionStart rebase, PreCompact snapshot) so an agent's own repo becomes durable cross-session memory"
 ---
 
@@ -24,6 +25,8 @@ Installs three hooks that turn the agent's own repo into its durable state layer
 | `git-sync.sh` | `Stop` (async) | `git add -A` → commit → push with rebase-on-reject retry. Drops `.git/SYNC_FAILED` if it can't reconcile; SessionStart surfaces the note next run. |
 
 **Who this is for:** any agent whose directory is its own git repo and benefits from cross-session continuity (Trinity-deployed agents, autonomous workers, long-running research agents). Not appropriate for agents nested inside a larger monorepo.
+
+**Why this pairs with deployment:** Trinity deploys an agent by **cloning its GitHub repo** and tracking the branch, so the remote agent's state is whatever the branch tip holds. These hooks keep that tip honest — work is committed and pushed at session end instead of lingering uncommitted, so a `git_pull` (or `/trinity:sync`) actually carries the agent forward. Install this before deploying, not after the first surprise.
 
 **Escape hatches baked in:**
 - `touch .git/NO_AUTOSYNC` — disables all three hooks

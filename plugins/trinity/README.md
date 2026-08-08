@@ -51,20 +51,40 @@ Run `/trinity:connect` to authenticate with your Trinity instance:
 - Configure `.mcp.json` in current directory
 - Verify connection works
 
-### 2. Onboard (Per-agent)
+### 2. Add your GitHub token (One-time)
 
-Run `/trinity:onboard` in any agent directory to deploy:
+In the Trinity UI: **Settings → GitHub token** — a fine-grained PAT with **Contents: Read** on the repos your agents live in. This is what lets Trinity clone an agent straight from its repository, which is how agents are meant to be deployed (next step). Public repos work without it; private repos don't.
+
+### 3. Onboard (Per-agent)
+
+Push the agent to a GitHub repo, then run `/trinity:onboard` in its directory:
 - Check compatibility with Trinity
 - Create required files (template.yaml, .env.example)
-- Configure MCP connection
-- Deploy to Trinity remote
+- Verify the repo is pushed and Trinity can read it
+- **Deploy from the repository** — Trinity clones it and tracks the branch
 
-### 3. Sync (Ongoing)
+### 4. Sync (Ongoing)
 
 Run `/trinity:sync` to keep local and remote in sync:
 - Push local changes to remote
 - Pull remote changes to local
 - Supports multiple remotes (production, staging, etc.)
+
+## How agents get deployed
+
+**Deploy from the repository. That is the default, and the rest of the platform assumes it.**
+
+| | **From the GitHub repo** (default) | **From local files** (fallback) |
+|---|---|---|
+| Tool | `mcp__trinity__create_agent(template: "github:owner/repo[@branch]")` | `mcp__trinity__deploy_local_agent(archive)` |
+| Workspace | A **clone**, tracking the branch (source mode, pull-only) | An unpacked snapshot of your directory |
+| Updates | `git push` → `mcp__trinity__git_pull` (or `/trinity:sync`) | Re-archive and re-deploy everything |
+| Declared `schedules:` | Read from the repo and **materialized at creation** | Created afterwards by `/trinity:onboard` |
+| Reproducible | Yes — deployed state is a named commit | No |
+
+The local path stays for real cases: the agent has no repo yet, the instance can't reach GitHub, or it's a throwaway. When you use it, promote the agent afterwards with `mcp__trinity__initialize_github_sync` so its updates become git-native.
+
+The same rule holds one level up: **multi-agent systems declare their members as `template: github:Org/repo`** in the `SystemManifest`, so a whole fleet is reproducible from source. A member with only a local source is a gap to close before composing the system, not a variant to support.
 
 ## MCP Tools
 
@@ -74,7 +94,11 @@ Once connected, Trinity MCP tools are available directly:
 |------|-------------|
 | `mcp__trinity__list_agents` | List all remote agents |
 | `mcp__trinity__chat_with_agent` | Send messages to remote agents |
-| `mcp__trinity__deploy_local_agent` | Deploy agent to Trinity |
+| `mcp__trinity__create_agent` | **Deploy an agent from its GitHub repo** (`template: "github:owner/repo[@branch]"`) — the default path |
+| `mcp__trinity__deploy_local_agent` | Deploy from a local tar.gz — the fallback path |
+| `mcp__trinity__git_pull` | Update a repo-deployed agent to the branch tip (`get_git_sync_state`, `get_git_status`, `get_git_log`) |
+| `mcp__trinity__initialize_github_sync` | Put an archive-deployed agent onto the repo path |
+| `mcp__trinity__set_agent_github_pat` | Give one agent its own GitHub identity (`get_agent_github_pat_status`) |
 | `mcp__trinity__get_agent` | Get agent details |
 | `mcp__trinity__run_agent_loop` | Run an agent task sequentially up to N times (server-side; see `/trinity:loop`) |
 | `mcp__trinity__get_loop_status` | Poll a loop's per-run progress |
@@ -84,7 +108,7 @@ Once connected, Trinity MCP tools are available directly:
 
 ### Schedules are declarative
 
-Don't hand-create schedules ad hoc. Declare an agent's recommended schedules in a `schedules:` block in `template.yaml` (the design source of truth). `/trinity:onboard` and `/trinity:sync` **reconcile** that block onto the instance — creating missing schedules, updating drifted ones, and flagging live schedules that aren't declared. The per-schedule `enabled` flag is the recommended default; turning a schedule on or off on a live agent is the operator's call via `toggle_agent_schedule`.
+Don't hand-create schedules ad hoc. Declare an agent's recommended schedules in a `schedules:` block in `template.yaml` (the design source of truth). When an agent is deployed **from its GitHub repo**, Trinity reads that block out of the repo and materializes the schedules at creation — one more reason the repository path is the default. `/trinity:onboard` and `/trinity:sync` **reconcile** the block onto the instance — creating missing schedules, updating drifted ones, and flagging live schedules that aren't declared. The per-schedule `enabled` flag is the recommended default; turning a schedule on or off on a live agent is the operator's call via `toggle_agent_schedule`.
 
 **Best practice: a schedule should call one playbook and nothing else** — keep the cron prompt to a bare skill invocation (e.g. `/daily-briefing`), with no inline instructions, arguments, or business logic. That logic belongs in the playbook the schedule triggers, so changing what a scheduled run does is always an edit to the playbook, never to the schedule.
 

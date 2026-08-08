@@ -4,10 +4,11 @@ description: Put the fleet to work — read fleet/system-map.yaml + live Trinity
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__fan_out, mcp__trinity__deploy_system, mcp__trinity__deploy_local_agent, mcp__trinity__stop_agent, mcp__trinity__start_agent, mcp__trinity__delete_agent, mcp__trinity__get_execution_result, mcp__trinity__create_agent_schedule, mcp__trinity__delete_agent_schedule, mcp__trinity__list_agent_schedules, mcp__trinity__subscribe_to_event, mcp__trinity__list_event_subscriptions, mcp__trinity__send_message, mcp__trinity__send_notification
 user-invocable: true
 metadata:
-  version: "1.9"
+  version: "1.10"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.10: Ephemeral rollout is repository-first — a catalog member deploys from its `github:Org/repo` ref (reproducible, arrives at a known commit; private repos need the instance GitHub token), with deploy_local_agent named as the non-reproducible fallback that flags the member for a repo"
     - "1.9: Loop closure — a run ends with the requester, not the ledger: the entry stays pending until delivery actually succeeds (delivery_failed retry; failures and dead agents get delivered too, never silence), and every report ends with three required lines — Your open loops (who outside the fleet owes what, with a drafted follow-up the user sends), Waiting on you, Next without you. Dead-ends at people or other fleets' agents are handed back as the user's loops (filed as waiting-on:<actor> when the project layer is installed), never as 'blocked'"
     - "1.8: Canon-aware routing — a read of published business facts checks the map's canon: fields first: if the owning agent publishes to the fleet's shared canon repo (/add-canon) and this orchestrator holds a clone, answer from agents/<folder>/ there (cited at canon@<sha>, staleness-flagged) instead of spending a chat_with_agent turn; dispatched briefs include the relevant canon pointer so workers read published truth instead of re-asking; writes still route to the owning agent (own-folder-only rule)"
     - "1.7: Platform-native wake-ups — the report-back subscription now targets the backend-emitted agent.task.completed/agent.task.failed terminal events (trinity#1578; no completion trailer, works even when the worker crashes or forgets, covers sync-turned-async runs) with a no-match-→-silent-exit guard for shared workers; the deterministic fallback is a re-arming set_reminder one-shot (trinity#1296) instead of a self-deleting orch-watch cron (reminder_id in the ledger, cancel_reminder on event-first wake-up); Step 5/error table note #1580 — agent keys can tear down only agents they spawned (403 otherwise)"
@@ -76,9 +77,10 @@ For each agent the plan needs:
 
 - **`deployed: true`** → call it by its **`deployed_name`** from the map, *not* the map key or `template.yaml` name (they often differ, e.g. `researcher` → `researcher-prod`). Calling the wrong name would miss the live agent and risk deploying a duplicate. If `status` is `stopped`, `mcp__trinity__start_agent` first; check `mcp__trinity__get_agent_health` before sending real work; if unhealthy, report and offer an alternate.
 - **catalog-only (`deployed: false`)** → it must be rolled out. Confirm the ephemeral plan **once, up front**: list which agents will be created and that they'll be **torn down when the task completes**. On approval:
-  - GitHub source → deploy a one-agent ephemeral system from the ref:
+  - GitHub source (**the normal case** — a catalog member should be a repo):
     - `mcp__trinity__deploy_system` with a minimal manifest `{name: "eph-<agent>-<short-id>", agents: {<agent>: {template: github:Org/repo}}, permissions: {preset: none}}`
-    - (or `mcp__trinity__deploy_local_agent` for a local source)
+    - Trinity clones the ref, so the rollout is reproducible and the agent arrives at a known commit. Private repos need a readable token on the instance (**Settings → GitHub token**); a repo the resolved token can't read fails at creation, naming the repo.
+  - Local-only source (**fallback**) → `mcp__trinity__deploy_local_agent` with an archive of that directory. It works, but the rollout isn't reproducible — note it in the report and flag the member for a repo (`gh repo create <name> --private --source=. --push`, then update `source:` in the map) so the next rollout takes the repo path.
   - Record every agent created this run in an **ephemeral set** for teardown.
   - Wait until `get_agent_health` reports ready before dispatching.
 
