@@ -4,10 +4,11 @@ description: Install cross-actor project management into this agent — GitHub I
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-07-30
   author: Ability.ai
   changelog:
+    - "1.4: Fix — `status:done` was written by the completion lattice but never created. The verification close (`/project-steward` §6, `/project-reconcile` human-endorsement path) and every human direct-close set a label that did not exist on a fresh registry, so `gh issue edit --add-label` failed and the task never reached its terminal state. Added to both idempotent label blocks (installer Step 11, `/project-init` Step 5) and to the §3 taxonomy table, colored to match `/agent-dev:add-backlog`'s label of the same name so a shared repo does not drift. Step 3 gains a one-line self-heal for registries created before this fix"
     - "1.3: Moved into the agent-dev plugin — invoke as `/agent-dev:add-project-management`. It installs a capability into an agent, which is exactly agent-dev's remit, and living in its own single-skill plugin kept it invisible to anyone browsing agent-dev for ways to extend an agent. No change to installed behavior, the standard, or any runtime skill. The old `add-project-management` plugin remains for one release as a pointer stub"
     - "1.2: Loop closure (Invariant 7) — §14 in PROJECT_STANDARD.md makes silence a failure mode in both directions: inbound, every run closes with what's true / what's waiting on the operator / what happens next unprompted, operator-initiated results notify the operator, and an unanswered ask gets louder with age; outbound, work parked on a person or agent outside the registry gets waiting-on:<actor>, ages in the digest's Your open loops on a 3d/7d/14d ladder, and comes with a drafted nudge the human sends (the agent never contacts third parties). /project-steward 1.1 (Step 3c open-loop pass), /project-task 1.2 + /project-intake 1.1 (--waiting-on), §3/§7/§8 additions, §14 upgrade path for existing standards"
     - "1.1: v1.1.0 — /project-intake (headless intake primitive), §13 Intake contract in PROJECT_STANDARD.md, headless mode for /project-task, reconciler unkeyed-item refinement (personal items excluded from sync-gap alerts), workspace visibility as deployment config"
@@ -16,7 +17,7 @@ metadata:
 
 # Add Project Management
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `add-project-management v1.3 — recent: moved into the agent-dev plugin`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `add-project-management v1.4 — recent: fixed the missing status:done label`. Then proceed.
 
 Install a cross-actor project management standard into this agent. GitHub Issues become the single source of truth for all project and task state; humans, this agent, and fleet agents interact through a shared vocabulary of labels, task anatomy, and an approval-ready completion lattice.
 
@@ -106,6 +107,23 @@ If any exist, ask:
 
 **Upgrade path — §14 Loop closure.** `PROJECT_STANDARD.md` is the deployer's live configuration, so a kept file is never silently rewritten. But an install predating v1.2 has no `## 14. Loop closure` section, and the loop-closure behavior in `/project-steward` reads it. If the file exists and `grep -q '## 14. Loop closure' PROJECT_STANDARD.md` fails, offer to append just that section (plus the `waiting-on:<actor>` row in §3, the two comment formats in §7, and the four escalation rows in §8) with the deployer's existing config values. On no, skip and note that `/project-steward`'s open-loop pass will be inert until the section exists.
 
+**Upgrade path — missing `status:done` label.** Registries created before v1.4 never got the `status:done` label, so every verification close silently failed on the label write. Step 11 below recreates it on this run, but if the deployer cancels here, give them the one-liner and the §3 row to paste into their kept `PROJECT_STANDARD.md`:
+
+```bash
+gh label create "status:done" --repo "$REGISTRY" --color "6e5494" --description "Verified complete (absorbing; only a human reopens)" 2>/dev/null || true
+```
+
+Then check whether the gap left orphans. `gh issue edit` rejects the whole call on an unknown label, so a failed close kept its *old* status label — `pending-verification` on the steward path (§6), `active` on the projection-endorsement path (§11):
+
+```bash
+gh issue list --repo "$REGISTRY" --state closed --label task --limit 200 \
+  --json number,title,labels \
+  --jq '[.[] | select([.labels[].name] | index("status:done") | not)
+        | {number, title, status: ([.labels[].name | select(startswith("status:"))] | join(","))}]'
+```
+
+Every hit is a closed task that never reached its terminal label. Report the list and offer to relabel each to `status:done` (removing the stale `status:*`). Leave open issues alone — those are legitimately in flight.
+
 ### Step 4: Create skill directories
 
 ```bash
@@ -162,6 +180,7 @@ Write `PROJECT_STANDARD.md` to the repo root with the values from Step 2 substit
 | `status:needs-decision` | Blocked on the named owner's decision. Reserved for genuine blocks — never used simply because a human owns a task. |
 | `status:paused` | Deliberately on hold; steward skips it (no staleness escalation) |
 | `status:pending-verification` | Agent claimed completion; awaiting DoD verification by the steward |
+| `status:done` | Terminal — DoD verified (or the human closed directly). Absorbing: only a human reopens (§5). |
 | `status:unclassified` | Auto-stubbed workspace folder not yet classified. Excluded from all projections and priority. |
 | `priority:p1` | High — steward reviews first, fastest escalation, never auto-demoted |
 | `priority:p2` | Normal — standard tracking and escalation |
@@ -495,6 +514,7 @@ gh label create "status:blocked" --repo "$REGISTRY" --color "d93f0b" --descripti
 gh label create "status:needs-decision" --repo "$REGISTRY" --color "fbca04" --description "Blocked on owner decision" 2>/dev/null || true
 gh label create "status:paused" --repo "$REGISTRY" --color "cccccc" --description "Deliberately on hold" 2>/dev/null || true
 gh label create "status:pending-verification" --repo "$REGISTRY" --color "e4e669" --description "Agent claimed done; awaiting DoD verification" 2>/dev/null || true
+gh label create "status:done" --repo "$REGISTRY" --color "6e5494" --description "Verified complete (absorbing; only a human reopens)" 2>/dev/null || true
 gh label create "status:unclassified" --repo "$REGISTRY" --color "f9d0c4" --description "Auto-stubbed workspace folder not yet classified" 2>/dev/null || true
 gh label create "priority:p1" --repo "$REGISTRY" --color "b60205" --description "High priority" 2>/dev/null || true
 gh label create "priority:p2" --repo "$REGISTRY" --color "ff9f1c" --description "Normal priority" 2>/dev/null || true
@@ -1481,6 +1501,7 @@ gh label create "status:blocked" --repo "$REGISTRY" --color "d93f0b" --descripti
 gh label create "status:needs-decision" --repo "$REGISTRY" --color "fbca04" --description "Blocked on owner decision" 2>/dev/null || true
 gh label create "status:paused" --repo "$REGISTRY" --color "cccccc" --description "Deliberately on hold" 2>/dev/null || true
 gh label create "status:pending-verification" --repo "$REGISTRY" --color "e4e669" --description "Agent claimed done; awaiting DoD verification" 2>/dev/null || true
+gh label create "status:done" --repo "$REGISTRY" --color "6e5494" --description "Verified complete (absorbing; only a human reopens)" 2>/dev/null || true
 gh label create "status:unclassified" --repo "$REGISTRY" --color "f9d0c4" --description "Auto-stubbed; not yet classified" 2>/dev/null || true
 gh label create "priority:p1" --repo "$REGISTRY" --color "b60205" --description "High priority" 2>/dev/null || true
 gh label create "priority:p2" --repo "$REGISTRY" --color "ff9f1c" --description "Normal priority" 2>/dev/null || true
