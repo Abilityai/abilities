@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__create_agent, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__get_agent_github_pat_status, mcp__trinity__set_agent_github_pat, mcp__trinity__initialize_github_sync, mcp__trinity__git_pull, mcp__trinity__get_git_sync_state, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
 metadata:
-  version: "5.0"
+  version: "5.1"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "5.1: Teach the event layer's emit side — agents can publish custom domain events via emit_event(event_type, payload) and any agent that should react subscribes ITSELF via subscribe_to_event ({{payload.field}} interpolates into the task it receives; self-service, no on-behalf wiring), with the two safety caveats: no recursion guard outside agent.task.* (keep custom event graphs acyclic — a cycle runs forever at real spend) and wakes reach only running subscribers (at-most-once, no replay)"
     - "5.0: Repository-first deployment — Path A (default) creates the agent from its GitHub repo via create_agent(template: github:owner/repo@branch), which Trinity clones and tracks in source mode; Path B (local tar.gz via deploy_local_agent) stays as the fallback for repos that don't exist yet, and now offers initialize_github_sync to promote the agent onto the repo path. New Step 4b gates deploy on GitHub readiness (token tier + pushed remote) before any deploy runs, new 'Deployment paths' section states the doctrine, Step 5f is path-aware (github: templates materialize template.yaml schedules at creation, ent#89), Step 6 teaches push→git_pull as the update loop, and the PAT troubleshooting section is rewritten against the real resolver (per-agent → per-user → global, ent#162) incl. the tokenless public-repo path (ent#123) and create-time access validation (#218)"
     - "4.15: Platform-truth refresh (Trinity dev 62ae49f9) — prerequisites point at /trinity:connect (trinity_mcp_ keys, no manual copy), stall-watchdog claim corrected (1800s, mcp__* tools only, #1369), schedule timeout inherits the agent's 60-min cap (not 15), chat_with_agent queued_timeout receipt at ~25s + agent.task.* event report-back (#1578), reports pruned past agent_reports_retention_days (90d), display-label-vs-slug note"
     - "4.14: Next Steps now includes 'Publish structured reports' — deployed agents end result-producing/scheduled skills with a guarded mcp__trinity__report call so output lands on the Reports tab (append-only history complementing the live dashboard.yaml snapshot), guarded to skip silently off-Trinity"
@@ -311,6 +312,8 @@ Three MCP tools enable programmatic monitoring and async result polling:
 | `get_agent_activity_summary` | High-level activity summary (by trigger type, agent) |
 
 These are especially useful for orchestrator agents monitoring worker fleets, and for polling async task results: a sync `chat_with_agent` call that outlives `MCP_CHAT_TIMEOUT_MS` (~25s) returns a `{status: "queued_timeout", execution_id}` receipt — poll `get_execution_result` with that id instead of re-sending. For push-style report-back, subscribe to the worker's backend-emitted `agent.task.completed` / `agent.task.failed` events (trinity#1578) instead of polling.
+
+The same event layer carries **custom domain events** for agent-to-agent wiring: an agent publishes with `emit_event(event_type, payload)` in a namespace it owns (e.g. `research.done`), and any agent that should react subscribes **itself** with `subscribe_to_event(source_agent, event_type, target_message)` — subscriptions are self-service (the caller is always the subscriber; there is no wiring on another agent's behalf), and `{{payload.field}}` placeholders interpolate event data into the task the subscriber receives. Two caveats: only `agent.task.*` has a recursion guard, so keep custom event graphs **acyclic** (A→B→A on custom events runs forever, each hop at real spend), and a wake only reaches a *running* subscriber — delivery is at-most-once with no replay for stopped agents.
 
 ---
 
