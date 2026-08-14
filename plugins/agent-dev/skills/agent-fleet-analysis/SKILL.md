@@ -4,11 +4,12 @@ description: Scan one or more directories of agents in ANY paradigm — Claude C
 allowed-tools: Read, Bash, Write, Glob, Grep, mcp__trinity__share_file
 user-invocable: true
 metadata:
-  version: "2.3.1"
+  version: "2.3.2"
   created: 2026-07-30
   updated: 2026-08-07
   author: Ability.ai
   changelog:
+    - "2.3.2: The .gitignore audit list matches Trinity's current birth-state set — adds .env.*, credentials.json, *.pem, *.key, .claude/plugins/ and .claude/settings.json (container-only config that bricks outside clones, trinity#2036), and notes the platform enforces this on every Push"
     - "2.3.1: Upgrade-path table now names `agent-dev:add-project-management` — the skill moved into the agent-dev plugin, and this was the one row emitting an un-namespaced command into generated work orders"
     - "2.3: Marketplace integration — published into the agent-dev plugin (abilities marketplace); frontmatter normalized to marketplace conventions (comma-separated allowed-tools)"
     - "2.2: Universal agent discovery — classify n8n / framework (LangChain, CrewAI, AutoGen) / freeform-coded agents as first-class inventory entries (paradigm field), scan depth 2 -> 3; Migration Readiness score (0-100) for non-Claude-Code agents; marketplace upgrade paths — every recommendation maps to an installable abilities-marketplace skill (add-orchestrator, add-memory, kb-agent, add-canon, create-agent:custom, trinity:onboard); new 'Making your agents useful' report section; JSON schema + report script additions (paradigm column, upgrade_paths)"
@@ -125,7 +126,7 @@ Read CLAUDE.md to extract: purpose (first non-empty paragraph), any explicit aut
 
 If template.yaml exists, read it for: `name`, `display_name`, `description`, `resources`, `credentials`, `schedules`.
 
-If .gitignore exists, check it excludes: `.mcp.json`, `.env`, `content/`, `.claude/projects/`.
+If .gitignore exists, check it excludes: `.env`, `.env.*`, `.mcp.json`, `credentials.json`, `*.pem`, `*.key`, `content/`, `.claude/projects/`, `.claude/plugins/`, and `.claude/settings.json` (container-only config — a committed copy bricks clones made outside the container, trinity#2036). For a Trinity-deployed agent this list is enforced platform-side on every Push, so a gap is repaired rather than silently persisted — but it churns until the repo matches.
 
 ### 3b: Credential Security Scan
 
@@ -169,7 +170,7 @@ Score label:
 For each failed criterion, produce a gap entry with a plain-language action:
 - `CLAUDE.md missing` → "Add CLAUDE.md: write a clear purpose statement and operating instructions for this agent. This is the single most important file."
 - `.env.example missing` → "Add .env.example listing every environment variable the agent needs (with placeholder values, not real ones). Makes the agent portable and self-documenting."
-- `.gitignore missing/incomplete` → "Add .gitignore excluding .env, .mcp.json, content/, .claude/projects/ — prevents secrets from accidentally reaching version control."
+- `.gitignore missing/incomplete` → "Add .gitignore excluding .env, .env.*, .mcp.json, credentials.json, *.pem, *.key, content/, .claude/projects/, .claude/plugins/, .claude/settings.json — prevents secrets reaching version control and keeps container-only config out of clones (trinity#2036)."
 - `.claude/skills/ missing` → "Create .claude/skills/ and add at least one skill file — a markdown file describing a specific task the agent knows how to do. This gives the agent structured, reusable capabilities."
 - `.claude/memory/ missing` → "Create .claude/memory/ with a memory_index.json file — lets the agent persist facts, decisions, and context across sessions instead of starting fresh every time."
 - `credential exposure` → "URGENT: Remove credentials from tracked files before sharing or deploying this agent. Use .env.example to document what's needed; actual values go in .env (gitignored)."

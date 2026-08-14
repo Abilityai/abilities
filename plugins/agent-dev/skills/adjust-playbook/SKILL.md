@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[playbook-name] [what to change] [--archive]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.9"
+  version: "1.10"
   created: 2025-02-10
   updated: 2026-08-03
   author: Ability.ai
   changelog:
+    - "1.10: Schedule note corrected for ent#89 — Trinity materializes template.yaml schedules: at agent creation (disabled unless a literal YAML true, max 20, deduped by name, never re-applied on recreate), and firing also needs the agent's autonomy gate; /trinity:onboard and /trinity:sync remain the reconcile path for a live instance"
     - "1.9: Trinity-first docs refresh (verified vs Claude Code 2.1.220) — new Change Invocation & Context Controls adjustment (context: fork / agent / background, paths, user-invocable, disable-model-invocation, disallowed-tools) with two guards: disable-model-invocation: true breaks a scheduled playbook (the scheduler's message reaches the skill via model invocation), and a headless-bound context: fork without background: false loses the fork at turn-end (forks background by default since 2.1.218); autonomous validation checklist gains matching scheduled-invocation + foreground-fork lines; Routines advisory replaced with the Trinity scheduling path (schedule: → template.yaml → create_agent_schedule, message invokes by slash name, timeout ≤ agent cap); Step 1 also scans plugins/*/skills/; model override notes model: inherit"
     - "1.8: Add the Promote to Library-Grade adjustment (+ Step 3 change type) — audit a proven agent-local skill against /create-playbook's Library-Grade Rule (requires: frontmatter contract, env-var-only credentials, named missing-key errors, no host-specific assumptions), run the deterministic env-coherence + secret-scan check as a blocker, then prep the contribution to the library repo"
     - "1.7: Add the Long-Running-Task line to the Autonomous Validation Checklist — a headless run can't host a >~10-min job (auto-backgrounded past the ~10-min sync Bash ceiling, then reaped at turn-end); such work is decoupled to an OS-level cron/systemd/sidecar + done-marker and the run only triggers + verifies the artifact moved (mirrors /create-playbook 2.8)"
@@ -296,7 +297,7 @@ Autonomous playbooks run unattended — there is no human to approve gates. Befo
 - [ ] **Invocable when scheduled** — `disable-model-invocation` is false/absent, and the schedule message invokes the skill by slash name — a natural-language message reaches the skill via model invocation, which `disable-model-invocation: true` blocks
 - [ ] **No background forks** — the skill and every composed child using `context: fork` sets `background: false` — a background fork is reaped at turn-end in a headless run
 
-> **How schedules go live (Trinity):** the `schedule:` field is the durable declaration — it feeds the agent's `template.yaml` `schedules:` block, and `/trinity:onboard` / `/trinity:sync` materialize it into live schedules via `create_agent_schedule`. The schedule's `message` must invoke the skill by its slash name, and its `timeout_seconds` must fit the agent's execution cap (default 3600s). The skill must also work when invoked manually — Trinity is the upgrade, never the gate.
+> **How schedules go live (Trinity):** the `schedule:` field is the durable declaration — it feeds the agent's `template.yaml` `schedules:` block. Since ent#89 Trinity **does** materialize that block at **agent creation** — but every entry lands **disabled unless it declares a literal YAML `enabled: true`** (a non-boolean is treated as false), at most **20** entries are materialized, names are deduped against the agent's existing schedules, `timezone:` defaults to `UTC`, and the block is **never re-applied on recreate**. Firing also requires the agent's **autonomy gate**, which is OFF on every new agent. `/trinity:onboard` / `/trinity:sync` are still what reconcile the block onto an already-live instance. The schedule's `message` must invoke the skill by its slash name, and its `timeout_seconds` must fit the agent's execution cap (default 3600s). The skill must also work when invoked manually — Trinity is the upgrade, never the gate.
 
 If existing playbook has approval gates, you MUST either:
 1. Remove all `[APPROVAL GATE]` sections (and their associated user interaction steps)

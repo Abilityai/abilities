@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-04-30
   author: Ability.ai
   changelog:
+    - "1.4: Removed the Step 2b healthcheck patch — trinity#443 fixed the /mcp probe upstream, and the old blanket `sed s|/mcp|/health|g` over every Dockerfile now CORRUPTS a fresh install by renaming the base image's /home/developer/mcp-servers to /home/developer/health-servers. Replaced with a read-only diagnostic"
     - "1.3: First-run setup now also seeds the instance GitHub token (Settings → GitHub token — fine-grained PAT, Contents: Read) alongside the MCP API key, in both the SSH and local-Docker paths — it is what the default deploy path (create_agent from github:owner/repo) clones with, so a private-repo fleet is unblocked before the first agent is deployed"
     - "1.2: Align with Trinity v0.7.0+ first-run flow — mandatory web setup with admin email replaces the removed setup token (#49), OWASP password complexity enforced (generator now keeps a special char), note that start.sh auto-generates AGENT_AUTH_SECRET/REDIS_* and probes DOCKER_GID"
     - "1.1: Scaffold the ops agent by cloning trinity-ops-public instead of generating files inline — agents now ship with the full, maintained skill set"
@@ -204,11 +205,15 @@ ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} \
 
 **Step 2b: Patch MCP server Dockerfile**
 
-Fix the healthcheck endpoint (upstream bug: `/mcp` returns HTTP 400, so the container always reports `(unhealthy)` even when fully functional — `/health` returns 200):
+**No healthcheck patch is needed — and do not apply the old one.** The MCP server's `HEALTHCHECK` has probed `/health` since trinity#443; the "`/mcp` returns 400, container reports `(unhealthy)`" bug this step used to work around is fixed upstream.
+
+The retired workaround was a blanket `find . -name Dockerfile | xargs grep -l '/mcp' | sed -i 's|/mcp|/health|g'`, and running it today **corrupts the install**: the only remaining `/mcp` substrings in the tree are a comment and the agent base image's `/home/developer/mcp-servers` directory, which the substitution renames to `/home/developer/health-servers`.
+
+If a container really does report `(unhealthy)`, read the actual probe before changing anything:
 
 ```bash
 ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} \
-  "cd ~/trinity && find . -name 'Dockerfile' | xargs grep -l '/mcp' 2>/dev/null | while read f; do sed -i 's|/mcp|/health|g' \"\$f\"; echo \"healthcheck patched: \$f\"; done"
+  "cd ~/trinity && grep -n 'HEALTHCHECK' -A2 src/mcp-server/Dockerfile"
 ```
 
 If `MCP_PORT` is not `8080`, also update the hardcoded port in all three Dockerfile locations (EXPOSE, ENV, HEALTHCHECK):

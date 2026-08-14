@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.7"
+  version: "1.8"
   created: 2026-05-25
   updated: 2026-07-29
   author: Ability.ai
   changelog:
+    - "1.8: Platform-truth refresh (Trinity dev 88a4e2f7) — report payload cap corrected 256 KB → 5 MiB (object only), display_hint gains `json` and now drives the customer-facing Workspace Reports tab, and list_reports/get_report are taught as read-before-write. template.yaml scaffold gains credentials: + credential_setup: (ent#128/#127; gate T-015). schedules: block documents the ent#89 contract — materialized at creation, max 20, deduped by name, armed only by a literal YAML true, never re-applied on recreate, and gated again by agent autonomy (OFF on new agents); dropped the non-schema id: key and moved timezone off America/New_York to UTC (#1795, and legacy IANA aliases now 500, #1823). .gitignore gains .claude/settings.json + .trinity/* (trinity#2036/#1936)"
     - "1.7: Repository-first deployment — the GitHub-repo step is framed as the deploy path (Trinity clones the repo and tracks the branch; skipping means an upload-only deploy with no reproducible source), and the deploy offer now states what /trinity:onboard actually does: create_agent(template: github:owner/repo@branch) when a remote exists — schedules materialized at creation, updates via git push + git_pull — falling back to a local-file deploy that offers promotion onto the repo path. Also replaced the generated agent's dead trinity-cli deploy block (pip install trinity-cli / trinity deploy .) with the MCP-based flow"
     - "1.6: Generated CLAUDE.md gains a Request Dispatch section — an SOP table routing incoming requests (user, other agents, operator queue) to skills; task requests with no matching skill are handled if safe and flagged as playbook gaps (told to the user interactively, filed as a playbook-gap-<slug> operator-queue item when headless on Trinity) with a pointer to /agent-dev:create-playbook"
     - "1.5: Trinity-connected deploy is the default next action — new Step 16 offers deploying the freshly created agent from its repository via /trinity:onboard when Trinity MCP is connected, gated by explicit AskUserQuestion confirmation; skipped silently when not connected"
@@ -287,8 +288,9 @@ Once deployed, publish **structured reports** so an operator can see what you pr
 
 - **When:** at the end of result-producing skills and scheduled runs — not for conversational replies.
 - **`report_type`:** namespaced `lower_snake`, shaped `<agent>.<result>` — e.g. `doctor.visit_prep`, `doctor.lab_trends`, `doctor.interaction_flags`.
-- **`title`:** one short line (≤300 chars). **`payload`:** a JSON *summary* (≤256 KB) — headline metrics/deltas, not full records.
-- **`display_hint`:** `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), or omit for a raw-JSON view.
+- **`title`:** one short line (≤300 chars). **`payload`:** a JSON *summary* **object** (≤5 MiB serialized) — headline metrics/deltas, not full records.
+- **`display_hint`:** `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), `json` (raw), or omit to let Trinity infer from `report_type`. Pick deliberately — the customer-facing Workspace Reports tab renders through these same renderers, so a mismatched hint is visible to users.
+- **Read before you write:** call `mcp__trinity__list_reports` first (metadata only — filters `report_type`, `hours` ∈ {0,1,6,24,168,720}, `search`) to avoid duplicating or contradicting a report you already filed, then `mcp__trinity__get_report` with an id to diff this period against the last.
 - **Guard the call:** the tool exists only when running on Trinity (it publishes under this agent's own key). If `mcp__trinity__report` isn't available — e.g. running locally — skip it silently. **Trinity is an upgrade, not a requirement.**
 
 Reports complement the local record store: the store holds the *full* data; reports are an *append-only* history of summaries — what changed and what was prepared.
@@ -468,14 +470,37 @@ resources:
   cpu: "2"
   memory: "4g"
 
-# Recommended schedules (design source of truth). /trinity:onboard & /trinity:sync
-# reconcile these onto the instance; `enabled` is the recommended default and the
-# operator toggles activation on the live agent. Adjust to fit this agent.
+# What this agent needs, BY NAME ONLY — names-only is the frozen contract; never values.
+# Every ${VAR} used in .mcp.json.template must appear here or the agent HARD-fails
+# compatibility check T-015. An agent with no secrets declares an explicit `credentials: {}`.
+credentials:
+  env_file: [EXAMPLE_API_KEY]
+
+# Per-variable setup guidance (ent#128). DECORATES credentials: — it cannot declare a
+# name that isn't above (undeclared entries are dropped). Drives the platform's guided
+# checklist: GET /api/agents/{name}/credential-requirements (ent#127).
+credential_setup:
+  - name: EXAMPLE_API_KEY
+    title: Example service API key
+    description: What the agent uses it for, in one line.
+    required: true
+    secret: true
+    format: secret
+    setup_url: https://example.com/settings/api-keys
+
+# Recommended schedules (design source of truth). Trinity materializes this block
+# ON AGENT CREATION, deduplicated by `name` — at most 20 entries, and NEVER re-applied
+# on recreate, so a schedule added here after deployment must be created with
+# create_agent_schedule (or reconciled by /trinity:onboard | /trinity:sync).
+# `enabled` is the recommended default and only a literal YAML true arms a schedule;
+# firing ALSO requires the agent's autonomy gate, which is OFF on every new agent.
+# timezone: canonical IANA zones only — legacy aliases (Europe/Kiev, Asia/Calcutta,
+# US/Eastern) no longer resolve and 500 on schedule create. The container clock is UTC.
+# Adjust to fit this agent.
 schedules:
-  - id: weekly-health-review
-    name: Weekly health review
+  - name: Weekly health review
     cron: "0 9 * * 1"
-    timezone: America/New_York
+    timezone: UTC
     message: "Review newly ingested health documents, update lab-value trends, and flag anything worth raising with a doctor."
     purpose: Weekly records and lab-trend review
     enabled: false
@@ -1987,7 +2012,33 @@ Write `$destination/.gitignore`:
 
 ```
 .env
+.env.*
 .mcp.json
+# Claude Code internals
+.claude.json
+.claude/projects/
+.claude/statsig/
+.claude/todos/
+.claude/debug/
+.claude/sessions/
+.claude/shell-snapshots/
+.claude/plugins/
+.claude/backups/
+.claude/settings.local.json
+# Container-only config: the Trinity base image bakes ~/.claude/settings.json with
+# hook paths that exist only inside the container, and HOME is the repo root. A
+# committed copy bricks any clone made outside it (the missing hook exits 2, which
+# Claude Code reads as "block this tool call"). Trinity enforces this fleet-wide and
+# untracks an already-committed copy on the next Push (trinity#2036).
+.claude/settings.json
+# Trinity runtime state — star form so authored hooks stay tracked
+.trinity/*
+!.trinity/pre-check
+!.trinity/post-check
+!.trinity/setup.sh
+credentials.json
+*.pem
+*.key
 
 # Raw documents contain PHI — extracted summaries (Files/) are tracked, raw files are not.
 # Remove this rule if you intentionally want to version-control the raw documents.

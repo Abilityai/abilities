@@ -105,10 +105,15 @@ Once connected, Trinity MCP tools are available directly:
 | `mcp__trinity__stop_loop` | Request a graceful stop of a running loop |
 | `mcp__trinity__create_agent_schedule` | Create a cron schedule on an agent (`list_agent_schedules`, `update_agent_schedule`, `toggle_agent_schedule`, `delete_agent_schedule`, `trigger_agent_schedule`, `get_schedule_executions`) |
 | `mcp__trinity__report` | Publish a structured result to the agent's **Reports** tab (see *Reporting* below) |
+| `mcp__trinity__list_reports` / `get_report` | Read back what was already filed — metadata list (filters: `report_type`, `hours` ∈ {0,1,6,24,168,720}, `search`) then fetch one payload by id. Call before writing a new report so a scheduled series resumes instead of duplicating itself |
+| `mcp__trinity__create_room` | Open a shared multi-agent thread (`post_to_room`, `read_room`, `list_rooms`, `close_room`) — the substrate for several agents plus a human working one problem |
+| `mcp__trinity__ask_trinity` | Ask Trinity's own grounded documentation Q&A — the live answer channel for "how does Trinity do X" |
 
 ### Schedules are declarative
 
 Don't hand-create schedules ad hoc. Declare an agent's recommended schedules in a `schedules:` block in `template.yaml` (the design source of truth). When an agent is deployed **from its GitHub repo**, Trinity reads that block out of the repo and materializes the schedules at creation — one more reason the repository path is the default. `/trinity:onboard` and `/trinity:sync` **reconcile** the block onto the instance — creating missing schedules, updating drifted ones, and flagging live schedules that aren't declared. The per-schedule `enabled` flag is the recommended default; turning a schedule on or off on a live agent is the operator's call via `toggle_agent_schedule`.
+
+**Two gates decide whether a schedule actually fires.** A declared entry arms only on a literal YAML `enabled: true` (anything else lands disabled, max 20 entries per template, never re-applied on recreate). And the agent's **autonomy gate is OFF for every newly created agent** — while it is off the scheduler skips every cron trigger and writes no execution row, so an enabled schedule is silently inert. There is no MCP tool for it; turn autonomy on for the agent in the Trinity UI after deploying. Cron times are interpreted in each entry's `timezone:` (default `UTC`, which is also the container clock); use canonical IANA zones only — legacy aliases like `Europe/Kiev` no longer resolve and 500 on schedule create.
 
 **Best practice: a schedule should call one playbook and nothing else** — keep the cron prompt to a bare skill invocation (e.g. `/daily-briefing`), with no inline instructions, arguments, or business logic. That logic belongs in the playbook the schedule triggers, so changing what a scheduled run does is always an edit to the playbook, never to the schedule.
 
@@ -120,8 +125,8 @@ A deployed agent publishes results by calling one MCP tool: **`mcp__trinity__rep
 |-------|----------|-------|
 | `report_type` | ✅ | Namespaced `lower_snake` joined by `.` — `<agent>.<result>`, e.g. `recon.weekly_summary` |
 | `title` | ✅ | One line, ≤ 300 chars |
-| `payload` | ✅ | Arbitrary JSON, ≤ 256 KB |
-| `display_hint` | optional | `table` (`{columns, rows}`) · `kpi` (`{tiles:[{label,value,unit?}]}`) · `markdown` (`{markdown}`) · `timeline` (`{events:[{ts,label,detail}]}`) · omit → raw-JSON viewer |
+| `payload` | ✅ | A JSON **object**, ≤ **5 MiB** serialized (`REPORT_PAYLOAD_MAX_BYTES` — a code constant, raised from 256 KB by trinity#1537/#1838; oversize is a hard 413) |
+| `display_hint` | optional | `table` (`{columns, rows}`) · `kpi` (`{tiles:[{label,value,unit?}]}`) · `markdown` (`{markdown}`) · `timeline` (`{events:[{ts,label,detail}]}`) · `json` (raw) · omit → Trinity infers from the `report_type` prefix, then falls back to the JSON viewer. Set it deliberately: the customer-facing Workspace Reports tab renders through these same renderers (trinity#2162/#2173), so a wrong hint is visible to the agent's users, not just its operator |
 | `period_start` / `period_end` | optional | ISO-8601, for reports covering a window |
 
 **Reports complement `dashboard.yaml`:** the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only history* of what the agent accomplished (rolling — pruned past `agent_reports_retention_days`, default 90 days). The convention `/create-agent` bakes into every generated agent is: **result-producing and scheduled skills end with a guarded `report` call** — guarded so it's skipped silently when the tool is absent (i.e. running locally, off Trinity). Reporting is an upgrade, never a requirement.

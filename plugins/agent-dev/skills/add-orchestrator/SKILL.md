@@ -4,10 +4,11 @@ description: Make any agent a system-aware orchestrator — installs /discover-a
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.18"
+  version: "1.19"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.19: Platform caveat rewritten for ent#89 (materialized at creation, disabled unless a literal YAML true, max 20, deduped by name, never re-applied on recreate) and the steward entry now scaffolds enabled: false so a template-derived agent cannot silently inherit an armed unattended sweep. Dropped the non-schema `id:` key in favour of `name:` as the identity key. Steward cadence no longer claims 'server-local time' — schedules and the container clock are both UTC (#1795), and legacy IANA aliases now 500 on create (#1823). Bundled /orchestrate → v1.12 (rooms + A2A routing)"
     - "1.18: Bundled /orchestrate v1.11 — event-choreography layer for standing 'whenever X happens, have Y react' asks (fourth routing pattern next to Single/Fan-out/Chain): custom domain events via emit_event alongside the #1578 backend terminals, subscriptions wired SELF-SERVICE (subscribe_to_event always subscribes the caller — the orchestrator dispatches the setup task to the subscriber, never subscribes on-behalf), edges recorded in orchestration.md §6, and four unenforced design rules (exact-triple match/no wildcards; no loop guard outside agent.task.* — custom event graphs must stay acyclic; wakes reach only running subscribers, at-most-once/no replay; interpolated payloads are a cross-agent injection surface). Allowed-tools catches up: event tools + the set_reminder/cancel_reminder the v1.7 watchdog already instructed"
     - "1.17: Step 9 summary separates the two GitHub tokens a deployed orchestrator depends on — the INSTANCE token (Settings → GitHub token) is what Trinity clones `github:` members with (the default create_agent/deploy_system path, required for private repos), while GH_TOKEN in the agent's .env only authenticates the agent's own gh/git calls; a private-repo fleet needs both. Bundled runtime skills: compose-system 1.3 + orchestrate 1.10 (repository-first members and rollouts)"
     - "1.16: Loop closure across the bundle — fleet/project-standard.md gains §12 (silence is a failure mode, both directions: the agent closes its loops with the operator; the operator is handed the loops only a human can close with people or agents outside the fleet), a waiting-on:<actor> label, the ### Waiting on / ### Loop closed comment formats, and a 3d/7d/14d nudge ladder in §8; bundled /project-steward v1.2 (Step 4b open-loop pass, digest opens with the closing statement and carries Your open loops, operator-initiated results notify the operator) and /orchestrate v1.9 (a run isn't done until delivery to the requester succeeds; every report ends with Your open loops / Waiting on you / Next without you). The agent drafts follow-ups, the human sends them — nothing here contacts a third party. Re-runs offer the §12 insert into an existing standard"
@@ -137,7 +138,7 @@ If any target skill directory already exists under `.claude/skills/`, ask per-sk
 - `Yes` — install `/project-init` + `/project-steward` and seed `fleet/project-standard.md` (which carries the §12 loop-closure discipline: the steward reports back to the operator rather than only filing on issues, and ages the operator's `waiting-on:<actor>` loops with drafted-but-unsent follow-ups). Then gather three parameters:
   - **Registry repo** — which GitHub repo hosts the project epics (default: this agent's own origin repo).
   - **Operator** — the human name `status:needs-operator` escalates to.
-  - **Steward cadence** — cron for the sweep (default `0 7-19/2 * * 1-5`, i.e. every 2h during working hours, weekdays, server-local time).
+  - **Steward cadence** — cron for the sweep (default `0 7-19/2 * * 1-5`, i.e. every 2h, weekdays). **Times are UTC unless you say otherwise** — `create_agent_schedule` and a declared `schedules:` entry both default `timezone` to `UTC`, and the agent container's own clock is UTC. If "working hours" should mean the operator's clock, ask for a timezone and pass it (`timezone: "Europe/London"`); never a legacy IANA alias (`Europe/Kiev`, `Asia/Calcutta`) — those no longer resolve and the schedule 500s on create.
 
   Then **verify registry access before wiring the steward** — it runs unattended, so a bad grant surfaces as a silently failing schedule, not an error in front of anyone: `gh api "repos/$REGISTRY_REPO" --jq '{push: .permissions.push, issues: .has_issues}'` — expect `push: true, issues: true`. On failure, warn and have the user fix access (or pick another repo) before the first sweep; don't hard-stop the install — the layer is repairable. Note that a **deployed** steward additionally needs a `GH_TOKEN` in the instance's `.env` (see the Trinity note in Step 9's summary).
 
@@ -269,14 +270,14 @@ If there is no `dashboard.yaml`: `echo "ℹ️  No dashboard.yaml — skipping f
 
 Skip unless Q3 selected the project layer. The steward is autonomous — it needs its schedule wired, and the schedule must be durable and discoverable, not live-only:
 
-1. **Record it in `template.yaml`'s `schedules:` block** (grep-guard on `project-steward-sweep` so re-runs never duplicate). This is the source of truth `/trinity:sync` reconciles and `/discover-agents` reads. (Platform caveat: Trinity itself never reads this block — an agent created from the template via UI/API gets none of its schedules; only `/trinity:onboard` / `/trinity:sync` materialize it onto a live instance.)
+1. **Record it in `template.yaml`'s `schedules:` block** (grep-guard on `project-steward-sweep` so re-runs never duplicate). This is the source of truth `/trinity:sync` reconciles and `/discover-agents` reads. (Platform caveat, ent#89: Trinity **does** materialize this block at agent creation — entries land **disabled unless they declare a literal YAML `enabled: true`**, max 20, deduped by `name`, never re-applied on recreate. Because this entry is an *autonomous* steward, declare `enabled: false` here and let the `create_agent_schedule` call below arm the live one, so an agent created later from this template does not silently inherit an armed unattended sweep.)
    ```yaml
-   - id: project-steward-sweep
-     name: Project steward sweep
+   - name: project-steward-sweep     # identity key — Trinity dedups on `name`; there is no `id` field
      cron: "<from Q3, default 0 7-19/2 * * 1-5>"
      message: "Run /project-steward"
      purpose: Sweep fleet-managed projects — reconcile dispatches, dispatch next work, escalate, digest
-     enabled: true
+     timezone: UTC                   # canonical IANA only — legacy aliases (Europe/Kiev) 500 on create
+     enabled: false                  # armed live in step 2; keeps a template-derived agent from inheriting an unattended sweep
    ```
 2. **If Trinity MCP is available**, install the live schedule via `create_agent_schedule` with its real params: `agent_name`, `name: "project-steward-sweep"`, `cron_expression: "<from Q3>"`, `message: "Run /project-steward"`, optional `description`. (There is no `schedule_name`/`cron`/`skill` param — the `message` is the prompt the agent receives, so it must name the skill.) If not, print that the steward works locally when invoked manually and the schedule will be reconciled by `/trinity:onboard` / `/trinity:sync` later.
 3. If `template.yaml` is absent, warn: the schedule exists live-only (invisible to `/trinity:sync` and fleet discovery) — same caveat as `/add-pipeline`.

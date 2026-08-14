@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__create_agent, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__get_agent_github_pat_status, mcp__trinity__set_agent_github_pat, mcp__trinity__initialize_github_sync, mcp__trinity__git_pull, mcp__trinity__get_git_sync_state, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
 metadata:
-  version: "5.1"
+  version: "5.2"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "5.2: Platform-truth refresh (Trinity dev 88a4e2f7) — TWO gates decide whether a schedule fires, and the second was undocumented: agent autonomy defaults OFF on every new agent, the scheduler skips all cron triggers while it is off and writes NO execution row, and there is no MCP tool for it (turn it on in the UI after deploy). Schedule reconcile now matches on the literal `name` (ent#89 materializes it verbatim and dedups on it) — the old `[id]`-prefixed name could never collide, so Path A agents got DUPLICATE double-firing schedules. Declared schedules honour six keys only (timeout_seconds/max_retries/model/allowed_tools are dropped on the github: path), bounded at 20 entries, armed only by a literal YAML true, never re-applied on recreate. New Step 3b teaches credentials:/credential_setup: (ent#128/#127, gate T-015). Step 4 now teaches .mcp.json.template (trinity#2007): ${VAR} in env blocks ONLY — a placeholder in command/url/args withholds the whole server — and the command allowlist. .gitignore scaffold gains .claude/settings.json + the negation escape hatch (trinity#2036)"
     - "5.1: Teach the event layer's emit side — agents can publish custom domain events via emit_event(event_type, payload) and any agent that should react subscribes ITSELF via subscribe_to_event ({{payload.field}} interpolates into the task it receives; self-service, no on-behalf wiring), with the two safety caveats: no recursion guard outside agent.task.* (keep custom event graphs acyclic — a cycle runs forever at real spend) and wakes reach only running subscribers (at-most-once, no replay)"
     - "5.0: Repository-first deployment — Path A (default) creates the agent from its GitHub repo via create_agent(template: github:owner/repo@branch), which Trinity clones and tracks in source mode; Path B (local tar.gz via deploy_local_agent) stays as the fallback for repos that don't exist yet, and now offers initialize_github_sync to promote the agent onto the repo path. New Step 4b gates deploy on GitHub readiness (token tier + pushed remote) before any deploy runs, new 'Deployment paths' section states the doctrine, Step 5f is path-aware (github: templates materialize template.yaml schedules at creation, ent#89), Step 6 teaches push→git_pull as the update loop, and the PAT troubleshooting section is rewritten against the real resolver (per-agent → per-user → global, ent#162) incl. the tokenless public-repo path (ent#123) and create-time access validation (#218)"
     - "4.15: Platform-truth refresh (Trinity dev 62ae49f9) — prerequisites point at /trinity:connect (trinity_mcp_ keys, no manual copy), stall-watchdog claim corrected (1800s, mcp__* tools only, #1369), schedule timeout inherits the agent's 60-min cap (not 15), chat_with_agent queued_timeout receipt at ~25s + agent.task.* event report-back (#1578), reports pruned past agent_reports_retention_days (90d), display-label-vs-slug note"
@@ -442,9 +443,11 @@ Keep the defaults (`cpu: "2"`, `memory: "4g"`) unless the user explicitly needs 
 `template.yaml` is the agent's design manifest, so it is also where the agent's **recommended schedules** are declared. This is the single source of truth for "what this agent is built to run on a cadence" — no separate schedules file. The split is:
 
 - **Design (this block):** the agent declares the schedules it's built to run. Travels with the agent through git; identical on every instance.
-- **Operator decision (the instance):** which of those actually fire is the live state on Trinity. The per-schedule `enabled` flag is the *recommended default*; the operator can toggle any schedule on/off post-deploy without editing `template.yaml`.
+- **Operator decision (the instance):** which of those actually fire is the live state on Trinity — and it is **two gates, not one**:
+  1. **The per-schedule `enabled` flag**, applied only at creation. An entry that omits `enabled`, or gives anything other than a literal YAML `true`, lands **disabled** (trinity-enterprise#89).
+  2. **The agent's autonomy gate**, which is **OFF for every newly created agent** (`agent_ownership.autonomy_enabled` defaults to `0`). While it is off the scheduler refuses to fire any cron trigger — the schedule shows as enabled, nothing runs, and **no execution row is written**, so there is nothing in the run history to notice. There is no MCP tool for this; after deploying, tell the user to turn autonomy on for the agent in the Trinity UI (`PUT /api/agents/{name}/autonomy`), or their schedules are live and silently inert.
 
-Append a `schedules:` list to `template.yaml`. Each entry's fields map one-to-one onto `create_agent_schedule`, so deploy-time setup (Step 5f) is a direct mapping:
+Append a `schedules:` list to `template.yaml`. **Trinity's creation-time reader honours exactly six keys** — `name`, `cron`, `message`, `enabled`, `timezone`, and `description` (`purpose` is accepted as an alias). `timeout_seconds`, `max_retries`, `model`, and `allowed_tools` are valid arguments to `create_agent_schedule` but are **dropped** when Trinity materializes the block from a `github:` repo — declare them here for the reconcile path (Step 5f), and expect a Path-A schedule to carry platform defaults instead. Hard bounds: **20 entries per template** (extras dropped), `name` ≤ 200 chars, `message` ≤ 10 000 chars (truncated), `description` ≤ 1000 chars (dropped); a malformed entry is dropped silently rather than failing the create.
 
 ```yaml
 schedules:
@@ -476,7 +479,30 @@ Examples:
 
 Ask the user to describe what character or persona fits their agent, or propose one based on the agent's purpose from CLAUDE.md.
 
-### 3b. Create .env (agent's own secrets only)
+### 3b. Declare the agent's credentials in `template.yaml`
+
+Before writing `.env`, declare **what** the agent needs. `credentials:` is **names-only** — it lists variable names, never values. The optional `credential_setup:` block (trinity-enterprise#128) *decorates* each declared name with `title` / `description` / `required` / `secret` / `format` / `setup_url`; it cannot introduce a name that `credentials:` doesn't declare (undeclared entries are dropped).
+
+```yaml
+credentials:
+  env_file: [SOME_SERVICE_API_KEY]
+  mcp_servers:
+    some_service:
+      env_vars: [SOME_SERVICE_API_KEY]
+
+credential_setup:
+  - name: SOME_SERVICE_API_KEY
+    title: Some Service API key
+    description: Lets the agent read and write the user's Some Service workspace.
+    required: true
+    secret: true
+    format: secret
+    setup_url: https://someservice.example.com/settings/api-keys
+```
+
+This block is what drives the platform's guided checklist — after deploy, `GET /api/agents/{name}/credential-requirements` (trinity-enterprise#127) reports declared-vs-populated against a live container probe — and it is what the compatibility gates read: every `${VAR}` used in `.mcp.json.template` must appear here, or the agent HARD-fails check T-015. An agent with genuinely no secrets should declare an explicit `credentials: {}` rather than omitting the block.
+
+### 3c. Create .env (agent's own secrets only)
 
 Trinity connection credentials are **not** stored here — `/trinity:connect` keeps them in `~/.trinity/config.json` and `.mcp.json`. Create `.env` only if the agent has its **own** integration secrets (API keys for the services it calls):
 
@@ -485,32 +511,56 @@ Trinity connection credentials are **not** stored here — `/trinity:connect` ke
 # SOME_SERVICE_API_KEY=...
 ```
 
-After deploy, these are injected into the remote agent (Step 5e). If the agent has no secrets of its own, skip 3b and 3c.
+After deploy, these are injected into the remote agent (Step 5e). If the agent has no secrets of its own, skip 3c and 3d (still declare `credentials: {}` in 3b).
 
-### 3c. Create .env.example
+### 3d. Create .env.example
 
 If you created `.env`, mirror its keys with empty/placeholder values in `.env.example` (safe to commit) so a fresh clone knows what to provide.
 
-### 3d. Create/Update .gitignore
+### 3e. Create/Update .gitignore
 
 Ensure these exclusions exist:
 ```gitignore
 # Credentials - never commit
 .mcp.json
 .env
+.env.*
 *.pem
 *.key
+credentials.json
 
 # Claude Code internals
+.claude.json
+.claude.json.backup
 .claude/projects/
 .claude/statsig/
 .claude/todos/
 .claude/debug/
+.claude/sessions/
+.claude/shell-snapshots/
+.claude/plugins/
+.claude/backups/
+# Container-only config: the Trinity base image bakes ~/.claude/settings.json
+# registering guardrail hooks by ABSOLUTE container path, and HOME is the repo
+# root. A committed copy bricks any clone made outside the container — the
+# missing hook script exits 2, which Claude Code reads as "block this tool
+# call", so every Bash/Edit/Write fails there. Trinity enforces this fleet-wide
+# and untracks an already-committed copy on the next Push (trinity#2036).
+.claude/settings.json
 
 # Runtime
 content/
 session-files/
 ```
+
+**Keep this list in step with the platform's own.** Trinity applies `_GITIGNORE_PATTERNS` to every agent repo on each Push and `git rm --cached`s anything newly matched, so a scaffold that omits an entry doesn't win — it just churns. If a skill genuinely needs `.claude/settings.json` tracked (e.g. `/agent-dev:add-git-sync` registers its hooks there), the sanctioned escape hatch is to add the plain rule **and then** a negation, in that order:
+
+```gitignore
+.claude/settings.json
+!.claude/settings.json
+```
+
+The plain line satisfies Trinity's exact-line `grep -qxF` check so it stops appending its own copy; the negation comes last so git's last-match-wins re-includes the file. Verify with `git check-ignore -v .claude/settings.json` before pushing.
 
 ---
 
@@ -518,10 +568,18 @@ session-files/
 
 **SKIP THIS ENTIRE STEP if user chose "Adapt only".**
 
-`.mcp.json` is written by `/trinity:connect` (Step 2) — onboard writes **no** MCP config of its own, so there is nothing to create here. Just confirm the connection is live before deploying:
+`.mcp.json` is written by `/trinity:connect` (Step 2) — onboard writes **no** *local* MCP config of its own, so there is nothing to create here. Just confirm the connection is live before deploying:
 
 - Check that `mcp__trinity__list_agents` works. If it does, the connection is live — continue to Step 5.
 - If it errors with "no connection," `.mcp.json` was just written or changed and Claude Code hasn't loaded it yet: have the user reconnect with `/mcp` (full restart only as a fallback), then re-run `/trinity:onboard`. Do **not** write `.mcp.json` here or fall back to the Trinity CLI.
+
+**If the deployed agent needs MCP servers of its own**, commit a **`.mcp.json.template`** to the repo — it is the one MCP file that belongs in git (`.mcp.json` itself stays ignored). Since trinity#2007 the container renders it into `~/.mcp.json` at every startup, substituting `${VAR}` / `${VAR:-default}` from the agent's `.env` (inject it in Step 5e). Three rules the renderer enforces:
+
+- **Substitution happens inside `env` blocks only.** A `${VAR}` in `command`, `url`, or `args` makes the renderer **withhold the whole server** with a named reason in the container log — it is not a warning, the server simply isn't there.
+- **`command` must be an allowlisted literal**: `npx`, `uvx`, `python`, `python3`, `node`, `bun`, `deno`, `docker`. (`uv` is *not* on the list — use `uvx`.)
+- **It refuses rather than blanks.** A placeholder with no value withholds that server instead of configuring it with `""`, and the merge never clobbers Trinity's own injected `trinity` entry.
+
+This needs a rebuilt base image, so an agent created before the fix gains it on `/rebuild-agent` or recreate.
 
 ---
 
@@ -722,7 +780,11 @@ If the agent has no credentials of its own, skip this step.
 
 If `template.yaml` has a `schedules:` block (see Step 3a), make sure the design catalog and the live instance agree.
 
-**Path A does most of this for you.** When an agent is created from a `github:` repo, Trinity reads `template.yaml` from that repo **at creation** and materializes the declared schedules itself (trinity-enterprise#89) — so this step is a *verification*, and it usually reports "in sync" with nothing to create. Two cases still need you:
+**Path A does most of this for you.** When an agent is created from a `github:` repo, Trinity reads `template.yaml` from that repo **at creation** and materializes the declared schedules itself (trinity-enterprise#89) — so this step is a *verification*, matched on the literal schedule `name`, and it usually reports "in sync" with nothing to create.
+
+Two facts shape what you will see. A schedule arms only on a **literal YAML `enabled: true`** — an omitted key, or the string `"true"`, lands disabled. And materialization happens **at creation only**: it is deliberately never re-applied on container recreate, so a `schedules:` entry added to the repo *after* the agent existed will never appear on its own — only this reconcile creates it.
+
+Two cases still need you:
 
 - Trinity could not read `template.yaml` (token can't reach the repo, or an anonymous request hit GitHub's rate limit) — schedules come back empty. The reconcile below fills them in; also treat it as a signal that the token tier is weaker than you thought.
 - The repo's `template.yaml` is behind your local one — the remote's copy is what was read. Push, then re-run the reconcile.
@@ -731,11 +793,11 @@ If `template.yaml` has a `schedules:` block (see Step 3a), make sure the design 
 
 1. **Read declared schedules** from `template.yaml`.
 2. **List what's already live:** `mcp__trinity__list_agent_schedules(agent_name: "[agent-name]")`.
-3. **Match by `id`** — each live schedule carries its catalog `id` as a `[id]` prefix in its `name` (e.g. `"[weekly-report] Weekly report"`). Diff declared vs live:
+3. **Match by `name`** — Trinity's creation-time materializer writes the declared `name` **verbatim** and de-duplicates on it, so the live schedule for `name: Weekly report` is called exactly `Weekly report`, with no prefix. Diff declared vs live on `name`, and never prefix a schedule you create — a `[id]`-prefixed name cannot collide with the platform's, so a Path-A agent would end up with both `Weekly report` and `[weekly-report] Weekly report` firing the same cron at real spend:
 
    | Case | Condition | Action |
    |------|-----------|--------|
-   | **Create** | Declared, no live match | `create_agent_schedule(...)` with `enabled` from the manifest. Prefix the live `name` with `[id]`. |
+   | **Create** | Declared, no live match | `create_agent_schedule(...)` with `enabled` from the manifest, and `name` **exactly** as declared. |
    | **Update** | Declared and live, but cron/message/timezone/etc. differ | `update_agent_schedule(schedule_id, ...)` to match the manifest. **Do not** touch `enabled` here. |
    | **In sync** | Declared and live, identical | Nothing to do |
    | **Drift** | Live `[id]` not in the manifest | **Report, never delete.** Flag it so the operator decides (it may be operator-added). |

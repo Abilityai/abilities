@@ -4,10 +4,11 @@ description: Add git-as-state hooks to an agent — auto-commits on Stop, rebase
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-04-21
   author: Ability.ai
   changelog:
+    - "1.2: The .gitignore block now carries `.claude/settings.json` + `!.claude/settings.json` (plain rule first, negation last). Trinity#2036 ignores that file fleet-wide and untracks a committed copy on every Push — and it is exactly where this skill registers its hooks, so on a deployed agent the entire setup silently ceased to exist. First-run checklist now stages the hook files explicitly and verifies with git check-ignore"
     - "1.1: State why the hooks pair with deployment — Trinity deploys by cloning the repo and tracking the branch, so these hooks keep the branch tip the real agent state and make git_pull//trinity:sync carry work forward"
     - "1.0: Initial version — installs git-as-state hooks (Stop auto-commit, SessionStart rebase, PreCompact snapshot) so an agent's own repo becomes durable cross-session memory"
 ---
@@ -170,6 +171,16 @@ Add only entries not already present. Block-wrap with a header so it's clear wha
 
 ```
 # --- agent-dev:add-git-sync runtime exclusions ---
+# Trinity (#2036) ignores .claude/settings.json fleet-wide and `git rm --cached`s
+# an already-committed copy on the next Push, because the base image bakes its own
+# container-only copy and HOME is the repo root. THIS SKILL registers its hooks in
+# that file — so on a Trinity-deployed agent the registration would be untracked and
+# the whole setup would silently stop existing. Emit BOTH lines, plain rule FIRST:
+# the plain line satisfies Trinity's exact-line `grep -qxF` gate so it stops appending
+# its own copy at the end of the file, and the negation comes last so git's
+# last-match-wins re-includes the file.
+.claude/settings.json
+!.claude/settings.json
 .claude/projects/
 .claude/statsig/
 .claude/todos/
@@ -250,7 +261,7 @@ Remote: `<REMOTE>/<BRANCH>`  (if applicable)
 - Stop: auto-commit (and push, if remote-push)
 
 ### First-run checklist
-1. Commit this setup: `git add .claude/ .gitignore CLAUDE.md && git commit -m "Add git-sync hooks"`
+1. Commit this setup: `git add .claude/hooks/ .claude/settings.json .gitignore CLAUDE.md && git commit -m "Add git-sync hooks"` — then verify the negation actually wins with `git check-ignore -v .claude/settings.json` (it should report the `!` line, or report nothing). If `settings.json` is ignored, the hooks are registered nowhere on any clone but this one.
 2. If remote-push: confirm `git remote -v` points at the right repo
 3. Trigger a test: make a trivial edit, let the session end, verify a Heartbeat commit appears
 

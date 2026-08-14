@@ -4,11 +4,12 @@ description: Scaffold a Trinity-compatible long-running pipeline inside any agen
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2026-05-23
   updated: 2026-07-22
   author: Ability.ai
   changelog:
+    - "1.6: Platform caveat rewritten for ent#89 — Trinity materializes the declared schedules: block at agent creation (disabled unless a literal YAML true, max 20, deduped by name, never re-applied on recreate), so a derived agent DOES get the heartbeat. Dropped the non-schema `id:` key from the scaffold and made `name:` the live schedule name, since Trinity keys idempotency on name — the mismatch produced two heartbeats for one job"
     - "1.5: Fix the scaffolded escalation contract — pipeline-tick now files operator-queue items by writing ~/.trinity/operator-queue.json with an agent-chosen request_id (trinity#1631; send_notification is a different subsystem and returns no queue_id), pipeline-recover resolves via respond_to_operator_queue; Step 7 notes a schedule message naming an uninstalled skill now fails loudly as SKILL_NOT_FOUND (#1410)"
     - "1.4: When-to-use caveat — a heavy CPU-bound stage (index rebuild, bulk embedding, full bootstrap) must NOT run inside the heartbeat's LLM turn: a headless run can't host a job past the ~10-min sync Bash ceiling (auto-backgrounded, then reaped at turn-end). Model it as an OS-level job (container cron / systemd / sidecar) writing a done-marker; the stage only triggers + verifies the artifact moved. Keeps the heartbeat a cheap read-and-advance loop"
     - "1.3: Platform-alignment fixes, verified against Trinity source — (1) the pre-check hook is REMOVED entirely, with migration: Trinity's scheduler has no fire/skip vocabulary (exit 0 + empty stdout ⇒ skip; exit 0 + ANY stdout ⇒ stdout replaces the calling schedule's configured message; the hook is agent-global with no schedule context), so v3's `echo fire` rewrote every schedule's prompt to the literal word 'fire' — Step 6 now strips any add-pipeline block (v1–v3) and deletes an empty leftover hook; skip logic lives in pipeline-tick alone; (2) create_agent_schedule is called with its real params (agent_name/name/cron_expression/message — schedule_name/cron/skill/pre_check never existed); (3) the dashboard.yaml block now uses Trinity's real sections[]→widgets[] schema with materialized rows that pipeline-tick refreshes (the old panel_type/source block was never rendered); (4) template.yaml schedules: caveat — Trinity never reads that block at agent creation; only /trinity:onboard and /trinity:sync materialize it"
@@ -251,8 +252,8 @@ The pipeline still works locally without Trinity — it just won't auto-advance.
 if [ -f template.yaml ] && ! grep -q "pipeline-$SLUG-heartbeat" template.yaml; then
   # Append under the existing `schedules:` block, creating the block if absent.
   # Entry shape (matches /trinity:onboard's schedule schema):
-  #   - id: pipeline-<SLUG>-heartbeat
-  #     name: <Display Name> pipeline heartbeat
+  #   - name: pipeline-<SLUG>-heartbeat        # identity key — Trinity dedups on `name`; there is no `id` field
+  #     purpose: <Display Name> pipeline heartbeat
   #     cron: "<from Q4>"
   #     message: "Run /pipeline-tick"
   #     purpose: Advance the <SLUG> pipeline — retry, escalate, sync the read surface
@@ -261,7 +262,7 @@ if [ -f template.yaml ] && ! grep -q "pipeline-$SLUG-heartbeat" template.yaml; t
 fi
 ```
 
-**Platform caveat:** Trinity itself never reads `template.yaml`'s `schedules:` block — an agent created from the same template via the UI/API gets **none** of these entries; only `/trinity:onboard` / `/trinity:sync` materialize the block onto a live instance. It's still the durable copy and the fleet-discovery surface, but the live install above is what actually runs. If `template.yaml` is absent, skip this and note it in the summary.
+**Platform caveat (ent#89):** Trinity **does** materialize this block at agent creation — an agent created from the same template via the UI/API gets these entries — but each lands **disabled unless it declares a literal YAML `enabled: true`**, only the first **20** are materialized, entries are deduped by `name` against the agent's existing schedules, and the block is **never re-applied on recreate**. Keep the declared `name:` byte-identical to the live schedule name (`pipeline-<SLUG>-heartbeat`) or a template-created agent ends up with two heartbeats under different names. `/trinity:onboard` / `/trinity:sync` still reconcile it onto an already-live instance. It's still the durable copy and the fleet-discovery surface, but the live install above is what actually runs. If `template.yaml` is absent, skip this and note it in the summary.
 
 ### Step 8: Extend dashboard.yaml (if present)
 

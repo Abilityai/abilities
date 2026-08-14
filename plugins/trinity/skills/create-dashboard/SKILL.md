@@ -5,10 +5,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Glob, Bash, AskUserQuestion
 metadata:
-  version: "1.1.1"
+  version: "1.1.2"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.1.2: The generated /update-dashboard is built to run on cron, so it ships disable-model-invocation: false — true made it unreachable to the scheduler. Scheduling instructions replaced: /trinity-schedules is retired, so declare the cron in template.yaml schedules: and reconcile, with the ent#89 literal-true rule and the autonomy gate both called out"
     - "1.1.1: Note that reports are a rolling history — pruned past agent_reports_retention_days (default 90 days), not a permanent archive"
     - "1.1: Generated /update-dashboard now also emits a guarded {agent}.kpi_snapshot report (display_hint kpi) after writing the dashboard — the same headline numbers accumulate as an append-only history on the Reports tab alongside the live snapshot; skipped silently off-Trinity"
     - "1.0: Initial version — generate an agent-specific /update-dashboard skill that gathers metrics from the agent's data sources and writes a schedulable dashboard.yaml for Trinity"
@@ -145,7 +146,7 @@ Create `.claude/skills/update-dashboard/SKILL.md`:
 ---
 name: update-dashboard
 description: Update dashboard.yaml with current agent metrics and status
-disable-model-invocation: true
+disable-model-invocation: false
 user-invocable: true
 allowed-tools:
   - Read
@@ -345,9 +346,19 @@ When generating the skill, use these widget templates:
 Run manually:
   /update-dashboard
 
-Schedule on Trinity:
-  /trinity-schedules add update-dashboard --cron "0 * * * *"   # Hourly
-  /trinity-schedules add update-dashboard --cron "*/15 * * * *" # Every 15 min
+Schedule on Trinity — declare it in template.yaml (the design source of truth):
+
+  schedules:
+    - name: Hourly dashboard refresh
+      cron: "0 * * * *"
+      message: "/update-dashboard"
+      enabled: true          # a literal YAML true — anything else lands disabled (ent#89)
+      timezone: UTC
+
+Then run /trinity:onboard (or /trinity:sync) to reconcile it onto the instance,
+and make sure the agent's autonomy toggle is ON — while autonomy is off the
+scheduler skips every cron trigger and writes no execution row, so an enabled
+schedule is silently inert.
 ```
 
 ---

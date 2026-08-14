@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Bash, AskUserQuestion, Skill, mcp__trinity__list_agents, mcp__trinity__get_fleet_health, mcp__trinity__ask_trinity, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-08-06
   author: Ability.ai
   changelog:
+    - "1.3: Smoke test no longer treats an empty agent list as the fresh-install signature — ent#124 seeds the acme trio plus Cornelius, so a fresh instance boots ~4 agents (Stage 4 already assumed seeded agents existed)"
     - "1.2: Stage 4 teaches the repository-first deploy sequence — push the agent to GitHub and add the instance's GitHub token (Settings → GitHub token) before /trinity:onboard, which then deploys by cloning the repo; the local-file deploy is named as the fallback that offers promotion afterwards"
     - "1.1: Ground the whole journey in live docs — pre-connect questions now go to the public Trinity Docs Q&A endpoint (Vertex AI Search over docs/user-docs, no auth, no instance needed) and Stage 0 orients against the live user-docs index on GitHub; the static narrative is demoted to a fallback for when the network is down"
     - "1.0: Initial version — resumable five-stage guided journey (orient → choose your door → get an instance → connect MCP + smoke test → first agent alive), routing every operational step to the specialist skill that owns it and using ask_trinity as the live documentation channel once connected"
@@ -135,7 +136,7 @@ This is the moment the session becomes a control plane.
 
    | Check | Tool | Pass looks like |
    |-------|------|-----------------|
-   | Fleet visible | `mcp__trinity__list_agents` | Agent list returns (empty is a pass — new instance) |
+   | Fleet visible | `mcp__trinity__list_agents` | A list returns. A fresh install is **not** empty — it seeds the `acme` system (`scout`, `sage`, `scribe`) plus Cornelius, so expect ~4 agents (ent#124). An empty list is still a pass; it just means the seed was disabled or this instance isn't fresh |
    | Instance healthy | `mcp__trinity__get_fleet_health` | Health summary returns, no critical agents |
    | Live docs online | `mcp__trinity__ask_trinity` | Grounded answer returns |
 

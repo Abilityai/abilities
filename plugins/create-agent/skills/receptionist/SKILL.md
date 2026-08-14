@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2026-04-08
   author: Ability.ai
   changelog:
+    - "1.6: Platform-truth refresh (Trinity dev 88a4e2f7) — report payload cap corrected 256 KB → 5 MiB (object only), display_hint gains `json` and now drives the customer-facing Workspace Reports tab, and list_reports/get_report are taught as read-before-write. template.yaml scaffold gains credentials: + credential_setup: (ent#128/#127; gate T-015). schedules: block documents the ent#89 contract — materialized at creation, max 20, deduped by name, armed only by a literal YAML true, never re-applied on recreate, and gated again by agent autonomy (OFF on new agents); dropped the non-schema id: key and moved timezone off America/New_York to UTC (#1795, and legacy IANA aliases now 500, #1823). .gitignore gains .claude/settings.json + .trinity/* (trinity#2036/#1936) Its .mcp.json.template no longer puts ${VAR} in command/args — Trinity withholds any such server at startup, so the agent was booting with NO Google Workspace MCP at all (command is now the allowlisted `uvx`); credentials: declares the real Workspace vars. Public-repo option now warns that a tokenless clone gets a read-only remote (409 no_write_credentials, ent#123)."
     - "1.5: Repository-first deployment — the GitHub-repo step is framed as the deploy path (Trinity clones the repo and tracks the branch; skipping means an upload-only deploy with no reproducible source), and the deploy offer now states what /trinity:onboard actually does: create_agent(template: github:owner/repo@branch) when a remote exists — schedules materialized at creation, updates via git push + git_pull — falling back to a local-file deploy that offers promotion onto the repo path"
     - "1.4: Generated CLAUDE.md gains a Request Dispatch section — an SOP table routing incoming requests (user, other agents, operator queue) to skills; task requests with no matching skill are handled if safe and flagged as playbook gaps (told to the user interactively, filed as a playbook-gap-<slug> operator-queue item when headless on Trinity) with a pointer to /agent-dev:create-playbook"
     - "1.3: Trinity-connected deploy is the default next action — new Step 13 offers deploying the freshly created agent from its repository via /trinity:onboard when Trinity MCP is connected, gated by explicit AskUserQuestion confirmation; skipped silently when not connected"
@@ -374,8 +375,9 @@ Once deployed, publish **structured reports** so an operator can see what you pr
 
 - **When:** at the end of result-producing skills and scheduled runs — not for conversational replies.
 - **`report_type`:** namespaced `lower_snake`, shaped `<agent>.<result>` — e.g. `receptionist.inbox_processed`, `receptionist.routing_digest`.
-- **`title`:** one short line (≤300 chars). **`payload`:** any JSON (≤256 KB).
-- **`display_hint`:** `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), or omit for a raw-JSON view.
+- **`title`:** one short line (≤300 chars). **`payload`:** a JSON **object** (≤5 MiB serialized — a top-level array or scalar is rejected).
+- **`display_hint`:** `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), `json` (raw), or omit to let Trinity infer from `report_type`. Pick deliberately — the customer-facing Workspace Reports tab renders through these same renderers, so a mismatched hint is visible to users.
+- **Read before you write:** call `mcp__trinity__list_reports` first (metadata only — filters `report_type`, `hours` ∈ {0,1,6,24,168,720}, `search`) to avoid duplicating or contradicting a report you already filed, then `mcp__trinity__get_report` with an id to diff this period against the last.
 - **Guard the call:** the tool exists only when running on Trinity (it publishes under this agent's own key). If `mcp__trinity__report` isn't available — e.g. running locally — skip it silently. **Trinity is an upgrade, not a requirement.**
 
 Reports complement `dashboard.yaml`: the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only* history of what the agent accomplished.
@@ -1279,14 +1281,58 @@ resources:
   cpu: "2"
   memory: "4g"
 
-# Recommended schedules (design source of truth). /trinity:onboard & /trinity:sync
-# reconcile these onto the instance; `enabled` is the recommended default and the
-# operator toggles activation on the live agent. Adjust to fit this agent.
+# What this agent needs, BY NAME ONLY — names-only is the frozen contract; never values.
+# Every ${VAR} used in .mcp.json.template must appear here or the agent HARD-fails
+# compatibility check T-015. An agent with no secrets declares an explicit `credentials: {}`.
+credentials:
+  env_file: [GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, RECEPTIONIST_EMAIL, WORKSPACE_MCP_PORT]
+  mcp_servers:
+    google_workspace:
+      env_vars: [GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, RECEPTIONIST_EMAIL, WORKSPACE_MCP_PORT]
+
+# Per-variable setup guidance (ent#128). DECORATES credentials: — it cannot declare a
+# name that isn't above (undeclared entries are dropped). Drives the platform's guided
+# checklist: GET /api/agents/{name}/credential-requirements (ent#127).
+credential_setup:
+  - name: GOOGLE_OAUTH_CLIENT_ID
+    title: Google OAuth client ID
+    description: Lets the agent read and send mail on the monitored mailbox.
+    required: true
+    secret: true
+    format: secret
+    setup_url: https://console.cloud.google.com/apis/credentials
+  - name: GOOGLE_OAUTH_CLIENT_SECRET
+    title: Google OAuth client secret
+    description: Paired with the client ID for the Workspace OAuth flow.
+    required: true
+    secret: true
+    format: secret
+    setup_url: https://console.cloud.google.com/apis/credentials
+  - name: RECEPTIONIST_EMAIL
+    title: Monitored mailbox
+    description: The Google Workspace address this agent reads and replies from.
+    required: true
+    secret: false
+    format: email
+  - name: WORKSPACE_MCP_PORT
+    title: Workspace MCP port
+    description: Local port the Google Workspace MCP server binds to.
+    required: false
+    secret: false
+
+# Recommended schedules (design source of truth). Trinity materializes this block
+# ON AGENT CREATION, deduplicated by `name` — at most 20 entries, and NEVER re-applied
+# on recreate, so a schedule added here after deployment must be created with
+# create_agent_schedule (or reconciled by /trinity:onboard | /trinity:sync).
+# `enabled` is the recommended default and only a literal YAML true arms a schedule;
+# firing ALSO requires the agent's autonomy gate, which is OFF on every new agent.
+# timezone: canonical IANA zones only — legacy aliases (Europe/Kiev, Asia/Calcutta,
+# US/Eastern) no longer resolve and 500 on schedule create. The container clock is UTC.
+# Adjust to fit this agent.
 schedules:
-  - id: daily-queue-review
-    name: Daily request queue review
+  - name: Daily request queue review
     cron: "0 8 * * 1-5"
-    timezone: America/New_York
+    timezone: UTC
     message: "Review the overnight inbox and routing queue — summarize what arrived and flag anything unhandled or needing escalation."
     purpose: Daily triage of inbound requests
     enabled: false
@@ -1331,22 +1377,41 @@ Thumbs.db
 
 # Claude Code
 .claude/settings.local.json
+.claude/projects/
+.claude/statsig/
+.claude/todos/
+.claude/debug/
+.claude/sessions/
+.claude/shell-snapshots/
+.claude/plugins/
+.claude/backups/
+# Container-only config: the Trinity base image bakes ~/.claude/settings.json with
+# hook paths that exist only inside the container, and HOME is the repo root. A
+# committed copy bricks any clone made outside it (the missing hook exits 2, which
+# Claude Code reads as "block this tool call"). Trinity enforces this fleet-wide and
+# untracks an already-committed copy on the next Push (trinity#2036).
+.claude/settings.json
+# Trinity runtime state — star form so authored hooks stay tracked
+.trinity/*
+!.trinity/pre-check
+!.trinity/post-check
+!.trinity/setup.sh
+credentials.json
 ```
 
 ### 10d. .mcp.json.template
 
 Write `[destination]/.mcp.json.template`:
 
+> **The renderer substitutes `${VAR}` inside `env` blocks ONLY.** A placeholder in `command`, `url`, or `args` makes Trinity **withhold the entire server** at container startup with a named reason in the log — the agent boots with no Gmail at all. `command` must also be an allowlisted literal: `npx`, `uvx`, `python`, `python3`, `node`, `bun`, `deno`, `docker` (note `uv` is *not* on the list — use `uvx`). Keep every placeholder in `env`.
+
 ```json
 {
   "mcpServers": {
     "google_workspace": {
-      "command": "${UV_PATH:-uv}",
+      "command": "uvx",
       "args": [
-        "run",
-        "--directory",
-        "${GOOGLE_WORKSPACE_MCP_PATH}",
-        "main.py",
+        "workspace-mcp",
         "--tool-tier",
         "extended"
       ],
@@ -1379,7 +1444,7 @@ Use AskUserQuestion:
 - **Header:** "GitHub"
 - **Options:**
   1. **Create private repo** — `gh repo create receptionist --private --source=. --push` (recommended)
-  2. **Create public repo** — `gh repo create receptionist --public --source=. --push`
+  2. **Create public repo** — `gh repo create receptionist --public --source=. --push` — note: an agent Trinity clones from a public repo **without** a GitHub token gets a read-only remote (ent#123). It can `git_pull` but never push, and `git_sync` returns `409 no_write_credentials`. Add a token (Settings → GitHub token) or bind the agent to its own repo if you want it to push its own state back.
   3. **Skip** — I'll set up GitHub later
 
 If option 1 or 2, run the command. If `gh` is not available, show manual instructions.

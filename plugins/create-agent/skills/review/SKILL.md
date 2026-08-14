@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Skill
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-06-14
   updated: 2026-07-29
   author: Ability.ai
   changelog:
+    - "1.4: Audit checklist matches the current platform contract — schedule entries key on `name` (there is no `id` field), template.yaml must declare credentials: + credential_setup: (gate T-015, ent#128), .mcp.json.template must keep ${VAR} inside env blocks with an allowlisted command and no hand-written trinity entry, and .gitignore must exclude .claude/settings.json (trinity#2036) and .trinity/*"
     - "1.3: Trinity-readiness check (2h) now audits repository deployability — remote present, tree clean, branch pushed, plus the instance GitHub token note for private repos — because Trinity deploys an agent by cloning its repo; a repo-less agent is reported as deploy-by-upload-only (no reproducible source) with the one-command fix"
     - "1.2: Audit Request Dispatch (new check 2k) — CLAUDE.md carries the SOP routing table: request-phrased rows, every user-invocable skill covered or deliberately internal, routes resolve, playbook-gap fallback with operator-queue escalation and /agent-dev:create-playbook pointer; scorecard + checklist rows added"
     - "1.1: Audit Documentation Coherence — README/ARCHITECTURE/TARGET-ARCHITECTURE present, current/target split intact, docs match skills and subagents"
@@ -91,7 +92,7 @@ Detect and classify only — do **not** draft fixes (that's `/adjust-agent`'s jo
 
 ### 2d. Recommended Schedules
 - A `schedules:` block in `template.yaml` (the design source of truth)
-- Each entry has `id`, `name`, `cron`, `message`
+- Each entry has `name`, `cron`, `message` (optionally `timezone`, `purpose`, `enabled`) — `name` is the identity key Trinity dedups on; there is **no** `id` field, and a stray `id:` is silently ignored
 - Only automatable tasks listed (not interactive ones), with sensible cadences
 - `enabled: false` by default; a `## Recommended Schedules` table in CLAUDE.md renders the block
 
@@ -129,10 +130,10 @@ Real findings:
 - **Inlined logic** *(candidate)* — a step that paraphrases or reimplements another skill's behavior instead of invoking it.
 
 ### 2h. Trinity Readiness
-- `template.yaml` with `name`, `display_name`, `description`, `avatar_prompt`
+- `template.yaml` with `name`, `display_name`, `description`, `avatar_prompt`, and a `credentials:` block naming every `${VAR}` used in `.mcp.json.template` (gate T-015), each enriched by a `credential_setup:` entry (ent#128)
 - `.env.example` documenting required variables
-- `.mcp.json.template` with Trinity server config
-- `.gitignore` excluding `.env`, `.mcp.json`, `*.pem`, `*.key`, `.claude/projects/`, `.claude/todos/`
+- `.mcp.json.template` declaring the agent's **own** MCP servers, with `${VAR}` placeholders **inside `env` blocks only** (a placeholder in `command`/`url`/`args` makes Trinity withhold the whole server at startup) and an allowlisted literal `command` — never a hand-written `trinity` entry, which the platform overwrites
+- `.gitignore` excluding `.env`, `.env.*`, `.mcp.json`, `credentials.json`, `*.pem`, `*.key`, `.claude/projects/`, `.claude/todos/`, `.claude/plugins/`, `.claude/settings.json` (trinity#2036), and `.trinity/*` with the authored hooks negated
 - **Deployable from its repository** — Trinity deploys an agent by cloning its GitHub repo, so this is the difference between a reproducible deployment and an upload:
   - a `git remote` exists (`git remote get-url origin`)
   - the working tree is clean and the branch is pushed — anything uncommitted or unpushed simply won't exist on the deployed agent

@@ -4,12 +4,13 @@ description: Synchronize this agent with one or more remote instances on Trinity
 argument-hint: "[status|push|pull|deploy|remotes|add-remote|set-default|schedules] [@remote] [branch]"
 disable-model-invocation: true
 user-invocable: true
-allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__list_operator_queue, mcp__trinity__get_operator_queue_item, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
+allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__list_operator_queue, mcp__trinity__get_operator_queue_item, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule, mcp__trinity__git_pull, mcp__trinity__get_git_status, mcp__trinity__get_git_log, mcp__trinity__get_git_sync_state
 metadata:
-  version: "2.5.0"
+  version: "2.6.0"
   created: 2025-02-05
   author: eugene
   changelog:
+    - "2.6.0: Schedule reconcile matches on the literal `name`, not a `[id]` prefix — ent#89 materializes declared schedules verbatim and dedups on name, so the prefixed name never collided and Path-A agents ended up with two schedules firing the same cron. Remote pull now goes through mcp__trinity__git_pull instead of a chat_with_agent shell command (the platform path runs the .gitignore reconcile + trinity#2036 untracking, and a raw checkout desyncs a source-mode clone from the branch the DB records, trinity#1913); git MCP tools added to allowed-tools"
     - "2.5.0: Name the deploy path sync serves — repo-deployed agents (the default: create_agent with template: github:owner/repo) hold a clone tracking the branch, so push/pull IS the update mechanism and nothing is ever uploaded; a remote whose .trinity-remote.yaml `source` reads local-archive has no repo binding and is reported with the initialize_github_sync fix instead of silently no-opping"
     - "2.4.0: `pull` no longer blanket-discards before fast-forwarding — it stashes uncommitted work (tracked + untracked) and pops it back, discarding only known runtime paths, and uses `git pull --ff-only`. Fixes a data-loss hazard where a scheduled pull onto the remote's autonomous-loop commits wiped uncommitted agent-value edits (skills, memory, registries) via `git checkout -- .`"
     - "2.3.1: Added the canonical Trinity MCP connection prerequisite — delegates to /trinity:connect (the single connection owner) when the mcp__trinity__* tools aren't live, consistent with /trinity:loop and /trinity:onboard"
@@ -378,14 +379,12 @@ Based on analysis, command, and target remote:
 2. Get remote's tracked branch from config
 3. Ensure local changes are committed
 4. Push: `git push origin <tracked-branch>`
-5. Tell remote agent to fetch and checkout:
+5. Pull on the remote through the platform, not a shell:
    ```
-   mcp__trinity__chat_with_agent(
-     agent_name: <remote.agent>,
-     message: "git fetch origin && git checkout <tracked-branch> && git pull origin <tracked-branch>"
-   )
+   mcp__trinity__git_pull(agent_name: <remote.agent>)
    ```
-6. Verify both at same HEAD
+   Use this rather than a `chat_with_agent` shell command. The platform pull path is what runs the fleet-wide `.gitignore` reconcile and the trinity#2036 untracking that heals a leaked `.claude/settings.json`; a raw `git checkout` also moves a source-mode clone off the branch the DB records, which trinity#1913 re-derives and reverts on the next config-drift recreate.
+6. Verify both at same HEAD: `mcp__trinity__get_git_sync_state(agent_name: <remote.agent>)` (or `get_git_status` / `get_git_log` for detail)
 
 **If `/trinity-sync push @remote <branch>`:**
 1. Resolve target remote
@@ -499,14 +498,14 @@ Schedules are declared in `template.yaml` under a `schedules:` block (the design
 
 1. **Read declared schedules** from local `template.yaml`. If there's no `schedules:` block, skip this phase entirely.
 2. **List live schedules:** `mcp__trinity__list_agent_schedules(agent_name: <remote.agent>)`.
-3. **Match by `id`** — the catalog `id` is stamped as a `[id]` prefix in each live schedule's `name`. Diff:
+3. **Match by `name`** — Trinity materializes a template's declared schedules under their literal `name` (ent#89) and dedups on it, so the live counterpart of `name: Weekly report` is exactly `Weekly report`. Match on `name` and never stamp a prefix when creating: a `[id]`-prefixed name cannot collide with the platform's, so the agent ends up with two schedules firing the same cron. Diff:
 
    | Case | Condition | push/pull/deploy action | status action |
    |------|-----------|-------------------------|---------------|
-   | **Create** | Declared, no live match | `create_agent_schedule(...)`, `enabled` from manifest, `[id]`-prefixed name | report "would create" |
+   | **Create** | Declared, no live match | `create_agent_schedule(...)`, `enabled` from manifest, `name` exactly as declared | report "would create" |
    | **Update** | Declared + live, cron/message/timezone/etc. differ | `update_agent_schedule(...)` to match manifest (never touch `enabled`) | report "would update" |
    | **In sync** | Declared + live, identical | nothing | — |
-   | **Drift** | Live `[id]` not in manifest | **report, never delete** | report |
+   | **Drift** | Live `name` not in manifest | **report, never delete** | report |
 
 4. **Never flip `enabled` on an existing schedule** — turning schedules on/off on a live agent is the operator's decision (`toggle_agent_schedule`). The manifest's `enabled` is applied only at create time. Reconcile keeps *configuration* in sync, not *activation*.
 5. **Deletions are never automatic.** A live schedule with no matching declaration is surfaced as drift for the operator to resolve (remove on the instance, or add to `template.yaml`).
