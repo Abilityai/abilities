@@ -16,6 +16,9 @@ instances:
 stages:
   - id: example
     skill: replace-me
+    # agent: other-fleet-agent   # optional — the stage is that agent's playbook, called
+    #                            # as one line "/<skill> ... --run <pipeline>/<instance>"
+    #                            # (fleet convention protocols/playbook-call.md)
     timeout_seconds: 600
     retry:
       max_attempts: 2

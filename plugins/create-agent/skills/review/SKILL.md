@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Skill
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-06-14
   updated: 2026-07-29
   author: Ability.ai
   changelog:
+    - "1.5: Playbook-call checks — schedule messages must be one-line `/skill [args]` calls (no prose briefs), and inter-agent hand-offs in CLAUDE.md/skills must be playbook calls, not prose delegation (fleet convention protocols/playbook-call.md, operator direction 2026-08-16)"
     - "1.4: Audit checklist matches the current platform contract — schedule entries key on `name` (there is no `id` field), template.yaml must declare credentials: + credential_setup: (gate T-015, ent#128), .mcp.json.template must keep ${VAR} inside env blocks with an allowlisted command and no hand-written trinity entry, and .gitignore must exclude .claude/settings.json (trinity#2036) and .trinity/*"
     - "1.3: Trinity-readiness check (2h) now audits repository deployability — remote present, tree clean, branch pushed, plus the instance GitHub token note for private repos — because Trinity deploys an agent by cloning its repo; a repo-less agent is reported as deploy-by-upload-only (no reproducible source) with the one-command fix"
     - "1.2: Audit Request Dispatch (new check 2k) — CLAUDE.md carries the SOP routing table: request-phrased rows, every user-invocable skill covered or deliberately internal, routes resolve, playbook-gap fallback with operator-queue escalation and /agent-dev:create-playbook pointer; scorecard + checklist rows added"
@@ -95,6 +96,7 @@ Detect and classify only — do **not** draft fixes (that's `/adjust-agent`'s jo
 - Each entry has `name`, `cron`, `message` (optionally `timezone`, `purpose`, `enabled`) — `name` is the identity key Trinity dedups on; there is **no** `id` field, and a stray `id:` is silently ignored
 - Only automatable tasks listed (not interactive ones), with sensible cadences
 - `enabled: false` by default; a `## Recommended Schedules` table in CLAUDE.md renders the block
+- Every `message` is a **one-line playbook call** — `/skill [args]`, ≤120 chars, no prose briefing or restated policy — and names a skill that exists (fleet convention `protocols/playbook-call.md` / `schedule-contract.md`; a prose message is unversioned process the platform cannot measure)
 
 ### 2e. Guidelines
 - `## Guidelines` section with 2-4 domain-specific, actionable rules (not generic advice)
@@ -164,6 +166,7 @@ The agent's SOP for incoming requests — from the user, other agents, or the op
 - Every user-invocable skill in `.claude/skills/` has a dispatch row, or is deliberately internal (e.g. a vendored helper composed by another skill)
 - A **playbook-gap fallback** is present: unmatched task requests are handled if safe and flagged — to the user interactively, or as a `playbook-gap-<slug>` operator-queue item when headless on Trinity — with a pointer to `/agent-dev:create-playbook`
 - Cross-reference: the dispatch table and Core Capabilities agree (no skill listed in one but missing from the other)
+- Inter-agent hand-offs are **playbook calls**: any place CLAUDE.md or a skill tells the agent to brief, instruct, or delegate to another agent in prose is a finding — it should call that agent's playbook by name (`/playbook [args]`) and expect the same in return (`protocols/playbook-call.md`)
 
 ---
 
@@ -218,7 +221,7 @@ This review changed nothing. To act on it:
 | 1 | Identity | Named, purposeful, audience-aware | High |
 | 2 | Capabilities | Listed, linked to skills, when-to-use | High |
 | 3 | Dependency Graph | Artifacts declared, directions set, skills mapped | Medium |
-| 4 | Schedules | Automatable skills scheduled with cadences | Medium |
+| 4 | Schedules | Automatable skills scheduled with cadences; every message is a one-line playbook call | Medium |
 | 5 | Guidelines | 2-4 domain-specific actionable rules | Medium |
 | 6 | Skill Docs | CLAUDE.md ↔ .claude/skills/ in sync | High |
 | 7 | Skill Quality | Frontmatter valid, permissions minimal, steps clear | High |

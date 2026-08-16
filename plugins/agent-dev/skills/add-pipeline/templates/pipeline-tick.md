@@ -1,14 +1,15 @@
 ---
 name: pipeline-tick
 description: Heartbeat that advances pipelines through their stages — reads ~/.trinity/pipelines/*.yaml + ~/.trinity/pipeline-state/**/*.json, evaluates each instance, advances or retries or escalates. Invoked by scheduler every 15 minutes.
-allowed-tools: Bash, Read, Write, Edit, Glob, Skill, Agent
+allowed-tools: Bash, Read, Write, Edit, Glob, Skill, Agent, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result
 automation: autonomous
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   author: agent-dev
   source: agent-dev:add-pipeline
   changelog:
+    - "1.3: Remote stages — a stage with agent: <fleet-agent> is that agent's playbook, dispatched as a one-line call via chat_with_agent(async) with --run <pipeline>/<instance>, execution_id parked in state, result polled with get_execution_result on later ticks (fleet convention protocols/playbook-call.md); artifact check still applies"
     - "1.2: Verify-the-artifact-before-success rule in Step 4 — a stage counts as done only when its output actually moved (mtime advanced / count > 0), never off an exit code or business_status; if it didn't move the stage failed → retry/escalate, don't advance. A stage's heavy work belongs in an OS-level job, not the tick's turn (a headless run can't host a >~10-min job — see add-pipeline → Keep heavy CPU jobs out of the heartbeat turn)"
     - "1.1: Drop the pre-check premise — the hook is removed (Trinity's agent-global pre-check contract cannot express a safe gate: any stdout replaces the calling schedule's message); the tick itself is the cheap no-op filter. New Step 9 materializes the dashboard.yaml Pipelines table rows after state writes"
     - "1.0: Initial version — heartbeat that advances pipelines through their stages (advance/retry/escalate/wait/complete), atomic state writes, ~/.trinity read-surface sync"
@@ -75,7 +76,9 @@ Apply decision rules **in priority order** — stop at the first match:
 2. Write state (atomic — write to `.tmp` then rename).
 3. Sync to `~/.trinity/pipeline-state/$PIPELINE_ID/$INSTANCE_ID.json`.
 4. Emit event `pipeline.$PIPELINE_ID.$INSTANCE_ID.stage_advanced` via Trinity MCP if available.
-5. Trigger the stage skill: invoke `Skill` with `skill: <stages[next_stage].skill>` and `args: instance=$INSTANCE_ID pipeline=$PIPELINE_ID`.
+5. Trigger the stage skill:
+   - **Local stage** (no `agent:`): invoke `Skill` with `skill: <stages[next_stage].skill>` and `args: instance=$INSTANCE_ID pipeline=$PIPELINE_ID`.
+   - **Remote stage** (`agent: <fleet-agent>`): the stage is another agent's playbook — call it, don't copy it (fleet convention `protocols/playbook-call.md`). Send **one line** via `mcp__trinity__chat_with_agent(<agent>, "/<skill> instance=$INSTANCE_ID pipeline=$PIPELINE_ID --run $PIPELINE_ID/$INSTANCE_ID", async=true)`, store the returned `execution_id` in `stages[next_stage].execution_id`, and end this tick's work on the instance. On later ticks, `mcp__trinity__get_execution_result(execution_id)`: terminal success → apply the artifact check below and advance; failed/cancelled → `last_status = "failed"` with the error. Never restate the playbook's instructions in the message; if the target lacks the playbook (`SKILL_NOT_FOUND` / it improvises), that is a `failed` stage, not a prompt to describe the work in prose.
 
 **`retry`:**
 - If `stage_attempt < stage_max_attempts`:

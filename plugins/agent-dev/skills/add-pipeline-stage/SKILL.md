@@ -5,10 +5,11 @@ argument-hint: "<pipeline-slug> [stage-id]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-05-23
   author: Ability.ai
   changelog:
+    - "1.1: Stage may name another fleet agent (agent: <name>) whose playbook the tick calls; local skill-existence check skipped for such stages"
     - "1.0: Initial version — appends a new stage to an existing pipeline.yaml with retry/timeout defaults, DAG acyclicity checks, and skill-existence validation"
 ---
 
@@ -46,6 +47,7 @@ Show the user the current stage list (compact: `id (skill) → next`).
 **Q2 — Skill to invoke**
 - Free text. Validate: `[ -d .claude/skills/<skill-name> ]`. If the skill doesn't exist, warn but allow (user may scaffold it after).
 - Show available skills from `ls .claude/skills/` as a hint.
+- If the stage is **another fleet agent's playbook**, ask for the agent name and write `agent: <name>` on the stage (skip the local-directory check; the tick calls it as a one-line playbook call — `protocols/playbook-call.md`).
 
 **Q3 — Position in DAG**
 Use `AskUserQuestion` with options:

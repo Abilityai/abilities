@@ -5,10 +5,11 @@ argument-hint: "<pipeline-slug>"
 allowed-tools: Read, Bash, Glob, Grep
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-05-23
   author: Ability.ai
   changelog:
+    - "1.3: Stages with agent: <name> (remote playbook, add-pipeline 1.7) skip the local skill-existence check"
     - "1.2: Step 2 no longer hard-requires the legacy heartbeat.skill field (it failed the canonical template, which ships heartbeat.name/cron/message) — now requires heartbeat.message + heartbeat.name; Step 7 notes an uninstalled-skill message fails loudly as SKILL_NOT_FOUND at runtime (trinity#1410)"
     - "1.1: Heartbeat sanity matches the fixed schema (heartbeat.name/cron/message; 5-field cron — Trinity's scheduler format). heartbeat.pre_check now raises a WARNING: the pre-check hook is removed (Trinity's agent-global hook has no fire vocabulary — any stdout replaces the calling schedule's message); legacy skill/schedule_name fields get a rename note"
     - "1.0: Initial version — read-only pipeline.yaml linter checking schema, DAG acyclicity, referenced-skill existence, and precondition kinds; writes no files"
@@ -68,7 +69,7 @@ yq '.stages[] | [.id, .skill, .timeout_seconds, (.retry.max_attempts // 1), (.on
 
 Verify per stage:
 - **id** matches `^[a-z][a-z0-9-]{0,40}$`, unique across all stages
-- **skill** is non-empty; `.claude/skills/<skill>/SKILL.md` exists (warn, don't fail — the skill may be authored after the pipeline is defined)
+- **skill** is non-empty; `.claude/skills/<skill>/SKILL.md` exists (warn, don't fail — the skill may be authored after the pipeline is defined). If the stage carries `agent: <name>`, the playbook lives on that fleet agent — skip the local check and only require `agent` to be a non-empty slug
 - **timeout_seconds** is a positive integer (default to 600 if missing)
 - **retry.max_attempts** is ≥1 (default 1 if missing)
 - **retry.backoff_seconds** has length ≥ `max_attempts - 1` (so each retry has a backoff)

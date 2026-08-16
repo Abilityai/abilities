@@ -4,11 +4,12 @@ description: Scan one or more directories of agents in ANY paradigm — Claude C
 allowed-tools: Read, Bash, Write, Glob, Grep, mcp__trinity__share_file
 user-invocable: true
 metadata:
-  version: "2.3.2"
+  version: "2.3.3"
   created: 2026-07-30
   updated: 2026-08-07
   author: Ability.ai
   changelog:
+    - "2.3.3: New gap `freeform delegation` — prose schedule messages or prose inter-agent briefs instead of one-line playbook calls (fleet convention protocols/playbook-call.md); mapped to agent-dev:adjust-playbook in the marketplace table"
     - "2.3.2: The .gitignore audit list matches Trinity's current birth-state set — adds .env.*, credentials.json, *.pem, *.key, .claude/plugins/ and .claude/settings.json (container-only config that bricks outside clones, trinity#2036), and notes the platform enforces this on every Push"
     - "2.3.1: Upgrade-path table now names `agent-dev:add-project-management` — the skill moved into the agent-dev plugin, and this was the one row emitting an un-namespaced command into generated work orders"
     - "2.3: Marketplace integration — published into the agent-dev plugin (abilities marketplace); frontmatter normalized to marketplace conventions (comma-separated allowed-tools)"
@@ -175,6 +176,7 @@ For each failed criterion, produce a gap entry with a plain-language action:
 - `.claude/memory/ missing` → "Create .claude/memory/ with a memory_index.json file — lets the agent persist facts, decisions, and context across sessions instead of starting fresh every time."
 - `credential exposure` → "URGENT: Remove credentials from tracked files before sharing or deploying this agent. Use .env.example to document what's needed; actual values go in .env (gitignored)."
 - `template.yaml missing` → "Add template.yaml describing the agent's name, purpose, and resource needs — enables deployment on any platform (Trinity, Kubernetes, etc.) without manual setup."
+- `freeform delegation` (Claude Code agents: a `template.yaml` schedule `message` that is prose rather than a one-line `/playbook [args]` call, or a skill/CLAUDE.md that instructs the agent to brief other agents in prose instead of calling their playbooks) → "Move the work into a named playbook and call it: schedules and inter-agent hand-offs should be one-line `/playbook [args]` calls (fleet convention `protocols/playbook-call.md`). Prose briefs are unversioned process — the platform cannot measure or guard them, and changing the process means editing every caller."
 
 ### 3e: Quick Wins vs. Structural Changes
 
@@ -325,6 +327,7 @@ Every architecture recommendation must resolve to a **runnable install** from th
 | Shared facts layer | `agent-dev:add-canon` | ≥ 2 agents where one produces facts another consumes |
 | Cross-actor project management | `agent-dev:add-project-management` | The hub coordinates work across humans + agents |
 | Audit / refine an existing agent | `create-agent:review` + `create-agent:adjust` | Any Claude Code agent scoring 40–79 |
+| Make a playbook callable by other agents / fix freeform delegation | `agent-dev:adjust-playbook` (Make Callable by Other Agents) | Any `freeform delegation` gap |
 | Deploy autonomous, 24/7 | `trinity:onboard` | Phase 4, per agent |
 
 Build an `upgrade_paths` list (see Step 7 JSON): each entry names the need, the marketplace skill, the target agent(s), and a one-line reason. These feed the report's **"Making your agents useful"** section and turn roadmap checkboxes into commands — e.g. `- [ ] Run /agent-dev:add-orchestrator on <hub>` instead of "wire the hub".
