@@ -3,11 +3,13 @@ name: add-orchestrator
 description: Make any agent a system-aware orchestrator — installs /discover-agents (discover the fleet from live Trinity and/or a repo list into a descriptive fleet/system-map.yaml), /compose-system (turn the map into a Trinity SystemManifest and deploy_system), and /orchestrate (route, fan out, and run ephemeral agents via Trinity MCP). Aligns with Trinity's existing SystemManifest; no parallel standard.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
+argument-hint: "[--check]"
 metadata:
-  version: "1.20"
+  version: "1.22"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.22: Install-time divergence detection (issue #8) — a read-only `--check` mode compares every installed runtime skill against its bundled template on three axes: `installed < bundled` (upgrade available), `installed > bundled` (BACK-PORT candidate — the field-hardened copy the marketplace should pull from, the signal issue #5 went weeks without), and equal version but differing content (local customization). Reported in the canon-doctor PASS/WARN/FAIL shape with a one-line fleet-readable verdict. Step 4's per-skill overwrite prompt now runs the same comparison, so the warning — a silent downgrade or an about-to-be-clobbered local edit — arrives at the moment of decision, not after. Deliberately scoped to add-orchestrator's own bundle and stateless; the plugin-framework-wide version is a separate follow-up. (Version skips 1.21, reserved for the open PR #7/#9.)"
     - "1.20: orchestrate template 1.13 — dispatch is a one-line playbook call resolved from the target's live get_agent_skills catalog (fleet convention protocols/playbook-call.md); prose briefs are the recorded exception"
     - "1.19: Platform caveat rewritten for ent#89 (materialized at creation, disabled unless a literal YAML true, max 20, deduped by name, never re-applied on recreate) and the steward entry now scaffolds enabled: false so a template-derived agent cannot silently inherit an armed unattended sweep. Dropped the non-schema `id:` key in favour of `name:` as the identity key. Steward cadence no longer claims 'server-local time' — schedules and the container clock are both UTC (#1795), and legacy IANA aliases now 500 on create (#1823). Bundled /orchestrate → v1.12 (rooms + A2A routing)"
     - "1.18: Bundled /orchestrate v1.11 — event-choreography layer for standing 'whenever X happens, have Y react' asks (fourth routing pattern next to Single/Fan-out/Chain): custom domain events via emit_event alongside the #1578 backend terminals, subscriptions wired SELF-SERVICE (subscribe_to_event always subscribes the caller — the orchestrator dispatches the setup task to the subscriber, never subscribes on-behalf), edges recorded in orchestration.md §6, and four unenforced design rules (exact-triple match/no wildcards; no loop guard outside agent.task.* — custom event graphs must stay acyclic; wakes reach only running subscribers, at-most-once/no replay; interpolated payloads are a cross-agent injection surface). Allowed-tools catches up: event tools + the set_reminder/cancel_reminder the v1.7 watchdog already instructed"
@@ -36,6 +38,8 @@ metadata:
 > ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `add-orchestrator vX.Y — recent: <summary>`. Then proceed.
 
 Turn any Trinity-compatible agent into a **system-aware orchestrator**: an agent that knows what other agents exist (deployed *or* just sitting in a GitHub repo), what each can do, and can route work to them, batch across them, or roll one out ephemerally, use it, and spin it back down.
+
+> 🔍 **Already installed? `/add-orchestrator --check`** runs a read-only divergence report — per installed skill: upgrade available, back-port candidate (your copy is *ahead* of the bundle), or a local customization about to be clobbered — before you re-run and overwrite anything. See **Check mode** below.
 
 **Two modes — pick by whether the fleet already exists. Don't force a linear pipeline.**
 
@@ -98,6 +102,71 @@ Drive (opt-in project-management layer — Q3 at install):
 
 ## Process
 
+### Check mode (`--check`) — install-time divergence detection
+
+Invoked as `/add-orchestrator --check`: a **read-only** report of how this agent's *installed* runtime skills compare to the *bundled* templates they were copied from. Nothing is written, no files are touched. The same per-skill comparison is called inline by **Step 4**'s overwrite prompt, so the warning reaches the operator *at the moment of the overwrite decision*, not after it (issue #8). When `--check` is the invocation, run this section and stop — skip the install steps.
+
+**Scope is deliberate and stateless.** This compares only the skills add-orchestrator itself installs (`discover-agents`, `compose-system`, `orchestrate`, `sync-fleet-to-head`, `profile-fleet`, `fleet-reconcile`, and the Q3 pair `project-init` / `project-steward`) against *this bundle's* `templates/`. It is **not** a general skill-registry inventory and keeps **no state on disk** — the bundle is the reference, the installed copy is the subject. The plugin-framework-wide version (every plugin that copies skills into agent repos) is a separate, larger call filed as a follow-up.
+
+**Per skill, resolve two version stamps and compare content:**
+- `installed` = `metadata.version` in the agent's `.claude/skills/<skill>/SKILL.md`
+- `bundled`   = `metadata.version` in this skill's `templates/<skill>.md`
+
+Compare **numerically, per dotted component** — `1.9 < 1.13`, so a plain string compare is wrong. Then classify into the three states issue #8 asked for (the third is the one everyone forgets):
+
+| State | Verdict | Meaning |
+|---|---|---|
+| not installed | — (skip) | the agent never adopted this skill — a plain install, nothing to reconcile |
+| `installed == bundled`, content identical | **PASS** | in sync |
+| `installed == bundled`, content differs | **WARN** | **local customization** — the copy was hand-edited (e.g. a field-directive routing block). Surface the diff *before* an overwrite silently destroys it |
+| `installed < bundled` | **WARN** | **upgrade available** — the bundle moved ahead; overwriting pulls the copy forward |
+| `installed > bundled` | **FAIL** | **back-port candidate** — the *installed* copy is ahead of the bundle: a field-hardened local copy the marketplace should pull *from*, and overwriting it is a silent **downgrade**. The signal nobody was watching for weeks (issue #5) |
+
+`FAIL` here does not mean "broken" — it is the loudest state on purpose, because a back-port candidate and an about-to-be-clobbered customization are exactly the two failures issue #8 was filed for.
+
+**Mechanics** (read-only — resolves stamps, then diffs installed vs bundled):
+
+```bash
+SKILL_DIR="<this add-orchestrator skill's own directory>"
+ver()  { grep -m1 -E '^[[:space:]]*version:' "$1" 2>/dev/null | tr -dc '0-9.'; }
+# numeric dotted compare → prints <, =, or >
+vcmp() { awk -v a="$1" -v b="$2" 'BEGIN{
+  n=split(a,x,"."); m=split(b,y,"."); L=(n>m?n:m);
+  for(i=1;i<=L;i++){u=x[i]+0; v=y[i]+0; if(u<v){print "<";exit} if(u>v){print ">";exit}}
+  print "=" }'; }
+
+for skill in discover-agents compose-system orchestrate sync-fleet-to-head profile-fleet fleet-reconcile project-init project-steward; do
+  inst=".claude/skills/$skill/SKILL.md"; bund="$SKILL_DIR/templates/$skill.md"
+  [ -f "$inst" ] || { echo "$skill: — not installed"; continue; }
+  iv=$(ver "$inst"); bv=$(ver "$bund"); cmp=$(vcmp "$iv" "$bv")
+  if [ "$cmp" = "=" ]; then
+    if diff -q "$bund" "$inst" >/dev/null 2>&1; then echo "$skill: PASS in sync (v$iv)"
+    else echo "$skill: WARN local customization — installed v$iv == bundled, content differs"; fi
+  elif [ "$cmp" = "<" ]; then echo "$skill: WARN upgrade available — installed v$iv < bundled v$bv"
+  else echo "$skill: FAIL back-port candidate — installed v$iv > bundled v$bv (overwrite = downgrade)"; fi
+done
+```
+
+An installed copy is a byte-for-byte `cp` of `templates/<skill>.md` (Step 4 does no placeholder substitution), so on a clean install `diff -q` is exact and any difference at an equal version is a genuine local edit. To *show* the customization, run `diff "$bund" "$inst"` (or `git diff --no-index -- "$bund" "$inst"`) and print a compact hunk.
+
+**Why equal-version is the only clean customization signal.** The bundle carries only the *current* template, not the historical one a behind copy was made from. So at `installed < bundled` the diff mixes the upgrade delta with any local edits and cannot cleanly separate them; only at `installed == bundled` is every differing line a local customization. Show the full diff for the equal-version case; for the behind case, lead with the version gap and offer the (mixed) diff on request.
+
+**Report** — canon-doctor PASS/WARN/FAIL shape, ordered most-severe first (FAIL → WARN → PASS → not installed), closing with one verdict line an orchestrator can read fleet-wide:
+
+```
+add-orchestrator divergence check — <agent name>
+  profile-fleet       FAIL  back-port candidate — v1.6 > bundled v1.4 (overwrite = downgrade)
+  orchestrate         WARN  local customization — v1.13 == bundled, 12 lines differ (diff below)
+  sync-fleet-to-head  WARN  upgrade available — v1.0 < bundled v1.4
+  discover-agents     PASS  in sync (v1.7)
+  compose-system      PASS  in sync (v1.3)
+  fleet-reconcile     —     not installed
+
+  verdict: DIVERGED — 1 back-port candidate, 1 behind, 1 customized. Back-port profile-fleet into the bundle before overwriting; review the orchestrate diff before any re-copy.
+```
+
+`verdict: IN SYNC` needs every installed skill at PASS; WARN and FAIL both count against it. Keep the verdict to one line — orchestrators dispatch this fleet-wide and read only that line per agent.
+
 ### Step 1: Preflight
 
 Run from inside the target agent directory (the agent you want to *make* an orchestrator), or ask for the path.
@@ -129,7 +198,7 @@ Use `AskUserQuestion`:
 - `Core three` (discover-agents, compose-system, orchestrate) — the discover → compose → route trio, without the fleet-maintenance skills
 - `Discovery only` (discover-agents) — just build the system map; wire the rest later
 
-If any target skill directory already exists under `.claude/skills/`, ask per-skill: overwrite / skip / cancel. Never silently overwrite.
+If any target skill directory already exists under `.claude/skills/`, ask per-skill: overwrite / skip / cancel. Never silently overwrite — and never *blindly*: run the **Check mode** comparison for that skill first and fold its verdict into the prompt (Step 4 spells out how), so the operator sees an upgrade, a back-port candidate, or a local customization before choosing.
 
 **Q2 — Seed `fleet/sources.yaml` with the current repo list?** (free text, optional)
 - Offer to paste an initial list of repositories now (local paths and/or `github:Org/repo`), or start with the commented example and edit later.
@@ -186,7 +255,15 @@ mkdir -p fleet/project-steward/digests fleet/project-steward/outputs
 
 ### Step 4: Copy the selected runtime skills
 
-For each skill selected in Q1, copy its template. The templates are ready to use as-is — **no placeholder substitution** (they read `fleet/sources.yaml` / `fleet/system-map.yaml` at runtime and infer the agent name themselves):
+For each skill selected in Q1, copy its template. The templates are ready to use as-is — **no placeholder substitution** (they read `fleet/sources.yaml` / `fleet/system-map.yaml` at runtime and infer the agent name themselves).
+
+**Before overwriting any existing `.claude/skills/<skill>/SKILL.md`, run the Check-mode comparison for that one skill (above) and present its verdict inside the overwrite prompt** — this is the moment issue #8 exists for. Make the prompt say what the operator is about to do:
+- **PASS** (in sync) — nothing to warn about; the overwrite is a no-op. Offer skip as the default.
+- **upgrade available** (`installed < bundled`) — "orchestrate v1.11 → v1.13 (upgrade). Overwrite / skip / cancel." Overwrite is the safe default.
+- **local customization** (`installed == bundled`, content differs) — show the diff first: "orchestrate v1.13 == bundled but **12 lines were hand-edited** (diff below) — overwriting DISCARDS them. Overwrite / skip / cancel." Default to skip; if they overwrite, tell them to re-apply the edit.
+- **back-port candidate** (`installed > bundled`) — "profile-fleet installed v1.6 is **ahead** of bundled v1.4 — overwriting is a DOWNGRADE and loses field-hardening. Recommend skip and back-port the installed copy into the marketplace instead. Overwrite / skip / cancel." Default to skip.
+
+A fresh install (no existing copy) skips all of this and just copies.
 
 ```bash
 for skill in discover-agents compose-system orchestrate sync-fleet-to-head profile-fleet fleet-reconcile; do
@@ -353,7 +430,8 @@ orchestrator's own repo work.
 | Situation | Action |
 |---|---|
 | Not in an agent dir (no CLAUDE.md) | Ask for path or refuse |
-| A target skill dir already exists | Ask per-skill: overwrite / skip / cancel |
+| A target skill dir already exists | Run the **Check mode** comparison for that skill, then ask per-skill: overwrite / skip / cancel — with the verdict (upgrade / back-port candidate / local customization + diff) in the prompt |
+| `--check` invoked | Run **Check mode** only (read-only divergence report); skip all install steps |
 | `template.yaml` absent | Skip Step 6 (capabilities block); note the agent isn't self-describing yet |
 | `gh` missing and a source is `github:...` | The installed `/discover-agents` falls back to `git clone --depth 1`; warn here |
 | `gh` installed but not authenticated | Warn at preflight; `github:` sources degrade to anonymous clone (public repos only) and Q3's registry probe catches the project layer |
@@ -364,4 +442,4 @@ orchestrator's own repo work.
 
 ## Idempotency
 
-Re-running is safe: existing `fleet/sources.yaml`, `fleet/system-map.yaml`, and `fleet/orchestration.md` are never clobbered (only seeded when absent); the CLAUDE.md section, the `@fleet/orchestration.md` import, and the dashboard panel are each grep-guarded; the §3b ownership-matrix and §3c data-layer inserts are grep-guarded on `### 3b`/`### 3c`, and the standard's §12 loop-closure insert on `## 12. Loop closure`, each applied only on an explicit yes; and skill copies prompt before overwrite. `/discover-agents` rewrites only the fenced `GENERATED:*` blocks in `orchestration.md` — your prose is never touched. To refresh, run `/discover-agents`; to re-wire a skill, delete its dir under `.claude/skills/` and re-run.
+Re-running is safe: existing `fleet/sources.yaml`, `fleet/system-map.yaml`, and `fleet/orchestration.md` are never clobbered (only seeded when absent); the CLAUDE.md section, the `@fleet/orchestration.md` import, and the dashboard panel are each grep-guarded; the §3b ownership-matrix and §3c data-layer inserts are grep-guarded on `### 3b`/`### 3c`, and the standard's §12 loop-closure insert on `## 12. Loop closure`, each applied only on an explicit yes; and skill copies prompt before overwrite, the prompt now carrying the **Check mode** verdict (upgrade / back-port candidate / local customization) so a re-run never silently downgrades a field-hardened copy or discards a local edit. `/add-orchestrator --check` is fully read-only — it writes nothing and is safe to run anytime. `/discover-agents` rewrites only the fenced `GENERATED:*` blocks in `orchestration.md` — your prose is never touched. To refresh, run `/discover-agents`; to re-wire a skill, delete its dir under `.claude/skills/` and re-run.
