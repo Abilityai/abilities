@@ -5,10 +5,11 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 argument-hint: "[--check]"
 metadata:
-  version: "1.24"
+  version: "1.25"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.25: Refresh the Check-mode illustrations to the post-back-port bundle (1.23 moved profile-fleet to 1.6 and sync-fleet-to-head to 1.4; 1.21 moved discover-agents to 1.8 and orchestrate to 1.14), so the example report and the Step 4 overwrite-prompt samples no longer show version pairs that contradict the versions this bundle actually ships. Illustration-only — no logic change. The `--autonomous` gate the 1.24 convention section promises is now live in the marketplace manager's /audit-wizards v1.3 (abilities#6)"
     - "1.24: Document the bundle-wide `--autonomous` run-mode convention (issue #6) — the canonical contract the per-skill instances (`/sync-fleet-to-head` v1.4, `/profile-fleet` v1.6, back-ported in #5) now point at instead of each re-deriving it: mode comes from `$ARGUMENTS` never a caller's prose; in autonomous mode the skill never calls `AskUserQuestion`, takes the safe default at each gate, never takes a destructive/irreversible path a gate was protecting, and turns a non-trivial decision into a `needs-attention` line rather than a guess. The invariant that *earns* the mode is that every below-the-gate action is non-destructive by construction. Promotes what corbin invented per-skill on live crons into a documented marketplace convention, so a gated skill on an unattended cron stops blocking on an unseen prompt and burning its whole timeout. Enforcement is mechanical: `/audit-wizards` flags any `automation: gated` skill listed in a `schedules:` block without a declared autonomous mode. (Versions 1.21–1.23 are the other in-flight PRs #9/#8/#5.)"
     - "1.23: Back-port the two stranded runtime skills from the production orchestrator (issue #5), closing the field-hardening back-flow gap. /sync-fleet-to-head 1.0 → 1.4 (post-pull sync-state cache-lag note, two 409 subtypes — unstaged vs unmerged files, 400 submodule-fetch recovery row, and a --autonomous run mode). /profile-fleet 1.4 → 1.6 (autonomy-toggle cross-check — enabled schedules + autonomy_enabled:false is a silent no-op — and a --autonomous run mode; allowed-tools gains get_schedule_executions to match the new body). Universalized rather than swapped verbatim: dropped the corbin-specific Step 0 refresh_workspace.sh scaffolding and re-homed profile-fleet's autonomous correction queue from corbin's fleet-gap-analysis/status.yaml onto the bundle's own /fleet-reconcile convention (.claude/skills/profile-fleet/status.yaml). The --autonomous mode is landed per-skill here; its promotion to a bundle-wide convention + an /audit-wizards gate is issue #6. (Version takes 1.23 to sit above the in-flight 1.21 reserved for PR #7/#9 and 1.22 for issue #8.)"
     - "1.22: Install-time divergence detection (issue #8) — a read-only `--check` mode compares every installed runtime skill against its bundled template on three axes: `installed < bundled` (upgrade available), `installed > bundled` (BACK-PORT candidate — the field-hardened copy the marketplace should pull from, the signal issue #5 went weeks without), and equal version but differing content (local customization). Reported in the canon-doctor PASS/WARN/FAIL shape with a one-line fleet-readable verdict. Step 4's per-skill overwrite prompt now runs the same comparison, so the warning — a silent downgrade or an about-to-be-clobbered local edit — arrives at the moment of decision, not after. Deliberately scoped to add-orchestrator's own bundle and stateless; the plugin-framework-wide version is a separate follow-up. (Version skips 1.21, reserved for the open PR #7/#9.)"
@@ -182,10 +183,10 @@ An installed copy is a byte-for-byte `cp` of `templates/<skill>.md` (Step 4 does
 
 ```
 add-orchestrator divergence check — <agent name>
-  profile-fleet       FAIL  back-port candidate — v1.6 > bundled v1.4 (overwrite = downgrade)
-  orchestrate         WARN  local customization — v1.13 == bundled, 12 lines differ (diff below)
-  sync-fleet-to-head  WARN  upgrade available — v1.0 < bundled v1.4
-  discover-agents     PASS  in sync (v1.7)
+  profile-fleet       FAIL  back-port candidate — v1.7 > bundled v1.6 (overwrite = downgrade)
+  orchestrate         WARN  local customization — v1.14 == bundled, 12 lines differ (diff below)
+  sync-fleet-to-head  WARN  upgrade available — v1.2 < bundled v1.4
+  discover-agents     PASS  in sync (v1.8)
   compose-system      PASS  in sync (v1.3)
   fleet-reconcile     —     not installed
 
@@ -286,9 +287,9 @@ For each skill selected in Q1, copy its template. The templates are ready to use
 
 **Before overwriting any existing `.claude/skills/<skill>/SKILL.md`, run the Check-mode comparison for that one skill (above) and present its verdict inside the overwrite prompt** — this is the moment issue #8 exists for. Make the prompt say what the operator is about to do:
 - **PASS** (in sync) — nothing to warn about; the overwrite is a no-op. Offer skip as the default.
-- **upgrade available** (`installed < bundled`) — "orchestrate v1.11 → v1.13 (upgrade). Overwrite / skip / cancel." Overwrite is the safe default.
-- **local customization** (`installed == bundled`, content differs) — show the diff first: "orchestrate v1.13 == bundled but **12 lines were hand-edited** (diff below) — overwriting DISCARDS them. Overwrite / skip / cancel." Default to skip; if they overwrite, tell them to re-apply the edit.
-- **back-port candidate** (`installed > bundled`) — "profile-fleet installed v1.6 is **ahead** of bundled v1.4 — overwriting is a DOWNGRADE and loses field-hardening. Recommend skip and back-port the installed copy into the marketplace instead. Overwrite / skip / cancel." Default to skip.
+- **upgrade available** (`installed < bundled`) — "orchestrate v1.12 → v1.14 (upgrade). Overwrite / skip / cancel." Overwrite is the safe default.
+- **local customization** (`installed == bundled`, content differs) — show the diff first: "orchestrate v1.14 == bundled but **12 lines were hand-edited** (diff below) — overwriting DISCARDS them. Overwrite / skip / cancel." Default to skip; if they overwrite, tell them to re-apply the edit.
+- **back-port candidate** (`installed > bundled`) — "profile-fleet installed v1.7 is **ahead** of bundled v1.6 — overwriting is a DOWNGRADE and loses field-hardening. Recommend skip and back-port the installed copy into the marketplace instead. Overwrite / skip / cancel." Default to skip.
 
 A fresh install (no existing copy) skips all of this and just copies.
 
