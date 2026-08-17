@@ -4,10 +4,11 @@ description: Discover the fleet — from live Trinity (list_agents), a curated r
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_info, mcp__trinity__get_agent_tags, mcp__trinity__list_tags, mcp__trinity__report
 user-invocable: true
 metadata:
-  version: "1.8"
+  version: "1.9"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.9: Spec-less catalog repos get the fix, not just the note — a repo with no template.yaml is reported under a new `no spec:` line with the ladder that makes it a real member: create it as-is (create_agent tolerates a missing template.yaml), dispatch `/trinity:onboard in-place` to it (the trinity plugin's v6.0 in-place mode writes template.yaml + plugins:, pushes back, verifies via the platform compat report), then re-scan. Notes the ent#411 bootstrap caveat (the trinity plugin must be present in the container; a one-line CLI install until the platform pre-installs it)"
     - "1.8: allowed-tools gains mcp__trinity__report — the Step 7 fleet_scan report call was already in the body but absent from the grant, so under tool-enforcement the report silently never published (the guard swallowed the tool-not-found error). Grant now matches the body; no behaviour change where the tool was already permitted"
     - "1.7: Canon coverage in the report — when at least one map node declares canon:, also count the mapped agents WITHOUT a declaration (N/M enrolled) so enrollment gaps surface on every scan; the fix is /add-canon's fleet-enrollment step on the orchestrator"
     - "1.6: Scan each agent's x-canon: declaration (the shared canonical-data layer installed by /add-canon) into a canon: field per map node — {repo, folder} — so /orchestrate can serve authoritative-data reads from the canon repo instead of a chat turn; cheap drift check when this orchestrator holds a clone of the same canon repo (declared folder missing ⇒ notes: flag); report gains a canon: line"
@@ -153,7 +154,7 @@ for repo in "${REPOS[@]}"; do
 done
 ```
 
-Record outcome per repo: specs found, or `notes: "unreachable — token lacks access (gh auth)"` when `FETCH_STATUS=auth`, or `notes: "no template.yaml found"` when simply absent. **Never drop a repo silently** — a repo with no spec is still a (weak) catalog row.
+Record outcome per repo: specs found, or `notes: "unreachable — token lacks access (gh auth)"` when `FETCH_STATUS=auth`, or `notes: "no template.yaml found — deploy as-is, then dispatch /trinity:onboard in-place"` when simply absent. **Never drop a repo silently** — a repo with no spec is still a (weak) catalog row, and it has a known fix: the platform creates it without a template (`create_agent(template: github:Org/repo)`), the `trinity` plugin's in-place mode (v6.0) then writes `template.yaml` (with `plugins:`), pushes it back and verifies against `get_agent_compatibility_report`, and the next scan promotes the row. Until the platform pre-installs the `trinity` plugin in the base image (ent#411), the freshly created agent needs one CLI bootstrap first: `claude plugin marketplace add abilityai/abilities && claude plugin install trinity@abilityai --yes`.
 
 ### Step 3: Parse each `template.yaml` — per field, with a type guard
 
@@ -304,6 +305,7 @@ Scanned N repos (source: trinity — live fleet | local — sources.yaml | both)
   canon:         <agents publishing to the shared canon repo, with folders — omit line if none>
                  <coverage when a canon exists: N/M mapped agents enrolled — close the gap with
                   /add-canon fleet enrollment on the orchestrator; omit if all enrolled>
+  no spec:       <repos with no template.yaml — create as-is → dispatch `/trinity:onboard in-place` → re-scan; omit if none>
   unreachable:   <repos needing gh auth, if any>
   name-only:     <low-confidence matches to verify, if any>
   out of scope:  <local run: K live agents not in sources.yaml — re-run with Trinity/Both to include>

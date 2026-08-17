@@ -1,15 +1,16 @@
 ---
 name: sync
 description: Synchronize this agent with one or more remote instances on Trinity via GitHub. Supports multiple remotes and branch-based versioning.
-argument-hint: "[status|push|pull|deploy|remotes|add-remote|set-default|schedules] [@remote] [branch]"
+argument-hint: "[status|push|pull|deploy|remotes|add-remote|set-default|schedules|plugins] [@remote] [branch]"
 disable-model-invocation: true
 user-invocable: true
 allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__list_operator_queue, mcp__trinity__get_operator_queue_item, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule, mcp__trinity__git_pull, mcp__trinity__get_git_status, mcp__trinity__get_git_log, mcp__trinity__get_git_sync_state
 metadata:
-  version: "2.6.0"
+  version: "2.7.0"
   created: 2025-02-05
   author: eugene
   changelog:
+    - "2.7.0: Plugin reconciliation (Phase 7b, trinity#1704 / ent#411) — `template.yaml plugins:` is the declared plugin set and Trinity re-installs it headlessly on every container boot; sync now checks it the way it checks schedules: `status` reports declared-vs-installed drift on the remote (via `claude plugin list --json` inside the agent, run through chat_with_agent), push/pull/deploy re-check after the code lands, and the new `plugins` subcommand reconciles on demand — install what is declared and missing (same two CLI calls the boot hook makes), never uninstall (additive; a live-only plugin is reported as drift for the operator, mirroring the schedule rule). Also flags a template.yaml with no plugins: block at all as SOFT drift with the one-line fix"
     - "2.6.0: Schedule reconcile matches on the literal `name`, not a `[id]` prefix — ent#89 materializes declared schedules verbatim and dedups on name, so the prefixed name never collided and Path-A agents ended up with two schedules firing the same cron. Remote pull now goes through mcp__trinity__git_pull instead of a chat_with_agent shell command (the platform path runs the .gitignore reconcile + trinity#2036 untracking, and a raw checkout desyncs a source-mode clone from the branch the DB records, trinity#1913); git MCP tools added to allowed-tools"
     - "2.5.0: Name the deploy path sync serves — repo-deployed agents (the default: create_agent with template: github:owner/repo) hold a clone tracking the branch, so push/pull IS the update mechanism and nothing is ever uploaded; a remote whose .trinity-remote.yaml `source` reads local-archive has no repo binding and is reported with the initialize_github_sync fix instead of silently no-opping"
     - "2.4.0: `pull` no longer blanket-discards before fast-forwarding — it stashes uncommitted work (tracked + untracked) and pops it back, discarding only known runtime paths, and uses `git pull --ff-only`. Fixes a data-loss hazard where a scheduled pull onto the remote's autonomous-loop commits wiped uncommitted agent-value edits (skills, memory, registries) via `git checkout -- .`"
@@ -118,6 +119,10 @@ Only `agent` is required per remote; `branch` defaults to `main`, and the onboar
 ### Schedules
 - `/trinity-sync schedules` - Reconcile `template.yaml` schedules against the default remote's live schedules
 - `/trinity-sync schedules @staging` - Reconcile schedules on a specific remote
+
+### Plugins
+- `/trinity-sync plugins` - Reconcile `template.yaml plugins:` against what is actually installed on the default remote (install missing, report extra)
+- `/trinity-sync plugins @staging` - Same, on a specific remote
 
 ## Arguments
 
@@ -522,6 +527,42 @@ Schedule Reconciliation — prod (my-agent)
  monthly-roll    0 0 1 * *   disabled  + created (operator can enable)
 ─────────────────────────────────────────────────
 ⚠ Drift: "[adhoc] manual cleanup" is live but not in template.yaml — left as-is
+```
+
+## Phase 7b: Plugin Reconciliation
+
+Plugins are declared in `template.yaml` under a `plugins:` block (schema in `/trinity:onboard` Step 3a — `marketplaces:` + `installed:`; trinity#1704) and materialized on the instance as a committed `~/.trinity/plugins.yaml` that the container's boot hook re-installs headlessly on every start. Between boots, drift is possible in both directions: a plugin declared after creation is not present until the next restart, and a plugin someone installed by hand is not declared. Sync treats it exactly like schedules — **the manifest is the design truth, the operator owns the live extras.**
+
+**When it runs:** `status` (report only) · after `push` / `pull` / `deploy` (the declaration may just have changed) · `plugins` subcommand (on demand).
+
+**Procedure** — for each targeted remote:
+
+1. **Read declared plugins** from local `template.yaml`: `yq -r '.plugins.installed[]?'` and `.plugins.marketplaces[]`. **No `plugins:` block at all** → report one SOFT line — *"template.yaml declares no plugins: — add at least `trinity@abilityai` (see /trinity:onboard Step 3a) so the selection survives a rebuild"* — and skip the rest.
+2. **Read what is installed on the remote** — ask the agent itself (the CLI is inside its container):
+   `mcp__trinity__chat_with_agent(agent_name: <remote.agent>, message: "Run: claude plugin marketplace list --json; claude plugin list --json — reply with the raw JSON only")`.
+   If the agent cannot run `claude` (image predates #1704), report `unknown — image without plugin CLI` and stop; do not guess.
+3. **Diff** declared vs installed:
+
+   | Case | Condition | push/pull/deploy · `plugins` action | status action |
+   |------|-----------|-------------------------------------|---------------|
+   | **Install** | Declared, not installed | have the agent run the boot hook's calls: `claude plugin marketplace add <source>` (if the marketplace is missing) then `claude plugin install <plugin>@<mkt> --yes` | report "would install" |
+   | **In sync** | Declared + installed | nothing | — |
+   | **Extra** | Installed, not declared | **report, never uninstall** — the operator either declares it in `template.yaml` (so it survives) or removes it by hand | report |
+
+4. **Never uninstall.** Same rule as schedules: reconciliation is additive; removals are the operator's act.
+5. **Remind about session boundaries:** a plugin installed now loads on the agent's *next* execution.
+
+**Report:**
+
+```
+Plugin Reconciliation — prod (my-agent)
+─────────────────────────────────────────────────
+ plugin                 declared  installed  Action
+─────────────────────────────────────────────────
+ trinity@abilityai      yes       yes        ✓ in sync
+ agent-dev@abilityai    yes       no         + installed (loads next execution)
+ utilities@abilityai    no        yes        ⚠ extra — declare it or remove by hand
+─────────────────────────────────────────────────
 ```
 
 ## Branch Operations

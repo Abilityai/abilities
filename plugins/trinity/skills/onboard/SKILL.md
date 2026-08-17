@@ -1,15 +1,16 @@
 ---
 name: onboard
 description: Onboard this agent to Trinity platform. Creates required files, configures MCP connection, and optionally deploys to remote.
-argument-hint: "[analyze]"
+argument-hint: "[analyze | in-place]"
 disable-model-invocation: false
 user-invocable: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__create_agent, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__get_agent_github_pat_status, mcp__trinity__set_agent_github_pat, mcp__trinity__initialize_github_sync, mcp__trinity__git_pull, mcp__trinity__get_git_sync_state, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__create_agent, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__get_agent_github_pat_status, mcp__trinity__set_agent_github_pat, mcp__trinity__initialize_github_sync, mcp__trinity__git_pull, mcp__trinity__get_git_sync_state, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule, mcp__trinity__get_agent_compatibility_report, mcp__trinity__git_sync
 metadata:
-  version: "5.3"
+  version: "6.0"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "6.0: In-place onboarding + the plugins: block (trinity#1704, ent#411). NEW goal in Step 1b, auto-recommended when the skill detects it is running INSIDE a deployed Trinity agent (AGENT_NAME env, /home/developer, ~/.trinity/): make the agent Trinity-compatible in place — write the files, install/declare its plugins, commit + push back (source mode is pull-only, so an in-place result that is not pushed is lost on reset — the skill pushes with the agent's write credentials, or hands back a patch and says so), reconcile schedules live, and VERIFY via mcp__trinity__get_agent_compatibility_report (0 HARD) instead of its own checklist (trinity#2137 alignment). Step 3a teaches the plugins: block (marketplaces + installed → committed ~/.trinity/plugins.yaml, re-installed headlessly on every container boot; the interactive /plugin install was never the mechanism, the CLI is); every scaffold now declares trinity@abilityai. Deployment paths gains Path C — deploy the bare repo as-is, then onboard in place — with the one-line headless bootstrap for agents that predate the block. Path A/B completions also end with the compat-report verification"
     - "5.3: Conform to the playbook-call grammar (`protocols/playbook-call.md`, abilities#15): the documented `schedules:` example now shows the message as a bare playbook call (`/weekly-report`) rather than a prose sentence wrapping one — the example is what every reader copies. A prose message is a second copy of the playbook's procedure living in an unversioned scheduler field, free to drift from the SKILL.md that owns it; it also names no playbook, so the /audit-wizards autonomy-mode gate cannot see a gated skill scheduled that way"
     - "5.2: Platform-truth refresh (Trinity dev 88a4e2f7) — TWO gates decide whether a schedule fires, and the second was undocumented: agent autonomy defaults OFF on every new agent, the scheduler skips all cron triggers while it is off and writes NO execution row, and there is no MCP tool for it (turn it on in the UI after deploy). Schedule reconcile now matches on the literal `name` (ent#89 materializes it verbatim and dedups on it) — the old `[id]`-prefixed name could never collide, so Path A agents got DUPLICATE double-firing schedules. Declared schedules honour six keys only (timeout_seconds/max_retries/model/allowed_tools are dropped on the github: path), bounded at 20 entries, armed only by a literal YAML true, never re-applied on recreate. New Step 3b teaches credentials:/credential_setup: (ent#128/#127, gate T-015). Step 4 now teaches .mcp.json.template (trinity#2007): ${VAR} in env blocks ONLY — a placeholder in command/url/args withholds the whole server — and the command allowlist. .gitignore scaffold gains .claude/settings.json + the negation escape hatch (trinity#2036)"
     - "5.1: Teach the event layer's emit side — agents can publish custom domain events via emit_event(event_type, payload) and any agent that should react subscribes ITSELF via subscribe_to_event ({{payload.field}} interpolates into the task it receives; self-service, no on-behalf wiring), with the two safety caveats: no recursion guard outside agent.task.* (keep custom event graphs acyclic — a cycle runs forever at real spend) and wakes reach only running subscribers (at-most-once, no replay)"
@@ -148,6 +149,14 @@ There are two ways to get an agent onto Trinity, and they are **not equal**. The
 **Use Path B when** the agent has no repo yet, the repo can't be reached from the instance (air-gapped or self-hosted GitHub), or you're deploying a throwaway. After a Path-B deploy, promote the agent onto the repo path with `mcp__trinity__initialize_github_sync` so subsequent updates are git-native — a long-lived agent should not stay on the archive path.
 
 **Credentials travel the same way on both paths.** `.env` is gitignored, so it is never in the clone *or* the archive — inject it after deploy (Step 5e).
+
+**Path C — deploy the bare repo as-is, then onboard *in place*.** For a repo you cannot (or should not) adapt locally — someone else's agent, a repo with no `template.yaml` at all — the platform still creates the agent (`create_agent(template: "github:owner/repo")` tolerates a missing `template.yaml`; the agent just lands with no declared resources/schedules/plugins). Then run **this skill inside that agent** and pick *Onboard in place* (Step 1b): it writes the files, installs and declares the plugins, pushes them back, and verifies with the platform's own compatibility report. What it needs: the `trinity` plugin present in the container. Since trinity#1704 that is a declaration (`template.yaml plugins:`, Step 3a) re-installed headlessly on every boot — but an agent that predates the block has nothing declared yet, so bootstrap it once with the CLI the boot hook itself uses (a plain terminal call, not the interactive `/plugin` command):
+
+```bash
+claude plugin marketplace add abilityai/abilities && claude plugin install trinity@abilityai --yes
+```
+
+Then start a fresh session and run `/trinity:onboard`. (ent#411 asks the platform to pre-install the `trinity` plugin in the agent base image so this bootstrap disappears.)
 
 ### Local Orchestrator Pattern
 
@@ -353,6 +362,17 @@ cat template.yaml 2>/dev/null
 cat .env 2>/dev/null | head -5
 ```
 
+**Am I running inside a deployed Trinity agent?** Check the container markers before asking anything — they decide which goal Step 1b recommends:
+
+```bash
+[ -n "$AGENT_NAME" ] && echo "AGENT_NAME=$AGENT_NAME"      # set by the Trinity agent server
+[ "$HOME" = "/home/developer" ] && [ -d "$HOME/.trinity" ] && echo "trinity workspace volume"
+git remote get-url origin 2>/dev/null; git config --get branch.$(git branch --show-current 2>/dev/null).remote 2>/dev/null
+[ -n "$GIT_SOURCE_MODE" ] && echo "GIT_SOURCE_MODE=$GIT_SOURCE_MODE (source mode = pull-only)"
+```
+
+Two or more markers ⇒ **in-place context**: the agent already exists on Trinity, the "deploy" half of this skill is moot, and the job is to make *this* workspace compatible and get the result back into its repo. Record `IN_PLACE=1` and the agent name (`$AGENT_NAME`).
+
 Present findings:
 
 ```
@@ -366,6 +386,8 @@ Present findings:
 | .env | [EXISTS/MISSING] |
 | .mcp.json | [EXISTS/MISSING] |
 | Git repository | [YES/NO] |
+| Running inside a deployed Trinity agent | [YES — `$AGENT_NAME` / NO] |
+| Write credentials for push-back (in-place only) | [YES / NO — source mode, tokenless] |
 ```
 
 ---
@@ -386,7 +408,12 @@ After analyzing the current state, use AskUserQuestion to determine what the use
 2. **Adapt only (no deployment)**
    - Description: "Create Trinity-compatible files (template.yaml, .gitignore, etc.) without connecting to or deploying to a Trinity instance"
 
+3. **Onboard in place** *(list this FIRST and mark it Recommended when Step 1 detected the in-place context; otherwise omit it)*
+   - Description: "This agent is already deployed on Trinity as `$AGENT_NAME`. Make this workspace Trinity-compatible in place — write template.yaml (with plugins:), .env.example, .gitignore, .mcp.json.template; install + declare plugins; push the result back to the repo; reconcile schedules; verify with the platform's compatibility report."
+
 **Based on the answer:**
+
+- **If "Onboard in place"**: run Step 3 (files) then jump to **Step 5-IP** — skip Step 2 (this agent *is* connected: its `mcp__trinity__*` tools come from the platform-injected MCP entry), Step 4b and Step 5 (nothing to deploy). Finish with Step 6-IP.
 
 - **If "Deploy to Trinity"**: Continue with Steps 2-6 (full flow)
 - **If "Adapt only"**: Skip to Step 3, but:
@@ -470,6 +497,28 @@ schedules:
 - Omit the whole block if the agent has no scheduled tasks. An empty/absent block is valid.
 - Size `timeout_seconds` for the work the run *actually does in-turn*. A run that only triggers-and-verifies a decoupled OS-level job stays fast, so a modest value like the example's 900s is plenty (omitted = the agent's 60-min cap). A run must **not** try to host a >~10-min job itself — the harness auto-backgrounds it past ~10 min and the turn-end reaps it, so a bigger timeout does not save it (see *Long-running jobs inside a run*).
 - The `## Recommended Schedules` table in `CLAUDE.md` is a human-readable rendering of this block, not a second source of truth.
+
+#### Required since trinity#1704: `plugins:` block — the agent's Claude Code plugins, declared
+
+Trinity installs an agent's marketplace plugins from **this block**, not from anyone typing `/plugin install`. At creation the platform materializes it as a committed, secret-free `~/.trinity/plugins.yaml`; on **every container boot** `startup.sh` reconciles it headlessly (`claude plugin marketplace add <source>` / `claude plugin install <plugin>@<mkt> --yes`, no TTY, timeout-bounded, after credential injection — zero subprocesses when everything is already present). It is what makes the selection survive a fresh-volume rebuild or a move to another host, and it is the *only* way a headless agent gets a plugin without a human in a terminal. Always declare at least `trinity@abilityai` — it is what lets the deployed agent run `/trinity:sync` and, for a bare repo, `/trinity:onboard` in place (Path C).
+
+```yaml
+plugins:
+  marketplaces:
+    - name: abilityai
+      source: abilityai/abilities        # owner/repo shorthand, or an https:// URL — never user:token@, never ../ or a leading -
+  installed:
+    - trinity@abilityai                  # plugin@marketplace; every marketplace referenced must be declared above
+    # - agent-dev@abilityai              # add whatever this agent's skills actually depend on
+  # enabledPlugins: { trinity@abilityai: true }   # alternative shape mirroring Claude's settings.json — false entries are dropped
+```
+
+Rules that bite:
+- **Declare what the agent uses, nothing decorative** — each plugin is a boot-time fetch. Mirror the list in CLAUDE.md's "Installed Plugins" section so the two never disagree.
+- **`plugin@marketplace` pins identity, not a commit** — a re-install fetches the marketplace's current content (a commit-pinned mode is a planned follow-up, trinity-enterprise#192).
+- **Runtime installs are not captured back** — a plugin someone adds later with `/plugin install` (or the CLI) is lost on reconstitution unless it is added here too.
+- **A private marketplace needs the agent's `GITHUB_PAT`** at boot (seeded as `GH_TOKEN` by the hook); a public one needs only network. Air-gapped instances see a named `withheld:<reason>` in the boot summary — never a fatal.
+- **Materialization is creation-time; the boot hook is the runtime path.** Adding the block to an existing agent's `template.yaml` takes effect on the next restart via the hook's template fallback — or immediately if you run the same two CLI calls yourself (Step 5-IP does).
 
 **avatar_prompt guidance:** This field is used by Trinity to generate a portrait avatar for the agent using AI image generation. Write a vivid, specific character description that captures the agent's personality and role. The prompt should describe a person or character as a portrait subject — appearance, attire, expression, setting, and lighting.
 
@@ -821,6 +870,72 @@ If there is no `schedules:` block, skip this step.
 
 ---
 
+## STEP 5-IP: Onboard In Place (this workspace IS the deployed agent)
+
+**Only when Step 1b chose "Onboard in place".** The agent exists; nothing is created. The job is: files → plugins → *get it back into the repo* → schedules → verify with the platform. Four facts shape it:
+
+- **Source mode is pull-only.** `github:`-created agents track their branch read-only — a file written here is container-local until pushed. An in-place result that is not pushed **is lost on the next reset**. Never end this step silently in that state.
+- **Materialization is creation-time.** Schedules (ent#89) and plugins (#1704) declared *now* are not re-read by the platform; schedules reconcile live over MCP (5f), plugins install via the CLI now and via the boot hook's template fallback on every later start.
+- **The `mcp__trinity__*` tools are already here** — injected by the platform for this agent (agent-scoped key). `list_agents` proving they work is Step 4 for this path.
+- **Nothing to inject.** `.env` already lives in this workspace; `.env.example` is what you write for the repo.
+
+**5-IP-a. Files.** Step 3 already wrote/updated `template.yaml` (with `plugins:` — at least `trinity@abilityai`), `.env.example`, `.gitignore`, and `.mcp.json.template` if the agent needs MCP servers of its own. `name:` in `template.yaml` must equal `$AGENT_NAME` (the deployed slug), never the repo basename.
+
+**5-IP-b. Plugins, now.** Make the declaration true immediately rather than waiting for the next boot — the same two calls the boot hook makes:
+
+```bash
+claude plugin marketplace list --json 2>/dev/null | grep -q '"abilityai"' || claude plugin marketplace add abilityai/abilities
+for p in $(yq -r '.plugins.installed[]?' template.yaml 2>/dev/null); do
+  claude plugin list --json 2>/dev/null | grep -q "\"${p%@*}\"" || claude plugin install "$p" --yes
+done
+```
+
+Plugins load at session start — the new ones are available from the **next** execution, and the boot hook keeps them present from then on.
+
+**5-IP-c. Push back — or say honestly that you couldn't.**
+
+```bash
+git add template.yaml .env.example .gitignore .mcp.json.template 2>/dev/null
+git commit -m "Trinity compatibility (onboarded in place): template.yaml + plugins, .env.example, .gitignore"
+git push 2>&1 | tail -3
+```
+
+| Result | Then |
+|---|---|
+| Push succeeded | The repo now carries the files; the next `git_pull` / recreate lands on them. Record the commit sha. |
+| Push refused (no write credentials — tokenless source mode, or a read-only PAT) | Try the platform's push path: `mcp__trinity__git_sync(agent_name: "$AGENT_NAME")` (409 `no_write_credentials` means the same thing). If that fails too: **stop, do not pretend.** Print the patch (`git format-patch -1 --stdout`) and the message: *"Result is container-local only — it will not survive a reset. Give this agent write credentials (Settings → GitHub token / per-agent PAT) and re-run, or apply this patch to the repo yourself."* |
+| Repo has no `origin` (archive-deployed agent) | Promote it onto the repo path first — `mcp__trinity__initialize_github_sync` (Step 5c-B) — then push. |
+
+**5-IP-d. Reconcile schedules** — run Step 5f exactly as written (declared `schedules:` ↔ `list_agent_schedules`, match by literal `name`, create/update, never flip `enabled`).
+
+**5-IP-e. Verify with the platform, not a checklist.**
+
+```
+mcp__trinity__get_agent_compatibility_report(name: "$AGENT_NAME")
+```
+
+Every **HARD** finding is yours to fix now (most are `.gitignore` lines — `S-001`… are auto-fixable, but you already own the file, so fix and re-run). SOFT and AI verdicts are advisory: list them, don't loop on them. The report — not this SKILL.md — is the definition of "compatible" (trinity#2137 keeps its catalog aligned with what this skill generates; if a HARD you cannot explain appears, that alignment slipped — say so rather than working around it).
+
+## STEP 6-IP: In-Place Onboarding Complete
+
+```
+## Trinity Compatibility Established In Place
+
+- **Agent**: $AGENT_NAME (already deployed — nothing created)
+- **Files**: template.yaml (plugins: [list]), .env.example, .gitignore[, .mcp.json.template]
+- **Pushed back**: [yes — <sha> on <branch> | NO — container-local; patch printed above; give the agent write credentials]
+- **Plugins**: [installed now: …] — declared, re-installed on every boot
+- **Schedules**: [created N · updated N · in sync N · drift N] (see 5f table)
+- **Compatibility report**: [0 HARD · N SOFT · N AI-advisory]  ← the platform's verdict
+
+### Next
+1. Start a fresh session so the newly installed plugins load.
+2. If not pushed: apply the patch / grant write credentials, then re-run `/trinity:onboard` (in place) — it is idempotent.
+3. `/trinity:sync` reconciles schedules and plugins on demand from here on.
+```
+
+---
+
 ## STEP 6: Completion
 
 Only show this when the agent is successfully deployed:
@@ -841,8 +956,12 @@ Your agent is now live on Trinity.
 - [x] .gitignore
 - [x] .env / .env.example (only if the agent has its own secrets)
 - [x] .trinity-remote.yaml (deployment tracking)
+- [x] template.yaml `plugins:` — [list] (installed headlessly on every boot, trinity#1704)
 
 (MCP config — `.mcp.json` — is written by `/trinity:connect`, not onboard.)
+
+### Compatibility (the platform's verdict, not this skill's)
+`mcp__trinity__get_agent_compatibility_report(name)` → [0 HARD · N SOFT · N AI-advisory]. Run it right after 5d; a HARD finding is a fix-now, not a note.
 
 ### Next Steps
 
@@ -885,7 +1004,7 @@ Your agent is now live on Trinity.
 Your agent is now Trinity-compatible and ready for deployment when you're ready.
 
 ### Files Created
-- [x] template.yaml (agent metadata)
+- [x] template.yaml (agent metadata + `plugins:` — installed on every boot once deployed)
 - [x] .gitignore (with Trinity patterns)
 - [x] .env.example (only if the agent has its own secrets)
 
@@ -920,6 +1039,10 @@ If user runs `/trinity:onboard analyze`:
 
 Only perform Step 1 (check state), then present a report without making any changes — do not connect or deploy.
 
+## Mode: In Place (forced)
+
+If user runs `/trinity:onboard in-place` — or a schedule/orchestrator dispatches that call to a deployed agent — skip the Step 1b question and take the *Onboard in place* path directly (Step 1 detection still runs; if the markers are absent, say so and fall back to the question rather than guessing). This is the playbook-call form an orchestrator uses after a Path C deploy: `/trinity:onboard in-place`.
+
 ---
 
 ## Error Handling
@@ -937,6 +1060,9 @@ Only perform Step 1 (check state), then present a report without making any chan
 | `Bidirectional git sync requires write credentials` (400) | A tokenless create asked for a write-mode workspace. Deploy in source mode (the default — just omit any bidirectional flag), or configure a token |
 | `GitHub is unreachable` (502) | Transient — the anonymous access probe couldn't reach GitHub. Retry, or add a token (the token path tolerates transient errors that the tokenless path fails closed on) |
 | Git clone/pull fails on remote | Configure the GitHub PAT (see below) — check the tier that actually resolved |
+| In place: `git push` refused / `git_sync` 409 `no_write_credentials` | Source mode is pull-only and the agent has no write token. Print the patch, say the result is container-local, have the operator grant a write PAT (per-agent PAT or Settings → GitHub token) and re-run — never leave it silent |
+| In place: `claude: command not found` or plugin install times out | The container predates the #1704 base image or has no network to the marketplace. Declare the block anyway (it applies on the next boot on a current image); report `withheld:` honestly |
+| `get_agent_compatibility_report` shows a HARD you cannot map to a file you wrote | The platform's catalog and this skill drifted (trinity#2137). Fix the finding if it is legitimate; otherwise report the check id and stop rather than suppressing it |
 
 ---
 

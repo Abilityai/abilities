@@ -4,10 +4,11 @@ description: Turn fleet/system-map.yaml into a Trinity SystemManifest (fleet/sys
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__deploy_system, mcp__trinity__list_systems, mcp__trinity__get_system_manifest, mcp__trinity__restart_system, mcp__trinity__list_templates
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.4: Spec-less `github:` members are deployable, then onboarded in place — Step 3's table gains the row: a repo with no template.yaml still resolves to `template: github:Org/repo` (creation tolerates a missing template; the member just lands with no declared resources/schedules/plugins), and Step 6 hands each such member the follow-up playbook call `/trinity:onboard in-place` (trinity plugin v6.0) so it writes its own template.yaml + plugins:, pushes back and verifies via the platform compat report; the manifest then re-composes cleanly on the next run. Bootstrap caveat (ent#411) stated once"
     - "1.3: Repository-first members — `github:Org/repo` is stated as the only source that makes a manifest reproducible; a repo-less member is flagged `# NEEDS-REPO` with the push-and-update-the-map fix (local template/deploy_local_agent demoted to stopgaps), and Step 3 names the instance GitHub token (Settings → GitHub token, Contents: Read) as the prerequisite for private members"
     - "1.2: Derive agent_permissions from fleet/orchestration.md §5 (Permissions & boundaries) as the source of intent; fall back to the preset topology with a note when §5 is empty — closing the loop narrative → enforced permissions"
     - "1.1: Front-load the two-mode distinction — this is the PROVISION path (stand up NEW agents); skip it for a fleet already on Trinity (the map + /orchestrate is enough). Guarded report swallows auth-scope failures"
@@ -68,6 +69,7 @@ Resolve from the map's `source`/`ref`:
 | Map entry | `template:` in manifest |
 |---|---|
 | `source: github:Org/repo` | `github:Org/repo` — the target state for every member |
+| `source: github:Org/repo` **with `spec_found: []`** (no template.yaml) | Still `github:Org/repo` — Trinity creates it without a template; it lands with **no** declared resources/schedules/plugins. Pass `resources` explicitly in the manifest, and after deploy dispatch **`/trinity:onboard in-place`** to it (the `trinity` plugin's in-place mode writes `template.yaml` with `plugins:`, pushes it back to the repo, verifies with `get_agent_compatibility_report`) — the next `/discover-agents` + compose sees a real spec. Until ent#411 pre-installs the `trinity` plugin in the base image, that agent needs one CLI bootstrap first (`claude plugin marketplace add abilityai/abilities && claude plugin install trinity@abilityai --yes`); list it as a post-deploy step in the Step 6 report, never as prose to the member |
 | `deployed: true` but local source | needs a registered Trinity template — check `mcp__trinity__list_templates`; if present use `local:<template-name>`, else flag. Also flag it as **repo-less**: push it to GitHub and switch the map's `source` so the manifest becomes reproducible |
 | local source, not deployed, no template | **cannot deploy via manifest** — the fix is to give it a repo (`gh repo create <name> --private --source=. --push`, then set `source: github:Org/repo` in the map). Stopgaps: onboard it first (`/trinity:onboard` in that repo) or deploy it with `deploy_local_agent`. List it in `fleet/system.yaml` with a `# NEEDS-REPO` comment either way |
 

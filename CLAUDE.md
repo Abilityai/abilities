@@ -111,6 +111,7 @@ Key frontmatter fields:
 - **Archive over delete**: Move files to `archive/` preserving structure instead of deleting
 - **Safe artifacts are automatic**: `__pycache__`, `.pyc`, `.DS_Store` can be cleaned without approval
 - **Templates use placeholders**: Files ending in `.example` or `.template` use `${VAR_NAME}` syntax
+- **Scaffolded `template.yaml` declares `plugins:`**: any skill that generates or adapts an agent's `template.yaml` (the create-agent wizards, `/trinity:onboard`, `/create-playbook`-style scaffolds) emits a `plugins:` block (`marketplaces:` + `installed:`, at least `trinity@abilityai`) — Trinity installs a deployed agent's plugins from that declaration on every container boot (trinity#1704); prose "run `/plugin install …`" is for the author's local session only and never reaches a headless agent. Any skill that adds a runtime plugin dependency to an agent adds it there too.
 - **Always bump version on changes**: When modifying any plugin file (skills, commands, etc.), increment the patch version in `.claude-plugin/plugin.json`. This ensures client installations detect and sync the update.
 
 ## Version Bumping (Required)

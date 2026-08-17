@@ -6,13 +6,14 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.9"
+  version: "1.10"
   created: 2026-04-01
   updated: 2026-07-29
   author: Ability.ai
   changelog:
+    - "1.10: template.yaml scaffold now declares `plugins:` (trinity#1704 / ent#411) — marketplaces + installed (agent-dev@abilityai, trinity@abilityai) — so the DEPLOYED agent gets its plugins headlessly on every container boot instead of depending on a human running /plugin install; the local install step stays (that is your own session), the declaration is what makes it portable"
     - "1.9: Generated CLAUDE.md Guidelines gain the playbook-call rule — the agent packages procedures as playbooks and exchanges work with other agents only via one-line `/playbook [args]` calls, never prose delegation (fleet convention protocols/playbook-call.md, operator direction 2026-08-16)"
-    - "1.8: Platform-truth refresh (Trinity dev 88a4e2f7) — report payload cap corrected 256 KB → 5 MiB (object only), display_hint gains `json` and now drives the customer-facing Workspace Reports tab, and list_reports/get_report are taught as read-before-write. template.yaml scaffold gains credentials: + credential_setup: (ent#128/#127; gate T-015). schedules: block documents the ent#89 contract — materialized at creation, max 20, deduped by name, armed only by a literal YAML true, never re-applied on recreate, and gated again by agent autonomy (OFF on new agents); dropped the non-schema id: key and moved timezone off America/New_York to UTC (#1795, and legacy IANA aliases now 500, #1823). .gitignore gains .claude/settings.json + .trinity/* (trinity#2036/#1936) Its .mcp.json.template no longer ships a hand-written `trinity` entry (the platform injects and overwrites its own) and TRINITY_URL/TRINITY_API_KEY are gone from .env.example (read only by the retired CLI); report_type documents the ^[a-z0-9_]+(\.[a-z0-9_]+)+$ rule — a hyphenated agent name 422s."
+    - "1.8: Platform-truth refresh (Trinity dev 88a4e2f7) — report payload cap corrected 256 KB → 5 MiB (object only), display_hint gains `json` and now drives the customer-facing Workspace Reports tab, and list_reports/get_report are taught as read-before-write. template.yaml scaffold gains credentials: + credential_setup: (ent#128/#127; gate T-015). schedules: block documents the ent#89 contract — materialized at creation, max 20, deduped by name, armed only by a literal YAML true, never re-applied on recreate, and gated again by agent autonomy (OFF on new agents); dropped the non-schema id: key and moved timezone off America/New_York to UTC (#1795, and legacy IANA aliases now 500, #1823). .gitignore gains .claude/settings.json + .trinity/* (trinity#2036/#1936) Its .mcp.json.template no longer ships a hand-written `trinity` entry (the platform injects and overwrites its own) and TRINITY_URL/TRINITY_API_KEY are gone from .env.example (read only by the retired CLI); report_type documents the ^[a-z0-9_]+(\\.[a-z0-9_]+)+$ rule — a hyphenated agent name 422s."
     - "1.7: Repository-first deployment — the GitHub-repo step is framed as the deploy path (Trinity clones the repo and tracks the branch; skipping means an upload-only deploy with no reproducible source), and the deploy offer now states what /trinity:onboard actually does: create_agent(template: github:owner/repo@branch) when a remote exists — schedules materialized at creation, updates via git push + git_pull — falling back to a local-file deploy that offers promotion onto the repo path"
     - "1.6: Generated CLAUDE.md gains a Request Dispatch section — an SOP table routing incoming requests (user, other agents, operator queue) to skills; task requests with no matching skill are handled if safe and flagged as playbook gaps (told to the user interactively, filed as a playbook-gap-<slug> operator-queue item when headless on Trinity) with a pointer to /agent-dev:create-playbook"
     - "1.5: Trinity-connected deploy is the default next action — new Step 14 offers deploying the freshly created agent from its repository via /trinity:onboard when Trinity MCP is connected, gated by explicit AskUserQuestion confirmation; skipped silently when not connected"
@@ -415,6 +416,17 @@ avatar_prompt: [Generate a vivid character portrait prompt that fits the agent's
 resources:
   cpu: "2"
   memory: "4g"
+
+# Claude Code plugins this agent needs — DECLARED, not typed (trinity#1704). Trinity materializes
+# this as a committed ~/.trinity/plugins.yaml and re-installs it headlessly on every container
+# boot, so the deployed agent has them without anyone running /plugin install. Mirror CLAUDE.md.
+plugins:
+  marketplaces:
+    - name: abilityai
+      source: abilityai/abilities
+  installed:
+    - agent-dev@abilityai
+    - trinity@abilityai
 
 # What this agent needs, BY NAME ONLY — names-only is the frozen contract; never values.
 # Every ${VAR} used in .mcp.json.template must appear here or the agent HARD-fails
