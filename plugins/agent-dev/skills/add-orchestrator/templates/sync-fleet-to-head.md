@@ -3,14 +3,19 @@ name: sync-fleet-to-head
 description: Ensure every fleet agent on Trinity is running its GitHub HEAD, non-destructively (never discards local changes). Scope comes from the orchestration narrative — only agents declared in fleet/orchestration.md + fleet/system-map.yaml are touched.
 when_to_use: When you want to verify or bring the fleet's Trinity agents up to their appropriate GitHub HEAD after upstream changes — "check the agents are on latest", "sync the fleet to HEAD", "are any agents behind their repo", periodic fleet git hygiene. Pull-only and non-destructive; it never force-resets and never pushes.
 automation: gated
+argument-hint: "[--autonomous] [agent ...]"
 allowed-tools: Read, Grep, Skill, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_git_sync_state, mcp__trinity__get_git_status, mcp__trinity__git_pull, mcp__trinity__chat_with_agent, mcp__trinity__get_git_log
 effort: high
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.4"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.4: `--autonomous` run mode (new Run modes section) — back-ported from the production orchestrator (issue #5). A gated skill on an unattended cron otherwise blocks on an approval prompt nobody sees and burns its whole timeout; the mode makes the cron message the bare call `/sync-fleet-to-head --autonomous`. It relaxes nothing safety-relevant: the pull ladder stays clean → stash_reapply, force_reset/reset_to_main_preserve_state stay forbidden, and a non-trivial conflict is never guessed — it becomes a needs-attention line. Auto-proceeding past Step 4 is safe precisely because every action below it is non-destructive by construction — that invariant earns the mode, not convenience. The bundle-wide convention this instantiates is tracked in issue #6"
+    - "1.3: Error Recovery row for the 400 submodule-fetch failure — `git pull --rebase` fetches submodules and fails on an unmounted one, and MCP `git_pull` has no `--no-recurse-submodules`; flag as needs-attention with a direct-Bash workaround, do not retry"
+    - "1.2: Distinguish two 409 subtypes from `clean` — 'unstaged changes' (dirty tree → escalate to stash_reapply) vs 'unmerged files' (pre-existing conflict state; stash_reapply also fails → go straight to Step 6); Error Recovery rows for both"
+    - "1.1: Operational note — `get_git_sync_state` lags after `git_pull` (persisted cache, not live); confirm the real post-pull HEAD via `get_git_status`; Final Step verification updated accordingly"
     - "1.0: Initial version — narrative-scoped fleet HEAD sync; non-destructive pull ladder (clean -> stash_reapply), stash-reapply-warning detection, trivial-conflict union-resolve via chat_with_agent, ahead/no-repo/out-of-scope handling; two approval gates"
 ---
 
@@ -48,6 +53,29 @@ ultrathink — git edge cases (rebase-vs-dirty-tree, partial stash pops, real me
 
 - `/discover-agents` — rebuilds `fleet/system-map.yaml` from `fleet/sources.yaml` and live Trinity. Invoked only when the map is missing or stale; this playbook otherwise **reads** the map, it does not regenerate it.
 
+## Run modes
+
+Two modes. The mode comes from `$ARGUMENTS` — never from prose in a caller's message.
+
+| mode | trigger | approval gates | on non-trivial conflict |
+|---|---|---|---|
+| **interactive** *(default)* | `/sync-fleet-to-head` | Step 4 (plan) + Step 6 (conflicts) | stop and hand to the human |
+| **autonomous** | `/sync-fleet-to-head --autonomous` | none — never calls `AskUserQuestion` | skip that agent, report as needs-attention |
+
+Bare agent names restrict scope to that subset.
+
+### Autonomous mode contract
+
+Auto-proceeding is safe here for one specific reason: **every action this playbook takes is non-destructive by construction.** That invariant is what earns the mode, and autonomous mode does not relax any part of it.
+
+1. **Never call `AskUserQuestion`.** Step 4 becomes log-the-plan-and-proceed; Step 6's gate becomes skip-and-report.
+2. **The pull ladder is unchanged:** `clean` → `stash_reapply`, nothing further. `force_reset` and `reset_to_main_preserve_state` remain forbidden in every mode.
+3. **Never guess a conflict resolution.** Trivial union-mergeable files (`.gitignore`, lock files, append-only manifests) may still be resolved per Step 6. Anything else — source, semantic config — is left alone: the local work stays safe in the stash and the agent becomes a needs-attention line.
+4. **Never push to an agent repo, never commit on an agent's behalf** (true in both modes).
+5. **Report** per-agent outcome — in-sync / pulled / dirty-skipped / conflict / permission / error — and list every agent whose git state needs a human clearly as needs-attention. Do not "fix" a broken git state destructively.
+
+This is the per-skill instance of a bundle-wide `--autonomous` convention (issue #6).
+
 ## Process
 
 ### Step 1: Load scope from the narrative
@@ -78,7 +106,9 @@ For every in-scope + GitHub-backed agent, call `get_git_sync_state` (compact —
 - **ahead** — ahead > 0, behind 0 → **unpushed local commits**; flag, do **not** touch (not behind = nothing to pull; pushing is out of scope).
 - **diverged** — ahead > 0 and behind > 0 → attempt non-destructive pull; likely needs manual resolution (Step 6).
 
-### Step 4: Present the plan — [APPROVAL GATE]
+### Step 4: Present the plan — [APPROVAL GATE — interactive mode only]
+
+**Autonomous mode:** print the same table to the run result, then proceed to Step 5 without asking. Every action below is non-destructive (Run modes item 2).
 
 Show a single table and wait for approval before any pull:
 
@@ -99,7 +129,8 @@ For each agent to pull, walk this ladder — stop at the first success:
 
 1. `git_pull(strategy: "clean")`.
    - Success → done for this agent.
-   - **409 with unstaged/uncommitted changes** (`"cannot pull with rebase: You have unstaged changes"`) → `clean` rebases and refuses on a dirty tree. This is expected; escalate to step 2. Nothing was changed.
+   - **409 "cannot pull with rebase: You have unstaged changes"** → `clean` rebases and refuses on a dirty tree. This is expected; escalate to step 2. Nothing was changed.
+   - **409 "Pulling is not possible because you have unmerged files"** → pre-existing conflict state in the working tree (UU/AA/DD entries from a prior failed merge or stash pop). `stash_reapply` will also fail here (`git stash` refuses with unmerged files). Skip step 2 and go directly to Step 6. Call `get_git_status` first to identify the conflicted paths.
 2. `git_pull(strategy: "stash_reapply")` — stashes local changes, pulls, reapplies.
    - `success: true` with **no** warning → done; local changes preserved.
    - `success: true` **with `"Could not reapply local changes"`** in the message → the stash pop hit a conflict. **The local changes are NOT lost** (retained in the stash + left as conflict markers), but they are not applied. Go to Step 6. **Do not** treat this as clean success.
@@ -107,7 +138,7 @@ For each agent to pull, walk this ladder — stop at the first success:
 
 **Never** call `git_pull(strategy: "force_reset")` and **never** call `reset_to_main_preserve_state` — both discard local history. If a divergence genuinely can't be resolved non-destructively, hand it to the human (Step 6); do not force.
 
-### Step 6: Conflict handling — [APPROVAL GATE for anything non-trivial]
+### Step 6: Conflict handling — [APPROVAL GATE for anything non-trivial — interactive mode only]
 
 Call `get_git_status` for the agent and find unmerged paths (`UU` / `AA` / `DD`).
 
@@ -124,13 +155,13 @@ Call `get_git_status` for the agent and find unmerged paths (`UU` / `AA` / `DD`)
              `git rev-parse --short HEAD`, and `git stash list`.")
   ```
 
-- **Non-trivial conflicts** (source code, semantic config) → **STOP for this agent.** Do not guess a resolution. Report the conflicted files; the local work is safe in the stash. This is the gate — hand it to the human. Move on to the remaining agents.
+- **Non-trivial conflicts** (source code, semantic config) → **STOP for this agent.** Do not guess a resolution. Report the conflicted files; the local work is safe in the stash. This is the gate — hand it to the human. Move on to the remaining agents. **Autonomous mode:** identical behaviour, minus the prompt — the agent becomes a needs-attention line in the run result.
 
 Never `git commit` or `git push` during resolution unless the user explicitly asks.
 
 ### Final Step: Verify and report
 
-Re-call `get_git_sync_state` for each acted agent and confirm `behind_working == 0`. Then report a compact before → after summary:
+Re-call `get_git_sync_state` for each acted agent. **Note:** the sync-state row can lag after a pull (it's a persisted cache, not live). If it still shows `behind_working > 0`, fall back to `get_git_status` to confirm the actual HEAD commit SHA and `behind: 0`. Trust `get_git_status` over `get_git_sync_state` for post-pull verification. Then report a compact before → after summary:
 
 - **Pulled to HEAD:** agent → new short SHA.
 - **Already at HEAD:** count / list.
@@ -157,7 +188,9 @@ Re-call `get_git_sync_state` for each acted agent and confirm `behind_working ==
 |---|---|
 | `fleet/system-map.yaml` missing or stale | Invoke `/discover-agents` to (re)build it, then re-read. |
 | `get_git_*` permission denied for an agent | Insufficient key scope — skip, list under "permission-skipped", continue. |
-| `clean` returns 409 unstaged changes | Expected on a dirty tree (clean = rebase). Escalate to `stash_reapply`. |
+| `clean` returns 409 "unstaged changes" | Expected on a dirty tree (clean = rebase). Escalate to `stash_reapply`. |
+| `clean` returns 409 "unmerged files" | Pre-existing conflict state — `stash_reapply` also fails. Go directly to Step 6: call `get_git_status` to identify conflicted paths; non-trivial files → flag for human, do not auto-resolve. |
+| `clean` returns 400 "Could not access submodule" | `git pull --rebase` tries to fetch submodules and fails when a submodule is unmounted. MCP `git_pull` has no `--no-recurse-submodules` option. Flag as needs-attention; suggest the agent run `git pull --no-recurse-submodules origin main` directly via `chat_with_agent` Bash. Do not retry with `stash_reapply` (same underlying fetch fails). |
 | `stash_reapply` success **with** "Could not reapply local changes" | Stash pop conflicted; go to conflict handling. Local work is in the stash — do not drop it. |
 | Real merge conflict on non-trivial files | STOP for that agent; report conflicted paths; leave the stash intact for the human. |
 | `chat_with_agent` returns `queued_timeout` | The task is still running — poll `get_execution_result(execution_id)`; do NOT re-send (duplicate-guard will kill it). |
