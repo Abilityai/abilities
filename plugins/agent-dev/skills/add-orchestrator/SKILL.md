@@ -4,10 +4,11 @@ description: Make any agent a system-aware orchestrator — installs /discover-a
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.20"
+  version: "1.21"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.21: allowed-tools↔body drift fixes (issue #7) — /discover-agents v1.8 adds mcp__trinity__report to its grant (the Step 7 fleet_scan report was in the body but ungranted, silently never publishing under enforcement); /orchestrate v1.14 drops the three vestigial schedule tools (create/delete/list_agent_schedule) the v1.7 watchdog stopped using. Both are grant-vs-body hygiene, no behaviour change"
     - "1.20: orchestrate template 1.13 — dispatch is a one-line playbook call resolved from the target's live get_agent_skills catalog (fleet convention protocols/playbook-call.md); prose briefs are the recorded exception"
     - "1.19: Platform caveat rewritten for ent#89 (materialized at creation, disabled unless a literal YAML true, max 20, deduped by name, never re-applied on recreate) and the steward entry now scaffolds enabled: false so a template-derived agent cannot silently inherit an armed unattended sweep. Dropped the non-schema `id:` key in favour of `name:` as the identity key. Steward cadence no longer claims 'server-local time' — schedules and the container clock are both UTC (#1795), and legacy IANA aliases now 500 on create (#1823). Bundled /orchestrate → v1.12 (rooms + A2A routing)"
     - "1.18: Bundled /orchestrate v1.11 — event-choreography layer for standing 'whenever X happens, have Y react' asks (fourth routing pattern next to Single/Fan-out/Chain): custom domain events via emit_event alongside the #1578 backend terminals, subscriptions wired SELF-SERVICE (subscribe_to_event always subscribes the caller — the orchestrator dispatches the setup task to the subscriber, never subscribes on-behalf), edges recorded in orchestration.md §6, and four unenforced design rules (exact-triple match/no wildcards; no loop guard outside agent.task.* — custom event graphs must stay acyclic; wakes reach only running subscribers, at-most-once/no replay; interpolated payloads are a cross-agent injection surface). Allowed-tools catches up: event tools + the set_reminder/cancel_reminder the v1.7 watchdog already instructed"

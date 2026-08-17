@@ -1,13 +1,14 @@
 ---
 name: discover-agents
 description: Discover the fleet — from live Trinity (list_agents), a curated repo list (local paths + github:Org/repo), or both — scan each source repo for Trinity specs (template.yaml, system.yaml, projects/*/pipeline.yaml), cross-reference repo-first, and assemble a descriptive fleet/system-map.yaml — the system-aware list. Read-only; works on any agent or fleet.
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_info, mcp__trinity__get_agent_tags, mcp__trinity__list_tags
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_info, mcp__trinity__get_agent_tags, mcp__trinity__list_tags, mcp__trinity__report
 user-invocable: true
 metadata:
-  version: "1.7"
+  version: "1.8"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.8: allowed-tools gains mcp__trinity__report — the Step 7 fleet_scan report call was already in the body but absent from the grant, so under tool-enforcement the report silently never published (the guard swallowed the tool-not-found error). Grant now matches the body; no behaviour change where the tool was already permitted"
     - "1.7: Canon coverage in the report — when at least one map node declares canon:, also count the mapped agents WITHOUT a declaration (N/M enrolled) so enrollment gaps surface on every scan; the fix is /add-canon's fleet-enrollment step on the orchestrator"
     - "1.6: Scan each agent's x-canon: declaration (the shared canonical-data layer installed by /add-canon) into a canon: field per map node — {repo, folder} — so /orchestrate can serve authoritative-data reads from the canon repo instead of a chat turn; cheap drift check when this orchestrator holds a clone of the same canon repo (declared folder missing ⇒ notes: flag); report gains a canon: line"
     - "1.5: Discovery source is now asked up front (new Step 0) — when Trinity MCP is connected, choose between the live Trinity fleet (Recommended default; roster from list_agents, each live agent's own source repo fetched for spec enrichment, sources.yaml not required), the local sources.yaml repo scan (the 1.4 behavior — the only source that surfaces catalog-only agents), or both (union); live agents absent from sources.yaml — previously invisible — now land as live-only map entries (match: live) in trinity/both runs, and local runs count them in the report instead of dropping them silently; Trinity absent → local mode automatically, no question; map header gains discovery_source:"
