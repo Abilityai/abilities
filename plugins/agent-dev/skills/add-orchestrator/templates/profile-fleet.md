@@ -3,14 +3,17 @@ name: profile-fleet
 description: Interview and introspect each fleet agent on Trinity — what it does, its skills, workflows/pipelines, responsibilities, and who it collaborates with — then reconcile self-reported answers against declared config and correct the fleet/orchestration.md narrative. Scope comes from the orchestration narrative (fleet/system-map.yaml + fleet/orchestration.md).
 when_to_use: When the orchestration picture is stale or thin and you want an accurate, reality-checked account of what each fleet agent actually does — "interview the agents", "profile the fleet", "what do these agents really do", "make orchestration.md correct" — before an orchestration redesign or onboarding. Interviews spend agent compute; narrative edits go through an approval gate.
 automation: gated
-allowed-tools: Read, Grep, Write, Edit, Bash, Skill, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result, mcp__trinity__get_agent_info, mcp__trinity__get_agent_skills, mcp__trinity__list_agent_schedules, mcp__trinity__list_agent_pipelines, mcp__trinity__get_agent_pipeline_state, mcp__trinity__get_agent_tags, mcp__trinity__get_agent_activity_summary
+argument-hint: "[--autonomous] [--depth quick|standard|deep] [agent ...]"
+allowed-tools: Read, Grep, Write, Edit, Bash, Skill, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result, mcp__trinity__get_agent_info, mcp__trinity__get_agent_skills, mcp__trinity__list_agent_schedules, mcp__trinity__list_agent_pipelines, mcp__trinity__get_agent_pipeline_state, mcp__trinity__get_agent_tags, mcp__trinity__get_agent_activity_summary, mcp__trinity__get_schedule_executions
 effort: high
 user-invocable: true
 metadata:
-  version: "1.4"
+  version: "1.6"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.6: `--autonomous` run mode (new Run modes section) — back-ported from the production orchestrator (issue #5). Both approval gates become conditional: in autonomous mode this skill never calls AskUserQuestion (a gate reached on an unattended cron burns the whole timeout with nothing committed — the live failure mode #6 describes), never edits orchestration.md, queues corrections to a `corrections_pending:` list in its own `.claude/skills/profile-fleet/status.yaml` (the handoff convention /fleet-reconcile already globs), and makes one dossier-scoped commit. Universalized from corbin's copy: the corbin-specific `fleet-gap-analysis/status.yaml` path and the Step 0 workspace-refresh scaffolding are dropped. The bundle-wide convention this instantiates is tracked in issue #6"
+    - "1.5: Autonomy-toggle cross-check in Step 3 — an agent with enabled schedules but `autonomy_enabled: false` will NEVER fire them (`next_run_at` silently advances); flag the mismatch as a finding instead of interviewing around a mystery (root-caused 2026-07-28 on a production finance agent)"
     - "1.4: Ownership-matrix drift — when §3b exists, note mismatches between its R/C/I rows and interview reality (no live R, overlapping claims, a C never consulted) as observations for the human; informational, rows edited only through the same diff gate"
     - "1.3: Internalize field lessons from the production orchestrator's copy — §3 role corrections go into the adjacent §3a prose subsection, never the GENERATED roster table (learned on its first live run); upgrade specifically the proposed/hypothesized §4 edges; route edge-vs-reality drift to /align-agent-permissions when installed"
     - "1.2: Point to /fleet-reconcile as the cheap sibling — folding already-verified deltas into the narrative without new interviews; this playbook is the evidence generator"
@@ -54,6 +57,30 @@ ultrathink — the value is in the reconciliation, not the transcription. Distin
 - `/discover-agents` — rebuilds `fleet/system-map.yaml` from repo specs + live Trinity. Invoked only when the map is missing or stale; this playbook otherwise **reads** it.
 - `/sync-fleet-to-head` — recommended pre-step (not auto-invoked) so profiles reflect current HEAD.
 
+## Run modes
+
+Two modes. The mode comes from `$ARGUMENTS` — never from prose in a caller's message.
+
+| mode | trigger | approval gates | narrative edits |
+|---|---|---|---|
+| **interactive** *(default)* | `/profile-fleet` | Gate 1 (scope/depth) + Gate 2 (narrative diff) | applied to `fleet/orchestration.md` after Gate 2 |
+| **autonomous** | `/profile-fleet --autonomous` | none — never calls `AskUserQuestion` | **never** — corrections queue for `/fleet-reconcile` |
+
+`--depth quick|standard|deep` sets depth without asking (default `standard`). Bare agent names restrict scope to that subset.
+
+### Autonomous mode contract
+
+When `--autonomous` is present, all six apply. Nobody is on the other end of a prompt, so a gate reached is a run burned — the full timeout, nothing committed. That is precisely how a gated skill on an unattended cron fails; do not reproduce it here (issue #6).
+
+1. **Never call `AskUserQuestion`.** Gate 1 is skipped: scope = the full in-scope list, depth = `--depth` or `standard`. Gate 2 is skipped, see (2).
+2. **Never edit `fleet/orchestration.md`.** Append each proposed narrative correction as a plain-text line to a `corrections_pending:` list in this skill's own `.claude/skills/profile-fleet/status.yaml` — the machine-readable handoff queue the gated `/fleet-reconcile` consumes (it globs `.claude/skills/*/status.yaml` for exactly this convention) — and list them in the run result.
+3. **Do write the dossiers** in `fleet/agent-profiles/` (point-in-time evidence, not gated). Then make ONE scoped commit of only `fleet/agent-profiles/` plus the `status.yaml` `corrections_pending` change, message `fleet: weekly profile refresh (YYYY-MM-DD)`, and push `origin main`.
+4. **Interviews stay read-only:** `chat_with_agent` questions only (`parallel=true`). Never trigger a schedule, never modify another agent.
+5. **Time budget: hard.** Bound the run to its timeout (a typical fleet-profile cron uses ~60 minutes). Interview in parallel batches. If the budget is nearly spent, STOP profiling, commit the dossiers finished so far, and list the unprofiled agents in the result so the next run starts with them. Never leave a run uncommitted. No retries of expensive interviews — an unreachable agent is marked unprofiled in its dossier header and skipped.
+6. **Report:** agents profiled/skipped, material drift found, corrections queued for `/fleet-reconcile`, commit hash.
+
+This is the per-skill instance of a bundle-wide `--autonomous` convention (issue #6).
+
 ## Process
 
 ### Step 1: Load scope from the narrative
@@ -64,7 +91,9 @@ ultrathink — the value is in the reconciliation, not the transcription. Distin
 
 The set of `trinity_name` values in the narrative is the **in-scope list**. Agents live on Trinity but absent from the narrative are reported as out-of-scope (candidates for `/discover-agents`), not profiled.
 
-### Step 2: Confirm scope & depth — [APPROVAL GATE 1]
+### Step 2: Confirm scope & depth — [APPROVAL GATE 1 — interactive mode only]
+
+**Autonomous mode: skip this step entirely.** Scope = the full in-scope list from Step 1, depth = `--depth` or `standard`. Log the resolved scope and depth, then go to Step 3.
 
 `list_agents`, join to the in-scope list, and present:
 - Agents to profile (and any out-of-scope / not-running ones that will be skipped).
@@ -86,6 +115,8 @@ For each in-scope, running agent gather the **declared** truth (no LLM turn, run
 - `list_agent_pipelines` / `get_agent_pipeline_state` — long-running pipelines it runs. **Not every Trinity build ships these two tools** — if they're absent from the MCP server, don't fail the introspection: fall back to the `pipelines:` field on the agent's `system-map.yaml` node (scanned from its repo's `projects/*/pipeline.yaml` by `/discover-agents`), read the shared `~/.trinity/pipeline-state/<pipeline_id>/` surface if it's visible from here, and lean on interview Q3 — marking those pipeline facts as declared-from-repo / interview-sourced rather than live-verified.
 - `get_agent_tags` — declared capabilities/tags.
 - `get_agent_activity_summary` — what it has actually been doing lately.
+
+**Autonomy cross-check (do this mechanically):** from `list_agents`, note each agent's `autonomy_enabled`. Schedules only execute when autonomy is ON — with it off, `next_run_at` silently advances and nothing runs. Any agent showing enabled schedules + `autonomy_enabled: false` has a guaranteed silent no-op: flag it as a finding immediately (verify with `get_schedule_executions` — schedule-triggered vs `__manual__`), don't wait for the interview to explain the mystery.
 
 This is the yardstick the interview is checked against.
 
@@ -124,13 +155,17 @@ Then draft **prose** edits to `orchestration.md`:
 
 Never write inside a `<!-- BEGIN GENERATED -->` block; if a whole section is generated, leave it and note the gap.
 
-### Step 6: Review the narrative diff — [APPROVAL GATE 2]
+### Step 6: Review the narrative diff — [APPROVAL GATE 2 — interactive mode only]
+
+**Autonomous mode: skip this step entirely.** Do not edit `fleet/orchestration.md`. Append every proposed correction to a `corrections_pending:` list in `.claude/skills/profile-fleet/status.yaml` instead (Run modes item 2), then go to the Final Step.
 
 Present the proposed `orchestration.md` changes section-by-section, each change tagged with its class (Confirmed/Corrected/New/…) and evidence source. Surface contradictions and aspirational items explicitly. Wait for approval; apply all/some/none per the user's call.
 
 ### Final Step: Apply and report
 
-Apply approved edits to `fleet/orchestration.md` (prose only). Report:
+**Autonomous mode:** write/refresh the dossiers, append the corrections to `corrections_pending` in `.claude/skills/profile-fleet/status.yaml`, then make the single scoped commit of `fleet/agent-profiles/` + `status.yaml` and push `origin main` (Run modes item 3). Report per Run modes item 6 and stop — `fleet/orchestration.md` is untouched.
+
+**Interactive mode:** apply approved edits to `fleet/orchestration.md` (prose only). Report:
 - Sections changed; counts by class (corrected N, new N, contradictions N, aspirational N, gone N).
 - Agents profiled vs skipped (not running / out-of-scope / permission).
 - Where dossiers were written (`fleet/agent-profiles/`).
@@ -139,13 +174,13 @@ Apply approved edits to `fleet/orchestration.md` (prose only). Report:
 ## Completion Checklist
 
 - [ ] Scope taken from `fleet/system-map.yaml` / `orchestration.md`, not a raw `list_agents` sweep.
-- [ ] Depth confirmed at Gate 1 before spending agent compute.
+- [ ] Depth confirmed at Gate 1 before spending agent compute *(interactive)*, or resolved from `--depth`/default and logged *(autonomous)*.
 - [ ] Declared facts (skills/schedules/pipelines/tags/activity) gathered for every profiled agent.
 - [ ] Interview answers cross-checked against declared facts; contradictions flagged, not smoothed.
 - [ ] Aspirational claims separated from working reality.
 - [ ] Per-agent dossiers written to `fleet/agent-profiles/` (checkpoint + evidence).
 - [ ] Only prose sections edited; no `<!-- GENERATED -->` block touched.
-- [ ] Diff reviewed at Gate 2 before writing `orchestration.md`.
+- [ ] Diff reviewed at Gate 2 before writing `orchestration.md` *(interactive)*, or corrections queued to `corrections_pending` with `orchestration.md` untouched and one scoped dossier commit pushed *(autonomous)*.
 - [ ] "Last reviewed" date updated; downstream steps noted.
 
 ## Error Recovery
