@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.9"
+  version: "1.10"
   created: 2026-04-13
   updated: 2026-07-29
   author: Ability.ai
   changelog:
+    - "1.10: Conform to the playbook-call grammar (`protocols/playbook-call.md`, abilities#15): the two generated schedule entries now carry playbook calls (`/coherence-sweep`, `/refresh-index`) instead of prose restating what those playbooks do. A prose message is a second copy of the playbook's procedure living in an unversioned scheduler field, free to drift from the SKILL.md that owns it; it also names no playbook, so the /audit-wizards autonomy-mode gate cannot see a gated skill scheduled that way"
     - "1.9: Generated CLAUDE.md Guidelines gain the playbook-call rule — the agent packages procedures as playbooks and exchanges work with other agents only via one-line `/playbook [args]` calls, never prose delegation (fleet convention protocols/playbook-call.md, operator direction 2026-08-16)"
     - "1.8: Platform-truth refresh (Trinity dev 88a4e2f7) — report payload cap corrected 256 KB → 5 MiB (object only), display_hint gains `json` and now drives the customer-facing Workspace Reports tab, and list_reports/get_report are taught as read-before-write. template.yaml scaffold gains credentials: + credential_setup: (ent#128/#127; gate T-015). schedules: block documents the ent#89 contract — materialized at creation, max 20, deduped by name, armed only by a literal YAML true, never re-applied on recreate, and gated again by agent autonomy (OFF on new agents); dropped the non-schema id: key and moved timezone off America/New_York to UTC (#1795, and legacy IANA aliases now 500, #1823). .gitignore gains .claude/settings.json + .trinity/* (trinity#2036/#1936)"
     - "1.7: Repository-first deployment — the GitHub-repo step is framed as the deploy path (Trinity clones the repo and tracks the branch; skipping means an upload-only deploy with no reproducible source), and the deploy offer now states what /trinity:onboard actually does: create_agent(template: github:owner/repo@branch) when a remote exists — schedules materialized at creation, updates via git push + git_pull — falling back to a local-file deploy that offers promotion onto the repo path"
@@ -1297,13 +1298,13 @@ schedules:
   - name: Weekly KB coherence check
     cron: "0 3 * * 1"
     timezone: UTC
-    message: "Run a coherence pass over the knowledge graph — detect contradictions, orphaned nodes, and stale entries; report proposed fixes."
+    message: "/coherence-sweep"
     purpose: Keep the knowledge base coherent
     enabled: false
   - name: Daily ingest sweep
     cron: "0 6 * * *"
     timezone: UTC
-    message: "Ingest any new source documents into the knowledge base and update the graph."
+    message: "/refresh-index"
     purpose: Incremental ingestion
     enabled: false
 ```
