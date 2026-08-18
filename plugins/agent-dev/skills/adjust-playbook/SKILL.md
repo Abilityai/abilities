@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[playbook-name] [what to change] [--archive]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.11"
+  version: "1.12"
   created: 2025-02-10
-  updated: 2026-08-03
+  updated: 2026-08-18
   author: Ability.ai
   changelog:
+    - "1.12: Platform-truth refresh (Trinity v0.9.0, tag 93d7ce7c) — headless-fitness checklist + fork note distinguish background shell jobs (still killed at turn-end) from background subagents/forks (waited for since trinity#2127, bounded by execution timeout + 300s idle-finalize); `background: false` stays the rule, now for the right reason"
     - "1.11: Add the Make-Callable-by-Other-Agents adjustment (Playbook-Call Rule, fleet convention protocols/playbook-call.md, operator direction 2026-08-16) — one-line invocability, declared args incl. --run <id>, runs-only-itself when called by another agent; no I/O schema"
     - "1.10: Schedule note corrected for ent#89 — Trinity materializes template.yaml schedules: at agent creation (disabled unless a literal YAML true, max 20, deduped by name, never re-applied on recreate), and firing also needs the agent's autonomy gate; /trinity:onboard and /trinity:sync remain the reconcile path for a live instance"
     - "1.9: Trinity-first docs refresh (verified vs Claude Code 2.1.220) — new Change Invocation & Context Controls adjustment (context: fork / agent / background, paths, user-invocable, disable-model-invocation, disallowed-tools) with two guards: disable-model-invocation: true breaks a scheduled playbook (the scheduler's message reaches the skill via model invocation), and a headless-bound context: fork without background: false loses the fork at turn-end (forks background by default since 2.1.218); autonomous validation checklist gains matching scheduled-invocation + foreground-fork lines; Routines advisory replaced with the Trinity scheduling path (schedule: → template.yaml → create_agent_schedule, message invokes by slash name, timeout ≤ agent cap); Step 1 also scans plugins/*/skills/; model override notes model: inherit"
@@ -291,12 +292,12 @@ Autonomous playbooks run unattended — there is no human to approve gates. Befo
 - [ ] **Complete error handling** — all failure paths handled without human intervention
 - [ ] **Notifications on failure** — errors must alert via Slack, email, or logging
 - [ ] **Under 45 minutes** — execution time within agent reliability window
-- [ ] **No in-turn job over ~10 min** — a headless run can't host a job past the ~10-min sync Bash ceiling (auto-backgrounded, then reaped at turn-end); anything longer (index rebuild, bulk embedding, big migration) is decoupled to an OS-level cron/systemd/sidecar + done-marker, and the run only triggers + verifies the artifact moved (never off an exit code / `business_status`)
+- [ ] **No in-turn job over ~10 min** — a headless run can't host a job past the ~10-min sync Bash ceiling (auto-backgrounded, then killed at turn-end — background *subagents* are waited for since Trinity v0.9.0/trinity#2127, background *shell jobs* never are); anything longer (index rebuild, bulk embedding, big migration) is decoupled to an OS-level cron/systemd/sidecar + done-marker, and the run only triggers + verifies the artifact moved (never off an exit code / `business_status`)
 - [ ] **Idempotent or safe to retry** — can re-run without causing duplicate effects
 - [ ] **Single-task scope** — processes one task type per invocation; iteration over varied items happens across invocations, not within one
 - [ ] **Composed children are autonomous-safe** — autonomy is transitive: recurse into every `/invoked` skill; none may contain `[APPROVAL GATE]` or human decision points, and the whole tree must fit the 45-minute / single-task budget
 - [ ] **Invocable when scheduled** — `disable-model-invocation` is false/absent, and the schedule message invokes the skill by slash name — a natural-language message reaches the skill via model invocation, which `disable-model-invocation: true` blocks
-- [ ] **No background forks** — the skill and every composed child using `context: fork` sets `background: false` — a background fork is reaped at turn-end in a headless run
+- [ ] **No background forks** — the skill and every composed child using `context: fork` sets `background: false` — deterministic on every image; a background fork was reaped at turn-end before Trinity v0.9.0 (trinity#2127) and is still bounded by the execution timeout + 300s idle-finalize after it
 
 > **How schedules go live (Trinity):** the `schedule:` field is the durable declaration — it feeds the agent's `template.yaml` `schedules:` block. Since ent#89 Trinity **does** materialize that block at **agent creation** — but every entry lands **disabled unless it declares a literal YAML `enabled: true`** (a non-boolean is treated as false), at most **20** entries are materialized, names are deduped against the agent's existing schedules, `timezone:` defaults to `UTC`, and the block is **never re-applied on recreate**. Firing also requires the agent's **autonomy gate**, which is OFF on every new agent. `/trinity:onboard` / `/trinity:sync` are still what reconcile the block onto an already-live instance. The schedule's `message` must invoke the skill by its slash name, and its `timeout_seconds` must fit the agent's execution cap (default 3600s). The skill must also work when invoked manually — Trinity is the upgrade, never the gate.
 
@@ -395,7 +396,7 @@ background: false              # wait for the fork's result in-turn (forks backg
 Two guards before applying:
 
 - **⚠️ `disable-model-invocation: true` on a scheduled playbook breaks the schedule** — the scheduler's natural-language message reaches the skill via model invocation. If `automation:`/`schedule:` indicate a scheduled skill, refuse and explain (see create-playbook's Scheduled-Invocation Rule).
-- **⚠️ `context: fork` without `background: false` on a headless-bound skill loses the fork** — forks run in the background by default, and turn-end reaps them in a headless run. Require `background: false` (or no fork) for anything scheduled or composed by a scheduled playbook.
+- **⚠️ `context: fork` without `background: false` on a headless-bound skill risks the fork** — forks run in the background by default; before Trinity v0.9.0 (trinity#2127) turn-end reaped them in a headless run, and on v0.9.0+ the wait is bounded by the execution timeout + 300s idle-finalize. Require `background: false` (or no fork) for anything scheduled or composed by a scheduled playbook.
 
 ### Replace Inlined Logic with a Skill Call (Compose)
 

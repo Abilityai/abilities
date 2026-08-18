@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.10"
+  version: "1.11"
   created: 2026-04-01
-  updated: 2026-07-29
+  updated: 2026-08-18
   author: Ability.ai
   changelog:
+    - "1.11: Platform-truth refresh (Trinity v0.9.0, tag 93d7ce7c) — .mcp.json.template rule added: an http/sse server url must resolve to a public address (loopback/private/link-local/CGNAT 100.64/10 = Tailscale refused with 400, no override — trinity-enterprise#394); the report guard in the generated CLAUDE.md also swallows the `requires an agent-scoped API key` refusal a user/admin-key session gets (mcp-server reports.ts)"
     - "1.10: template.yaml scaffold now declares `plugins:` (trinity#1704 / ent#411) — marketplaces + installed (agent-dev@abilityai, trinity@abilityai) — so the DEPLOYED agent gets its plugins headlessly on every container boot instead of depending on a human running /plugin install; the local install step stays (that is your own session), the declaration is what makes it portable"
     - "1.9: Generated CLAUDE.md Guidelines gain the playbook-call rule — the agent packages procedures as playbooks and exchanges work with other agents only via one-line `/playbook [args]` calls, never prose delegation (fleet convention protocols/playbook-call.md, operator direction 2026-08-16)"
     - "1.8: Platform-truth refresh (Trinity dev 88a4e2f7) — report payload cap corrected 256 KB → 5 MiB (object only), display_hint gains `json` and now drives the customer-facing Workspace Reports tab, and list_reports/get_report are taught as read-before-write. template.yaml scaffold gains credentials: + credential_setup: (ent#128/#127; gate T-015). schedules: block documents the ent#89 contract — materialized at creation, max 20, deduped by name, armed only by a literal YAML true, never re-applied on recreate, and gated again by agent autonomy (OFF on new agents); dropped the non-schema id: key and moved timezone off America/New_York to UTC (#1795, and legacy IANA aliases now 500, #1823). .gitignore gains .claude/settings.json + .trinity/* (trinity#2036/#1936) Its .mcp.json.template no longer ships a hand-written `trinity` entry (the platform injects and overwrites its own) and TRINITY_URL/TRINITY_API_KEY are gone from .env.example (read only by the retired CLI); report_type documents the ^[a-z0-9_]+(\\.[a-z0-9_]+)+$ rule — a hyphenated agent name 422s."
@@ -209,7 +210,7 @@ Once deployed, publish **structured reports** so an operator can see what you pr
 - **`title`:** one short line (≤300 chars). **`payload`:** a JSON **object** (≤5 MiB serialized — a top-level array or scalar is rejected).
 - **`display_hint`:** `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), `json` (raw), or omit to let Trinity infer from `report_type`. Pick deliberately — the customer-facing Workspace Reports tab renders through these same renderers, so a mismatched hint is visible to users.
 - **Read before you write:** call `mcp__trinity__list_reports` first (metadata only — filters `report_type`, `hours` ∈ {0,1,6,24,168,720}, `search`) to avoid duplicating or contradicting a report you already filed, then `mcp__trinity__get_report` with an id to diff this period against the last.
-- **Guard the call:** the tool exists only when running on Trinity (it publishes under this agent's own key). If `mcp__trinity__report` isn't available — e.g. running locally — skip it silently. **Trinity is an upgrade, not a requirement.**
+- **Guard the call:** the tool publishes under this agent's own **agent-scoped** key. If `mcp__trinity__report` isn't available — e.g. running locally — or it refuses with `The report tool requires an agent-scoped API key` (a session connected with a user/admin key sees the tool but cannot report), skip it silently and never retry. **Trinity is an upgrade, not a requirement.**
 
 Reports complement `dashboard.yaml`: the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only* history of what the agent accomplished.
 
@@ -1122,7 +1123,7 @@ If the agent has no MCP servers of its own, write exactly:
 }
 ```
 
-Otherwise declare them like this — note that `${VAR}` is substituted **inside `env` blocks only**. A placeholder in `command`, `url`, or `args` makes Trinity **withhold the whole server** at startup with a named reason in the log, and `command` must be an allowlisted literal (`npx`, `uvx`, `python`, `python3`, `node`, `bun`, `deno`, `docker`):
+Otherwise declare them like this — note that `${VAR}` is substituted **inside `env` blocks only**. A placeholder in `command`, `url`, or `args` makes Trinity **withhold the whole server** at startup with a named reason in the log, `command` must be an allowlisted literal (`npx`, `uvx`, `python`, `python3`, `node`, `bun`, `deno`, `docker`), and an `http`/`sse` server's `url` must resolve to a **public** address — loopback, private, link-local and CGNAT `100.64.0.0/10` (Tailscale) are refused with a 400, no override (trinity-enterprise#394; run a private server as `stdio` inside the container instead):
 
 ```json
 {

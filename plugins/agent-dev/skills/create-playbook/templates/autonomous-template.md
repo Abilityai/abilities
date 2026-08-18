@@ -60,7 +60,7 @@ it and verifies the artifact moved (mtime advanced AND count > 0), never trustin
 
 ### Final Step: Report (guarded)
 
-If the `mcp__trinity__report` tool is available, publish the run's result — `report_type: "[agent].[result]"` (lower_snake), a short `title`, a JSON `payload`, and a `display_hint` (`table` / `kpi` / `markdown` / `timeline`). If the tool is absent (running locally), skip silently — reporting is an upgrade, never a gate.
+If the `mcp__trinity__report` tool is available, publish the run's result — `report_type: "[agent].[result]"` (lower_snake), a short `title`, a JSON `payload`, and a `display_hint` (`table` / `kpi` / `markdown` / `timeline`). If the tool is absent (running locally) — or it refuses with `requires an agent-scoped API key` (a user/admin-key session) — skip silently, never retry; reporting is an upgrade, never a gate.
 
 ## Completion Checklist
 

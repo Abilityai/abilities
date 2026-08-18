@@ -5,10 +5,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Glob, Bash, AskUserQuestion
 metadata:
-  version: "1.1.2"
+  version: "1.1.3"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.1.3: Report guard also swallows the `requires an agent-scoped API key` refusal (Trinity mcp-server reports.ts, in v0.9.0) — a user/admin-key session sees mcp__trinity__report but cannot publish; skip silently, never retry"
     - "1.1.2: The generated /update-dashboard is built to run on cron, so it ships disable-model-invocation: false — true made it unreachable to the scheduler. Scheduling instructions replaced: /trinity-schedules is retired, so declare the cron in template.yaml schedules: and reconcile, with the ent#89 literal-true rule and the autonomy gate both called out"
     - "1.1.1: Note that reports are a rolling history — pruned past agent_reports_retention_days (default 90 days), not a permanent archive"
     - "1.1: Generated /update-dashboard now also emits a guarded {agent}.kpi_snapshot report (display_hint kpi) after writing the dashboard — the same headline numbers accumulate as an append-only history on the Reports tab alongside the live snapshot; skipped silently off-Trinity"
@@ -222,7 +223,7 @@ If the `mcp__trinity__report` tool is available (i.e. running on Trinity), also 
 - `display_hint`: `kpi`
 - `payload`: `{ "tiles": [ {"label": "...", "value": "...", "unit": "..."} ] }`, built from the same values you just wrote to the dashboard.
 
-Skip this step **silently** if the tool isn't available — the dashboard refresh above still succeeds. Reporting is an upgrade, not a requirement.
+Skip this step **silently** if the tool isn't available — or if it refuses with `The report tool requires an agent-scoped API key` (a session connected with a user/admin key sees the tool but cannot report; never retry) — the dashboard refresh above still succeeds. Reporting is an upgrade, not a requirement.
 
 ---
 
