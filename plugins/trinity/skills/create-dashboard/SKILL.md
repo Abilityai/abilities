@@ -5,10 +5,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Glob, Bash, AskUserQuestion
 metadata:
-  version: "1.1.3"
+  version: "1.2"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.2: Chart widget templates removed — `type: chart` never existed in Trinity (the agent-server validator strips it, the frontend has no renderer); trend lines come from the platform's Dynamic Dashboards enrichment instead: metric/progress widgets get auto-captured history + sparklines, keyed by a stable `id:` field (now taught). Added markdown widget template and a no-YAML-anchors caution (hardened loader rejects aliases, trinity#1965)"
     - "1.1.3: Report guard also swallows the `requires an agent-scoped API key` refusal (Trinity mcp-server reports.ts, in v0.9.0) — a user/admin-key session sees mcp__trinity__report but cannot publish; skip silently, never retry"
     - "1.1.2: The generated /update-dashboard is built to run on cron, so it ships disable-model-invocation: false — true made it unreachable to the scheduler. Scheduling instructions replaced: /trinity-schedules is retired, so declare the cron in template.yaml schedules: and reconcile, with the ent#89 literal-true rule and the autonomy gate both called out"
     - "1.1.1: Note that reports are a rolling history — pruned past agent_reports_retention_days (default 90 days), not a permanent archive"
@@ -244,6 +245,7 @@ When generating the skill, use these widget templates:
 ### metric
 ```yaml
 - type: metric
+  id: {stable_snake_case_id}   # keeps platform-tracked history attached to this widget
   label: "{label}"
   value: {extracted_value}
   trend: up|down
@@ -261,6 +263,7 @@ When generating the skill, use these widget templates:
 ### progress
 ```yaml
 - type: progress
+  id: {stable_snake_case_id}   # keeps platform-tracked history attached to this widget
   label: "{label}"
   value: {percentage}
   color: green|yellow|red
@@ -286,30 +289,12 @@ When generating the skill, use these widget templates:
   max_rows: 10
 ```
 
-### chart (line/bar/area)
+### markdown
 ```yaml
-- type: chart
-  chart_type: line|bar|area
-  title: "{title}"
-  height: 200
-  x_label: "X Axis"
-  y_label: "Y Axis"
-  legend: true
-  series:
-    - label: "{series_name}"
-      color: blue
-      data: [{x: "label1", y: 10}, {x: "label2", y: 20}]
-```
-
-### chart (pie/donut)
-```yaml
-- type: chart
-  chart_type: pie|donut
-  title: "{title}"
-  height: 200
-  segments:
-    - { label: "Category A", value: 45, color: blue }
-    - { label: "Category B", value: 30, color: green }
+- type: markdown
+  content: |
+    **{heading}**
+    {markdown_body}
 ```
 
 ### link
@@ -322,11 +307,16 @@ When generating the skill, use these widget templates:
 
 **Colors:** green, red, yellow, gray, blue, orange, purple
 
+**Valid widget types** (anything else is stripped by the agent-server validator): `metric`, `status`, `progress`, `text`, `markdown`, `table`, `list`, `link`, `image`, `divider`, `spacer`. There is **no `chart` type** — do not generate one.
+
+**Trends & sparklines come from the platform, not the YAML:** Trinity's Dynamic Dashboards layer captures each metric/progress widget's value on every dashboard fetch and renders a sparkline + computed trend automatically once history accumulates. History is keyed by the widget's `id:` field (fallback is the widget's position, so reordering or inserting widgets orphans history) — always give metric and progress widgets a stable `id`. A hand-set `trend:`/`trend_value:` overrides the computed one; omit them to let the platform calculate.
+
 **Layout notes:**
 - Use `layout: list` (not `layout: single`)
 - Grid layouts support `columns: 1` to `columns: 4` max
 - Use `content` for text widgets (not `text` or `value`)
 - Use `items` for list widgets (not `values` or `list`)
+- Never emit YAML anchors/aliases (`&`/`*`) — Trinity's hardened YAML loader rejects them (trinity#1965) and the whole dashboard fails to parse
 
 ---
 
