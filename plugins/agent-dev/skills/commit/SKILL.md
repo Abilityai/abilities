@@ -5,10 +5,11 @@ argument-hint: "[issue-number]"
 allowed-tools: Bash, Read
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-04-28
   author: Ability.ai
   changelog:
+    - "1.1: Checkpoint fallback — with no in-progress issue and no issue argument, commit the changed agent-state files as a plain checkpoint (message from the diff, no issue close) instead of stopping. Lets the one library-wide /commit serve both the issue-driven workflow and a plain save"
     - "1.0: Initial version — stages changed skill files, writes a traceability commit referencing the in-progress issue, and closes it"
 ---
 
@@ -29,7 +30,7 @@ Stage changed skill files, write a commit message tied to the in-progress issue,
 
 - `gh` CLI authenticated
 - Git repo with at least one commit (not bare)
-- Work is in-progress (a claimed issue exists)
+- Work is in-progress (a claimed issue exists) — or nothing is claimed and you just want a checkpoint commit (see Step 1)
 
 ## Process
 
@@ -42,6 +43,8 @@ gh issue list --label "status:in-progress" --state open --json number,title,body
 If an issue number was passed as `$ARGUMENTS`, use that instead.
 
 If multiple in-progress issues, ask which one this commit closes.
+
+**No in-progress issue and no argument → checkpoint mode.** Do not stop: stage the changed agent files (Step 3), compose the message from the diff (`Update agent state: <what changed>`), commit, and report the sha. Skip the issue close in Step 5. This keeps `/commit` usable as a plain save when the agent is not running the issue workflow.
 
 ### Step 2: Check for Changes
 

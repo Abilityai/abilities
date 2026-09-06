@@ -85,7 +85,7 @@ For autonomous processing of project-level issues:
 
 ### Development Workflow
 
-Installed into the agent by `/add-backlog`. The units of work are skills; issues track what needs changing and why.
+Standalone skills — usable directly as `/agent-dev:<name>`, copied into an agent by `/add-backlog`, and mirrored into the public [`trinity-skills`](https://github.com/Abilityai/trinity-skills) library (category `project-management`) so Trinity instances can assign them and receive updates automatically. The units of work are skills; issues track what needs changing and why.
 
 | Skill | Description |
 |-------|-------------|
@@ -103,6 +103,18 @@ Installed into the agent by `/add-backlog`. The units of work are skills; issues
 - `status:todo` / `status:in-progress` / `status:blocked` / `status:done`
 - `priority:p0` (do now) / `priority:p1` (do soon) / `priority:p2` (do eventually)
 - `skill:<name>` — which skill this issue affects (created dynamically by `/groom`)
+
+### Project Management (cross-actor)
+
+Standalone skills — usable directly as `/agent-dev:<name>`, copied into an agent by `/add-project-management` (which also renders `PROJECT_STANDARD.md` from the template shipped in `project-init/`), and mirrored into the `trinity-skills` library. All five read `PROJECT_STANDARD.md` as their configuration; `/project-init` materializes it from the template when it is missing, so the set works when assigned from the library without the installer.
+
+| Skill | Description |
+|-------|-------------|
+| **project-init** | Create or adopt a managed project — GitHub epic + idempotent labels + workspace stub; self-heals a missing `PROJECT_STANDARD.md` |
+| **project-task** | The only sanctioned interactive task-creation path — full task anatomy incl. Validation; `--headless` for cron/compose use |
+| **project-intake** | Headless intake primitive — route actionable items from any source into the registry, dedupe by meaning, return the issue number |
+| **project-steward** | Autonomous sweep — verify pending-verification claims, dispatch, escalate stalls, age open loops, write the digest |
+| **project-reconcile** | Projection sync — Google Tasks adapter v1 + the adapter contract for other surfaces |
 
 ### Planning
 
