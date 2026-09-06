@@ -9,7 +9,7 @@ metadata:
   created: 2026-07-30
   author: add-project-management
   changelog:
-    - "1.3: Read-the-standard guard — a missing PROJECT_STANDARD.md now stops with "run /project-init first" instead of failing on an unresolved registry; skill is now authored standalone (installer copies from here)"
+    - "1.3: Read-the-standard guard — a missing PROJECT_STANDARD.md now stops with a run-/project-init-first message instead of failing on an unresolved registry; skill is now authored standalone (installer copies from here)"
     - "1.2: Loop closure — optional waiting-on actor (label + ### Waiting on comment) puts a task parked on an outside party into the steward's aging ladder; interactive output ends with the §14a closing statement (waiting on you / next without you)"
     - "1.1: Add --headless mode — all fields as arguments, no AskUserQuestion, returns issue number; callable from /project-intake and crons"
     - "1.0: Initial version — full anatomy enforcement including Validation section (approval chain), owner/agent label distinction, epic checklist update"
