@@ -67,16 +67,8 @@ All agent creation wizards are consolidated into the **create-agent** plugin. Us
 
 | Wizard | Command | What it creates |
 |--------|---------|-----------------|
-| **prospector** | `/create-agent:prospector` | B2B SaaS sales research — company research, ICP scoring, CRM integration |
-| **chief-of-staff** | `/create-agent:chief-of-staff` | Executive assistant — daily briefings, meeting prep, decision tracking |
-| **webmaster** | `/create-agent:webmaster` | Website management — scaffolds and deploys Next.js 15 sites to Vercel |
-| **recon** | `/create-agent:recon` | Competitive intelligence — competitor tracking, market research, battlecards |
-| **receptionist** | `/create-agent:receptionist` | Email gateway — public-facing email communication and request routing |
-| **ghostwriter** | `/create-agent:ghostwriter` | Content writer — brand voice profiles, platform-specific writing |
-| **kb-agent** | `/create-agent:kb-agent` | Knowledge-base agent — Cornelius-shaped KB with local vector search |
-| **doctor** | `/create-agent:doctor` | Personal medical-records agent — ingests health documents, tracks lab trends, preps doctor visits |
+| **custom** | `/create-agent:custom` | Any agent, from an interview — role, skills, schedules, credentials, Trinity wiring |
 | **website** | `/create-agent:website` | Single website scaffold (no agent, just a site) |
-| **custom** | `/create-agent:custom` | Custom agent from scratch — you define everything |
 | **clone** | `/create-agent:clone` | Clone an existing agent repository as starting point |
 | **adjust** | `/create-agent:adjust` | Review and improve an existing agent |
 
@@ -102,16 +94,8 @@ Create new Claude Code agents with domain-specific wizards or from scratch.
 | Skill | Description |
 |-------|-------------|
 | `/create-agent:create` | Entry point — shows all available wizards |
-| `/create-agent:prospector` | B2B SaaS sales research agent |
-| `/create-agent:chief-of-staff` | Executive assistant agent |
-| `/create-agent:webmaster` | Website management agent |
-| `/create-agent:recon` | Competitive intelligence agent |
-| `/create-agent:receptionist` | Email gateway agent |
-| `/create-agent:ghostwriter` | Content writer agent |
-| `/create-agent:kb-agent` | Knowledge-base agent |
-| `/create-agent:doctor` | Personal medical-records agent |
+| `/create-agent:custom` | Interview-driven agent for any domain |
 | `/create-agent:website` | Single website (no agent) |
-| `/create-agent:custom` | Blank canvas agent |
 | `/create-agent:clone` | Clone existing agent |
 | `/create-agent:adjust` | Modify existing agent |
 
@@ -225,7 +209,7 @@ Abilities supports a four-step workflow for building agents that appreciate over
                                                         repo Trinity clones)
 ```
 
-**Scaffold** — Use a wizard like `/create-agent:prospector` or `/create-agent:custom` to get a fully configured agent with CLAUDE.md, skills, Trinity files, and an onboarding tracker.
+**Scaffold** — Use `/create-agent:custom` to get a fully configured agent with CLAUDE.md, skills, Trinity files, and an onboarding tracker.
 
 **Develop** — Use `/agent-dev:create-playbook` to add capabilities, `/agent-dev:add-memory` to add persistence, `/agent-dev:add-backlog` for task management, and `/agent-dev:add-orchestrator` to make an agent aware of — and able to drive — other agents.
 
@@ -239,13 +223,12 @@ Abilities supports a four-step workflow for building agents that appreciate over
 
 ### create-agent
 
-Consolidated plugin containing all agent creation wizards. Each wizard is a domain expert that asks the right questions and builds a fully configured, Trinity-compatible agent.
+Agent creation — the `custom` interview builds a fully configured, Trinity-compatible agent for any domain; `website` scaffolds a site. (The eight pre-built domain wizards were retired in create-agent 2.0.0, 2026-09-14 — every shape is reachable through `custom`.)
 
 ```bash
 /create-agent:create                    # Discovery — shows all wizards
-/create-agent:prospector                # B2B sales research wizard
-/create-agent:chief-of-staff            # Executive assistant wizard
-/create-agent:custom                    # Blank canvas wizard
+/create-agent:custom                    # Interview-driven agent wizard
+/create-agent:website                   # Single website scaffold
 /create-agent:adjust                    # Improve existing agent
 ```
 

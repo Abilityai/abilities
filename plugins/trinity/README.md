@@ -40,7 +40,7 @@ Run `/trinity:deploy-new-instance` to set up a Trinity instance and create an op
 - Choose cloud (ability.ai) or self-hosted (remote SSH or local Docker)
 - For fresh installs: generates secrets, configures `.env`, runs `start.sh`, verifies health
 - Handles firewall/security group guidance for AWS, GCP, Hetzner, DigitalOcean
-- Scaffolds a complete ops agent with 11 skills: `/status`, `/restart`, `/update`, `/logs`, `/agents`, `/cleanup`, `/diagnose`, `/rebuild-agent`, `/rollback`, `/telemetry`, `/provision`
+- Scaffolds a complete ops agent with 13 skills: `/status`, `/restart`, `/update`, `/logs`, `/agents`, `/cleanup`, `/diagnose`, `/rebuild-agent`, `/rollback`, `/telemetry`, `/provision`, `/migrate-to-postgres`, `/sync-ops-knowledge`
 - Works with any SSH-accessible server — provider-agnostic
 
 ### 1. Connect (One-time)
@@ -109,6 +109,7 @@ Once connected, Trinity MCP tools are available directly:
 | `mcp__trinity__create_room` | Open a shared multi-agent thread (`post_to_room`, `read_room`, `list_rooms`, `close_room`) — the substrate for several agents plus a human working one problem |
 | `mcp__trinity__call_a2a_agent` | Call an **operator-registered external A2A agent** by name (`get_a2a_task` polls the task) — default **OFF** (`A2A_OUTBOUND_ENABLED`), endpoints are admin-managed; inbound exposure is per-agent opt-in (`set_agent_a2a_exposure`, `get_agent_a2a_card`, `set_a2a_inbound_allowlist`) |
 | `mcp__trinity__ask_trinity` | Ask Trinity's own grounded documentation Q&A — the live answer channel for "how does Trinity do X" |
+| `mcp__trinity__set_canvas` | Publish/patch a live canvas the Workspace renders (`patch_canvas`, `get_canvas`, `list_canvases`, `clear_canvas`; ≤100 per agent, pinning is human-only) — the canvas skill ships in trinity-skills v0.2.0 |
 
 ### Schedules are declarative
 
@@ -130,7 +131,7 @@ A deployed agent publishes results by calling one MCP tool: **`mcp__trinity__rep
 | `display_hint` | optional | `table` (`{columns, rows}`) · `kpi` (`{tiles:[{label,value,unit?}]}`) · `markdown` (`{markdown}`) · `timeline` (`{events:[{ts,label,detail}]}`) · `json` (raw) · omit → Trinity infers from the `report_type` prefix, then falls back to the JSON viewer. Set it deliberately: the customer-facing Workspace Reports tab renders through these same renderers (trinity#2162/#2173), so a wrong hint is visible to the agent's users, not just its operator |
 | `period_start` / `period_end` | optional | ISO-8601, for reports covering a window |
 
-**Reports complement `dashboard.yaml`:** the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only history* of what the agent accomplished (rolling — pruned past `agent_reports_retention_days`, default 90 days). The convention `/create-agent` bakes into every generated agent is: **result-producing and scheduled skills end with a guarded `report` call** — guarded so it's skipped silently when the tool is absent (i.e. running locally, off Trinity). Reporting is an upgrade, never a requirement.
+**Reports complement `dashboard.yaml`:** the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only history* of what the agent accomplished (rolling — pruned past `agent_reports_retention_days`, default 90 days). The convention `/create-agent` bakes into every generated agent is: **result-producing and scheduled skills end with a guarded `report` call** — guarded so it's skipped silently when the tool is absent (running locally, off Trinity) or refuses with `The report tool requires an agent-scoped API key` (a user/admin-key session) — never retried. Reporting is an upgrade, never a requirement.
 
 ### Three execution patterns
 
@@ -139,14 +140,14 @@ Trinity exposes three ways to drive a remote agent:
 | Pattern | Tool / skill | Shape |
 |---------|--------------|-------|
 | Single turn | `mcp__trinity__chat_with_agent` | One request, one response |
-| Parallel batch | `mcp__trinity__fan_out` | The same task across many inputs at once |
+| Parallel batch | `mcp__trinity__fan_out` (+ `get_fan_out_result` after a `fan_out_timeout` receipt, trinity#2670) | The same task across many inputs at once — N tasks to one agent |
 | **Sequential loop** | **`/trinity:loop`** / `run_agent_loop` | N ordered iterations, optionally chained (`{{previous_response}}`), exits on a cap or a `[[DONE]]` stop signal |
 
 `/trinity:loop` is the **remote** counterpart to Claude Code's built-in `/loop`: same two modes (fixed count vs run-until-a-signal), but the loop body runs server-side, so you fire once and disconnect.
 
 ## Long-running jobs cannot live inside a headless run
 
-A **scheduled/headless** execution is a single agent turn, and it cannot host a job longer than the synchronous Bash window (**~10 min** max tool timeout) — a hard platform ceiling, not a tuning problem. Past ~10 min the harness **auto-backgrounds** the job, active waiting is blocked, and **ending the turn kills every background Bash job and monitor** it spawned (the completion event fires as `killed`, not `completed`; the promised re-invoke never comes). Since v0.9.0 (trinity#2127, rebuilt base image) a headless run *does* wait for background **subagents/forks** — bounded by the execution timeout and a 300s idle-finalize — which changes nothing for shell jobs. Streaming heartbeat output only silences the 300s no-output stall watchdog — it does nothing about the ~10-min ceiling or the turn-end reaping. The async monitor/re-invoke model works in an **interactive** session (which persists) but **not** headless. So: run a >~10-min job (FAISS/index rebuild, bulk embedding, big migration) as an **OS-level cron/systemd/sidecar** that writes a **done-marker**, and let the scheduled run do only the fast parts — check the marker, verify the artifact actually moved (mtime + count, never the exit code or `business_status`), then run quick follow-ups. `/trinity:onboard` → *Long-running jobs inside a run* documents the full pattern; `/agent-dev:create-playbook` and `/agent-dev:add-pipeline` bake it into generated skills.
+A **scheduled/headless** execution is a single agent turn, and it cannot host a job longer than the synchronous Bash window (**~10 min** max tool timeout) — a hard platform ceiling, not a tuning problem. Past ~10 min the harness **auto-backgrounds** the job, active waiting is blocked, and **ending the turn kills every background Bash job and monitor** it spawned (the completion event fires as `killed`, not `completed`; the promised re-invoke never comes). Since v0.9.0 (trinity#2127, rebuilt base image) a headless run *does* wait for background **subagents/forks** — bounded by the execution timeout and a 300s idle-finalize — which changes nothing for shell jobs. Streaming heartbeat output only silences the 300s no-output stall watchdog — it does nothing about the ~10-min ceiling or the turn-end reaping. The async monitor/re-invoke model works in an **interactive** session (which persists) but **not** headless. So: run a >~10-min job (FAISS/index rebuild, bulk embedding, big migration) as an **OS-level cron/systemd/sidecar** that writes a **done-marker**, and let the scheduled run do only the fast parts — check the marker, verify the artifact actually moved (mtime + count, never the exit code or `business_status`), then run quick follow-ups. `/trinity:onboard` → *Long-running jobs inside a run* documents the full pattern; `/agent-dev:create-playbook` and `/agent-dev:add-pipeline` bake it into generated skills. Since 0.9.5-rc the platform denies the whole "promise a second turn" tool family in deployed agents (`ScheduleWakeup`, `Monitor`, `TaskOutput`, `CronCreate`/`CronList`/`CronDelete`, `SendMessage`, `ListAgents`, `PushNotification`, `RemoteTrigger` — 11 names, trinity#2468), and a `success` execution row prefixed `> ⚠️ Background work lost` marks a turn that discarded background work (trinity#2467).
 
 ## Building multi-agent systems
 
@@ -172,4 +173,4 @@ The following features from the old `trinity-onboard` plugin are now handled dif
 
 ## Source
 
-This plugin is a simplified version of `trinity-onboard`, reducing 11 skills to 5 core workflows.
+This plugin replaced `trinity-onboard`'s 11 skills with 7 workflows.

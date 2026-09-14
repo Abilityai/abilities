@@ -5,10 +5,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, AskUserQuestion
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.4: Auth flow aligned with the live API — email request answers 200 {success,message} (403 for email-auth-disabled / setup_required, never 404); a 2FA-enrolled account gets a 200 challenge with no access_token (stop, mint the key in the UI); ensure-default returns null when a user-scoped key already exists (mint via POST /api/mcp/keys); ops-scope keys are not usable here; .mcp.json uses type http and prefers {INSTANCE_URL}/mcp (nginx route #2475) over :8080; no CLI fallback"
     - "1.3: Next steps carry the deploy sequence — add the instance GitHub token (Settings → GitHub token) before /trinity:onboard, which deploys an agent from its GitHub repo"
     - "1.2: Explain the silent no-code failure mode — email OTP only reaches whitelisted addresses and the API 200s identically for unknown ones (anti-enumeration #186); self-signup is default-OFF (#1274) — so guide users to admin whitelisting instead of resend loops"
     - "1.1: Idempotent reconnect (PHASE 0) — when a valid profile already exists, (re)write `.mcp.json` in the current directory from the stored profile without an email round-trip, instead of just reporting 'already connected'. connect is now the single writer of `.mcp.json` that /trinity:onboard, /trinity:sync, and /trinity:loop delegate to"
@@ -80,10 +81,11 @@ curl -s -X POST "{INSTANCE_URL}/api/auth/email/request" \
   -d '{"email": "{EMAIL}"}'
 ```
 
-Expected: 200 OK (empty response or `{"status": "sent"}`)
+Expected: 200 with `{"success": true, "message": "If your email is registered, you'll receive a code shortly"}` — byte-identical for unknown emails (trinity#186).
 
 If error:
-- 404: "This Trinity instance doesn't have email auth enabled. Contact your admin."
+- 403 `Email authentication is disabled`: an admin must enable email auth on the instance (`EMAIL_AUTH_ENABLED` / the `email_auth_enabled` setting).
+- 403 `setup_required`: the instance has no admin yet — finish first-run setup in the web UI first.
 - 422: "Invalid email format."
 - Other: Show error detail
 
@@ -115,6 +117,8 @@ Expected response:
 }
 ```
 
+If the 200 body carries `mfa_required: true` / `challenge_token` and **no** `access_token`, stop: this account is enrolled in 2FA (enterprise). Tell the user to sign in once in the web UI to complete the second factor and mint the MCP key under Settings → API Keys, then re-run `/trinity:connect --force`. Never treat the missing token as success.
+
 If error:
 - 401/422: "Invalid or expired code. Request a new one?"
 - Offer to retry Phase 2
@@ -137,6 +141,17 @@ Expected response:
   "api_key": "trinity_mcp_..."
 }
 ```
+
+If the response is `null`, the user already holds a user-scoped key whose secret cannot be re-read. Mint a fresh one instead:
+
+```bash
+curl -s -X POST "{INSTANCE_URL}/api/mcp/keys" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "trinity-connect {HOSTNAME}", "description": "Provisioned by /trinity:connect"}'
+```
+
+and use its `api_key`. Omit `scope` — `ensure-default` and this call mint a plain user-scope key, the only scope that exposes the full operator tool set; an `ops`-scope key (trinity#2389, GET-only, admin-JWT-minted) will connect but is not usable for deploy/sync.
 
 Store: `MCP_API_KEY`
 
@@ -180,11 +195,10 @@ chmod 600 ~/.trinity/config.json
 ### PHASE 6: Write .mcp.json
 
 Derive MCP endpoint URL:
-- If instance URL contains `:8000`, replace with `:8080`
-- Otherwise append `:8080` to hostname
-- Add `/mcp` path
+- Try `{INSTANCE_URL}/mcp` first — the frontend's nginx routes it to the MCP server (trinity#2475), and it is the only path on 80/443-only or firewall-hardened installs
+- Fall back to the `:8080` host port (`https://host:8080/mcp`; if the instance URL carries `:8000`, replace it with `:8080`) only if a `tools/list` probe on the first URL fails
 
-Example: `https://demo.abilityai.dev` → `https://demo.abilityai.dev:8080/mcp`
+Example: `https://demo.abilityai.dev` → `https://demo.abilityai.dev/mcp` (fallback `https://demo.abilityai.dev:8080/mcp`)
 
 Read existing `.mcp.json` in current directory or create new.
 
@@ -193,7 +207,7 @@ Add/update trinity server config:
 {
   "mcpServers": {
     "trinity": {
-      "type": "streamable-http",
+      "type": "http",
       "url": "{MCP_URL}",
       "headers": {
         "Authorization": "Bearer {MCP_API_KEY}"
@@ -239,7 +253,7 @@ Next steps:
 | Instance unreachable | "Cannot reach {URL}. Check the URL and your network connection." |
 | Email not sent | "Failed to send verification email. Is this email registered on this Trinity instance?" |
 | Invalid code | "Code invalid or expired. Would you like a new code?" |
-| MCP key failed | "Logged in but couldn't provision MCP key. You can still use the Trinity CLI." |
+| MCP key failed | "Logged in but couldn't provision MCP key — mint one under Settings → API Keys and re-run `/trinity:connect --force`." |
 | Config write failed | "Couldn't write to ~/.trinity/config.json. Check permissions." |
 
 ## Notes

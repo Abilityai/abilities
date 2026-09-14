@@ -1,6 +1,8 @@
 # create-agent
 
-Create new Claude Code agents with domain-specific wizards or from scratch.
+Create new Claude Code agents from an interview (`custom`), scaffold a website, or review/adjust/clone an existing agent.
+
+> **2.0.0 (2026-09-14):** the eight pre-built domain wizards (prospector, chief-of-staff, webmaster, recon, receptionist, ghostwriter, kb-agent, doctor) were retired. Every one of those shapes is reachable through `/create-agent:custom` — describe the domain and the interview builds it. Their last versions live in git history.
 
 ## Installation
 
@@ -12,16 +14,8 @@ Create new Claude Code agents with domain-specific wizards or from scratch.
 
 ```
 /create-agent:create              # Show all available wizards
-/create-agent:prospector          # B2B SaaS sales research agent
-/create-agent:chief-of-staff      # Executive assistant agent
-/create-agent:webmaster           # Website management agent
+/create-agent:custom              # Interview-driven agent for any domain
 /create-agent:website             # Single website (no agent)
-/create-agent:recon               # Competitive intelligence agent
-/create-agent:receptionist        # Email gateway agent
-/create-agent:ghostwriter         # Content writer agent
-/create-agent:kb-agent            # Knowledge-base agent
-/create-agent:doctor              # Personal medical-records agent
-/create-agent:custom              # Blank canvas agent
 /create-agent:clone               # Clone existing agent
 /create-agent:review              # Audit existing agent (read-only report)
 /create-agent:adjust              # Apply best-practice fixes to existing agent
@@ -29,25 +23,10 @@ Create new Claude Code agents with domain-specific wizards or from scratch.
 
 ## Available Wizards
 
-### Domain-Specific Wizards
-
 | Wizard | Description |
 |--------|-------------|
-| **prospector** | B2B SaaS sales research agent with Apollo, LinkedIn, ICP scoring, company research |
-| **chief-of-staff** | Executive assistant with daily briefings, meeting prep, decision tracking, weekly digests |
-| **webmaster** | Website management agent for Next.js + Vercel deployments |
-| **recon** | Competitive intelligence agent for tracking competitors and producing battlecards |
-| **receptionist** | Email gateway agent for public-facing communication and request routing |
-| **ghostwriter** | Content writer agent that learns your brand voice and writes for multiple platforms |
-| **kb-agent** | Knowledge-base agent for community management, CS research, clinical, legal, or personal KB |
-| **doctor** | Personal medical-records agent — ingests health documents, tracks lab trends, prepares doctor visits, flags drug-supplement interactions |
-
-### Generic Tools
-
-| Tool | Description |
-|------|-------------|
+| **custom** | Create any agent from an interview — role, skills, schedules, credentials, Trinity wiring; you define everything |
 | **website** | Scaffold a single Next.js website (no agent, just a site) |
-| **custom** | Create any agent from scratch — blank canvas, you define everything |
 | **clone** | Clone an existing agent repository as a starting point |
 | **review** | Audit an existing agent against best practices — read-only findings report (composition integrity, identity, schedules, Trinity readiness) |
 | **adjust** | Apply best-practice fixes to an existing agent — runs review, then applies approved edits |
@@ -56,7 +35,7 @@ Create new Claude Code agents with domain-specific wizards or from scratch.
 
 Each wizard is a guided conversation that:
 
-1. Asks domain-specific questions to understand your needs
+1. Asks questions to understand your domain and needs
 2. Scaffolds a Trinity-compatible agent directory
 3. Generates customized CLAUDE.md, skills, docs (README + ARCHITECTURE + TARGET-ARCHITECTURE), and configuration
 4. Declares recommended `schedules:` in `template.yaml` (disabled by default — the operator chooses what runs)
@@ -94,7 +73,4 @@ All generated agents work locally first — Trinity deployment is the natural up
 
 ## Source
 
-This plugin consolidates the following original plugins:
-- install-prospector, install-chiefofstaff, install-webmaster
-- install-recon, install-receptionist, install-ghostwriter
-- install-kb-agent, agent-builder, clone-cornelius, website-builder
+This plugin consolidated the original install-* wizard plugins (agent-builder, clone-cornelius, website-builder and the domain installers). The domain wizards were retired in 2.0.0; `custom`, `website`, `clone`, `review` and `adjust` remain.

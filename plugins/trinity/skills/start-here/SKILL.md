@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Bash, AskUserQuestion, Skill, mcp__trinity__list_agents, mcp__trinity__get_fleet_health, mcp__trinity__ask_trinity, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-08-06
   author: Ability.ai
   changelog:
+    - "1.4: Next-steps menu points only at /create-agent:custom (kb-agent retired with create-agent 2.0.0); docs MCP package is the unscoped npm name trinity-docs-mcp (the scoped one 404s); queued_timeout note extended to parallel turns (#2661) and fan_out_timeout → get_fan_out_result (#2670)"
     - "1.3: Smoke test no longer treats an empty agent list as the fresh-install signature — ent#124 seeds the acme trio plus Cornelius, so a fresh instance boots ~4 agents (Stage 4 already assumed seeded agents existed)"
     - "1.2: Stage 4 teaches the repository-first deploy sequence — push the agent to GitHub and add the instance's GitHub token (Settings → GitHub token) before /trinity:onboard, which then deploys by cloning the repo; the local-file deploy is named as the fallback that offers promotion afterwards"
     - "1.1: Ground the whole journey in live docs — pre-connect questions now go to the public Trinity Docs Q&A endpoint (Vertex AI Search over docs/user-docs, no auth, no instance needed) and Stage 0 orients against the live user-docs index on GitHub; the static narrative is demoted to a fallback for when the network is down"
@@ -158,7 +159,7 @@ Goal — the user exchanges a real message with an agent running on *their* inst
 - **The instance already has agents** (seeded fleet or door "bring" after migration): pick one from `list_agents` and `chat_with_agent` it with a hello-task.
 - **Neither yet:** offer `/create-agent:create` now, or `chat_with_agent` against any seeded agent just to feel the loop.
 
-Practical note: if a `chat_with_agent` call returns a `queued_timeout` receipt, the task **is** running — poll `mcp__trinity__get_execution_result` with the returned `execution_id`; never blind-retry (it would duplicate-queue).
+Practical note: if a `chat_with_agent` call returns a `queued_timeout` receipt, the task **is** running — poll `mcp__trinity__get_execution_result` with the returned `execution_id`; never blind-retry (it would duplicate-queue). The same receipt covers parallel turns since trinity#2661, and a `fan_out` answers `fan_out_timeout` → poll `get_fan_out_result` (trinity#2670).
 
 → Write state (`stage: 5`, `completed` += "first-agent-conversation").
 
@@ -172,12 +173,12 @@ Print a recap of what they now have (checklist built from `completed`), then the
 - Another agent            → /create-agent:create  (wizard menu)
 - Bring your existing bots → /agent-dev:agent-fleet-analysis
 - Design an agentic system → describe the job to ask_trinity, then
-                             /create-agent:custom or :kb-agent for the shape
+                             /create-agent:custom for the shape
 - Day-2 operations         → /trinity:sync (local↔remote),
                              /trinity:loop (bounded remote loops),
                              schedules & channels: just ask — the live
                              docs answer via ask_trinity
-- Docs assistant anywhere  → claude mcp add trinity-docs -- npx -y @abilityai/trinity-docs-mcp
+- Docs assistant anywhere  → claude mcp add trinity-docs -- npx -y trinity-docs-mcp
                              (the same grounded Q&A in any session, no
                              instance required)
 ```

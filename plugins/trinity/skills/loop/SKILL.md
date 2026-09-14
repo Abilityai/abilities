@@ -6,10 +6,11 @@ disable-model-invocation: true
 user-invocable: true
 allowed-tools: AskUserQuestion, Read, Skill, mcp__trinity__list_agents, mcp__trinity__run_agent_loop, mcp__trinity__get_loop_status, mcp__trinity__stop_loop
 metadata:
-  version: "1.7"
+  version: "1.8"
   created: 2026-06-09
   author: Ability.ai
   changelog:
+    - "1.8: Loop contract refresh (0.9.5-rc) — timeout_per_run above the agent execution cap is refused 400 loop_timeout_exceeds_agent_cap (ent#338); delay_seconds is a durable park that survives restarts and terminal statuses gain completed_with_errors while interrupted is legacy (trinity#2523); fan_out_timeout → get_fan_out_result (trinity#2670); the local /loop watch is skipped inside deployed agents where ScheduleWakeup/Monitor are platform-denied (trinity#2468); model example moved off the legacy claude-opus-4-8"
     - "1.7: Teach the server-side loop guardrails — on_failure abort|continue + max_consecutive_failures (#1167), max_duration_seconds / max_cost_usd / no_progress_threshold hard stops — in Phase 2 and Guardrails; queued_timeout receipt framing (~25s, not 60s); point one-shot deferred checks at set_reminder and completion-notification at agent.task.* events instead of loops"
     - "1.6: Local mode — a `local` token runs the same bounded loop natively in this Claude Code session: inline back-to-back iterations by default, hand-off to the built-in dynamic /loop when a cadence is given; offered as the fallback when Trinity is unreachable and the task doesn't need the remote"
     - "1.5.2: Disambiguate 'fire-and-forget' in Phase 5 — here it means disconnecting from a *server-side remote loop* the backend keeps running (safe), NOT spawning a >~10-min job **inside a single headless run** and ending the turn (which reaps every background task/monitor — that work must be decoupled to an OS-level job; see /trinity:onboard → Long-running jobs inside a run)"
@@ -71,7 +72,7 @@ User wants to:
 - "loop this agent", "run it until it passes", "iterate 5 times on the remote", "keep retrying until done"
 - Run the same bounded loop **locally** — "loop this here", "retry locally until it passes", no remote needed → **Local mode**
 
-Do **not** use this for a single remote turn (use `chat_with_agent`) or a parallel batch (use `fan_out`). This is the **sequential** primitive.
+Do **not** use this for a single remote turn (use `chat_with_agent`) or a parallel batch (use `fan_out`; on a `fan_out_timeout` receipt poll `get_fan_out_result` — `partial` is a normal outcome). This is the **sequential** primitive.
 
 ## Prerequisite — Trinity MCP connection
 
@@ -88,7 +89,7 @@ Parse the input into `verb`, `@agent`, and the loop spec. Mirror `/loop`'s parsi
 3. **`@agent` token**: an `@name` token anywhere selects the target agent. Strip it from the message.
 4. **Iteration count**: a count phrase (`5 times`, `x5`, `10 iterations`, `max 10`) sets `max_runs`. If none is given, default to a sensible cap (`max_runs: 5`) and say so.
 5. **Mode signal**: an *until-condition* (`until it passes`, `until tests are green`, `until done`, `stop when …`) → **Until mode**. Otherwise → **Fixed mode**.
-6. **Cadence**: a `every <N>m`/`every <N>s` clause sets `delay_seconds`. Strip it from the message. The API caps it at 3600 — if the user asks for a period over 1 hour, don't silently clamp: tell them a loop isn't the right tool for that cadence and point them to a Trinity schedule (`create_agent_schedule` with a cron expression) instead.
+6. **Cadence**: a `every <N>m`/`every <N>s` clause sets `delay_seconds`. Strip it from the message. `delay_seconds` is a durable park (row-driven, ~5s sweep granularity since trinity#2523) — it survives backend restarts. The API caps it at 3600 — if the user asks for a period over 1 hour, don't silently clamp: tell them a loop isn't the right tool for that cadence and point them to a Trinity schedule (`create_agent_schedule` with a cron expression) instead.
 
 If the remaining message is empty, show the usage block and stop.
 
@@ -176,11 +177,11 @@ From the parse, assemble the `run_agent_loop` arguments:
 - `max_runs` — the count, or the default cap (1–100)
 - `stop_signal` — `[[DONE]]` for Until mode; omit for Fixed mode
 - `delay_seconds` — from any cadence clause (0–3600); omit if none
-- `timeout_per_run` — set it for Until-mode loops (a hung iteration silently stalls the whole sequence); size it to the task, e.g. 600 for a test suite. For Fixed mode, set only if the task is long-running; else omit to inherit the agent default (10–7200)
+- `timeout_per_run` — set it for Until-mode loops (a hung iteration silently stalls the whole sequence); size it to the task, e.g. 600 for a test suite. For Fixed mode, set only if the task is long-running; else omit to inherit the agent default. Range 10–7200 and never above the agent's `execution_timeout_seconds` — the API refuses it with 400 `loop_timeout_exceeds_agent_cap` (ent#338); raise the agent cap first via `PUT /api/agents/{name}/timeout`
 - `on_failure` — `abort` (default: the first failed iteration ends the loop) or `continue` (tolerate failed iterations, bounded by `max_consecutive_failures`, 1–100, default 3). Set `continue` for agentic-retry loops where a failed run is part of the plan — otherwise the loop dies on the very failure it was built to retry
 - `max_duration_seconds` / `max_cost_usd` — loop-level wall-clock and cumulative-cost hard stops enforced server-side; set them whenever `max_runs` × model is expensive
 - `no_progress_threshold` — server-side doom-loop detection: the backend stops the loop after N consecutive near-identical responses
-- `model` — only if the user named one (e.g. `claude-opus-4-8`); else omit
+- `model` — only if the user named one (e.g. `claude-sonnet-5` or `claude-fable-5-1`); else omit
 
 If a key parameter is genuinely ambiguous (e.g. mode unclear, or no agent could be resolved), ask **one** focused `AskUserQuestion`. Don't interrogate — infer sensible defaults and state them.
 
@@ -207,15 +208,15 @@ The server starts iterating right away — like `/loop`, the first run happens *
 
 ### PHASE 5 — Local watch (default)
 
-After reporting the handle, start a lightweight local watch **by default** — skip it only if the user said fire-and-forget (or equivalent), or the session is headless. ("Fire-and-forget" here is safe: you're disconnecting from a **server-side** loop the backend keeps running — not the same as spawning a heavy job **inside a single headless run** and ending the turn, which reaps every background task/monitor spawned in that turn. A >~10-min job must be decoupled to an OS-level cron/systemd/sidecar — see `/trinity:onboard` → *Long-running jobs inside a run*.) Invoke Claude Code's built-in dynamic `/loop` skill (no interval — it self-paces via `ScheduleWakeup`) with a watch prompt like:
+After reporting the handle, start a lightweight local watch **by default** — skip it only if the user said fire-and-forget (or equivalent), or the session is running inside a deployed Trinity agent — `ScheduleWakeup`/`Monitor` are platform-denied there (trinity#2468); poll via `/trinity:loop status` or `set_reminder` instead. ("Fire-and-forget" here is safe: you're disconnecting from a **server-side** loop the backend keeps running — not the same as spawning a heavy job **inside a single headless run** and ending the turn, which reaps every background task/monitor spawned in that turn. A >~10-min job must be decoupled to an OS-level cron/systemd/sidecar — see `/trinity:onboard` → *Long-running jobs inside a run*.) Invoke Claude Code's built-in dynamic `/loop` skill (no interval — it self-paces via `ScheduleWakeup`) with a watch prompt like:
 
 > check trinity loop `<loop_id>` via `mcp__trinity__get_loop_status`; post one line only when something changed (`run N/M · status · cost`) or the loop looks stalled (near-identical consecutive responses — suggest `/trinity:loop stop <loop_id>`); when status is terminal, report `stop_reason` and the final response, then end the loop
 
-Pace the watch to the loop: hint the expected iteration time (`delay_seconds` + typical run duration) in the prompt so wakeups aren't wasted. Tell the user the watch is on and that they can stop it anytime (say "stop watching" or Esc) — the remote loop keeps running either way. If the local `/loop` skill isn't available in this harness, skip the watch and just point to `/trinity:loop status <loop_id>`.
+Pace the watch to the loop: hint the expected iteration time (`delay_seconds` + typical run duration) in the prompt so wakeups aren't wasted. Tell the user the watch is on and that they can stop it anytime (say "stop watching" or Esc) — the remote loop keeps running either way. If the local `/loop` skill isn't available in this harness (or `ScheduleWakeup` is denied — every deployed agent), skip the watch and just point to `/trinity:loop status <loop_id>`.
 
 ### PHASE 6 — Observe on demand
 
-If the user asks to look right now, poll `mcp__trinity__get_loop_status` and render the per-run summary as a table — `run_number · status · cost · duration · response preview`. Re-poll on request rather than busy-looping. Stop polling once `status` is terminal (`completed` / `stopped` / `failed` / `interrupted`) and report the `stop_reason` and final response.
+If the user asks to look right now, poll `mcp__trinity__get_loop_status` and render the per-run summary as a table — `run_number · status · cost · duration · response preview`. Re-poll on request rather than busy-looping. Stop polling once `status` is terminal (`completed` / `completed_with_errors` / `stopped` / `failed` / `interrupted` — the last is legacy: since trinity#2523 a loop survives backend restarts instead of flipping to `interrupted`); `queued` and `pending_retry` are non-terminal, keep polling. Report the `stop_reason` and final response.
 
 **Watch for stalls**: if consecutive responses are near-identical (same failure, same output, no state change), the loop is burning budget without progress — flag it and suggest `/trinity:loop stop <loop_id>`. The cap alone won't catch a stalled loop running under the limit; loops designed in Phase 2 with `no_progress_threshold` get stopped server-side automatically, so this manual watch is the fallback for loops fired without it.
 
@@ -249,8 +250,8 @@ Call `mcp__trinity__stop_loop` with the `loop_id`. It returns:
 
 ## Guardrails
 
-- **The cap is the safety net.** Always set `max_runs` even in Until mode — `stop_signal` is best-effort (the agent has to emit it); the cap is guaranteed. Bounds: `max_runs` 1–100, `delay_seconds` 0–3600, `timeout_per_run` 10–7200. The server-side hard stops (`on_failure`/`max_consecutive_failures`, `max_duration_seconds`, `max_cost_usd`, `no_progress_threshold`) are guaranteed too — prefer designing them in over watching.
+- **The cap is the safety net.** Always set `max_runs` even in Until mode — `stop_signal` is best-effort (the agent has to emit it); the cap is guaranteed. Bounds: `max_runs` 1–100, `delay_seconds` 0–3600, `timeout_per_run` 10–7200 and ≤ the agent's execution cap (400 otherwise). The server-side hard stops (`on_failure`/`max_consecutive_failures`, `max_duration_seconds`, `max_cost_usd`, `no_progress_threshold`) are guaranteed too — prefer designing them in over watching.
 - **One loop, one handle.** Always echo the `loop_id`. A loop the user can't find is a loop they can't stop.
-- **Sequential, not parallel.** If the user wants the *same* task across many agents/inputs at once, that's `fan_out`, not this.
+- **Sequential, not parallel.** If the user wants the *same* task across many inputs at once, that's `fan_out` (N tasks to one agent; `fan_out_timeout` → `get_fan_out_result`), not this.
 - **One deferred check ≠ a loop.** A single "check back in 2 hours" is `set_reminder` (one-shot self-trigger, 60s–30d out), not a 1-run loop; and "tell me when the worker finishes" is a subscription to its `agent.task.completed` event (trinity#1578), not a polling loop.
 - **Cost compounds.** N iterations = up to N task executions against the agent's budget. For large `max_runs` × expensive `model`, set `max_cost_usd` and say so in the Phase 3 plan before firing.

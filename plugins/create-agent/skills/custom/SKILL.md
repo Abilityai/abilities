@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.11"
+  version: "1.12"
   created: 2026-04-01
-  updated: 2026-08-18
+  updated: 2026-09-14
   author: Ability.ai
   changelog:
+    - "1.12: Platform-truth refresh (Trinity dev 9ac2ceae, 0.9.5-rc2) — the playbook-gap operator-queue item is keyed `id` (operator-queue-v1 schema; an entry carrying only request_id is silently skipped), the schedules timezone note no longer claims legacy IANA aliases 500 (tzdata-legacy shipped in v0.9.0, #1823), and the .gitignore comment for .claude/settings.json reflects ent#345 — platform hooks live in root-owned /etc/claude-code/managed-settings.json, the ignore rule guards against a stale agent-local copy bricking outside clones"
     - "1.11: Platform-truth refresh (Trinity v0.9.0, tag 93d7ce7c) — .mcp.json.template rule added: an http/sse server url must resolve to a public address (loopback/private/link-local/CGNAT 100.64/10 = Tailscale refused with 400, no override — trinity-enterprise#394); the report guard in the generated CLAUDE.md also swallows the `requires an agent-scoped API key` refusal a user/admin-key session gets (mcp-server reports.ts)"
     - "1.10: template.yaml scaffold now declares `plugins:` (trinity#1704 / ent#411) — marketplaces + installed (agent-dev@abilityai, trinity@abilityai) — so the DEPLOYED agent gets its plugins headlessly on every container boot instead of depending on a human running /plugin install; the local install step stays (that is your own session), the declaration is what makes it portable"
     - "1.9: Generated CLAUDE.md Guidelines gain the playbook-call rule — the agent packages procedures as playbooks and exchanges work with other agents only via one-line `/playbook [args]` calls, never prose delegation (fleet convention protocols/playbook-call.md, operator direction 2026-08-16)"
@@ -163,7 +164,7 @@ Standard operating procedure for incoming requests — from your user, from othe
 | Question about this agent, its data, or its domain | Answer directly — no skill needed |
 | Any other task request | **Playbook gap** — see below |
 
-**Playbook gap** — a task request no skill covers. Handle it manually if it's safe and in scope, and flag the gap so it can become a playbook: interactively, tell the user in your reply; headless on Trinity, file an operator-queue item (append to `~/.trinity/operator-queue.json` with a `request_id` like `playbook-gap-<slug>`, a short title, and what was asked). Suggest `/agent-dev:create-playbook` for request types that recur. When a new skill lands, add its row here and to Core Capabilities.
+**Playbook gap** — a task request no skill covers. Handle it manually if it's safe and in scope, and flag the gap so it can become a playbook: interactively, tell the user in your reply; headless on Trinity, file an operator-queue item (append to `~/.trinity/operator-queue.json` — schema `operator-queue-v1`, a `requests[]` entry with `"id": "playbook-gap-<slug>"` (the key is `id`, not `request_id` — an entry without `id` is silently skipped), `"type": "alert"`, `"status": "pending"`, a short `title`, and `question` = what was asked). Suggest `/agent-dev:create-playbook` for request types that recur. When a new skill lands, add its row here and to Core Capabilities.
 
 ## How to Work With This Agent
 
@@ -453,8 +454,9 @@ credential_setup:
 # created with create_agent_schedule (or reconciled by /trinity:onboard | /trinity:sync).
 # `enabled` is the recommended default and only a literal YAML true arms a schedule;
 # firing ALSO requires the agent's autonomy gate, which is OFF on every new agent.
-# timezone: canonical IANA zones only — legacy aliases (Europe/Kiev, Asia/Calcutta,
-# US/Eastern) no longer resolve and 500 on schedule create. The container clock is UTC.
+# timezone: any IANA zone (validated at creation — an unknown zone drops the entry with a
+# named error; legacy aliases like Europe/Kiev resolve again since v0.9.0, #2071). Prefer
+# canonical names. The container clock is UTC.
 # Propose 1–2 from the agent's purpose, or omit this block if it has no scheduled tasks.
 # schedules:
 #   - name: Daily summary
@@ -1085,11 +1087,12 @@ Write `[destination]/.gitignore`:
 .claude/plugins/
 .claude/backups/
 .claude/settings.local.json
-# Container-only config: the Trinity base image bakes ~/.claude/settings.json with
-# hook paths that exist only inside the container, and HOME is the repo root. A
-# committed copy bricks any clone made outside it (the missing hook exits 2, which
-# Claude Code reads as "block this tool call"). Trinity enforces this fleet-wide and
-# untracks an already-committed copy on the next Push (trinity#2036).
+# Container-only config: platform hook registration lives in root-owned
+# /etc/claude-code/managed-settings.json (ent#345) — a committed ~/.claude/settings.json
+# is agent-local, and a stale copy carrying container-only hook paths bricks any clone
+# made outside the container (the missing hook exits 2, which Claude Code reads as
+# "block this tool call"). Trinity untracks a committed copy on the next Push
+# (trinity#2036/#2529).
 .claude/settings.json
 # Trinity runtime state — star form so authored hooks stay tracked
 .trinity/*

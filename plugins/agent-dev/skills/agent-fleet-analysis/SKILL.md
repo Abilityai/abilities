@@ -4,11 +4,12 @@ description: Scan one or more directories of agents in ANY paradigm — Claude C
 allowed-tools: Read, Bash, Write, Glob, Grep, mcp__trinity__share_file
 user-invocable: true
 metadata:
-  version: "2.3.3"
+  version: "2.4"
   created: 2026-07-30
   updated: 2026-08-07
   author: Ability.ai
   changelog:
+    - "2.4: Knowledge-brain upgrade path now points at /create-agent:custom + /agent-dev:add-memory — the kb-agent wizard was retired from the marketplace (create-agent 2.0.0, 2026-09-14)"
     - "2.3.3: New gap `freeform delegation` — prose schedule messages or prose inter-agent briefs instead of one-line playbook calls (fleet convention protocols/playbook-call.md); mapped to agent-dev:adjust-playbook in the marketplace table"
     - "2.3.2: The .gitignore audit list matches Trinity's current birth-state set — adds .env.*, credentials.json, *.pem, *.key, .claude/plugins/ and .claude/settings.json (container-only config that bricks outside clones, trinity#2036), and notes the platform enforces this on every Push"
     - "2.3.1: Upgrade-path table now names `agent-dev:add-project-management` — the skill moved into the agent-dev plugin, and this was the one row emitting an un-namespaced command into generated work orders"
@@ -247,7 +248,7 @@ If no Hub exists: recommend the highest-scoring `claude-code` agent as the candi
 ### Cornelius Pattern
 
 If there is no Knowledge Brain agent: recommend creating one. Say explicitly:
-> "Your fleet lacks a shared knowledge layer. Consider adding a Cornelius-style agent: a long-running agent with structured memory that all other agents can query for institutional knowledge, market context, and strategic guidance. The concrete path: `/create-agent:kb-agent` scaffolds one — a 6-question interview about your domain's ontology, then a Cornelius-shaped agent with a typed graph, layered vault, and scheduled coherence jobs."
+> "Your fleet lacks a shared knowledge layer. Consider adding a Cornelius-style agent: a long-running agent with structured memory that all other agents can query for institutional knowledge, market context, and strategic guidance. The concrete path: `/create-agent:custom` scaffolds one — describe it as a knowledge-base agent (typed graph, layered vault, scheduled coherence jobs) and add `/agent-dev:add-memory` for the structured memory layer."
 
 If a Knowledge Brain exists: call out which agent fills this role and note which other agents should be wired to query it.
 
@@ -322,7 +323,7 @@ Every architecture recommendation must resolve to a **runnable install** from th
 |------------|-------------------|-------------------|
 | Designate/create the orchestrator | `agent-dev:add-orchestrator` | Always — every fleet gets exactly one hub; installs /discover-agents, /orchestrate, /compose-system on it |
 | Add memory (name the kind) | `agent-dev:add-memory` | Any agent with no persistent state; pick the kind per the Memory Recommendation heuristic in Step 4 |
-| Knowledge brain (Cornelius pattern) | `create-agent:kb-agent` | No Knowledge Brain agent exists in the fleet |
+| Knowledge brain (Cornelius pattern) | `create-agent:custom` + `agent-dev:add-memory` | No Knowledge Brain agent exists in the fleet |
 | Migrate an n8n / framework / freeform agent | `create-agent:custom` (scaffold) + port the extracted logic | Every non-`claude-code` agent worth keeping |
 | Shared facts layer | `agent-dev:add-canon` | ≥ 2 agents where one produces facts another consumes |
 | Cross-actor project management | `agent-dev:add-project-management` | The hub coordinates work across humans + agents |
@@ -357,7 +358,7 @@ Focus: give each agent structured capabilities and make the fleet navigable.
 **Phase 3 — Connect the fleet (same session):**
 Focus: connect the fleet into a coherent system.
 - Make the Hub a real orchestrator: `/agent-dev:add-orchestrator` on `<hub_agent_name>` — installs fleet discovery, routing, and system composition
-- Add or designate a Knowledge Brain agent — `/create-agent:kb-agent` scaffolds a Cornelius-style agent with structured memory that others query for shared context, decisions, and institutional knowledge
+- Add or designate a Knowledge Brain agent — `/create-agent:custom` (described as a knowledge base) plus `/agent-dev:add-memory` scaffolds a Cornelius-style agent with structured memory that others query for shared context, decisions, and institutional knowledge
 - Adopt the canon layer via `/agent-dev:add-canon`: agents that produce shared facts (reports, analysis, research) write them to `canon/agents/<name>/facts.md` so other agents can consume current facts without ad-hoc calls
 - Dry-run the fleet as a coordinated unit — the Hub routes work, specialists execute, knowledge brain answers questions
 

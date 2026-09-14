@@ -1,16 +1,17 @@
 ---
 name: create
-description: Discover and launch agent creation wizards — your single entry point for creating agents, websites, and projects
+description: Discover and launch agent creation wizards — your single entry point for creating a custom agent, a website, or reviewing/adjusting/cloning an existing agent
 argument-hint: "[what to create]"
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.2"
+  version: "3.0"
   created: 2026-04-16
-  updated: 2026-08-06
+  updated: 2026-09-14
   author: Ability.ai
   changelog:
+    - "3.0: Retire the eight pre-built domain wizards (prospector, chief-of-staff, webmaster, recon, receptionist, ghostwriter, kb-agent, doctor) per operator ruling 2026-09-14 — the menu is now custom + website + clone/review/adjust; any domain goes through /create-agent:custom"
     - "2.2: Cross-link /trinity:start-here — newcomers to Trinity itself get pointed at the guided journey before picking a wizard"
     - "2.1: List the read-only /review-agent wizard alongside /adjust-agent in the menu"
     - "2.0: Add the doctor wizard (personal medical records) to the menu"
@@ -30,19 +31,13 @@ All wizards are skills within this plugin. Use `/create-agent:[wizard-name]` to 
 
 | Wizard | Description | Command |
 |--------|-------------|---------|
-| **prospector** | B2B SaaS sales research agent with Apollo, LinkedIn, ICP scoring | `/create-agent:prospector` |
-| **chief-of-staff** | Executive assistant with daily briefings, meeting prep, decision tracking | `/create-agent:chief-of-staff` |
-| **webmaster** | Website management agent for Next.js + Vercel deployments | `/create-agent:webmaster` |
+| **custom** | Interview-driven agent for any domain — you define the role, skills, schedules, and Trinity wiring | `/create-agent:custom` |
 | **website** | Single website scaffold (no agent, just a site) | `/create-agent:website` |
-| **recon** | Competitive intelligence agent for tracking competitors | `/create-agent:recon` |
-| **receptionist** | Email gateway agent for public-facing communication | `/create-agent:receptionist` |
-| **ghostwriter** | Content writer agent that knows your brand voice | `/create-agent:ghostwriter` |
-| **kb-agent** | Knowledge-base agent (community manager, CS researcher, clinical, legal, personal) | `/create-agent:kb-agent` |
-| **doctor** | Personal medical-records agent — ingests health documents, tracks lab trends, preps doctor visits | `/create-agent:doctor` |
-| **custom** | Blank canvas agent — you define everything | `/create-agent:custom` |
 | **clone** | Clone an existing agent repository as starting point | `/create-agent:clone` |
 | **review** | Audit an existing agent against best practices (read-only report) | `/create-agent:review` |
 | **adjust** | Apply best-practice fixes to an existing agent | `/create-agent:adjust` |
+
+> The pre-built domain wizards (sales research, executive assistant, website manager, competitive intelligence, email gateway, content writer, knowledge base, medical records) were retired in create-agent 2.0.0 (2026-09-14). Every one of those shapes is reachable through `/create-agent:custom` — describe the domain and the interview builds it.
 
 ## Process
 
@@ -57,16 +52,10 @@ Use AskUserQuestion:
 - **Header:** "Create Agent"
 - **Options:**
 
-  1. **Sales research (prospector)** — B2B SaaS prospecting with Apollo, LinkedIn, company research, ICP scoring
-  2. **Executive assistant (chief-of-staff)** — Daily briefings, meeting prep, decision tracking, weekly digests
-  3. **Website manager (webmaster)** — Build and deploy Next.js sites to Vercel
-  4. **Competitive intelligence (recon)** — Track competitors, monitor changes, produce battlecards
-  5. **Email gateway (receptionist)** — Public-facing email communication and request routing
-  6. **Content writer (ghostwriter)** — Brand-aware writing for multiple platforms
-  7. **Knowledge base (kb-agent)** — Domain knowledge management with Zettelkasten structure
-  8. **Personal medical records (doctor)** — Ingest health documents, track lab trends, prep doctor visits for one individual
-  9. **Custom from scratch** — Blank canvas, you define everything
-  10. **Clone existing agent** — Start from a working agent as template
+  1. **Custom agent** — Interview-driven, any domain: you define the role, skills, schedules, and Trinity wiring
+  2. **Website** — Scaffold a Next.js site (no agent, just a site)
+  3. **Clone existing agent** — Start from a working agent as template
+  4. **Review or adjust an existing agent** — Read-only audit, or apply best-practice fixes
 
 ### Step 3: Launch
 
@@ -80,14 +69,14 @@ Run this command to start the wizard:
 /create-agent:[wizard-name]
 ```
 
-For example, if they chose "Sales research", output:
+For example, if they chose "Custom agent", output:
 
 ```
 ## Ready to go
 
 Run this command to start the wizard:
 
-/create-agent:prospector
+/create-agent:custom
 ```
 
 ### Step 4: Optional Direct Launch
@@ -95,18 +84,18 @@ Run this command to start the wizard:
 If you have high confidence about which wizard the user wants based on their argument, you can tell them the command and offer to describe the wizard:
 
 ```
-## Sales Research Agent
+## Custom Agent
 
-This wizard creates a prospector agent for B2B SaaS sales research. It will ask about:
-- Your CRM and sales tools (Apollo, LinkedIn, etc.)
-- Ideal Customer Profile (ICP) criteria
-- Research depth and automation preferences
+This wizard builds an agent for your domain from an interview. It will ask about:
+- The agent's role, audience, and the outcomes it owns
+- The skills it needs and which run on a schedule
+- Credentials, MCP servers, and Trinity deployment wiring
 
-Ready to start? Run: `/create-agent:prospector`
+Ready to start? Run: `/create-agent:custom`
 ```
 
 ## Notes
 
 - This skill routes to other skills in the same plugin — all use `/create-agent:` prefix
 - For the generic `/create` alias without the plugin prefix, this same skill is used
-- If a user describes a domain that doesn't have a wizard yet, suggest `/create-agent:custom` for a blank canvas approach
+- Every domain goes through `/create-agent:custom` — there are no domain-specific wizards any more; describe the domain and the interview shapes the agent

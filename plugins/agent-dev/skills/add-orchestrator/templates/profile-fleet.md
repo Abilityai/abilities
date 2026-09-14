@@ -8,10 +8,11 @@ allowed-tools: Read, Grep, Write, Edit, Bash, Skill, AskUserQuestion, mcp__trini
 effort: high
 user-invocable: true
 metadata:
-  version: "1.6"
+  version: "1.7"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.7: get_agent_skills is documented for what it is — library-assigned skills only; repo-native .claude/skills playbooks are not listed and must be read from the workspace"
     - "1.6: `--autonomous` run mode (new Run modes section) — back-ported from the production orchestrator (issue #5). Both approval gates become conditional: in autonomous mode this skill never calls AskUserQuestion (a gate reached on an unattended cron burns the whole timeout with nothing committed — the live failure mode #6 describes), never edits orchestration.md, queues corrections to a `corrections_pending:` list in its own `.claude/skills/profile-fleet/status.yaml` (the handoff convention /fleet-reconcile already globs), and makes one dossier-scoped commit. Universalized from corbin's copy: the corbin-specific `fleet-gap-analysis/status.yaml` path and the Step 0 workspace-refresh scaffolding are dropped. The bundle-wide convention this instantiates is tracked in issue #6"
     - "1.5: Autonomy-toggle cross-check in Step 3 — an agent with enabled schedules but `autonomy_enabled: false` will NEVER fire them (`next_run_at` silently advances); flag the mismatch as a finding instead of interviewing around a mystery (root-caused 2026-07-28 on a production finance agent)"
     - "1.4: Ownership-matrix drift — when §3b exists, note mismatches between its R/C/I rows and interview reality (no live R, overlapping claims, a C never consulted) as observations for the human; informational, rows edited only through the same diff gate"
@@ -110,7 +111,7 @@ Wait for the choice before spending compute.
 
 For each in-scope, running agent gather the **declared** truth (no LLM turn, run concurrently):
 - `get_agent_info` — type, owner, status, config.
-- `get_agent_skills` — the skills/commands it actually has.
+- `get_agent_skills` — its library-assigned skills only (repo-native `.claude/skills` playbooks are not listed; read them from the workspace).
 - `list_agent_schedules` (+ enabled/disabled) — its scheduled workflows.
 - `list_agent_pipelines` / `get_agent_pipeline_state` — long-running pipelines it runs. **Not every Trinity build ships these two tools** — if they're absent from the MCP server, don't fail the introspection: fall back to the `pipelines:` field on the agent's `system-map.yaml` node (scanned from its repo's `projects/*/pipeline.yaml` by `/discover-agents`), read the shared `~/.trinity/pipeline-state/<pipeline_id>/` surface if it's visible from here, and lean on interview Q3 — marking those pipeline facts as declared-from-repo / interview-sourced rather than live-verified.
 - `get_agent_tags` — declared capabilities/tags.

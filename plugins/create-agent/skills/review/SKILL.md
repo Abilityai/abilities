@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Skill
 metadata:
-  version: "1.6"
+  version: "1.7"
   created: 2026-06-14
-  updated: 2026-08-18
+  updated: 2026-09-14
   author: Ability.ai
   changelog:
+    - "1.7: Trinity Readiness (2h) gains two checks — template.yaml declares a plugins: block (trinity#1704; trinity@abilityai is pre-installed since ent#411, so its absence is a warning, not a blocker), and CLAUDE.md's Reporting to Trinity guard covers both tool absence and the `requires an agent-scoped API key` refusal, never retrying"
     - "1.6: Audit checklist adds the .mcp.json.template URL rule from Trinity v0.9.0 — an http/sse server url must resolve to a public address (loopback/private/link-local/CGNAT 100.64/10 refused, trinity-enterprise#394)"
     - "1.5: Playbook-call checks — schedule messages must be one-line `/skill [args]` calls (no prose briefs), and inter-agent hand-offs in CLAUDE.md/skills must be playbook calls, not prose delegation (fleet convention protocols/playbook-call.md, operator direction 2026-08-16)"
     - "1.4: Audit checklist matches the current platform contract — schedule entries key on `name` (there is no `id` field), template.yaml must declare credentials: + credential_setup: (gate T-015, ent#128), .mcp.json.template must keep ${VAR} inside env blocks with an allowlisted command and no hand-written trinity entry, and .gitignore must exclude .claude/settings.json (trinity#2036) and .trinity/*"
@@ -134,6 +135,8 @@ Real findings:
 
 ### 2h. Trinity Readiness
 - `template.yaml` with `name`, `display_name`, `description`, `avatar_prompt`, and a `credentials:` block naming every `${VAR}` used in `.mcp.json.template` (gate T-015), each enriched by a `credential_setup:` entry (ent#128)
+- `template.yaml` declares `plugins:` (`marketplaces:` + `installed:`, trinity#1704) mirroring CLAUDE.md's Installed Plugins — Trinity re-installs them headlessly on every boot; `trinity@abilityai` is pre-installed in the agent base image since ent#411, so its absence is a warning, not a blocker
+- CLAUDE.md's **Reporting to Trinity** section guards `mcp__trinity__report` on both tool absence and the `The report tool requires an agent-scoped API key` refusal (a user/admin-key session sees the tool but cannot publish) and never retries
 - `.env.example` documenting required variables
 - `.mcp.json.template` declaring the agent's **own** MCP servers, with `${VAR}` placeholders **inside `env` blocks only** (a placeholder in `command`/`url`/`args` makes Trinity withhold the whole server at startup) an allowlisted literal `command`, and — for `http`/`sse` servers — a `url` that resolves to a public address (loopback/private/link-local/CGNAT `100.64/10` are refused with 400, trinity-enterprise#394) — never a hand-written `trinity` entry, which the platform overwrites
 - `.gitignore` excluding `.env`, `.env.*`, `.mcp.json`, `credentials.json`, `*.pem`, `*.key`, `.claude/projects/`, `.claude/todos/`, `.claude/plugins/`, `.claude/settings.json` (trinity#2036), and `.trinity/*` with the authored hooks negated

@@ -6,10 +6,11 @@ disable-model-invocation: true
 user-invocable: true
 allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__list_operator_queue, mcp__trinity__get_operator_queue_item, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule, mcp__trinity__git_pull, mcp__trinity__get_git_status, mcp__trinity__get_git_log, mcp__trinity__get_git_sync_state
 metadata:
-  version: "2.7.0"
+  version: "2.7.1"
   created: 2025-02-05
   author: eugene
   changelog:
+    - "2.7.1: Phase 7b reads plugin state from get_agent_compatibility_report I-006 (~/.trinity/plugins-state.json, ent#411) before falling back to the in-container CLI; git_pull note covers the trinity#2529 gitignore rebuild + gitignore_untracked operator-queue item (expected on the first sync after an upgrade)"
     - "2.7.0: Plugin reconciliation (Phase 7b, trinity#1704 / ent#411) — `template.yaml plugins:` is the declared plugin set and Trinity re-installs it headlessly on every container boot; sync now checks it the way it checks schedules: `status` reports declared-vs-installed drift on the remote (via `claude plugin list --json` inside the agent, run through chat_with_agent), push/pull/deploy re-check after the code lands, and the new `plugins` subcommand reconciles on demand — install what is declared and missing (same two CLI calls the boot hook makes), never uninstall (additive; a live-only plugin is reported as drift for the operator, mirroring the schedule rule). Also flags a template.yaml with no plugins: block at all as SOFT drift with the one-line fix"
     - "2.6.0: Schedule reconcile matches on the literal `name`, not a `[id]` prefix — ent#89 materializes declared schedules verbatim and dedups on name, so the prefixed name never collided and Path-A agents ended up with two schedules firing the same cron. Remote pull now goes through mcp__trinity__git_pull instead of a chat_with_agent shell command (the platform path runs the .gitignore reconcile + trinity#2036 untracking, and a raw checkout desyncs a source-mode clone from the branch the DB records, trinity#1913); git MCP tools added to allowed-tools"
     - "2.5.0: Name the deploy path sync serves — repo-deployed agents (the default: create_agent with template: github:owner/repo) hold a clone tracking the branch, so push/pull IS the update mechanism and nothing is ever uploaded; a remote whose .trinity-remote.yaml `source` reads local-archive has no repo binding and is reported with the initialize_github_sync fix instead of silently no-opping"
@@ -388,7 +389,7 @@ Based on analysis, command, and target remote:
    ```
    mcp__trinity__git_pull(agent_name: <remote.agent>)
    ```
-   Use this rather than a `chat_with_agent` shell command. The platform pull path is what runs the fleet-wide `.gitignore` reconcile and the trinity#2036 untracking that heals a leaked `.claude/settings.json`; a raw `git checkout` also moves a source-mode clone off the branch the DB records, which trinity#1913 re-derives and reverts on the next config-drift recreate.
+   Use this rather than a `chat_with_agent` shell command. The platform pull path is what runs the fleet-wide `.gitignore` reconcile and the trinity#2036 untracking that heals a leaked `.claude/settings.json` (since trinity#2529 that reconcile reports removed/unignored paths and files a `gitignore_untracked` operator-queue item, which Phase 6 will surface — treat one as expected on the first sync after an upgrade, not as an incident); a raw `git checkout` also moves a source-mode clone off the branch the DB records, which trinity#1913 re-derives and reverts on the next config-drift recreate.
 6. Verify both at same HEAD: `mcp__trinity__get_git_sync_state(agent_name: <remote.agent>)` (or `get_git_status` / `get_git_log` for detail)
 
 **If `/trinity-sync push @remote <branch>`:**
@@ -538,9 +539,9 @@ Plugins are declared in `template.yaml` under a `plugins:` block (schema in `/tr
 **Procedure** — for each targeted remote:
 
 1. **Read declared plugins** from local `template.yaml`: `yq -r '.plugins.installed[]?'` and `.plugins.marketplaces[]`. **No `plugins:` block at all** → report one SOFT line — *"template.yaml declares no plugins: — add at least `trinity@abilityai` (see /trinity:onboard Step 3a) so the selection survives a rebuild"* — and skip the rest.
-2. **Read what is installed on the remote** — ask the agent itself (the CLI is inside its container):
+2. **Read what is installed on the remote** — prefer the platform's own record first: `mcp__trinity__get_agent_compatibility_report(agent_name: <remote.agent>)` → check **I-006** (it reads `~/.trinity/plugins-state.json`, written by the boot reconciler, withheld reason included). Fall back to the in-container CLI only when I-006 is absent (pre-ent#411 image):
    `mcp__trinity__chat_with_agent(agent_name: <remote.agent>, message: "Run: claude plugin marketplace list --json; claude plugin list --json — reply with the raw JSON only")`.
-   If the agent cannot run `claude` (image predates #1704), report `unknown — image without plugin CLI` and stop; do not guess.
+   If the agent cannot run `claude` either, report `unknown — image without plugin CLI` and stop; do not guess.
 3. **Diff** declared vs installed:
 
    | Case | Condition | push/pull/deploy · `plugins` action | status action |

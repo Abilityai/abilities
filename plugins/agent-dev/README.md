@@ -141,7 +141,7 @@ The `/add-memory` skill copies memory skills directly into the agent (no plugin 
 |------|----------|
 | **discover-agents** | Scan a repo list (local paths + `github:Org/repo`) for Trinity specs (`template.yaml`/`system.yaml`) into a descriptive `fleet/system-map.yaml`; refresh the roster/topology blocks in `fleet/orchestration.md` |
 | **compose-system** | Turn the map into a Trinity `SystemManifest` (`fleet/system.yaml`) and `deploy_system` |
-| **orchestrate** | Route a task to the best-fit agent, fan out across many, or roll a catalog agent out ephemerally (deploy → chat → tear down) |
+| **orchestrate** | Route a task to the best-fit agent, fan N tasks out to one agent (`fan_out`; many agents = parallel `chat_with_agent`), or roll a catalog agent out ephemerally (deploy → chat → tear down) |
 | **sync-fleet-to-head** | Non-destructively bring in-scope agents to their GitHub HEAD (pull-only ladder, conflict gates) — fleet git hygiene |
 | **profile-fleet** | Interview + introspect the agents, reconcile reality vs declared config, and correct the `orchestration.md` narrative behind a gate |
 | **fleet-reconcile** | Fold already-verified deltas (session fixes, audit corrections) into every doc surface behind one gate — no new evidence |

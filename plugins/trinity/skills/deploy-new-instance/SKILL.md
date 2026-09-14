@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-04-30
   author: Ability.ai
   changelog:
+    - "1.5: Aligned with Trinity 0.9.5 — no first-run setup screen when ADMIN_PASSWORD is seeded (#2381/#2385: admin exists at first boot, setup endpoint 403s), ADMIN_USERNAME live in prod, start.sh auto-generates CREDENTIAL_ENCRYPTION_KEY/SECRET_KEY/INTERNAL_API_SECRET/AGENT_AUTH_SECRET (ent#435 boot gate), optional prebuilt-image path (start.sh --hosted + TRINITY_IMAGE_TAG, #2280/#2390), MCP reachable at /mcp via nginx (#2475) so only the frontend port needs opening, docker-firewall.sh for public VPS hardening, three published ports (8001 is internal), the non-matching frontend port sed dropped, Path C healthcheck patch removed (same corruption 1.4 removed from Path B), SSH tunnel replaces the never-existing scripts/tunnel.sh, Settings → API Keys naming, 13 ops-agent skills"
     - "1.4: Removed the Step 2b healthcheck patch — trinity#443 fixed the /mcp probe upstream, and the old blanket `sed s|/mcp|/health|g` over every Dockerfile now CORRUPTS a fresh install by renaming the base image's /home/developer/mcp-servers to /home/developer/health-servers. Replaced with a read-only diagnostic"
     - "1.3: First-run setup now also seeds the instance GitHub token (Settings → GitHub token — fine-grained PAT, Contents: Read) alongside the MCP API key, in both the SSH and local-Docker paths — it is what the default deploy path (create_agent from github:owner/repo) clones with, so a private-repo fleet is unblocked before the first agent is deployed"
     - "1.2: Align with Trinity v0.7.0+ first-run flow — mandatory web setup with admin email replaces the removed setup token (#49), OWASP password complexity enforced (generator now keeps a special char), note that start.sh auto-generates AGENT_AUTH_SECRET/REDIS_* and probes DOCKER_GID"
@@ -27,7 +28,7 @@ Set up a Trinity instance and create a complete operations agent to manage it.
 **What you'll get:**
 - A running Trinity instance (if fresh install) — your private AI agent orchestration platform
 - A fully configured ops agent cloned from [trinity-ops-public](https://github.com/abilityai/trinity-ops-public)
-- 11 built-in skills: `/status`, `/restart`, `/update`, `/logs`, `/agents`, `/cleanup`, `/diagnose`, `/rebuild-agent`, `/rollback`, `/telemetry`, `/provision`
+- 13 built-in skills: `/status`, `/restart`, `/update`, `/logs`, `/agents`, `/cleanup`, `/diagnose`, `/rebuild-agent`, `/rollback`, `/telemetry`, `/provision`, `/migrate-to-postgres`, `/sync-ops-knowledge`
 
 ---
 
@@ -55,8 +56,7 @@ Display this message and stop:
 For ability.ai cloud hosting, use the standard connect flow:
 
 1. Sign up at https://ability.ai
-2. Go to Settings → API Keys and copy your MCP connection URL
-3. Run: /trinity:connect
+2. Run: /trinity:connect — it provisions the MCP key itself (Settings → API Keys holds the keys)
 4. Run: /trinity:onboard (to deploy your current agent)
 
 Ability.ai manages infrastructure — no ops agent needed.
@@ -139,11 +139,11 @@ Use AskUserQuestion (tool requires ≥2 options):
 
 #### Check port availability
 
-Check all four required ports before starting (`ss`/`netstat` are universally available; `lsof` is not installed on many minimal images):
+Check the three published host ports before starting — 80, 8000, 8080; the scheduler's 8001 is container-internal and never published (`ss`/`netstat` are universally available; `lsof` is not installed on many minimal images):
 
 ```bash
 ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} \
-  "for p in 80 8000 8001 8080; do ss -tlnp 2>/dev/null | grep -q \":$p \" && echo \"IN_USE $p\" || echo \"FREE $p\"; done"
+  "for p in 80 8000 8080; do ss -tlnp 2>/dev/null | grep -q \":$p \" && echo \"IN_USE $p\" || echo \"FREE $p\"; done"
 ```
 
 For each port reported `IN_USE`, use AskUserQuestion (tool requires ≥2 options — structure as choice 1: suggested alternate, choice 2: enter custom) to ask for an alternate:
@@ -153,9 +153,8 @@ For each port reported `IN_USE`, use AskUserQuestion (tool requires ≥2 options
 | 80 | "Port 80 is taken. What port for the frontend?" | `8090` | `FRONTEND_PORT` |
 | 8080 | "Port 8080 is taken. What port for the MCP server?" | `8085` | `MCP_PORT` |
 | 8000 | "Port 8000 is taken. What port for the backend API?" | `8100` | `BACKEND_PORT` |
-| 8001 | "Port 8001 is taken. What port for the scheduler?" | `8101` | `SCHEDULER_PORT` |
 
-Defaults if port is free: `FRONTEND_PORT=80`, `MCP_PORT=8080`, `BACKEND_PORT=8000`, `SCHEDULER_PORT=8001`.
+Defaults if port is free: `FRONTEND_PORT=80`, `MCP_PORT=8080`, `BACKEND_PORT=8000`. `SCHEDULER_PORT=8001` is fixed (internal).
 
 #### Verify firewall / security group
 
@@ -167,29 +166,35 @@ Display this warning and ask the user to confirm before proceeding:
 Before Trinity can be reached from outside the server, you need to open
 these ports in your cloud firewall / security group:
 
-  Port {FRONTEND_PORT} — Web UI
-  Port {MCP_PORT} — MCP Server (for Claude Code connection)
+  Port {FRONTEND_PORT} — Web UI AND MCP: the frontend's nginx routes
+  http://{host}:{FRONTEND_PORT}/mcp to the MCP server (trinity#2475).
+  Open {MCP_PORT} only if you need the raw MCP port.
 
-How to open ports:
-  AWS        → EC2 → Security Groups → Inbound Rules → Add Custom TCP for {FRONTEND_PORT} and {MCP_PORT}
-  GCP        → VPC → Firewall → Create rule: tcp:{FRONTEND_PORT},{MCP_PORT} targeting your instance tag
-  Hetzner    → Cloud Console → Firewall → Add Inbound rule for TCP {FRONTEND_PORT} and {MCP_PORT}
-  DigitalOcean → Networking → Firewalls → Add Inbound rule for TCP {FRONTEND_PORT} and {MCP_PORT}
-  VPS / bare metal → ufw allow {FRONTEND_PORT}/tcp && ufw allow {MCP_PORT}/tcp
+How to open the port:
+  AWS        → EC2 → Security Groups → Inbound Rules → Add Custom TCP for {FRONTEND_PORT}
+  GCP        → VPC → Firewall → Create rule: tcp:{FRONTEND_PORT} targeting your instance tag
+  Hetzner    → Cloud Console → Firewall → Add Inbound rule for TCP {FRONTEND_PORT}
+  DigitalOcean → Networking → Firewalls → Add Inbound rule for TCP {FRONTEND_PORT}
+  VPS / bare metal → ufw allow {FRONTEND_PORT}/tcp
+
+ufw does NOT protect Docker-published ports (Docker writes its own iptables
+rules): on a public VPS run  sudo ./scripts/deploy/docker-firewall.sh
+(DOCKER-USER chain) after the deploy, or on DigitalOcean deploy with
+start.sh --provision --cloud digitalocean.
 
 If you're on a private network or Tailscale, ports only need to be
 reachable by your machine — no public firewall rule needed.
 ```
 
 Use AskUserQuestion:
-- Question: "Have you opened ports {FRONTEND_PORT} and {MCP_PORT} on the server's firewall / security group?"
+- Question: "Have you opened port {FRONTEND_PORT} on the server's firewall / security group?"
 - Options: "Yes, done" / "I'm on a private network / Tailscale (no rules needed)" / "Skip — I'll do it later"
 
 If they say "Skip", note that the web UI and MCP server will not be reachable until ports are opened.
 
 #### Run deployment
 
-Inform the user: "Deploying Trinity — first run takes 10-15 minutes to build the base Docker image."
+Inform the user: "Deploying Trinity — first run takes 10-15 minutes to build the base Docker image." (Optional fast path: `TRINITY_IMAGE_TAG=v0.9.0 ./scripts/deploy/start.sh --hosted` pulls prebuilt GHCR images instead of building — pin the tag, `latest` turns the next run into an upgrade; upgrades = re-run `start.sh --hosted`, never `docker compose pull`.)
 
 **Step 1: Verify / install Docker**
 ```bash
@@ -228,15 +233,13 @@ ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} \
   done"
 ```
 
-Update docker-compose.yml port mappings for any non-default ports:
+Update docker-compose.yml port mappings for any non-default ports (the frontend port needs no compose edit — compose reads `${FRONTEND_PORT:-80}` from `.env`):
 
 ```bash
 ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} "
   cd ~/trinity
-  [ '{FRONTEND_PORT}' != '80' ]    && sed -i 's/\"80:80\"/\"{FRONTEND_PORT}:{FRONTEND_PORT}\"/g' docker-compose.yml || true
   [ '{MCP_PORT}' != '8080' ]       && sed -i 's/\"8080:8080\"/\"{MCP_PORT}:{MCP_PORT}\"/g' docker-compose.yml || true
   [ '{BACKEND_PORT}' != '8000' ]   && sed -i 's/\"8000:8000\"/\"{BACKEND_PORT}:{BACKEND_PORT}\"/g' docker-compose.yml || true
-  [ '{SCHEDULER_PORT}' != '8001' ] && sed -i 's/\"8001:8001\"/\"{SCHEDULER_PORT}:{SCHEDULER_PORT}\"/g' docker-compose.yml || true
   echo 'docker-compose ports configured'
 "
 ```
@@ -247,7 +250,7 @@ ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} \
   "cd ~/trinity && [ -f .env ] || cp .env.example .env"
 ```
 
-Set the three critical variables (`start.sh` auto-generates the other required secrets — `AGENT_AUTH_SECRET`, `REDIS_PASSWORD`, `REDIS_BACKEND_PASSWORD` — and auto-probes `DOCKER_GID` on fresh installs; note `/update` never regenerates them, so don't remove them from `.env` later):
+Set the three critical variables (`start.sh` auto-generates `CREDENTIAL_ENCRYPTION_KEY`, `SECRET_KEY`, `INTERNAL_API_SECRET` and `AGENT_AUTH_SECRET` when blank — so `ADMIN_PASSWORD` is the only mandatory input — and auto-probes `DOCKER_GID` on fresh installs; `/update` never regenerates them, so never delete them from `.env` later: `CREDENTIAL_ENCRYPTION_KEY` also encrypts the credential-bearing settings rows and the backend refuses to boot if those rows exist and the key is empty, ent#435). Leave `ADMIN_USERNAME=admin` unless deliberately changed — it is live in prod compose (trinity#2381) and is the admin identity you log in with:
 ```bash
 ssh -i {SSH_KEY} -o StrictHostKeyChecking=no {SSH_USER}@{SSH_HOST} "
   cd ~/trinity
@@ -304,15 +307,13 @@ Trinity is running. Complete the first-run setup, then create an API key for the
 
 1. Open: http://{SSH_HOST}:{FRONTEND_PORT}
    (If unreachable, check your firewall / security group — port {FRONTEND_PORT} must be open.
-    On a private network? Run ./scripts/tunnel.sh first and use http://localhost:12080)
-2. The first visit shows the first-run setup screen (the old setup token is removed, trinity#49):
-   enter an ADMIN EMAIL (required — it becomes your sign-in identity) and set the admin
-   password to {ADMIN_PASSWORD}. What you set here is authoritative — it overwrites the
-   .env-seeded value. Login attempts before setup completes return 403 setup_required.
-   ⚠️ Do this immediately: the pre-setup window is unauthenticated. On an internet-reachable
-   host, complete setup via the tunnel (./scripts/tunnel.sh) BEFORE opening the firewall.
-3. Log in with that admin email (or username admin) + password
-4. Go to: Settings → Platform API Keys
+    Not reachable from outside? Use an SSH tunnel:
+    ssh -i {SSH_KEY} -L 8090:localhost:{FRONTEND_PORT} {SSH_USER}@{SSH_HOST}  →  http://localhost:8090)
+2. Because .env carries ADMIN_PASSWORD, the admin exists at first boot and setup is already
+   complete (trinity#2381/#2385) — there is no setup screen and no unauthenticated window.
+3. Log in as ADMIN_USERNAME (default: admin) with {ADMIN_PASSWORD}. A sign-in-email nudge and
+   the operator-intake opt-in (Settings) appear after login.
+4. Go to: Settings → API Keys (MCP API Keys)
 5. Click "Create New Key" — copy the value
 6. While you're in Settings, add your GitHub token (Settings → GitHub token):
    a fine-grained PAT with Contents: Read on the repos your agents live in.
@@ -322,12 +323,12 @@ Trinity is running. Complete the first-run setup, then create an API key for the
 ```
 
 Use AskUserQuestion (tool requires ≥2 options):
-- Question: "Paste your MCP API key (from Settings → Platform API Keys)"
+- Question: "Paste your MCP API key (from Settings → API Keys)"
 - Options:
   1. **Paste key now** → collect from user input; store as `MCP_API_KEY`
   2. **I'll configure it later** → set `MCP_API_KEY=""` and note that `.env` must be updated before using the ops agent
 
-Set ports: `BACKEND_PORT=8000`, `FRONTEND_PORT={FRONTEND_PORT}`, `MCP_PORT={MCP_PORT}`, `SCHEDULER_PORT=8001`
+Set ports: `BACKEND_PORT=8000`, `FRONTEND_PORT={FRONTEND_PORT}`, `MCP_PORT={MCP_PORT}`, `SCHEDULER_PORT=8001` (internal, fixed)
 
 ---
 
@@ -343,7 +344,7 @@ If port differs from `8000`, ask: "What port is the Trinity backend on?" Store a
 
 Collect:
 - AskUserQuestion (≥2 options): "Trinity admin password" → Option 1: "Enter it now", Option 2: "I'll add it to .env manually" → store as `ADMIN_PASSWORD`
-- AskUserQuestion (≥2 options): "MCP API key (Settings → Platform API Keys)" → Option 1: "Paste key now", Option 2: "I'll configure later" → store as `MCP_API_KEY`
+- AskUserQuestion (≥2 options): "MCP API key (Settings → API Keys)" → Option 1: "Paste key now", Option 2: "I'll configure later" → store as `MCP_API_KEY`
 
 Set defaults: `BACKEND_PORT=8000`, `FRONTEND_PORT=80`, `MCP_PORT=8080`, `SCHEDULER_PORT=8001`
 
@@ -375,14 +376,14 @@ INTERNAL_API_SECRET=$(openssl rand -hex 32)
 
 Ask for `ADMIN_PASSWORD` (same as PATH B).
 
-Check all required ports before starting:
+Check the three published ports before starting (8001 is container-internal):
 ```bash
-for p in 80 8000 8001 8080; do
+for p in 80 8000 8080; do
   lsof -i ":$p" >/dev/null 2>&1 && echo "IN_USE $p" || echo "FREE $p"
 done
 ```
 
-For each `IN_USE` port, use AskUserQuestion (≥2 options) to ask for an alternate — same table as PATH B. Set defaults `FRONTEND_PORT=80`, `MCP_PORT=8080`, `BACKEND_PORT=8000`, `SCHEDULER_PORT=8001`.
+For each `IN_USE` port, use AskUserQuestion (≥2 options) to ask for an alternate — same table as PATH B. Set defaults `FRONTEND_PORT=80`, `MCP_PORT=8080`, `BACKEND_PORT=8000`; `SCHEDULER_PORT=8001` is fixed (internal).
 
 Deploy:
 ```bash
@@ -390,11 +391,9 @@ git clone https://github.com/abilityai/trinity ~/trinity
 cd ~/trinity && cp .env.example .env
 ```
 
-Patch the MCP server Dockerfile healthcheck (upstream bug — `/mcp` returns 400; `/health` returns 200):
+Do NOT patch Dockerfile healthchecks (the old blanket `s|/mcp|/health|` corrupts the base image's `/home/developer/mcp-servers` path; trinity#443 fixed the probe upstream). If a container reports `(unhealthy)` later, read the actual probe first:
 ```bash
-find ~/trinity -name 'Dockerfile' | xargs grep -l '/mcp' 2>/dev/null | while read f; do
-  perl -i -pe 's|/mcp|/health|g' "$f" && echo "healthcheck patched: $f"
-done
+grep -n 'HEALTHCHECK' -A2 ~/trinity/src/mcp-server/Dockerfile
 ```
 
 If `MCP_PORT` is not `8080`, also patch the hardcoded port and update docker-compose:
@@ -403,12 +402,11 @@ find ~/trinity -name 'Dockerfile' | xargs grep -l '8080' 2>/dev/null | while rea
   perl -i -pe "s/EXPOSE 8080/EXPOSE {MCP_PORT}/g; s/ENV MCP_PORT=8080/ENV MCP_PORT={MCP_PORT}/g; s|:8080/health|:{MCP_PORT}/health|g" "$f"
 done
 
-# Update docker-compose.yml port mappings for all non-default ports
+# Update docker-compose.yml port mappings for non-default MCP/backend ports
 cd ~/trinity
-[ '{FRONTEND_PORT}' != '80' ]    && perl -i -pe 's/"80:80"/"{FRONTEND_PORT}:{FRONTEND_PORT}"/g' docker-compose.yml || true
 [ '{MCP_PORT}' != '8080' ]       && perl -i -pe 's/"8080:8080"/"{MCP_PORT}:{MCP_PORT}"/g' docker-compose.yml || true
 [ '{BACKEND_PORT}' != '8000' ]   && perl -i -pe 's/"8000:8000"/"{BACKEND_PORT}:{BACKEND_PORT}"/g' docker-compose.yml || true
-[ '{SCHEDULER_PORT}' != '8001' ] && perl -i -pe 's/"8001:8001"/"{SCHEDULER_PORT}:{SCHEDULER_PORT}"/g' docker-compose.yml || true
+# FRONTEND_PORT needs no compose edit — compose reads ${FRONTEND_PORT:-80} from .env
 ```
 
 Configure `.env` — use `perl -i -pe` for cross-platform compatibility (`sed -i` requires a backup suffix on macOS):
@@ -434,7 +432,7 @@ Verify:
 curl -sf http://localhost:8000/health && echo healthy
 ```
 
-Open `http://localhost:{FRONTEND_PORT}/` — the first visit shows the first-run setup screen: enter an admin email + the admin password (same rules and same authority as PATH B; the setup token is gone). Then Settings → Platform API Keys → create and copy the MCP key. Add your GitHub token too (Settings → GitHub token — fine-grained PAT, Contents: Read): agents deploy by cloning their GitHub repo, so private-repo agents need it.
+Open `http://localhost:{FRONTEND_PORT}/` — with `ADMIN_PASSWORD` in `.env` the admin already exists and setup is complete (no setup screen, trinity#2381/#2385); log in as `admin` with that password. Then Settings → API Keys → create and copy the MCP key. Add your GitHub token too (Settings → GitHub token — fine-grained PAT, Contents: Read): agents deploy by cloning their GitHub repo, so private-repo agents need it.
 
 Set `SSH_HOST=""` (empty — local, no SSH).
 
@@ -602,12 +600,14 @@ Agent:    {DEST}
   /rollback      — roll back Trinity to a previous version
   /telemetry     — view aggregated logs and metrics
   /provision     — provisioning guides for cloud providers
+  /migrate-to-postgres — move the instance from SQLite to PostgreSQL
+  /sync-ops-knowledge  — refresh the agent's Trinity reference docs from upstream
 
 ### Access Trinity
 
   Web UI:     http://{SSH_HOST}:{FRONTEND_PORT}
   Backend:    http://{SSH_HOST}:{BACKEND_PORT}
-  MCP Server: http://{SSH_HOST}:{MCP_PORT}
+  MCP Server: http://{SSH_HOST}:{FRONTEND_PORT}/mcp  (raw port: http://{SSH_HOST}:{MCP_PORT}/mcp)
 
 Credentials are in {DEST}/.env — keep this file secret.
 ```
