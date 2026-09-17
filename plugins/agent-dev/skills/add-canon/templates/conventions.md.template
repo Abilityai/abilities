@@ -143,7 +143,7 @@ Charter envelope — `project.md`:
 ---
 owner: <agent-name>                 # must equal the enclosing agents/<name>/ folder — the managing agent
 status: active                      # active | blocked | needs-decision | paused | pending-verification | done
-epic: <owner>/<repo>#<N>            # the registry epic this charter mirrors (the epic is the authoritative record)
+epic: <owner>/<repo>#<N>            # the registry epic this charter mirrors (the epic is the authoritative record); #0 = not yet registered
 updated: YYYY-MM-DD                 # last charter change
 review_by: YYYY-MM-DD               # verification due date — past due (unless paused/done) = stale
 tldr: "One line — what this project is for"
