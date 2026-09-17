@@ -6,10 +6,11 @@ disable-model-invocation: true
 user-invocable: true
 allowed-tools: AskUserQuestion, Read, Skill, mcp__trinity__list_agents, mcp__trinity__run_agent_loop, mcp__trinity__get_loop_status, mcp__trinity__stop_loop
 metadata:
-  version: "1.8"
+  version: "1.9"
   created: 2026-06-09
   author: Ability.ai
   changelog:
+    - "1.9: Trinity v0.9.5 — the loop tools enforce the agent-to-agent permission edge (ent#628): an agent-scoped key can loop only itself and granted agents; Guardrails names the two uniform denial strings and the fix (owner grants the edge), so a denial is never treated as a typo or retried"
     - "1.8: Loop contract refresh (0.9.5-rc) — timeout_per_run above the agent execution cap is refused 400 loop_timeout_exceeds_agent_cap (ent#338); delay_seconds is a durable park that survives restarts and terminal statuses gain completed_with_errors while interrupted is legacy (trinity#2523); fan_out_timeout → get_fan_out_result (trinity#2670); the local /loop watch is skipped inside deployed agents where ScheduleWakeup/Monitor are platform-denied (trinity#2468); model example moved off the legacy claude-opus-4-8"
     - "1.7: Teach the server-side loop guardrails — on_failure abort|continue + max_consecutive_failures (#1167), max_duration_seconds / max_cost_usd / no_progress_threshold hard stops — in Phase 2 and Guardrails; queued_timeout receipt framing (~25s, not 60s); point one-shot deferred checks at set_reminder and completion-notification at agent.task.* events instead of loops"
     - "1.6: Local mode — a `local` token runs the same bounded loop natively in this Claude Code session: inline back-to-back iterations by default, hand-off to the built-in dynamic /loop when a cadence is given; offered as the fallback when Trinity is unreachable and the task doesn't need the remote"
@@ -252,6 +253,7 @@ Call `mcp__trinity__stop_loop` with the `loop_id`. It returns:
 
 - **The cap is the safety net.** Always set `max_runs` even in Until mode — `stop_signal` is best-effort (the agent has to emit it); the cap is guaranteed. Bounds: `max_runs` 1–100, `delay_seconds` 0–3600, `timeout_per_run` 10–7200 and ≤ the agent's execution cap (400 otherwise). The server-side hard stops (`on_failure`/`max_consecutive_failures`, `max_duration_seconds`, `max_cost_usd`, `no_progress_threshold`) are guaranteed too — prefer designing them in over watching.
 - **One loop, one handle.** Always echo the `loop_id`. A loop the user can't find is a loop they can't stop.
+- **A denial is a permission, not a typo.** Since Trinity v0.9.5 (ent#628) the loop tools enforce the same agent-to-agent permission edge as `chat_with_agent`: an **agent-scoped** key can loop itself and the agents it has been granted, nothing else — user keys are unaffected. `run_agent_loop` answers `Agent '<name>' not found or not accessible`; `get_loop_status` / `stop_loop` answer a deliberately uniform `Loop '<id>' not found or not accessible`. Don't retry or guess another name — tell the user the agent's owner must grant the edge (agent → Permissions); a loop whose grant was removed mid-run can still be stopped from the Workspace (Loops) by anyone who can access the agent.
 - **Sequential, not parallel.** If the user wants the *same* task across many inputs at once, that's `fan_out` (N tasks to one agent; `fan_out_timeout` → `get_fan_out_result`), not this.
 - **One deferred check ≠ a loop.** A single "check back in 2 hours" is `set_reminder` (one-shot self-trigger, 60s–30d out), not a 1-run loop; and "tell me when the worker finishes" is a subscription to its `agent.task.completed` event (trinity#1578), not a polling loop.
 - **Cost compounds.** N iterations = up to N task executions against the agent's budget. For large `max_runs` × expensive `model`, set `max_cost_usd` and say so in the Phase 3 plan before firing.

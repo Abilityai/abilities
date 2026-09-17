@@ -5,10 +5,11 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 argument-hint: "[--check]"
 metadata:
-  version: "1.27"
+  version: "1.28"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.28: Bundled project-steward 1.3 — GH_TOKEN resolves through git's credential helper (`git credential fill`): Trinity v0.9.5 (ent#615) made agent remotes credential-less, so parsing the origin URL returned an empty token on every upgraded instance; the URL parse stays as the pre-0.9.5 fallback. Re-run /add-orchestrator (or re-copy the template) to pick it up in an installed steward"
     - "1.27: Platform-truth refresh (Trinity dev 9ac2ceae, 0.9.5-rc2) across the bundle — orchestrate 1.16 (fan_out = N tasks to ONE agent, fan_out_timeout → get_fan_out_result #2670; rooms OSS core ent#443, defaults 200/168h #2620; deploy_local_agent manifest #2060; get_agent_skills = library-assigned only; #2661 idempotency release), compose-system 1.5 + discover-agents 1.10 (ent#411 shipped: trinity plugin pre-installed, CLI bootstrap gone), profile-fleet 1.7 (get_agent_skills scope). Fan-out wording corrected in the installer, claude-section and README"
     - "1.26: Bundled templates learn the deploy-as-is → onboard-in-place ladder for spec-less catalog repos (trinity#1704 / ent#411): discover-agents 1.9 reports them under `no spec:` with the fix, compose-system 1.4 resolves them to `github:Org/repo` anyway and hands each a post-deploy `/trinity:onboard in-place` playbook call, orchestrate 1.15 states what a spec-less ephemeral arrives without and when the ladder (not an ephemeral) is the right tool. Companion to trinity plugin 2.8.0 (onboard 6.0 in-place mode + plugins: block, sync 2.7.0 plugin reconcile)"
     - "1.25: Refresh the Check-mode illustrations to the post-back-port bundle (1.23 moved profile-fleet to 1.6 and sync-fleet-to-head to 1.4; 1.21 moved discover-agents to 1.8 and orchestrate to 1.14), so the example report and the Step 4 overwrite-prompt samples no longer show version pairs that contradict the versions this bundle actually ships. Illustration-only — no logic change. The `--autonomous` gate the 1.24 convention section promises is now live in the marketplace manager's /audit-wizards v1.3 (abilities#6)"

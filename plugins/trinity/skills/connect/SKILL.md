@@ -5,10 +5,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, AskUserQuestion
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.5: UI label — MCP keys live under Settings → MCP Keys (the tab was never called API Keys); verified against Settings.vue at v0.9.5"
     - "1.4: Auth flow aligned with the live API — email request answers 200 {success,message} (403 for email-auth-disabled / setup_required, never 404); a 2FA-enrolled account gets a 200 challenge with no access_token (stop, mint the key in the UI); ensure-default returns null when a user-scoped key already exists (mint via POST /api/mcp/keys); ops-scope keys are not usable here; .mcp.json uses type http and prefers {INSTANCE_URL}/mcp (nginx route #2475) over :8080; no CLI fallback"
     - "1.3: Next steps carry the deploy sequence — add the instance GitHub token (Settings → GitHub token) before /trinity:onboard, which deploys an agent from its GitHub repo"
     - "1.2: Explain the silent no-code failure mode — email OTP only reaches whitelisted addresses and the API 200s identically for unknown ones (anti-enumeration #186); self-signup is default-OFF (#1274) — so guide users to admin whitelisting instead of resend loops"
@@ -117,7 +118,7 @@ Expected response:
 }
 ```
 
-If the 200 body carries `mfa_required: true` / `challenge_token` and **no** `access_token`, stop: this account is enrolled in 2FA (enterprise). Tell the user to sign in once in the web UI to complete the second factor and mint the MCP key under Settings → API Keys, then re-run `/trinity:connect --force`. Never treat the missing token as success.
+If the 200 body carries `mfa_required: true` / `challenge_token` and **no** `access_token`, stop: this account is enrolled in 2FA (enterprise). Tell the user to sign in once in the web UI to complete the second factor and mint the MCP key under Settings → MCP Keys, then re-run `/trinity:connect --force`. Never treat the missing token as success.
 
 If error:
 - 401/422: "Invalid or expired code. Request a new one?"
@@ -253,7 +254,7 @@ Next steps:
 | Instance unreachable | "Cannot reach {URL}. Check the URL and your network connection." |
 | Email not sent | "Failed to send verification email. Is this email registered on this Trinity instance?" |
 | Invalid code | "Code invalid or expired. Would you like a new code?" |
-| MCP key failed | "Logged in but couldn't provision MCP key — mint one under Settings → API Keys and re-run `/trinity:connect --force`." |
+| MCP key failed | "Logged in but couldn't provision MCP key — mint one under Settings → MCP Keys and re-run `/trinity:connect --force`." |
 | Config write failed | "Couldn't write to ~/.trinity/config.json. Check permissions." |
 
 ## Notes

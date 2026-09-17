@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2026-04-30
   author: Ability.ai
   changelog:
+    - "1.6: Aligned with Trinity v0.9.5 (released 2026-09-17) — the Cloud (ability.ai) path is gone (Trinity is self-hosted; there is no managed hosting offering) and PATH A is now the DigitalOcean guided installer (scripts/deploy/trinity-do-create.sh — run in the user's own terminal, secrets never pass through this session), continuing into the ops-agent scaffold with the Droplet values (root, /opt/trinity, hosted compose, FRONTEND_PORT 8081); first-run wording corrected — after login the Dashboard opens first-run setup (Connect Claude is the one required step; the GitHub token goes in Other keys, later Settings → Integrations); the MCP key lives under Settings → MCP Keys (the tab was never called API Keys); hosted fast path pins TRINITY_IMAGE_TAG=v0.9.5 and the ops agent gets COMPOSE_FILE=docker-compose.hosted.yml so /update pulls instead of building"
     - "1.5: Aligned with Trinity 0.9.5 — no first-run setup screen when ADMIN_PASSWORD is seeded (#2381/#2385: admin exists at first boot, setup endpoint 403s), ADMIN_USERNAME live in prod, start.sh auto-generates CREDENTIAL_ENCRYPTION_KEY/SECRET_KEY/INTERNAL_API_SECRET/AGENT_AUTH_SECRET (ent#435 boot gate), optional prebuilt-image path (start.sh --hosted + TRINITY_IMAGE_TAG, #2280/#2390), MCP reachable at /mcp via nginx (#2475) so only the frontend port needs opening, docker-firewall.sh for public VPS hardening, three published ports (8001 is internal), the non-matching frontend port sed dropped, Path C healthcheck patch removed (same corruption 1.4 removed from Path B), SSH tunnel replaces the never-existing scripts/tunnel.sh, Settings → API Keys naming, 13 ops-agent skills"
     - "1.4: Removed the Step 2b healthcheck patch — trinity#443 fixed the /mcp probe upstream, and the old blanket `sed s|/mcp|/health|g` over every Dockerfile now CORRUPTS a fresh install by renaming the base image's /home/developer/mcp-servers to /home/developer/health-servers. Replaced with a read-only diagnostic"
     - "1.3: First-run setup now also seeds the instance GitHub token (Settings → GitHub token — fine-grained PAT, Contents: Read) alongside the MCP API key, in both the SSH and local-Docker paths — it is what the default deploy path (create_agent from github:owner/repo) clones with, so a private-repo fleet is unblocked before the first agent is deployed"
@@ -38,31 +39,55 @@ Use AskUserQuestion:
 - **Question:** "How will you run Trinity?"
 - **Header:** "Trinity Deployment"
 - **Options:**
-  1. **Cloud (ability.ai)** — Managed hosting, zero infrastructure to run
+  1. **DigitalOcean, guided installer** — Trinity's own one-command installer: a new Droplet behind HTTPS in about ten minutes (~$48/month, billed by DigitalOcean)
   2. **Self-hosted, remote server** — VPS, GCP, AWS, or any SSH-accessible machine
   3. **Self-hosted, local Docker** — Docker running on this machine
 
 ---
 
-## PATH A: Cloud (ability.ai)
+## PATH A: DigitalOcean (guided installer)
 
-Cloud is fully managed — no server to configure.
+Trinity ships its own installer for this (`scripts/deploy/trinity-do-create.sh`, v0.9.5+): it creates a stock Ubuntu Droplet (`s-4vcpu-8gb`, about **$48/month** until the Droplet is deleted), installs Trinity from prebuilt images on first boot, and serves it over HTTPS with a real certificate for the IP address. There is no managed Trinity hosting — this is the least-infrastructure path.
 
-Display this message and stop:
+**The installer asks for the admin password and a Claude subscription token in the user's own terminal. Never run it from this session and never ask for either secret here** — the script is built to keep them off the screen and out of shell history.
+
+Display:
 
 ```
-## Cloud Deployment
+## DigitalOcean Install
 
-For ability.ai cloud hosting, use the standard connect flow:
+Run these in your own terminal (on Windows: inside WSL):
 
-1. Sign up at https://ability.ai
-2. Run: /trinity:connect — it provisions the MCP key itself (Settings → API Keys holds the keys)
-4. Run: /trinity:onboard (to deploy your current agent)
+1. Install DigitalOcean's CLI (doctl) and authorise it:   doctl auth init
+2. Create a Claude subscription token:                     claude setup-token
+   (an sk-ant-oat01-… value — the installer refuses sk-ant-api03- API keys;
+    add an API key later under Settings → Integrations if you prefer one)
+3. Pick an admin password: 12+ characters with upper/lowercase, a digit and a symbol.
+4. Run the installer — it installs the release it was fetched from:
 
-Ability.ai manages infrastructure — no ops agent needed.
+   bash <(curl -fsSL https://raw.githubusercontent.com/abilityai/trinity/v0.9.5/scripts/deploy/trinity-do-create.sh)
+
+   (newer release? swap the tag — https://github.com/abilityai/trinity/releases)
+   It asks for the password, the token, a region and a Droplet name, shows the cost,
+   and asks before creating anything. About six minutes end to end.
+5. When it prints "Trinity is ready", open https://<droplet-ip> and sign in as admin.
+   First-run setup opens — "Secure this instance" is the step worth doing now.
+
+Full guide: https://docs.ability.ai/getting-started/deploying/digitalocean
 ```
 
-Do not continue to agent generation.
+Use AskUserQuestion:
+- **Question:** "Has the installer finished?"
+- **Options:**
+  1. **Yes — Trinity is ready** → continue below
+  2. **Not yet — I'll come back** → stop; tell them to re-run `/trinity:deploy-new-instance`, choose **Self-hosted, remote server** → **Already running**, and use the Droplet values below
+
+Preset the Droplet's values — do not ask for them:
+`SSH_USER=root`, `TRINITY_PATH=/opt/trinity`, `COMPOSE_FILE=docker-compose.hosted.yml`, `FRONTEND_PORT=8081` (Caddy owns 80/443 and forwards to the web UI), `BACKEND_PORT=8000`, `MCP_PORT=8080`, `SCHEDULER_PORT=8001`.
+
+Then run **STEP B2** for `SSH_HOST` (the Droplet IP) and `SSH_KEY` only — skip the SSH-user question. The installer attached every SSH key already on the DigitalOcean account; if the account had none, SSH will fail — tell the user to add a key through the Droplet's browser **Console** (`~/.ssh/authorized_keys`), since the ops agent works over SSH. Continue with **STEP B3b** (keeping the preset ports), then **STEP 2**.
+
+The backend port is not reachable from outside the Droplet — that is by design; the ops agent calls it on the server over SSH.
 
 ---
 
@@ -194,7 +219,7 @@ If they say "Skip", note that the web UI and MCP server will not be reachable un
 
 #### Run deployment
 
-Inform the user: "Deploying Trinity — first run takes 10-15 minutes to build the base Docker image." (Optional fast path: `TRINITY_IMAGE_TAG=v0.9.0 ./scripts/deploy/start.sh --hosted` pulls prebuilt GHCR images instead of building — pin the tag, `latest` turns the next run into an upgrade; upgrades = re-run `start.sh --hosted`, never `docker compose pull`.)
+Inform the user: "Deploying Trinity — first run takes 10-15 minutes to build the base Docker image." (Optional fast path: `TRINITY_IMAGE_TAG=v0.9.5 ./scripts/deploy/start.sh --hosted` pulls prebuilt GHCR images instead of building — pin the tag, `latest` turns the next run into an upgrade; upgrades = re-run `start.sh --hosted`, never `docker compose pull`. If you take it, set `COMPOSE_FILE=docker-compose.hosted.yml` for STEP 3 so the ops agent's `/update` pulls instead of building.)
 
 **Step 1: Verify / install Docker**
 ```bash
@@ -303,27 +328,30 @@ Display:
 ```
 ## First-Run Setup + MCP API Key
 
-Trinity is running. Complete the first-run setup, then create an API key for the ops agent.
+Trinity is running. Sign in, connect Claude in first-run setup, then create an MCP key for the ops agent.
 
 1. Open: http://{SSH_HOST}:{FRONTEND_PORT}
    (If unreachable, check your firewall / security group — port {FRONTEND_PORT} must be open.
     Not reachable from outside? Use an SSH tunnel:
     ssh -i {SSH_KEY} -L 8090:localhost:{FRONTEND_PORT} {SSH_USER}@{SSH_HOST}  →  http://localhost:8090)
-2. Because .env carries ADMIN_PASSWORD, the admin exists at first boot and setup is already
-   complete (trinity#2381/#2385) — there is no setup screen and no unauthenticated window.
-3. Log in as ADMIN_USERNAME (default: admin) with {ADMIN_PASSWORD}. A sign-in-email nudge and
-   the operator-intake opt-in (Settings) appear after login.
-4. Go to: Settings → API Keys (MCP API Keys)
+2. Because .env carries ADMIN_PASSWORD, the admin exists at first boot (trinity#2381/#2385) —
+   there is no "create your admin" form and no unauthenticated window.
+3. Log in as ADMIN_USERNAME (default: admin) with {ADMIN_PASSWORD}. The Dashboard opens
+   first-run setup (v0.9.5): "Connect Claude" is the one required step — paste a Claude
+   subscription token or an Anthropic API key; no agent can run until it is done. The rest
+   (sign-in email, other keys, your first agent) is skippable; "Finish later" closes it and
+   Settings → General → First-run setup re-opens it.
+4. Go to: Settings → MCP Keys
 5. Click "Create New Key" — copy the value
-6. While you're in Settings, add your GitHub token (Settings → GitHub token):
-   a fine-grained PAT with Contents: Read on the repos your agents live in.
+6. Add your GitHub token — in first-run setup's "Other keys" step, or afterwards under
+   Settings → Integrations: a fine-grained PAT with Contents: Read on the repos your agents live in.
    Agents are deployed by cloning their GitHub repo, so this is what makes the
    normal deploy path work — required for private repos, recommended for public
    ones (it lifts GitHub's anonymous rate limits).
 ```
 
 Use AskUserQuestion (tool requires ≥2 options):
-- Question: "Paste your MCP API key (from Settings → API Keys)"
+- Question: "Paste your MCP API key (from Settings → MCP Keys)"
 - Options:
   1. **Paste key now** → collect from user input; store as `MCP_API_KEY`
   2. **I'll configure it later** → set `MCP_API_KEY=""` and note that `.env` must be updated before using the ops agent
@@ -344,9 +372,9 @@ If port differs from `8000`, ask: "What port is the Trinity backend on?" Store a
 
 Collect:
 - AskUserQuestion (≥2 options): "Trinity admin password" → Option 1: "Enter it now", Option 2: "I'll add it to .env manually" → store as `ADMIN_PASSWORD`
-- AskUserQuestion (≥2 options): "MCP API key (Settings → API Keys)" → Option 1: "Paste key now", Option 2: "I'll configure later" → store as `MCP_API_KEY`
+- AskUserQuestion (≥2 options): "MCP API key (Settings → MCP Keys)" → Option 1: "Paste key now", Option 2: "I'll configure later" → store as `MCP_API_KEY`
 
-Set defaults: `BACKEND_PORT=8000`, `FRONTEND_PORT=80`, `MCP_PORT=8080`, `SCHEDULER_PORT=8001`
+Set defaults (unless PATH A preset them): `BACKEND_PORT=8000`, `FRONTEND_PORT=80`, `MCP_PORT=8080`, `SCHEDULER_PORT=8001`. If this instance was installed with `start.sh --hosted` (prebuilt images — including both DigitalOcean paths), set `COMPOSE_FILE=docker-compose.hosted.yml`; on a DigitalOcean Droplet also `TRINITY_PATH=/opt/trinity` and `FRONTEND_PORT=8081`.
 
 ---
 
@@ -432,7 +460,7 @@ Verify:
 curl -sf http://localhost:8000/health && echo healthy
 ```
 
-Open `http://localhost:{FRONTEND_PORT}/` — with `ADMIN_PASSWORD` in `.env` the admin already exists and setup is complete (no setup screen, trinity#2381/#2385); log in as `admin` with that password. Then Settings → API Keys → create and copy the MCP key. Add your GitHub token too (Settings → GitHub token — fine-grained PAT, Contents: Read): agents deploy by cloning their GitHub repo, so private-repo agents need it.
+Open `http://localhost:{FRONTEND_PORT}/` — with `ADMIN_PASSWORD` in `.env` the admin already exists (no "create your admin" form, trinity#2381/#2385); log in as `admin` with that password. The Dashboard opens first-run setup (v0.9.5) — **Connect Claude** is the one required step (subscription token or API key; no agent runs without it), the rest is skippable. Then Settings → MCP Keys → create and copy the MCP key. Add your GitHub token too (first-run "Other keys", or Settings → Integrations — fine-grained PAT, Contents: Read): agents deploy by cloning their GitHub repo, so private-repo agents need it.
 
 Set `SSH_HOST=""` (empty — local, no SSH).
 
@@ -523,6 +551,13 @@ For any non-default ports:
 [ '{SCHEDULER_PORT}' != '8001' ] && perl -i -pe 's|^SCHEDULER_PORT=.*|SCHEDULER_PORT={SCHEDULER_PORT}|' {DEST}/.env || true
 ```
 
+For a hosted (pull-only) install and for a DigitalOcean Droplet — only when the variable was set earlier; the `.env.example` defaults (`docker-compose.prod.yml`, a source-built install) are right otherwise:
+```bash
+[ -n '{COMPOSE_FILE}' ] && perl -i -pe 's|^COMPOSE_FILE=.*|COMPOSE_FILE={COMPOSE_FILE}|' {DEST}/.env || true
+[ -n '{TRINITY_PATH}' ] && perl -i -pe 's|^TRINITY_PATH=.*|TRINITY_PATH={TRINITY_PATH}|' {DEST}/.env || true
+```
+`COMPOSE_FILE` decides whether the ops agent's `/update` builds images or runs `start.sh --hosted` — wrong here means a rebuild-from-source on an install that has no build context.
+
 For local Docker (no SSH): leave `SSH_HOST` empty (the `.env.example` default).
 
 Write `{DEST}/instance.yaml`:
@@ -542,7 +577,7 @@ host:
 trinity:
   version: latest
   branch: main
-  path: ~/trinity
+  path: ~/trinity          # {TRINITY_PATH} when set (DigitalOcean: /opt/trinity)
 
 ports:
   frontend: {FRONTEND_PORT}
@@ -611,6 +646,8 @@ Agent:    {DEST}
 
 Credentials are in {DEST}/.env — keep this file secret.
 ```
+
+**DigitalOcean Droplet (PATH A):** print `https://{SSH_HOST}` as the Web UI and `https://{SSH_HOST}/mcp` as the MCP Server instead — Caddy terminates HTTPS on 443, and ports 8081/8000/8080 are closed to the internet by design (omit the Backend and raw-port lines).
 
 ---
 

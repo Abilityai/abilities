@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Bash, AskUserQuestion, Skill, mcp__trinity__list_agents, mcp__trinity__get_fleet_health, mcp__trinity__ask_trinity, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-08-06
   author: Ability.ai
   changelog:
+    - "1.5: Trinity v0.9.5 — the instance options are DigitalOcean (guided installer), your own server, or local Docker; the cloud (ability.ai) managed-hosting option is gone — Trinity is self-hosted"
     - "1.4: Next-steps menu points only at /create-agent:custom (kb-agent retired with create-agent 2.0.0); docs MCP package is the unscoped npm name trinity-docs-mcp (the scoped one 404s); queued_timeout note extended to parallel turns (#2661) and fan_out_timeout → get_fan_out_result (#2670)"
     - "1.3: Smoke test no longer treats an empty agent list as the fresh-install signature — ent#124 seeds the acme trio plus Cornelius, so a fresh instance boots ~4 agents (Stage 4 already assumed seeded agents existed)"
     - "1.2: Stage 4 teaches the repository-first deploy sequence — push the agent to GitHub and add the instance's GitHub token (Settings → GitHub token) before /trinity:onboard, which then deploys by cloning the repo; the local-file deploy is named as the fallback that offers promotion afterwards"
@@ -124,7 +125,7 @@ Use AskUserQuestion — **Question:** "Where are you right now?" — **Header:**
 Ask: **"Do you already have a Trinity instance URL?"**
 
 - **Yes** → note `instance_url`, skip to Stage 3.
-- **No** → `/trinity:deploy-new-instance` owns provisioning; it will ask them to choose between cloud (ability.ai — managed, no infrastructure), a self-hosted server, or local Docker on this machine. Run it, and when an instance is reachable, return here → Stage 3.
+- **No** → `/trinity:deploy-new-instance` owns provisioning; it will ask them to choose between DigitalOcean (Trinity's own guided installer — a new Droplet behind HTTPS in about ten minutes, ~$48/month), a server they already have, or local Docker on this machine. Trinity is self-hosted — there is no managed hosting offering. Run it, and when an instance is reachable, return here → Stage 3.
 - **Not yet / just exploring** → perfectly fine. Save state and close warmly: "Your progress is saved — run `/trinity:start-here` whenever you're ready and we continue at this exact step."
 
 ## STAGE 3: Connect the MCP — and prove it works

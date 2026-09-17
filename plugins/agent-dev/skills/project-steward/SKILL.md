@@ -7,10 +7,11 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 effort: high
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.3: GH_TOKEN now resolves through git's credential helper (`git credential fill`) — Trinity v0.9.5 (ent#615) made agent remotes credential-less, so the old sed over `git remote get-url origin` returned an empty token and the run fell back to a possibly stale hosts.yml (the 403 class this block exists to prevent); the remote-URL parse stays as a fallback for pre-0.9.5 instances"
     - "1.2: Read-the-standard guard (missing PROJECT_STANDARD.md → exit with \"run /project-init first\", headless-safe); default `schedule:` in frontmatter replaces the installer-substituted placeholder; skill is now authored standalone (installer copies from here)"
     - "1.1: Loop closure (Invariant 7) — Step 3c open-loop pass ages every waiting-on:* task on the 3d/7d/14d ladder and drafts sendable nudges (never sends them), detects and records closes; digest opens with a closing statement and carries Your open loops + Loops closed; unanswered needs-decision asks get louder with age instead of aging out; operator-initiated results notify the operator directly; state.json gains open_loops (rebuildable from labels)"
     - "1.0: Initial version — completion lattice verification, owner/agent distinction, Invariant 4 escalation ladder (never mutates P1/P2), unclassified quarantine pass, Trinity-optional dispatch"
@@ -18,7 +19,7 @@ metadata:
 
 # Project Steward
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-steward v1.1 — recent: loop closure (Invariant 7)`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-steward v1.3 — recent: GH_TOKEN via git's credential helper (Trinity v0.9.5)`. Then proceed.
 
 ## Purpose
 
@@ -60,8 +61,11 @@ if ! command -v gh &>/dev/null; then
 fi
 ```
 
-**Derive GH_TOKEN from the git remote** (critical on Trinity — env wins over cached hosts.yml):
+**Derive GH_TOKEN from git's own credential** (critical on Trinity — env wins over cached hosts.yml). Since Trinity v0.9.5 (ent#615) agent remotes carry no token: git asks the platform's credential helper, which reads the live-rotated `.env` first — so ask git, don't parse the URL. The second block is the fallback for instances older than v0.9.5, where the PAT still rides the origin URL:
 ```bash
+if [ -z "$GH_TOKEN" ]; then
+  export GH_TOKEN=$(printf 'protocol=https\nhost=github.com\n\n' | GIT_TERMINAL_PROMPT=0 git credential fill 2>/dev/null | sed -n 's/^password=//p')
+fi
 if [ -z "$GH_TOKEN" ]; then
   export GH_TOKEN=$(git remote get-url origin | sed -nE 's#https://[^:/@]+:([^@]+)@github.com/.*#\1#p')
 fi

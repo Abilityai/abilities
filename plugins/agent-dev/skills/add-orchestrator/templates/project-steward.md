@@ -7,10 +7,11 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__list_agents, m
 effort: high
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-07-03
   author: orchestrator
   changelog:
+    - "1.3: GH_TOKEN now resolves through git's credential helper (`git credential fill`) — Trinity v0.9.5 (ent#615) made agent remotes credential-less, so the sed over `git remote get-url origin` returned an empty token and gh fell back to a possibly stale hosts.yml (the three-403-runs class this step exists to prevent); the remote-URL parse stays as a fallback for pre-0.9.5 instances"
     - "1.2: Loop closure (standard §12) — new Step 4b open-loop pass ages every waiting-on:* task on the 3d/7d/14d ladder, drafts sendable follow-ups (never sends them) and records closes; triage gains a waiting-on class so a wait no longer burns a needs-operator; digest opens with the closing statement and carries Your open loops + Loops closed; operator-initiated results notify the operator directly; unanswered asks get louder with age; state.json gains open_loops (rebuildable from labels)"
     - "1.1: Ownership-matrix awareness — when orchestration.md §3b lists C/I agents for the task's domain, note C in the dispatch brief and address I in the digest; advisory etiquette only, never a gate or an extra dispatch"
     - "1.0: Initial bundle version — adopted from a production orchestrator's project-steward v1.6 (six field-hardened releases: gh bootstrap, GH_TOKEN from the origin remote, REST-labels scope pre-flight, no-op discipline for high-frequency cadence, time-based dispatch thresholds, GitHub-as-state-carrier) and universalized: registry repo + operator read from fleet/project-standard.md, needs-operator label, inline class = agent:<self>, owners resolved via system-map deployed_name and checked against orchestration.md §5 before dispatch"
@@ -100,12 +101,18 @@ comment so the operator or a local run can land it into the workspace later.
     export PATH="$HOME/.local/bin:$PATH"
   fi
   ```
-- **Derive `GH_TOKEN` from the git remote (critical on Trinity)**: Trinity injects the
-  agent's PAT into the origin remote URL — that is the ONE authoritative credential. A
+- **Derive `GH_TOKEN` from git's own credential (critical on Trinity)**: the credential git
+  itself authenticates with is the ONE authoritative credential. Since Trinity v0.9.5
+  (ent#615) agent remotes carry no token — git asks the platform's credential helper, which
+  reads the live-rotated `.env` first — so ask git rather than parsing the URL. A
   stale `~/.config/gh/hosts.yml` from an earlier bootstrap can shadow it with an old token
   (in production this caused three consecutive 403 runs). Exporting `GH_TOKEN` wins over
-  hosts.yml in `gh`'s precedence, so always run:
+  hosts.yml in `gh`'s precedence, so always run (the second block is the fallback for
+  instances older than v0.9.5, where the PAT still rides the origin URL):
   ```bash
+  if [ -z "$GH_TOKEN" ]; then
+    export GH_TOKEN=$(printf 'protocol=https\nhost=github.com\n\n' | GIT_TERMINAL_PROMPT=0 git credential fill 2>/dev/null | sed -n 's/^password=//p')
+  fi
   if [ -z "$GH_TOKEN" ]; then
     export GH_TOKEN=$(git remote get-url origin | sed -nE 's#https://[^:/@]+:([^@]+)@github.com/.*#\1#p')
   fi

@@ -37,7 +37,7 @@ Set up, connect, deploy, and sync Claude Code agents to the Trinity Deep Agent O
 ### 0. Deploy Trinity (if you don't have an instance yet)
 
 Run `/trinity:deploy-new-instance` to set up a Trinity instance and create an ops agent:
-- Choose cloud (ability.ai) or self-hosted (remote SSH or local Docker)
+- Choose DigitalOcean (Trinity's guided one-command installer, v0.9.5+), a remote server over SSH, or local Docker — Trinity is self-hosted
 - For fresh installs: generates secrets, configures `.env`, runs `start.sh`, verifies health
 - Handles firewall/security group guidance for AWS, GCP, Hetzner, DigitalOcean
 - Scaffolds a complete ops agent with 13 skills: `/status`, `/restart`, `/update`, `/logs`, `/agents`, `/cleanup`, `/diagnose`, `/rebuild-agent`, `/rollback`, `/telemetry`, `/provision`, `/migrate-to-postgres`, `/sync-ops-knowledge`
