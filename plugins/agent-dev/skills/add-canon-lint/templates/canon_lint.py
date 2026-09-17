@@ -9,6 +9,9 @@ defined in CONVENTIONS.md ("Lintable structure"):
       facts.yaml    required — the purely lintable zone: structured claims
       docs/         prose zone — front-matter envelope linted, body never read
       files/        shared artifacts — must be referenced, no orphans
+      projects/     shared (company) projects — projects/<slug>/project.md carries a
+                    linted charter envelope; decisions.md is an append-only ledger;
+                    everything else in the slug folder is unlinted workspace
 
 The lintable zone uses a deliberately RESTRICTED grammar (a strict YAML
 subset): flat `key: value` scalars, full-line comments only, values that
@@ -39,14 +42,25 @@ RULE_DEFAULTS = {
     "staleness": "fail",          # canonical items past review_by
     "source-resolution": "fail",  # local fact sources must exist
     "reachability": "fail",       # canonical docs linked from profile.md; no orphan files; drafts unlinked
+    "project-envelope": "fail",   # projects/<slug>/project.md present + charter envelope; decisions.md envelope
 }
 STATUS_VOCAB = ("canonical", "draft", "superseded")
 REQUIRED_FACT_KEYS = ("key", "value", "status", "updated", "review_by", "source")
 REQUIRED_DOC_KEYS = ("owner", "status", "updated", "review_by", "tldr")
+# projects/<slug>/project.md — the shared-project charter (CONVENTIONS.md § Projects, ruling R21).
+# `status` mirrors the registry epic's status:* label, so the vocabulary is the PM standard's, not
+# the doc conviction levels; `epic` names the registry epic the charter mirrors.
+REQUIRED_PROJECT_KEYS = ("owner", "status", "epic", "updated", "review_by", "tldr")
+PROJECT_STATUS_VOCAB = ("active", "blocked", "needs-decision", "paused", "pending-verification", "done")
+PROJECT_STALENESS_EXEMPT = ("paused", "done")   # the steward skips paused; done is terminal
+# decisions.md — append-only ledger. Standard doc envelope keys minus review_by: nothing ever
+# re-stamps a ledger, so a review date on it would only ever go stale.
+REQUIRED_LEDGER_KEYS = ("owner", "status", "updated", "tldr")
+EPIC_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[1-9][0-9]*$")
 KEY_RE = re.compile(r"^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$")
 KV_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):(?:\s+(.*))?$")
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
-ALLOWED_TOP = {"profile.md", "facts.yaml", "docs", "files", "NEEDS-REVIEW.md"}
+ALLOWED_TOP = {"profile.md", "facts.yaml", "docs", "files", "projects", "NEEDS-REVIEW.md"}
 
 
 class Lint:
@@ -166,6 +180,63 @@ def check_dates_and_staleness(lint, path, line, item, status, label):
         lint.add("staleness", path, line, f"{label} past review_by {item['review_by']} — verify and re-stamp (canon-reconcile)")
 
 
+def lint_projects(lint, folder, name):
+    """projects/<slug>/ — a shared (company) project managed by this agent (ruling R21:
+    one PM standard, two visibility levels — canon placement decides only who can read it).
+
+    Only two files are linted, both by front matter alone: `project.md` (REQUIRED — the
+    charter, mirroring the registry epic) and `decisions.md` (optional — the append-only
+    ledger). Everything else in the slug folder is the project's workspace and is never
+    read, exactly as `project_files/<slug>/` is free-form at agent level.
+    """
+    projects_dir = folder / "projects"
+    if not projects_dir.is_dir():
+        return
+    for entry in sorted(projects_dir.iterdir()):
+        if entry.name.startswith("."):
+            continue
+        if not entry.is_dir():
+            lint.add("layout", entry, 0, f"unexpected file `{entry.name}` directly under projects/ — every project is a `projects/<slug>/` folder")
+            continue
+        slug = entry.name
+        charter = entry / "project.md"
+        if not charter.is_file():
+            lint.add("project-envelope", charter, 0, f"project.md missing — every projects/<slug>/ needs its charter (owner, status, epic, updated, review_by, tldr)")
+        else:
+            lint.counts["docs"] += 1
+            meta, _ = parse_front_matter(lint, charter, charter.read_text(encoding="utf-8", errors="replace"))
+            for k in REQUIRED_PROJECT_KEYS:
+                if k not in meta:
+                    lint.add("project-envelope", charter, 1, f"missing required charter key `{k}`")
+            status = meta.get("status")
+            if status and status not in PROJECT_STATUS_VOCAB:
+                lint.add("project-envelope", charter, 1, f"status `{status}` not in {list(PROJECT_STATUS_VOCAB)} (mirrors the registry epic's status:* label)")
+            if meta.get("epic") and not EPIC_RE.match(meta["epic"]):
+                lint.add("project-envelope", charter, 1, f"epic `{meta['epic']}` must be the registry epic as `owner/repo#N`")
+            if meta.get("owner") and meta["owner"] != name:
+                lint.add("ownership", charter, 1, f"owner `{meta['owner']}` != folder `{name}` — a shared project is managed by the agent whose folder holds it")
+            for field in ("updated", "review_by"):
+                if field in meta and valid_date(meta.get(field)) is None:
+                    lint.add("project-envelope", charter, 1, f"`{field}: {meta.get(field)}` is not a valid YYYY-MM-DD date")
+            due = valid_date(meta.get("review_by", ""))
+            if status not in PROJECT_STALENESS_EXEMPT and due is not None and due < lint.today:
+                lint.add("staleness", charter, 1, f"project `{slug}` charter past review_by {meta['review_by']} — verify against the epic and re-stamp (canon-reconcile)")
+        ledger = entry / "decisions.md"
+        if ledger.is_file():
+            lint.counts["docs"] += 1
+            meta, _ = parse_front_matter(lint, ledger, ledger.read_text(encoding="utf-8", errors="replace"))
+            for k in REQUIRED_LEDGER_KEYS:
+                if k not in meta:
+                    lint.add("project-envelope", ledger, 1, f"missing required ledger key `{k}`")
+            if meta.get("status") and meta["status"] not in STATUS_VOCAB:
+                lint.add("project-envelope", ledger, 1, f"status `{meta['status']}` not in {list(STATUS_VOCAB)}")
+            if meta.get("owner") and meta["owner"] != name:
+                lint.add("ownership", ledger, 1, f"owner `{meta['owner']}` != folder `{name}`")
+            if "updated" in meta and valid_date(meta.get("updated")) is None:
+                lint.add("project-envelope", ledger, 1, f"`updated: {meta.get('updated')}` is not a valid YYYY-MM-DD date")
+            # No staleness arm: the ledger is append-only and never re-stamped (its review date is the charter's).
+
+
 def lint_folder(lint, repo, folder):
     name = folder.name
     lint.counts["folders"] += 1
@@ -175,7 +246,7 @@ def lint_folder(lint, repo, folder):
         if entry.name.startswith("."):
             continue
         if entry.name not in ALLOWED_TOP:
-            lint.add("layout", entry, 0, f"unexpected entry `{entry.name}` — schema allows: profile.md, facts.yaml, docs/, files/, NEEDS-REVIEW.md")
+            lint.add("layout", entry, 0, f"unexpected entry `{entry.name}` — schema allows: profile.md, facts.yaml, docs/, files/, projects/, NEEDS-REVIEW.md")
 
     # ---- profile.md (envelope + reachability root) ----
     profile = folder / "profile.md"
@@ -240,6 +311,9 @@ def lint_folder(lint, repo, folder):
                     lint.add("source-resolution", facts_path, line, f"source `{src}` does not exist in agents/{name}/")
             # http(s):// and external refs (workspace paths, APIs, "manual") pass here —
             # verifying them against reality is /canon-reconcile's job, not the linter's.
+
+    # ---- projects/ (shared-project charters — envelope only, body never read) ----
+    lint_projects(lint, folder, name)
 
     # ---- reachability ----
     linked = set()
