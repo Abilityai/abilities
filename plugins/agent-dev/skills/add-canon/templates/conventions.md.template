@@ -81,6 +81,7 @@ agents/<name>/
   facts.yaml      REQUIRED — the purely lintable zone: the claims other agents may rely on
   docs/           prose zone — explanations and models; front-matter envelope linted, body never read
   files/          shared artifacts (exports, specs, decks) — every file must be referenced somewhere
+  projects/       shared (company) projects this agent manages — one `<slug>/` per project, see § Projects
   NEEDS-REVIEW.md reconcile's flag file — exempt from the schema
 ```
 
@@ -119,6 +120,48 @@ tldr: "One line — what this doc establishes"
 - `draft` — sandbox-in-place; legal anywhere in the folder, exempt from staleness, and **must
   not** be linked from `profile.md`.
 - `superseded` — kept for history; exempt from staleness and the one-home rule.
+
+### Projects — `projects/<slug>/` (shared projects, ruling R21)
+
+**One project-management standard, two visibility levels.** A project is managed the same
+way whether it lives at agent level (`project_files/<slug>/` in the managing agent's own repo)
+or at canon level (`agents/<owner>/projects/<slug>/` here): same `project.md` charter, same
+registry epic, same steward, same intake path, same append-only decision ledger. Canon
+placement decides **visibility only** — who can read the definition and rely on it. Company
+projects are shared projects by design and live in canon.
+
+```
+agents/<name>/projects/<slug>/
+  project.md      REQUIRED — the charter; front-matter envelope linted, body never read
+  decisions.md    optional — append-only decision ledger; envelope linted, never re-stamped
+  <anything else> the project's workspace — free-form and unlinted, exactly like project_files/<slug>/
+```
+
+Charter envelope — `project.md`:
+
+```yaml
+---
+owner: <agent-name>                 # must equal the enclosing agents/<name>/ folder — the managing agent
+status: active                      # active | blocked | needs-decision | paused | pending-verification | done
+epic: <owner>/<repo>#<N>            # the registry epic this charter mirrors (the epic is the authoritative record); #0 = not yet registered
+updated: YYYY-MM-DD                 # last charter change
+review_by: YYYY-MM-DD               # verification due date — past due (unless paused/done) = stale
+tldr: "One line — what this project is for"
+---
+```
+
+`status` mirrors the epic's `status:*` label (the PM standard's vocabulary, not the doc conviction
+levels). `paused` and `done` charters are exempt from staleness; everything else past `review_by`
+is a stale charter — `/canon-reconcile` verifies it against the epic (open/closed, status) and
+re-stamps it.
+
+Ledger envelope — `decisions.md`: `owner` (= folder) · `status` (`canonical | draft | superseded`)
+· `updated` (last append) · `tldr`. **Append-only.** Nothing re-stamps a ledger — `updated:` moves
+only when a decision is appended, and it carries no `review_by`; the charter's review covers it.
+
+Read a shared project with `/canon-consume <agent> projects [slug]`; create one with
+`/project-init --canon` (records the canon path in the epic body). Tandem —
+`agents/corbin/projects/tandem/` — is the first shared project and the reference instance.
 
 ### Restricted grammar (why these files stay boring)
 
