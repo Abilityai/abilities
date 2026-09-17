@@ -56,7 +56,9 @@ PROJECT_STALENESS_EXEMPT = ("paused", "done")   # the steward skips paused; done
 # decisions.md — append-only ledger. Standard doc envelope keys minus review_by: nothing ever
 # re-stamps a ledger, so a review date on it would only ever go stale.
 REQUIRED_LEDGER_KEYS = ("owner", "status", "updated", "tldr")
-EPIC_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[1-9][0-9]*$")
+# `#0` is legal: "not yet registered" — a charter scaffolded before its epic exists (a /project-init
+# --dry-run). The linter checks shape only; /canon-reconcile flags an unregistered epic.
+EPIC_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#(0|[1-9][0-9]*)$")
 KEY_RE = re.compile(r"^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$")
 KV_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):(?:\s+(.*))?$")
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
