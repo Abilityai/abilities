@@ -7,10 +7,11 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 effort: high
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.3: Shared projects (operator ruling R21, 2026-09-10 — one PM standard, two visibility levels; ent#588): the project's workspace is resolved from the epic body's `## Workspace` field through the standard's §15 resolver — `canon:agents/<owner>/projects/<slug>/` reads through the x-canon clone (pull --ff-only, never force), any other value is a repo-relative path, a missing field means the epic body is the context — and never derived from the slug; the charter (project.md) and the append-only decisions.md ledger are read from wherever the epic points and treated identically at both levels (staleness ladder, escalation, dispatch unchanged; the charter's status: is expected to mirror the epic label, a disagreement is noted in the digest, never fixed here — the canon's /canon-reconcile owns the charter stamps). The quarantine pass stays on project_files/ and never scans the canon: a canon-placed project is registered by its epic, never discovered from a folder. The steward writes nothing into the canon"
     - "1.2: Read-the-standard guard (missing PROJECT_STANDARD.md → exit with \"run /project-init first\", headless-safe); default `schedule:` in frontmatter replaces the installer-substituted placeholder; skill is now authored standalone (installer copies from here)"
     - "1.1: Loop closure (Invariant 7) — Step 3c open-loop pass ages every waiting-on:* task on the 3d/7d/14d ladder and drafts sendable nudges (never sends them), detects and records closes; digest opens with a closing statement and carries Your open loops + Loops closed; unanswered needs-decision asks get louder with age instead of aging out; operator-initiated results notify the operator directly; state.json gains open_loops (rebuildable from labels)"
     - "1.0: Initial version — completion lattice verification, owner/agent distinction, Invariant 4 escalation ladder (never mutates P1/P2), unclassified quarantine pass, Trinity-optional dispatch"
@@ -44,6 +45,20 @@ Read `PROJECT_STANDARD.md`. **If it is missing, exit (headless-safe, no prompt) 
 - `$AGENT_NAME` = this agent's name (§2) — tasks labeled `agent:$AGENT_NAME` are inline-class, never dispatched
 - `$OPERATOR` = the operator (§2)
 - `$PV_MAX_AGE` = pending-verification max age in hours (§12)
+- **Workspace resolver (§15)** — per project, from the epic body, never from the slug:
+  ```bash
+  WS_SECTION=$(printf '%s' "$EPIC_BODY" | awk '/^## Workspace/{f=1;next} f&&/^## /{exit} f{print}')
+  WS_FIELD=$(printf '%s' "$WS_SECTION" | grep -o '`[^`]*`' | head -1 | tr -d '`')          # first backticked path wins …
+  [ -n "$WS_FIELD" ] || WS_FIELD=$(printf '%s' "$WS_SECTION" | awk 'NF{print;exit}' | xargs)  # … else the first non-empty line
+  case "$WS_FIELD" in
+    canon:*) CANON=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/clone_path:/{print $2}' template.yaml 2>/dev/null); CANON=${CANON:-canon}
+             WS="$CANON/${WS_FIELD#canon:}"; git -C "$CANON" pull --ff-only >/dev/null 2>&1 || echo "canon clone stale/diverged — reading local copy" ;;
+    "")      WS="" ;;                       # pre-§15 epic: no workspace, the epic body is the context
+    *)       WS="$WS_FIELD" ;;              # repo-relative (project_files/<slug>/ by convention — the field wins)
+  esac
+  [ -n "$WS" ] && [ ! -d "$WS" ] && { echo "workspace $WS not visible here"; WS=""; }
+  ```
+  A `canon:` workspace with no `x-canon:` block or no clone means this instance is not enrolled — `WS=""`, note it once in the digest (`/canon-doctor` on this agent), and carry on from the epic body. The clone is read-only for this skill: **the steward writes nothing into the canon** (charter stamps belong to `/canon-reconcile`, decisions to the owner in conversation).
 
 ## Prerequisites
 
@@ -123,7 +138,7 @@ For each entry in `open_dispatches` (skip in triage-only mode):
 
 Build the review list: `carry_over` first, then `priority:p1`, then least-recently-updated. Skip `status:paused` epics entirely. For each project:
 
-1. Read the epic body + comments since the last steward update.
+1. Read the epic body + comments since the last steward update. Resolve `$WS` (runtime resolution above); when it resolves, read the charter `$WS/project.md` and, if present, the ledger `$WS/decisions.md` — the same two files whether the project sits in `project_files/` or in the canon (standard §15; Tandem is `canon:agents/corbin/projects/tandem/` for corbin). If the charter's `status:` disagrees with the epic's `status:*` label, the epic wins and the disagreement goes in the digest — do not edit the charter (at canon level that is `/canon-reconcile`'s job; at agent level the owner's).
 2. Read open `project:<slug>` task issues with their labels and bodies.
 3. Compute: days since last activity, open/done/pending-verification task counts, current `status:*` label, whether an open dispatch exists.
 4. Apply the staleness policy (§8 of the standard).
@@ -203,7 +218,7 @@ Post at most **one** steward update comment per project per run, and only if som
 
 ### Step 5: Quarantine pass (Invariant 6)
 
-List workspace folders and check each against the registry:
+List workspace folders and check each against the registry — **`project_files/` only, never the canon clone** (standard §9/§15: a canon-placed project is registered by its epic, never discovered from a folder; a `projects/<slug>/` in canon without a charter is the canon linter's `project-envelope` finding, not a quarantine case):
 ```bash
 ls -d project_files/*/ 2>/dev/null | sed 's|project_files/||;s|/||'
 ```
@@ -237,7 +252,7 @@ Then the sections:
 - **Worked inline**: tasks executed inline, result links
 - **Quarantine**: N folders stubbed
 - **Healthy/quiet**: one line each
-- **Carry-over + mode**: projects not reviewed; note if triage-only
+- **Carry-over + mode**: projects not reviewed; note if triage-only; one line per canon-placed project whose clone could not be read (`/canon-doctor`) or whose charter `status:` disagrees with the epic label
 
 If (and only if) there are needs-decision items, blockers, past-max-age pending-verification, a loop crossing a nudge threshold, or errors: send a short summary via `mcp__trinity__send_notification` (when Trinity available) linking the digest path. Standing open loops that crossed no threshold this run stay in the digest without a notification — the list is always visible, the interruption is not.
 
