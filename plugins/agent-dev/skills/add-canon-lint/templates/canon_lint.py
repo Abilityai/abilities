@@ -20,9 +20,17 @@ this linter parses the subset itself so it needs no YAML library.
 
 Usage:
     canon_lint.py [--repo PATH] [--rules PATH] [--scope agents/<name>]
-                  [--format text|json] [--today YYYY-MM-DD]
+                  [--format text|json] [--today YYYY-MM-DD] [--baseline FINDINGS.json]
 
 Exit codes: 0 = pass (warnings allowed) · 1 = failures · 2 = bad invocation.
+
+--baseline (the ratchet): pass a previous `--format json` report (typically this same
+linter run against the PR's base tree) and the exit code is decided by NEW failures only —
+findings absent from the baseline. Pre-existing findings are still printed, marked
+`(baseline)`, so a repo that is already red can gate PRs on "no new findings" without
+first paying down every debt. A finding is identified by (rule, path, message); line
+numbers are deliberately not part of the key, so an unrelated edit above a stale fact
+does not make it "new".
 """
 
 import argparse
@@ -379,6 +387,7 @@ def main():
     ap.add_argument("--scope", default=None, help="report only findings under this folder, e.g. agents/corbin (cross-folder conflicts touching it included)")
     ap.add_argument("--format", choices=("text", "json"), default="text")
     ap.add_argument("--today", default=None, help="override today's date (testing)")
+    ap.add_argument("--baseline", default=None, help="JSON report to ratchet against: exit 1 only on failures NOT in it")
     args = ap.parse_args()
 
     repo = Path(args.repo).resolve()
@@ -396,6 +405,15 @@ def main():
     if err:
         print(f"canon-lint: {err}", file=sys.stderr)
         return 2
+
+    baseline_keys = None
+    if args.baseline:
+        try:
+            with open(args.baseline, encoding="utf-8") as fh:
+                baseline_keys = {(f["rule"], f["path"], f["message"]) for f in json.load(fh)["findings"]}
+        except (OSError, ValueError, KeyError, TypeError) as e:
+            print(f"canon-lint: --baseline `{args.baseline}` is not a canon-lint JSON report ({e})", file=sys.stderr)
+            return 2
 
     lint = Lint(severities, today)
     all_keys = []
@@ -429,12 +447,19 @@ def main():
             return p
     for f in findings:
         f["path"] = relpath(f["path"])
+        if baseline_keys is not None:
+            f["new"] = (f["rule"], f["path"], f["message"]) not in baseline_keys
     findings.sort(key=lambda f: (f["severity"] != "fail", f["path"], f["line"]))
     fails = sum(1 for f in findings if f["severity"] == "fail")
     warns = len(findings) - fails
+    new_fails = sum(1 for f in findings if f["severity"] == "fail" and f.get("new", True))
+    gate_fails = new_fails if baseline_keys is not None else fails
     summary = {"folders": lint.counts["folders"], "docs": lint.counts["docs"],
                "facts": lint.counts["facts"], "failures": fails, "warnings": warns,
-               "scope": args.scope or "all", "result": "FAIL" if fails else "PASS"}
+               "scope": args.scope or "all", "result": "FAIL" if gate_fails else "PASS"}
+    if baseline_keys is not None:
+        summary["baseline"] = args.baseline
+        summary["new_failures"] = new_fails
 
     if args.format == "json":
         print(json.dumps({"summary": summary, "findings": findings}, indent=2))
@@ -442,9 +467,13 @@ def main():
         print(f"canon-lint — {summary['folders']} folder(s), {summary['facts']} fact(s), {summary['docs']} doc(s), scope: {summary['scope']}")
         for f in findings:
             loc = f"{f['path']}:{f['line']}" if f["line"] else f["path"]
-            print(f"  {f['severity'].upper():4} {loc} [{f['rule']}] {f['message']}")
-        print(f"== {summary['result']}: {fails} failure(s), {warns} warning(s)")
-    return 1 if fails else 0
+            tag = "" if baseline_keys is None else ("  NEW" if f.get("new") else "  (baseline)")
+            print(f"  {f['severity'].upper():4} {loc} [{f['rule']}] {f['message']}{tag}")
+        if baseline_keys is None:
+            print(f"== {summary['result']}: {fails} failure(s), {warns} warning(s)")
+        else:
+            print(f"== {summary['result']}: {new_fails} NEW failure(s) vs baseline ({fails} total, {warns} warning(s))")
+    return 1 if gate_fails else 0
 
 
 if __name__ == "__main__":
