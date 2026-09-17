@@ -13,7 +13,7 @@
 | Thing | Location | Notes |
 |---|---|---|
 | Registry (single source of truth) | GitHub issues in `{{REGISTRY}}` | One **epic issue** per project (`project` label); one task issue per task (`task` + `project:<slug>`) |
-| Workspace (files, drafts, outputs) | `project_files/<slug>/` in the managing agent's repo | Free-form except `project.md` (charter). Path recorded in the epic body. **Visibility is deployment config**: if git-synced to the agent's container, the steward reads workspaces directly; if local-only / gitignored, Trinity runs use the epic body as authoritative context. The quarantine pass is idempotent wherever workspaces are visible. |
+| Workspace (files, drafts, outputs) | **Agent level:** `project_files/<slug>/` in the managing agent's repo. **Canon level (shared project, §15):** `agents/{{AGENT_NAME}}/projects/<slug>/` in the fleet's canon repo, read through the agent's clone (`x-canon.clone_path`, default `canon/`) | Free-form except `project.md` (charter — the linted envelope of the canon convention § Projects, at both levels) and the optional append-only `decisions.md` ledger. **The path is recorded in the epic body's `## Workspace` field and is always read from there — never derived from the slug** (§15). **Visibility is deployment config**: if git-synced to the agent's container, the steward reads workspaces directly; if local-only / gitignored, Trinity runs use the epic body as authoritative context. The quarantine pass is idempotent wherever `project_files/` is visible and never scans the canon. |
 | Steward state, digests, run log | `project-steward/` in the managing agent's repo | Written only by `/project-steward`; tracked in git after each material run |
 
 **Invariant 1 — One registry, write-authoritative.** The registry (GitHub Issues) is the sole authoritative record for portfolio state: scope, status, and priority. No other system writes state back. Projections are read-only views; they do not own state.
@@ -64,7 +64,8 @@ One paragraph: what done looks like and why it matters.
 - [ ] Measurable outcome 2
 
 ## Workspace
-`project_files/<slug>/`
+`project_files/<slug>/`                              ← agent level, or
+`canon:agents/<owner>/projects/<slug>/`              ← canon level (shared project, §15)
 
 ## Owners
 - <actor-name> — <what they own in this project>
@@ -191,7 +192,7 @@ Closes when: <the observable answer or artifact that ends the wait>
 
 ## 9. Workspace discovery and quarantine (Invariant 6)
 
-The steward auto-stubs any `project_files/<slug>/` folder with no corresponding epic into a quarantine epic (`status:unclassified`). The quarantine pass runs wherever `project_files/` is visible — it is idempotent and safe on any deployment config (local-only, git-synced container, or absent entirely when workspaces live elsewhere). Unclassified projects are:
+The steward auto-stubs any `project_files/<slug>/` folder with no corresponding epic into a quarantine epic (`status:unclassified`). The quarantine pass runs wherever `project_files/` is visible — it is idempotent and safe on any deployment config (local-only, git-synced container, or absent entirely when workspaces live elsewhere). **It never scans the canon clone**: a canon-placed project (§15) is registered by its epic, never discovered from a folder — a `projects/<slug>/` folder in canon without an epic is the canon linter's `project-envelope` finding, not a quarantine case. Unclassified projects are:
 - Excluded from all projections
 - Excluded from priority tracking (no priority label)
 - Classified lazily: one batch line in the weekly digest ("N unclassified folders: <names>"), never per-item interrupts
@@ -285,3 +286,41 @@ Work regularly parks on someone this system cannot dispatch to: a client, a lawy
 **Closing is a write.** When a loop resolves — answered, dropped, or routed around — post `### Loop closed` (§7), remove the `waiting-on:*` label, and note it in the next digest. An unrecorded close is indistinguishable from a forgotten one.
 
 *Deployers: the 3-day nudge / 7-day re-nudge / 14-day decision ladder is the default. Edit these numbers to match how your counterparties actually respond.*
+
+## 15. Visibility — one standard, two placements (operator ruling R21, 2026-09-10)
+
+A project is managed **the same way** whether it lives at agent level or at canon level:
+
+| | Agent-level project | Shared (company) project |
+|---|---|---|
+| Workspace | `project_files/<slug>/` in the managing agent's repo | `agents/{{AGENT_NAME}}/projects/<slug>/` in the fleet's canon repo (own-folder write; pushed with `/canon-publish`) |
+| Charter | `project.md` | `project.md` — the **same** file, same envelope |
+| Registry epic | one, in `{{REGISTRY}}` | one, in `{{REGISTRY}}` |
+| Steward | `/project-steward` | `/project-steward` |
+| Intake | `/project-intake` | `/project-intake` |
+| Decision ledger | `decisions.md` (append-only) | `decisions.md` (append-only) |
+| Who can read the definition | this agent + its operator | every agent and human on the canon |
+
+**Placement decides only who can read the definition and rely on it.** Company projects are shared projects by design and live in canon. Moving a project from agent level to canon changes its readers and nothing else — same epic, same steward, same intake, same ledger. Tandem (`agents/corbin/projects/tandem/` in the Ability canon) is the first shared project and the reference instance.
+
+**Charter envelope** (both levels; linted in canon by `project-envelope`, see the canon convention § Projects):
+
+```yaml
+---
+owner: {{AGENT_NAME}}                # the managing agent (= the enclosing canon folder)
+status: active                      # mirrors the epic's status:* label — active | blocked | needs-decision | paused | pending-verification | done
+epic: {{REGISTRY}}#<N>              # the registry epic this charter mirrors — the epic is the authoritative record
+updated: YYYY-MM-DD
+review_by: YYYY-MM-DD               # the canon's /canon-reconcile re-verifies the charter against the epic
+tldr: "One line — what this project is for"
+---
+```
+
+**Workspace resolution (every project skill uses this, nothing derives a path from the slug):**
+
+1. Read the epic body's `## Workspace` field — the **first backticked path** in the section (prose around it is fine: `` `canon/agents/corbin/projects/tandem/` in the fleet canon repo`` resolves), else the first non-empty line.
+2. `canon:<path>` → the workspace is `<clone_path>/<path>` where `clone_path` is `template.yaml → x-canon.clone_path` (default `canon/`); `git -C <clone_path> pull --ff-only` before reading (never force; on failure read the local copy and say so). A missing clone is self-healed the way the canon skills do it (`x-canon.repo`); no `x-canon:` block at all means this agent is not enrolled in the canon and the epic body is the authoritative context.
+3. Any other value → a path relative to the managing agent's repo (`project_files/<slug>/` is the convention, but the field wins — a hand-written `canon/agents/<owner>/projects/<slug>/` is simply the clone-relative form and resolves through the same clone).
+4. Field missing (an epic predating this section) → no workspace; the epic body is the authoritative context. Do **not** guess `project_files/<slug>/`.
+
+`/project-init --canon` creates a shared project (writes the charter + ledger into the canon clone, records the canon path in the epic); `/project-init adopt --canon <path>` adopts an existing canon folder. Reading a shared project from another agent is `/canon-consume <agent> projects [slug]`.

@@ -5,10 +5,11 @@ argument-hint: "[project-slug | --headless --project=<slug> --title=\"...\" --ob
 allowed-tools: Bash, Read, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.4: Shared projects (ruling R21, ent#588) — no behaviour change: a task belongs to an epic found by `project:<slug>` label whether the project lives in project_files/ or in the canon; the one rule added is that a workspace path, when one is passed through, is the epic body's Workspace field resolved per PROJECT_STANDARD §15, never derived from the slug"
     - "1.3: Read-the-standard guard — a missing PROJECT_STANDARD.md now stops with a run-/project-init-first message instead of failing on an unresolved registry; skill is now authored standalone (installer copies from here)"
     - "1.2: Loop closure — optional waiting-on actor (label + ### Waiting on comment) puts a task parked on an outside party into the steward's aging ladder; interactive output ends with the §14a closing statement (waiting on you / next without you)"
     - "1.1: Add --headless mode — all fields as arguments, no AskUserQuestion, returns issue number; callable from /project-intake and crons"
@@ -24,6 +25,11 @@ metadata:
 Create a task issue in the uniform format. This is the **only sanctioned way to create task issues** in a managed project — it enforces the full anatomy including the `## Validation` section (the approval chain), applies the correct labels, and links the task into the parent epic's checklist.
 
 **Never create task issues directly via `gh issue create` outside this skill.** The anatomy enforcement and epic linkage are the point.
+
+
+### Workspace path (standard §15 — read, never derived)
+
+This skill writes GitHub, not workspaces. If a caller hands it — or it hands a caller — a workspace path, that path is the epic body's `## Workspace` field resolved through the standard's §15 resolver (`canon:agents/<owner>/projects/<slug>/` → through the x-canon clone; anything else → repo-relative; missing → no workspace), **never `project_files/<slug>/` derived from the slug**. A shared project (ruling R21) sits in the canon and is otherwise identical: same epic, same task anatomy, same intake path.
 
 ## Modes
 

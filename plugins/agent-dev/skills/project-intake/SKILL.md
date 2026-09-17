@@ -5,10 +5,11 @@ argument-hint: "--project=<slug> --title=\"...\" --source=\"<url-or-note>\" [--o
 allowed-tools: Bash, Read, Grep
 user-invocable: false
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.3: Shared projects (ruling R21, ent#588) — no behaviour change: intake targets the epic by `project:<slug>` label exactly as before, at both visibility levels; the one rule added is that a workspace path, when one is passed through, is the epic body's Workspace field resolved per PROJECT_STANDARD §15 (canon: paths through the x-canon clone), never project_files/<slug>/ derived from the slug"
     - "1.2: Read-the-standard guard (missing PROJECT_STANDARD.md → run /project-init first); skill is now authored standalone (installer copies from here)"
     - "1.1: Loop closure — optional --waiting-on opens the loop explicitly (label + ### Waiting on comment), so an item captured as \"X owes us an answer\" enters the steward's aging ladder instead of sitting silently in the backlog"
     - "1.0: Initial version — headless intake primitive, dedupe by meaning, task creation with full anatomy, state-news comment path, epic Tasks checklist linkage"
@@ -39,6 +40,11 @@ Route any actionable item from any source into the managed registry. **This skil
 | `--objective="..."` | no | Objective text. Defaults to the title. |
 | `--context="..."` | no | Additional context beyond the source link. |
 | `--state-news` | no | Flag: item is project-state news, not a task. Post a one-line comment on the epic; return `EPIC:#NN`. |
+
+
+### Workspace path (standard §15 — read, never derived)
+
+This skill writes GitHub, not workspaces. If a caller hands it — or it hands a caller — a workspace path, that path is the epic body's `## Workspace` field resolved through the standard's §15 resolver (`canon:agents/<owner>/projects/<slug>/` → through the x-canon clone; anything else → repo-relative; missing → no workspace), **never `project_files/<slug>/` derived from the slug**. A shared project (ruling R21) sits in the canon and is otherwise identical: same epic, same task anatomy, same intake path.
 
 ## State dependencies
 
