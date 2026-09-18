@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__create_agent, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__get_agent_github_pat_status, mcp__trinity__set_agent_github_pat, mcp__trinity__initialize_github_sync, mcp__trinity__git_pull, mcp__trinity__get_git_sync_state, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule, mcp__trinity__get_agent_compatibility_report, mcp__trinity__git_sync
 metadata:
-  version: "6.2"
+  version: "6.3"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "6.3: No managed hosting — the 'Managed by Ability AI' option is gone (Trinity is self-hosted only). The instance-access preamble now hands off to /trinity:deploy-new-instance (DigitalOcean guided installer, SSH server, or local Docker) instead of a request-access email"
     - "6.2: Platform-truth refresh (Trinity 0.9.5-rc, dev 9ac2ceae) — ent#411 shipped: trinity@abilityai is pre-installed in the agent base image and the boot hook is default-ON (opt-out TRINITY_PLATFORM_PLUGINS=0, state in ~/.trinity/plugins-state.json read by compat check I-006), so Path C needs no CLI bootstrap; deployed agents deny the promise-a-second-turn tool family (ScheduleWakeup/Monitor/TaskOutput/Cron*/… — 11 names, trinity#2468) and stamp turn_integrity (a success row prefixed 'Background work lost' is a defect, #2467) — polling automation now says schedule/set_reminder, never CronCreate; execution tools gain get_fan_out_result (fan_out_timeout receipt, #2670; parallel chat gets the queued_timeout receipt, #2661); model example moved off the now-legacy claude-opus-4-8; #2529 gitignore rebuild + gitignore_untracked queue item; report guard also swallows the agent-scoped-key refusal; Telegram setup is the per-agent binding, not ANNOUNCE_* vars"
     - "6.1: Platform-truth refresh (Trinity v0.9.0, tag 93d7ce7c) — .mcp.json.template gains the fourth rule: http/sse `url` must resolve to a public address (loopback/private/link-local/CGNAT 100.64/10 = Tailscale refused with 400, no override — trinity-enterprise#394); the heavy-jobs rule now says turn-end kills background SHELL jobs while background subagents/forks are waited for since trinity#2127 (bounded by execution timeout + 300s idle-finalize, rebuilt base image); the autonomy gate is no longer invisible — the Schedules tab shows an amber Autonomy-is-off banner with an Enable button (trinity#1796), run history still stays empty and there is still no MCP tool"
     - "6.0: In-place onboarding + the plugins: block (trinity#1704, ent#411). NEW goal in Step 1b, auto-recommended when the skill detects it is running INSIDE a deployed Trinity agent (AGENT_NAME env, /home/developer, ~/.trinity/): make the agent Trinity-compatible in place — write the files, install/declare its plugins, commit + push back (source mode is pull-only, so an in-place result that is not pushed is lost on reset — the skill pushes with the agent's write credentials, or hands back a patch and says so), reconcile schedules live, and VERIFY via mcp__trinity__get_agent_compatibility_report (0 HARD) instead of its own checklist (trinity#2137 alignment). Step 3a teaches the plugins: block (marketplaces + installed → committed ~/.trinity/plugins.yaml, re-installed headlessly on every container boot; the interactive /plugin install was never the mechanism, the CLI is); every scaffold now declares trinity@abilityai. Deployment paths gains Path C — deploy the bare repo as-is, then onboard in place — with the one-line headless bootstrap for agents that predate the block. Path A/B completions also end with the compat-report verification"
@@ -46,26 +47,15 @@ Onboard any Claude Code agent to the Trinity Deep Agent Orchestration Platform. 
 
 ## Prerequisites: Getting a Trinity Instance
 
-**You need access to a Trinity instance before proceeding.**
+**You need access to a Trinity instance before proceeding.** Trinity is open source and **self-hosted** — there is no hosted or managed offering; every instance is one you or your team runs.
 
-### Option 1: Self-Host (Open Source)
+Don't have one yet? Run **`/trinity:deploy-new-instance`** — it walks you through the three ways to stand one up:
 
-Trinity is open source. Deploy your own instance:
+1. **DigitalOcean, guided installer** — Trinity's own one-command installer (`scripts/deploy/trinity-do-create.sh`, v0.9.5+): a new Droplet behind HTTPS in about ten minutes, billed by DigitalOcean
+2. **Self-hosted, remote server** — any SSH-reachable VPS / GCP / AWS machine
+3. **Self-hosted, local Docker** — Docker on this machine
 
-1. Visit the Trinity repository: **https://github.com/abilityai/trinity**
-2. Follow the installation instructions in the README
-3. Once deployed, you'll have your own Trinity URL and can generate API keys
-
-### Option 2: Managed by Ability AI
-
-If you want Ability AI to provision and manage a Trinity instance for you:
-
-**Contact us at: trinity@ability.ai**
-
-We'll set you up with:
-- A managed Trinity instance
-- Your instance URL
-- API credentials
+Once it's up you'll have your own Trinity URL; `/trinity:connect` mints the MCP key from there. Repository: https://github.com/abilityai/trinity
 
 ---
 

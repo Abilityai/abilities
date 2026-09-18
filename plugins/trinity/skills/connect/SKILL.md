@@ -5,10 +5,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, AskUserQuestion
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.6: No managed hosting — Trinity is self-hosted only. The no-instance fallback now hands off to /trinity:deploy-new-instance (DigitalOcean guided installer, SSH server, or local Docker) instead of ending the flow at a request-access email; example URLs are self-hosted forms, no *.abilityai.dev tenants"
     - "1.5: UI label — MCP keys live under Settings → MCP Keys (the tab was never called API Keys); verified against Settings.vue at v0.9.5"
     - "1.4: Auth flow aligned with the live API — email request answers 200 {success,message} (403 for email-auth-disabled / setup_required, never 404); a 2FA-enrolled account gets a 200 challenge with no access_token (stop, mint the key in the UI); ensure-default returns null when a user-scoped key already exists (mint via POST /api/mcp/keys); ops-scope keys are not usable here; .mcp.json uses type http and prefers {INSTANCE_URL}/mcp (nginx route #2475) over :8080; no CLI fallback"
     - "1.3: Next steps carry the deploy sequence — add the instance GitHub token (Settings → GitHub token) before /trinity:onboard, which deploys an agent from its GitHub repo"
@@ -53,14 +54,15 @@ If a profile exists, check if it's still valid:
 
 Ask: **"What's your Trinity instance URL?"**
 
-Examples:
-- `https://demo.abilityai.dev`
-- `https://yourcompany.abilityai.dev`
-- `https://trinity.yourcompany.com` (self-hosted)
+Examples (Trinity is self-hosted — every instance is one the user or their team runs):
+- `https://trinity.yourcompany.com` (a server behind HTTPS)
+- `https://<droplet-ip>` (the DigitalOcean guided installer — Caddy terminates HTTPS on the Droplet's IP)
+- `http://<server-ip>` (a self-hosted remote server — add `:PORT` if the frontend was moved off 80)
+- `http://localhost` (local Docker on this machine)
 
 If user doesn't have one:
-- "Don't have a Trinity instance yet? Contact trinity@ability.ai or visit https://ability.ai/trinity to request access."
-- End flow
+- "Don't have a Trinity instance yet? Trinity is open source and self-hosted — run `/trinity:deploy-new-instance` to stand one up (DigitalOcean guided installer in about ten minutes, any SSH-reachable server, or local Docker), then come back to `/trinity:connect`."
+- End flow (do not offer a hosted or managed option — there is none)
 
 Validate URL:
 - Add `https://` if no scheme provided
@@ -158,7 +160,7 @@ Store: `MCP_API_KEY`
 
 ### PHASE 5: Save to ~/.trinity/config.json
 
-Derive profile name from hostname (e.g., `demo.abilityai.dev`).
+Derive profile name from hostname (e.g., `trinity.yourcompany.com`, or the bare IP for a Droplet).
 
 Read existing config or create new:
 
@@ -199,7 +201,7 @@ Derive MCP endpoint URL:
 - Try `{INSTANCE_URL}/mcp` first — the frontend's nginx routes it to the MCP server (trinity#2475), and it is the only path on 80/443-only or firewall-hardened installs
 - Fall back to the `:8080` host port (`https://host:8080/mcp`; if the instance URL carries `:8000`, replace it with `:8080`) only if a `tools/list` probe on the first URL fails
 
-Example: `https://demo.abilityai.dev` → `https://demo.abilityai.dev/mcp` (fallback `https://demo.abilityai.dev:8080/mcp`)
+Example: `https://trinity.yourcompany.com` → `https://trinity.yourcompany.com/mcp` (fallback `https://trinity.yourcompany.com:8080/mcp`)
 
 Read existing `.mcp.json` in current directory or create new.
 
