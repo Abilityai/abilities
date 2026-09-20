@@ -8,10 +8,11 @@ allowed-tools: Read, Grep, Skill, AskUserQuestion, mcp__trinity__list_agents, mc
 effort: high
 user-invocable: true
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.5: Permission denials are a regression signal, never a scope boundary — universalized from the production orchestrator (field lesson 2026-08-17, closing the issue #5 back-flow gap once more): a key that loses read access to an agent used to make that agent silently disappear from the run ('nothing to pull' over a shrinking reachable set), and in one fleet ~10 agents went unsynced for six weeks that way — the losses clustered around container recreations, nobody revoked anything on purpose. New rule block after Step 3: every narrative-scoped agent is attempted every run (no known-denied skip list, ever), each denial is classified covered-by-another-tier / covered-by-nobody and named with the verbatim error, and a previously-denied agent that becomes reachable is reported FIRST and loudly because nothing else in the fleet watches for it. Optional tiering documented: where one key cannot read the whole fleet, a second agent runs this same playbook for its own group, earlier, with intentional overlap (pull-only is idempotent) — tiers are declared in the fleet narrative, never hard-coded here. Report section and the Error Recovery row updated to match"
     - "1.4: `--autonomous` run mode (new Run modes section) — back-ported from the production orchestrator (issue #5). A gated skill on an unattended cron otherwise blocks on an approval prompt nobody sees and burns its whole timeout; the mode makes the cron message the bare call `/sync-fleet-to-head --autonomous`. It relaxes nothing safety-relevant: the pull ladder stays clean → stash_reapply, force_reset/reset_to_main_preserve_state stay forbidden, and a non-trivial conflict is never guessed — it becomes a needs-attention line. Auto-proceeding past Step 4 is safe precisely because every action below it is non-destructive by construction — that invariant earns the mode, not convenience. The bundle-wide convention this instantiates is tracked in issue #6"
     - "1.3: Error Recovery row for the 400 submodule-fetch failure — `git pull --rebase` fetches submodules and fails on an unmounted one, and MCP `git_pull` has no `--no-recurse-submodules`; flag as needs-attention with a direct-Bash workaround, do not retry"
     - "1.2: Distinguish two 409 subtypes from `clean` — 'unstaged changes' (dirty tree → escalate to stash_reapply) vs 'unmerged files' (pre-existing conflict state; stash_reapply also fails → go straight to Step 6); Error Recovery rows for both"
@@ -106,6 +107,13 @@ For every in-scope + GitHub-backed agent, call `get_git_sync_state` (compact —
 - **ahead** — ahead > 0, behind 0 → **unpushed local commits**; flag, do **not** touch (not behind = nothing to pull; pushing is out of scope).
 - **diverged** — ahead > 0 and behind > 0 → attempt non-destructive pull; likely needs manual resolution (Step 6).
 
+**Permission denials are a regression signal, never a scope boundary.** A `get_git_*` denial on an in-scope agent does not remove it from scope — not this run, not the next. Keys lose access without anyone deciding it (the losses cluster around container recreations and re-shares), and a run that quietly reports "nothing to pull" over a shrinking reachable set is exactly how a fleet ends up with agents nobody has synced for weeks. So:
+
+- **Attempt every narrative-scoped agent, every run.** Never keep a "known-denied" skip list — a denial that is attempted again self-heals the moment access is restored, with no code change.
+- **Classify each denial, never omit it:** *denied, covered by another tier* (another agent runs this same playbook over that group — say which), or *denied, covered by nobody* — name it every run, with the verbatim error.
+- **A previously-denied agent that becomes reachable is reported FIRST, and loudly.** It is the only signal that the permission regression is fixed; nothing else in the fleet is watching for it.
+- **Tiering (optional).** When one key cannot read the whole fleet, a second agent runs this same playbook for its own group, scheduled earlier so this run observes the post-tier state; overlap is intentional redundancy (pull-only is idempotent). Tiers are declared in the fleet narrative (`fleet/orchestration.md`), never hard-coded in this skill.
+
 ### Step 4: Present the plan — [APPROVAL GATE — interactive mode only]
 
 **Autonomous mode:** print the same table to the run result, then proceed to Step 5 without asking. Every action below is non-destructive (Run modes item 2).
@@ -168,7 +176,8 @@ Re-call `get_git_sync_state` for each acted agent. **Note:** the sync-state row 
 - **Left ahead (unpushed commits):** agent (+N) — note these are NOT on their GitHub HEAD by choice; offer to sync them up only if the user asks.
 - **Conflicts:** resolved (how) vs handed back (which files).
 - **Skipped:** no-repo agents; out-of-scope (not in narrative) agents; declared-but-not-running drift.
-- **Permission-skipped:** any agent the key couldn't read/pull.
+- **Newly reachable:** any agent denied on the previous run that answered this time — first line of the report, not a footnote.
+- **Permission-denied (regression watch):** every agent the key couldn't read/pull, with the verbatim error and its coverage — *covered by <tier agent>* or *covered by nobody*. Never omitted, never moved out of scope.
 
 ## Completion Checklist
 
@@ -180,6 +189,7 @@ Re-call `get_git_sync_state` for each acted agent. **Note:** the sync-state row 
 - [ ] No stash dropped unless its changes fully reapplied and staged.
 - [ ] Non-trivial conflicts handed to the human, not auto-guessed.
 - [ ] Ahead / no-repo / out-of-scope / drift all reported.
+- [ ] Every permission denial named with its coverage; any newly-reachable agent reported first.
 - [ ] Post-pull `behind_working == 0` verified for every acted agent.
 
 ## Error Recovery
@@ -187,7 +197,7 @@ Re-call `get_git_sync_state` for each acted agent. **Note:** the sync-state row 
 | Situation | Action |
 |---|---|
 | `fleet/system-map.yaml` missing or stale | Invoke `/discover-agents` to (re)build it, then re-read. |
-| `get_git_*` permission denied for an agent | Insufficient key scope — skip, list under "permission-skipped", continue. |
+| `get_git_*` permission denied for an agent | Insufficient key scope for this run — keep the agent in scope, record the verbatim error, classify covered-by-tier / covered-by-nobody, continue. Never add it to a skip list; attempt it again next run so restored access self-heals. |
 | `clean` returns 409 "unstaged changes" | Expected on a dirty tree (clean = rebase). Escalate to `stash_reapply`. |
 | `clean` returns 409 "unmerged files" | Pre-existing conflict state — `stash_reapply` also fails. Go directly to Step 6: call `get_git_status` to identify conflicted paths; non-trivial files → flag for human, do not auto-resolve. |
 | `clean` returns 400 "Could not access submodule" | `git pull --rebase` tries to fetch submodules and fails when a submodule is unmounted. MCP `git_pull` has no `--no-recurse-submodules` option. Flag as needs-attention; suggest the agent run `git pull --no-recurse-submodules origin main` directly via `chat_with_agent` Bash. Do not retry with `stash_reapply` (same underlying fetch fails). |
