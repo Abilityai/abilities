@@ -5,10 +5,11 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 argument-hint: "[--check]"
 metadata:
-  version: "1.28"
+  version: "1.29"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.29: Seventh maintenance skill — /reconcile-skill-map (Abilityai/trinity-enterprise ent#646, R31 2026-09-17): the declared-intent skill map lives in the orchestrator's own fleet info (fleet/skill-map.yaml), never a platform manifest field (SystemManifest accepts a per-agent `skills:` key but drops it with a warning). Diffs the map against live get_agent_skills, applies approved additions via assign_skill_to_agent (additive, single-skill — deliberately never set_agent_skills, whose replace-all semantics would silently wipe undeclared skills), and never auto-removes drift. Scoped to the Library-assignment plane only; excludes role-companion agents (Tandem-style — capabilities come from their canon role file instead) and each agent's own in-repo playbooks (a separate plane, /sync-fleet-to-head's territory). Piloted on trinity-pm's own fleet before landing here. Wired into Check mode, Q1, Step 3/4/9, and the never-clobbered list alongside the other five fleet/*.yaml artifacts"
     - "1.28: Bundled project-steward 1.3 — GH_TOKEN resolves through git's credential helper (`git credential fill`): Trinity v0.9.5 (ent#615) made agent remotes credential-less, so parsing the origin URL returned an empty token on every upgraded instance; the URL parse stays as the pre-0.9.5 fallback. Re-run /add-orchestrator (or re-copy the template) to pick it up in an installed steward"
     - "1.27: Platform-truth refresh (Trinity dev 9ac2ceae, 0.9.5-rc2) across the bundle — orchestrate 1.16 (fan_out = N tasks to ONE agent, fan_out_timeout → get_fan_out_result #2670; rooms OSS core ent#443, defaults 200/168h #2620; deploy_local_agent manifest #2060; get_agent_skills = library-assigned only; #2661 idempotency release), compose-system 1.5 + discover-agents 1.10 (ent#411 shipped: trinity plugin pre-installed, CLI bootstrap gone), profile-fleet 1.7 (get_agent_skills scope). Fan-out wording corrected in the installer, claude-section and README"
     - "1.26: Bundled templates learn the deploy-as-is → onboard-in-place ladder for spec-less catalog repos (trinity#1704 / ent#411): discover-agents 1.9 reports them under `no spec:` with the fix, compose-system 1.4 resolves them to `github:Org/repo` anyway and hands each a post-deploy `/trinity:onboard in-place` playbook call, orchestrate 1.15 states what a spec-less ephemeral arrives without and when the ladder (not an ephemeral) is the right tool. Companion to trinity plugin 2.8.0 (onboard 6.0 in-place mode + plugins: block, sync 2.7.0 plugin reconcile)"
@@ -68,6 +69,8 @@ Maintenance (keep the fleet + its narrative honest over time):
   /sync-fleet-to-head   non-destructively bring in-scope agents to their GitHub HEAD
   /profile-fleet        interview + introspect agents, reconcile reality, correct orchestration.md
   /fleet-reconcile      fold already-verified deltas into every doc surface — no new evidence, one gate
+  /reconcile-skill-map  diff fleet/skill-map.yaml (declared intent) vs live get_agent_skills, apply
+                        approved additions, never auto-remove drift (ent#646 governance surface)
 
 Drive (opt-in project-management layer — Q3 at install):
   /project-init         create/adopt a managed project (epic + workspace) per fleet/project-standard.md
@@ -94,6 +97,7 @@ Drive (opt-in project-management layer — Q3 at install):
 | `.claude/skills/sync-fleet-to-head/SKILL.md` | agent repo | non-destructively bring in-scope agents to their GitHub HEAD (fleet git hygiene) |
 | `.claude/skills/profile-fleet/SKILL.md` | agent repo | interview + introspect agents; reconcile reality and correct the `orchestration.md` narrative |
 | `.claude/skills/fleet-reconcile/SKILL.md` | agent repo | fold already-verified deltas into the doc surfaces (narrative, dossiers, CLAUDE.md, memory) behind one gate — no new evidence |
+| `.claude/skills/reconcile-skill-map/SKILL.md` | agent repo | diff `fleet/skill-map.yaml` (declared intent) vs live `get_agent_skills`, apply approved additions via `assign_skill_to_agent`, never auto-remove drift |
 | `.claude/skills/project-init/SKILL.md` | agent repo (opt-in, Q3) | create/adopt a managed project per the standard |
 | `.claude/skills/project-steward/SKILL.md` | agent repo (opt-in, Q3) | autonomous project driver — sweep, dispatch, escalate, digest |
 | `fleet/project-standard.md` | agent repo (opt-in, Q3) | project-management conventions both skills read at runtime — registry repo, labels, comment formats, dispatch protocol |
@@ -102,6 +106,7 @@ Drive (opt-in project-management layer — Q3 at install):
 | `fleet/system-map.yaml` | agent repo | descriptive FACTS/nodes registry (written by `/discover-agents`) |
 | `fleet/orchestration.md` | agent repo | design NARRATIVE — edges, permission intent, patterns; imported into CLAUDE.md, loads at session start (human prose + tool-refreshed blocks) |
 | `fleet/system.yaml` | agent repo | Trinity manifest (written by `/compose-system`) |
+| `fleet/skill-map.yaml` | agent repo | declared-intent Library skill map (agent → skills, mandatory rationale); reconciled by `/reconcile-skill-map` |
 | CLAUDE.md `## Orchestration` section + `@fleet/orchestration.md` import | agent repo | wires the skills + loads the narrative at session start |
 | dashboard.yaml `Fleet` section | agent repo (if present) | table widget (Trinity's `sections[]`→`widgets[]` schema) — rows materialized by `/discover-agents` after each scan |
 
@@ -137,7 +142,7 @@ So every bundled skill that is both `automation: gated` **and** designed to run 
 
 Invoked as `/add-orchestrator --check`: a **read-only** report of how this agent's *installed* runtime skills compare to the *bundled* templates they were copied from. Nothing is written, no files are touched. The same per-skill comparison is called inline by **Step 4**'s overwrite prompt, so the warning reaches the operator *at the moment of the overwrite decision*, not after it (issue #8). When `--check` is the invocation, run this section and stop — skip the install steps.
 
-**Scope is deliberate and stateless.** This compares only the skills add-orchestrator itself installs (`discover-agents`, `compose-system`, `orchestrate`, `sync-fleet-to-head`, `profile-fleet`, `fleet-reconcile`, and the Q3 pair `project-init` / `project-steward`) against *this bundle's* `templates/`. It is **not** a general skill-registry inventory and keeps **no state on disk** — the bundle is the reference, the installed copy is the subject. The plugin-framework-wide version (every plugin that copies skills into agent repos) is a separate, larger call filed as a follow-up.
+**Scope is deliberate and stateless.** This compares only the skills add-orchestrator itself installs (`discover-agents`, `compose-system`, `orchestrate`, `sync-fleet-to-head`, `profile-fleet`, `fleet-reconcile`, `reconcile-skill-map`, and the Q3 pair `project-init` / `project-steward`) against *this bundle's* `templates/`. It is **not** a general skill-registry inventory and keeps **no state on disk** — the bundle is the reference, the installed copy is the subject. The plugin-framework-wide version (every plugin that copies skills into agent repos) is a separate, larger call filed as a follow-up.
 
 **Per skill, resolve two version stamps and compare content:**
 - `installed` = `metadata.version` in the agent's `.claude/skills/<skill>/SKILL.md`
@@ -166,7 +171,7 @@ vcmp() { awk -v a="$1" -v b="$2" 'BEGIN{
   for(i=1;i<=L;i++){u=x[i]+0; v=y[i]+0; if(u<v){print "<";exit} if(u>v){print ">";exit}}
   print "=" }'; }
 
-for skill in discover-agents compose-system orchestrate sync-fleet-to-head profile-fleet fleet-reconcile project-init project-steward; do
+for skill in discover-agents compose-system orchestrate sync-fleet-to-head profile-fleet fleet-reconcile reconcile-skill-map project-init project-steward; do
   inst=".claude/skills/$skill/SKILL.md"; bund="$SKILL_DIR/templates/$skill.md"
   [ -f "$inst" ] || { echo "$skill: — not installed"; continue; }
   iv=$(ver "$inst"); bv=$(ver "$bund"); cmp=$(vcmp "$iv" "$bv")
@@ -225,7 +230,7 @@ Trinity MCP is **not** required to install — `/discover-agents` and `/compose-
 Use `AskUserQuestion`:
 
 **Q1 — Which skills to install?**
-- `All six` (discover-agents, compose-system, orchestrate, sync-fleet-to-head, profile-fleet, fleet-reconcile) — recommended
+- `All seven` (discover-agents, compose-system, orchestrate, sync-fleet-to-head, profile-fleet, fleet-reconcile, reconcile-skill-map) — recommended
 - `Core three` (discover-agents, compose-system, orchestrate) — the discover → compose → route trio, without the fleet-maintenance skills
 - `Discovery only` (discover-agents) — just build the system map; wire the rest later
 
@@ -254,6 +259,11 @@ SKILL_DIR="<this add-orchestrator skill's own directory>"
 
 # Seed an empty, well-formed system-map so /orchestrate and dashboards don't choke pre-scan
 [ -f fleet/system-map.yaml ] || cp "$SKILL_DIR/templates/system-map.yaml.template" fleet/system-map.yaml
+
+# Seed an empty skill map only if reconcile-skill-map was selected (never clobber a hand-edited one)
+if is_selected "reconcile-skill-map"; then
+  [ -f fleet/skill-map.yaml ] || cp "$SKILL_DIR/templates/skill-map.yaml.template" fleet/skill-map.yaml
+fi
 
 # Seed the narrative layer (hybrid: human prose + tool-refreshed blocks) — never clobber an authored file.
 # SYSTEM_NAME = sources.yaml `system_name`, else "<agent>-fleet". Only {{SYSTEM_NAME}}/{{DATE}} are substituted.
@@ -297,7 +307,7 @@ For each skill selected in Q1, copy its template. The templates are ready to use
 A fresh install (no existing copy) skips all of this and just copies.
 
 ```bash
-for skill in discover-agents compose-system orchestrate sync-fleet-to-head profile-fleet fleet-reconcile; do
+for skill in discover-agents compose-system orchestrate sync-fleet-to-head profile-fleet fleet-reconcile reconcile-skill-map; do
   # skip any the user didn't select in Q1
   is_selected "$skill" || continue
   mkdir -p ".claude/skills/$skill"
@@ -415,12 +425,14 @@ Print:
 - /sync-fleet-to-head → non-destructively bring in-scope agents to their GitHub HEAD
 - /profile-fleet      → interview + introspect agents, correct the orchestration.md narrative
 - /fleet-reconcile    → fold already-verified deltas into the doc surfaces — no new evidence
+- /reconcile-skill-map → diff fleet/skill-map.yaml vs live get_agent_skills, apply approved additions
 - /project-init       → create/adopt a managed project (epic + workspace)   [if Q3 = yes]
 - /project-steward    → autonomous project driver — sweep, dispatch, close loops, digest [if Q3 = yes]
 
 ### Files
 - fleet/sources.yaml       (edit this — your repo list)
 - fleet/system-map.yaml    (FACTS/nodes — <generated | empty until first scan>)
+- fleet/skill-map.yaml     (declared-intent skill map — edit this to add entries | not installed — reconcile-skill-map skipped)
 - fleet/orchestration.md   (NARRATIVE/intent — author §4–§7; imported into CLAUDE.md)
 - fleet/project-standard.md (project-management conventions | not installed — Q3 skipped)
 - CLAUDE.md                (Orchestration section + @fleet/orchestration.md import added)
@@ -449,7 +461,7 @@ orchestrator's own repo work.
    Fleet already on Trinity? You're done — skip to step 5.
 4. /compose-system             — (provisioning NEW agents only) derive agent_permissions from §5, dry-run, deploy.
 5. /orchestrate <task>         — put the fleet to work (routes by the map + orchestration.md).
-6. Keep it honest over time     — /sync-fleet-to-head (agents on latest code), /profile-fleet (narrative matches reality), /fleet-reconcile (fold verified deltas into the docs cheaply).
+6. Keep it honest over time     — /sync-fleet-to-head (agents on latest code), /profile-fleet (narrative matches reality), /fleet-reconcile (fold verified deltas into the docs cheaply), /reconcile-skill-map (declared skills match live assignments — add entries to fleet/skill-map.yaml first).
 7. (Project layer) /project-init <name> — bring the first project under management; the steward sweeps it on schedule,
    closes its loops back to you, and hands you the ones only you can close with people outside the fleet.
 ```
@@ -473,4 +485,4 @@ orchestrator's own repo work.
 
 ## Idempotency
 
-Re-running is safe: existing `fleet/sources.yaml`, `fleet/system-map.yaml`, and `fleet/orchestration.md` are never clobbered (only seeded when absent); the CLAUDE.md section, the `@fleet/orchestration.md` import, and the dashboard panel are each grep-guarded; the §3b ownership-matrix and §3c data-layer inserts are grep-guarded on `### 3b`/`### 3c`, and the standard's §12 loop-closure insert on `## 12. Loop closure`, each applied only on an explicit yes; and skill copies prompt before overwrite, the prompt now carrying the **Check mode** verdict (upgrade / back-port candidate / local customization) so a re-run never silently downgrades a field-hardened copy or discards a local edit. `/add-orchestrator --check` is fully read-only — it writes nothing and is safe to run anytime. `/discover-agents` rewrites only the fenced `GENERATED:*` blocks in `orchestration.md` — your prose is never touched. To refresh, run `/discover-agents`; to re-wire a skill, delete its dir under `.claude/skills/` and re-run.
+Re-running is safe: existing `fleet/sources.yaml`, `fleet/system-map.yaml`, `fleet/skill-map.yaml`, and `fleet/orchestration.md` are never clobbered (only seeded when absent) — `reconcile-skill-map` itself only ever stamps `steward`/`last_reconciled` in the skill map, never the `agents:` content; the CLAUDE.md section, the `@fleet/orchestration.md` import, and the dashboard panel are each grep-guarded; the §3b ownership-matrix and §3c data-layer inserts are grep-guarded on `### 3b`/`### 3c`, and the standard's §12 loop-closure insert on `## 12. Loop closure`, each applied only on an explicit yes; and skill copies prompt before overwrite, the prompt now carrying the **Check mode** verdict (upgrade / back-port candidate / local customization) so a re-run never silently downgrades a field-hardened copy or discards a local edit. `/add-orchestrator --check` is fully read-only — it writes nothing and is safe to run anytime. `/discover-agents` rewrites only the fenced `GENERATED:*` blocks in `orchestration.md` — your prose is never touched. To refresh, run `/discover-agents`; to re-wire a skill, delete its dir under `.claude/skills/` and re-run.

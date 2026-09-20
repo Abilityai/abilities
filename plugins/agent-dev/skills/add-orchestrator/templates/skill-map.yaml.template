@@ -1,0 +1,45 @@
+# fleet/skill-map.yaml — the declared-intent skill map (ent#646).
+#
+# WRITTEN BY the orchestrator (by hand) and STAMPED by /reconcile-skill-map
+# (steward, last_reconciled only — never the agents: content, which is intent
+# a human or the orchestrator itself edits deliberately).
+#
+# The governance this supports: only a designated orchestrator agent may change an
+# agent's skills, its own included (ent#596, R31 2026-09-17) — and the intended
+# mapping lives in the orchestrator's OWN fleet information, never a platform
+# manifest field (the SystemManifest accepts a per-agent `skills:` key but the
+# platform silently drops it with a warning).
+#
+# SCOPE: Trinity LIBRARY skill assignments only (get_agent_skills / assign_skill_to_agent).
+# This is a distinct plane from an agent's own in-repo playbooks (a git submodule, or
+# its own .claude/skills/) — those are governed by that agent's repo + /sync-fleet-to-head,
+# never by this file.
+#
+# OUT OF SCOPE: an agent holding a role under a role-companion framework (e.g. Tandem)
+# declares capabilities in its own canon role file (`roles/<role-id>.yaml capabilities:`)
+# instead, resolved via its role assignment — CORE's rule is one definition of a role,
+# never duplicated here. Give such an agent `role: <role-id>` below instead of a
+# `skills:` list, and /reconcile-skill-map will skip it.
+#
+# This template is the empty starting state seeded at install time.
+
+schema_version: 1
+steward: null            # this orchestrator's own name — set by /reconcile-skill-map on first run
+last_reconciled: null    # date of the last completed reconcile run
+
+# One entry per agent this orchestrator declares an intent for. Schema:
+#
+# agents:
+#   some-agent:
+#     status: deployed          # deployed | catalog-only (not live yet — skipped until it is)
+#     skills:
+#       - name: some-skill
+#         rationale: >-          # REQUIRED — why this agent should hold it, not cosmetic.
+#           Why, not what. If inherited with no recorded reason, say so explicitly
+#           ("inferred, not operator-confirmed") rather than inventing one.
+#     rationale: >-              # REQUIRED when skills: [] — why nothing is declared yet.
+#   a-role-companion:
+#     role: marketing-lead       # Tandem (or similar) role id — /reconcile-skill-map skips
+#                                # this agent entirely; its capabilities come from canon.
+
+agents: {}

@@ -10,6 +10,7 @@ This agent is a **system-aware orchestrator**. It maintains a picture of the oth
 | `fleet/system-map.yaml` | descriptive FACTS — who exists, what they do, where/when they run (nodes) | `/discover-agents` |
 | `fleet/orchestration.md` | design NARRATIVE — edges, permission intent, patterns; loaded at session start | you + tools |
 | `fleet/system.yaml` | prescriptive Trinity `SystemManifest` — deploy-ready | `/compose-system` |
+| `fleet/skill-map.yaml` | declared-intent Library skill map (agent → skills, mandatory rationale) | you (edit) + `/reconcile-skill-map` (stamps only) |
 
 `system-map.yaml` is the *nodes*; `orchestration.md` is the *edges and the intent* — the design narrative the orchestrator reads before routing.
 
@@ -31,6 +32,7 @@ Deployed agents are called by their live `deployed_name` from the map (matched r
 | `/sync-fleet-to-head` | Non-destructively bring in-scope agents to their GitHub HEAD (pull-only ladder, conflict gates) — fleet git hygiene |
 | `/profile-fleet` | Interview + introspect agents, reconcile reality vs the narrative, and correct this file's prose behind a gate |
 | `/fleet-reconcile` | Fold already-verified deltas (session fixes, audit queues) into the doc surfaces — narrative, dossiers, CLAUDE.md, memory — behind one gate; generates no new evidence |
+| `/reconcile-skill-map` | Diff `fleet/skill-map.yaml` (declared intent) against live `get_agent_skills`, apply approved additions via `assign_skill_to_agent`, report drift and never-reviewed agents — never auto-remove |
 | `/project-init` (opt-in layer) | Create or adopt a managed project — epic issue + workspace — per `fleet/project-standard.md` |
 | `/project-steward` (opt-in layer) | Autonomous sweep of managed projects: reconcile dispatches, dispatch next work to explicitly-labeled owners, escalate stalls, daily digest — never asks mid-run |
 

@@ -135,7 +135,7 @@ The `/add-memory` skill copies memory skills directly into the agent (no plugin 
 
 ### System Orchestration
 
-`/add-orchestrator` makes an agent **system-aware** — able to discover other agents (deployed *or* just sitting in a GitHub repo), describe what each can do, and put them to work. It installs six fleet skills (plus an opt-in project-management pair) into the agent and a `fleet/` workspace:
+`/add-orchestrator` makes an agent **system-aware** — able to discover other agents (deployed *or* just sitting in a GitHub repo), describe what each can do, and put them to work. It installs seven fleet skills (plus an opt-in project-management pair) into the agent and a `fleet/` workspace:
 
 | Skill Installed | Purpose |
 |------|----------|
@@ -145,6 +145,7 @@ The `/add-memory` skill copies memory skills directly into the agent (no plugin 
 | **sync-fleet-to-head** | Non-destructively bring in-scope agents to their GitHub HEAD (pull-only ladder, conflict gates) — fleet git hygiene |
 | **profile-fleet** | Interview + introspect the agents, reconcile reality vs declared config, and correct the `orchestration.md` narrative behind a gate |
 | **fleet-reconcile** | Fold already-verified deltas (session fixes, audit corrections) into every doc surface behind one gate — no new evidence |
+| **reconcile-skill-map** | Diff the declared-intent `fleet/skill-map.yaml` against live `get_agent_skills`, apply approved additions via `assign_skill_to_agent`, report drift and never-reviewed agents — never auto-remove (ent#646 governance surface) |
 | **project-init** *(opt-in)* | Create/adopt a managed project (GitHub epic + workspace) per `fleet/project-standard.md` |
 | **project-steward** *(opt-in)* | Autonomous scheduled project driver — sweep, dispatch to labeled owners, escalate, age the operator's open loops, digest |
 
