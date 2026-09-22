@@ -8,10 +8,11 @@ allowed-tools: Read, Write, Edit, Grep, AskUserQuestion, mcp__trinity__get_agent
 effort: medium
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-09-20
   author: orchestrator
   changelog:
+    - "1.1: Delivery ladder gains the `conflict` state (trinity#2914, Trinity dev 1a1deb2b, 2026-09-22) — a library skill whose name matches an agent-authored .claude/skills/<name>/ is now refused before a byte is staged; never retried via sync_agent_skills (force does not override), reported as an unassign-or-rename decision; pre-fix instances still overwrite, so diff repo-native names first there"
     - "1.0: Initial version — declared-intent skill map (fleet/skill-map.yaml) reconciled against live get_agent_skills; missing entries proposed for apply via assign_skill_to_agent (additive, single-skill — never set_agent_skills, which replaces the whole list and would silently wipe undeclared skills); undeclared live skills reported as drift and never auto-removed (no safe single-skill removal call exists yet, #493); live agents absent from the map entirely surface as a distinct `unmapped` state, never conflated with a reviewed `skills: []` entry; excludes role-companion agents (capabilities come from their canon role file instead) and an agent's own in-repo playbooks (a separate plane, governed by /sync-fleet-to-head). ent#646"
 ---
 
@@ -99,6 +100,7 @@ Read the response's `delivery` status per skill:
 - `pending_start` — the agent is stopped; the assignment is recorded and will apply on next start. Report, don't treat as failed.
 - `in_progress` — still installing; note it may not show up in a `get_agent_skills` call made immediately after.
 - `not_delivered` (with a `reason`) — call `sync_agent_skills(agent_name)` once as the documented manual retry, then report the final outcome either way. Do not loop retrying.
+- `conflict` — the agent already has a **skill it wrote itself** at `.claude/skills/<name>/` (no platform marker), and Trinity refused to overwrite it before staging a byte (trinity#2914, dev since 2026-09-22). **Never retry via `sync_agent_skills`** — a forced sync does not override a conflict. The agent's own copy is what runs; the assignment row stays with `delivery_status: conflict` and shows in the Skills tab. Report it as a decision for the operator: unassign the library skill, or rename the agent's own — a name match is not proof of the same skill. On pre-fix instances (v0.9.5 images and earlier) the library copy silently **overwrites** the agent's, so on those diff `get_agent_skills` against the agent's repo-native skill names before any assignment.
 
 Do not touch `undeclared` items regardless of approval scope — deciding whether to amend the map or remove the live assignment is explicitly out of this skill's hands (see Purpose). There is no safe single-skill removal call today (#493 tracks it); removing one means a human constructs the full correct list for `set_agent_skills` themselves, outside this skill.
 
@@ -124,6 +126,7 @@ Update `fleet/skill-map.yaml`: set `last_reconciled` to today's date, and `stewa
 | `fleet/skill-map.yaml` missing | Scaffold from `templates/skill-map.yaml.template`; report empty, stop. |
 | `get_agent_skills` errors for an agent | Report `unreachable`; continue with the rest. |
 | `assign_skill_to_agent` returns `not_delivered` | Retry once via `sync_agent_skills`; report whichever outcome follows. Do not loop. |
+| `assign_skill_to_agent` returns `conflict` | The agent authored a same-name skill; Trinity refused the overwrite. Do not retry, do not force — report it as an unassign-or-rename decision for the operator. |
 | An agent in the map no longer exists live | Report under `unreachable`; suggest updating its entry — never auto-delete from the map. |
 | Trinity MCP unavailable | Read and print the map; note the diff can't run without live `get_agent_skills`. |
 | Someone asks this skill to remove an undeclared skill | Decline — out of scope by design (Purpose); point at `set_agent_skills` as the manual, human-driven path, with the full correct list constructed by hand. |
