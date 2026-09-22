@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.12"
+  version: "1.13"
   created: 2026-04-01
-  updated: 2026-09-14
+  updated: 2026-09-22
   author: Ability.ai
   changelog:
+    - "1.13: Declared business metrics (trinity-enterprise#482; platform contract ent#477 registry / ent#478 record_metrics / ent#479 read) — Step 5 template.yaml gains a `metrics:` block derived from the wizard's answers (each one a KPI the agent's domain actually produces, never decorative; `cadence` matches the scaffolded /update-dashboard schedule; `direction` / `aggregation` / `dimensions` where they carry meaning), the generated /update-dashboard posts the same numbers as points via `record_metrics` after writing dashboard.yaml (guarded: off Trinity it degrades to the file write; `metric_undeclared` → `refresh_metric_definitions`), and dashboard widgets may bind `metric: <name>` to a declared series instead of being snapshotted. One playbook computes the numbers once and writes both surfaces — the Dashboard tab's button already calls /update-dashboard"
     - "1.12: Platform-truth refresh (Trinity dev 9ac2ceae, 0.9.5-rc2) — the playbook-gap operator-queue item is keyed `id` (operator-queue-v1 schema; an entry carrying only request_id is silently skipped), the schedules timezone note no longer claims legacy IANA aliases 500 (tzdata-legacy shipped in v0.9.0, #1823), and the .gitignore comment for .claude/settings.json reflects ent#345 — platform hooks live in root-owned /etc/claude-code/managed-settings.json, the ignore rule guards against a stale agent-local copy bricking outside clones"
     - "1.11: Platform-truth refresh (Trinity v0.9.0, tag 93d7ce7c) — .mcp.json.template rule added: an http/sse server url must resolve to a public address (loopback/private/link-local/CGNAT 100.64/10 = Tailscale refused with 400, no override — trinity-enterprise#394); the report guard in the generated CLAUDE.md also swallows the `requires an agent-scoped API key` refusal a user/admin-key session gets (mcp-server reports.ts)"
     - "1.10: template.yaml scaffold now declares `plugins:` (trinity#1704 / ent#411) — marketplaces + installed (agent-dev@abilityai, trinity@abilityai) — so the DEPLOYED agent gets its plugins headlessly on every container boot instead of depending on a human running /plugin install; the local install step stays (that is your own session), the declaration is what makes it portable"
@@ -448,6 +449,33 @@ credential_setup:
     format: secret
     setup_url: https://example.com/settings/api-keys
 
+# Declared business metrics (trinity-enterprise#477/#478/#479). This block IS the
+# registry: Trinity reads it at create / git pull / container start and validates every
+# point the agent records against it. Derive 2–5 metrics from the agent's purpose —
+# each one a number the agent's own work produces (items processed, replies sent,
+# revenue, error rate…), never a decorative placeholder. `cadence` = how often
+# /update-dashboard runs (a point later than 2× cadence is shown as STALE, never as
+# current); metrics with no cadence are never stale. Names: snake_case, unique.
+metrics:
+  - name: items_processed             # the agent's primary throughput number
+    type: counter                     # counter|gauge|percentage|status|duration|bytes
+    label: "Items processed"
+    description: "What this counts, in one line"
+    cadence: 6h                       # match the /update-dashboard schedule below
+    direction: up_good                # up_good | down_good | neutral
+    aggregation: sum                  # last (default) | sum | avg
+  - name: pipeline_state
+    type: status
+    label: "Pipeline"
+    cadence: 6h
+    values:                           # required for status metrics — the labels a point may carry
+      - value: healthy
+        color: green
+        label: Healthy
+      - value: degraded
+        color: yellow
+        label: Degraded
+
 # Optional: recommended schedules (design source of truth). Trinity materializes
 # this block ON AGENT CREATION, deduplicated by `name` — at most 20 entries, and
 # NEVER re-applied on recreate, so a schedule added here after deployment must be
@@ -466,6 +494,8 @@ credential_setup:
 #     purpose: Daily status digest
 #     enabled: false
 ```
+
+**metrics guidance:** Keep only the metrics this agent can actually compute from its own data sources (the same ones `/update-dashboard` reads). One `status` metric for the agent's health state plus 1–4 counters/gauges is the usual shape. Set every `cadence` to the `/update-dashboard` schedule you declare below (default `6h` when the schedule is `0 */6 * * *`); omit `cadence` only for metrics recorded on demand. Never invent a metric the wizard's answers do not justify.
 
 **schedules guidance:** If the agent has recurring tasks, uncomment the `schedules:` block above and add 1–2 entries derived from its purpose (fields map one-to-one onto `create_agent_schedule`; see `/trinity:onboard` Step 3a). Leave them `enabled: false` so the operator chooses what runs after deploy. Omit the block entirely for purely on-demand agents.
 
@@ -715,7 +745,7 @@ You're all set. The onboarding.json file can be kept as a record or deleted.
 
 ## STEP 8: Generate Dashboard
 
-Every agent includes a starter `dashboard.yaml` and an `/update-dashboard` skill for Trinity.
+Every agent includes a starter `dashboard.yaml`, the `metrics:` declaration from Step 5, and an `/update-dashboard` skill for Trinity. **One playbook, both surfaces:** `/update-dashboard` computes the numbers once, writes `dashboard.yaml` (the live snapshot) and records the same numbers as points via `record_metrics` (the time series the platform reads). The Dashboard tab's *Update Dashboard* button calls it by that exact name — never introduce a second playbook name.
 
 ### 8a. Generate dashboard.yaml
 
@@ -770,6 +800,8 @@ sections:
 
 **Customization:** Choose 2-3 sections with 3-6 widgets that reflect the agent's actual domain and skills. Keep it focused — `/update-dashboard` fills in real values later.
 
+**Bind widgets to declared metrics where one exists:** a `metric` or `status` widget may carry `metric: <name>` (a name from the Step 5 `metrics:` block). A bound widget reads the recorded series — value, point time, stale flag, sparkline — instead of being snapshotted, so `/update-dashboard` no longer has to hand-type its value (`value` / `color` become optional on bound widgets). Unbound widgets keep working as before.
+
 ### 8b. Generate /update-dashboard skill
 
 Write `[destination]/.claude/skills/update-dashboard/SKILL.md`:
@@ -814,7 +846,20 @@ Read `dashboard.yaml`, update widget values with fresh data:
 
 Write the updated `dashboard.yaml`.
 
-### Step 3: Publish a KPI snapshot report (Trinity)
+### Step 3: Record declared metrics (Trinity)
+
+If the `mcp__trinity__record_metrics` tool is available (i.e. running on Trinity), post the same numbers you just wrote as **points** against the metrics declared in `template.yaml metrics:` — this is the only way a number enters Trinity as data (time series, freshness, canvas charts read it; the dashboard file is only the live snapshot):
+
+```
+record_metrics(points=[
+  {"metric": "items_processed", "value": <count>},
+  {"metric": "pipeline_state", "value": "healthy"}
+], execution_id="<from your Execution Context block, when present>")
+```
+
+Rules: only metrics declared in `template.yaml` (`metric_undeclared` → add it there, then call `refresh_metric_definitions` and retry once); one point per metric per run (identity is metric + ts + dims — re-sending the same observation is deduplicated, a correction is a new `ts`); a `status` value must be one of its declared `values`. Skip this step **silently** when the tool is absent (local run) or refuses with an agent-scoped-key error — the dashboard write above still succeeds. Trinity is the upgrade, never the gate.
+
+### Step 4: Publish a KPI snapshot report (Trinity)
 
 If the `mcp__trinity__report` tool is available (i.e. running on Trinity), also publish the same headline numbers as a report so they accumulate as history alongside the live snapshot:
 
@@ -824,7 +869,7 @@ If the `mcp__trinity__report` tool is available (i.e. running on Trinity), also 
 
 Skip this step silently if the tool isn't available — the dashboard refresh above still succeeds.
 
-### Step 4: Confirm
+### Step 5: Confirm
 
 Report what was updated:
 ```
@@ -838,6 +883,7 @@ Note: On Trinity remote, the dashboard path is `/home/developer/dashboard.yaml`.
 ## Outputs
 
 - Updated `dashboard.yaml` with current metrics
+- Recorded points for every declared metric (Trinity) — `<n> recorded, <m> deduplicated`
 ```
 
 **Customize** the "Gather Metrics" step to reference the specific data sources this agent uses.

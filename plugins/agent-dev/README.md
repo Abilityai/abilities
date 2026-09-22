@@ -190,6 +190,9 @@ The layer is **convention + skills on plain git** — no platform primitive. It'
 
 ## How It Works
 
+**Business metrics — declare, record, read (trinity-enterprise#476):** an agent declares its KPIs once in `template.yaml metrics:` (name, type, `cadence`, optional `direction` / `aggregation` / `dimensions`; Trinity reads the block into a per-agent registry), its `/update-dashboard` playbook records the numbers it writes to `dashboard.yaml` as points via the `record_metrics` MCP tool (the only write path — validated against the declaration, idempotent, all-or-nothing), and the platform reads them back with one stale rule (no point within 2× cadence) on the agent's tiles, `get_metrics`, and any dashboard widget bound with `metric: <name>`. `/create-agent` and `/trinity:create-dashboard` scaffold all three halves; the Dashboard tab's *Update Dashboard* button calls the playbook by that exact name.
+
+
 **Skill development is the unit of work.** When you create an issue like "improve claim flow to show skill file path", `/groom` tags it `skill:claim`. `/roadmap` surfaces it alongside all other `skill:claim` work. `/autoplan` reads `.claude/skills/claim/SKILL.md`, identifies what changes, and flags risks. `/commit` writes `[claim]: show skill file path on claim (closes #N)`.
 
 `/work-loop` is the autonomous sprint — but it skips `skill:*` issues since modifying SKILL.md files requires the interactive wizard tools. Those stay in `/sprint`.

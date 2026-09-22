@@ -29,7 +29,7 @@ Set up, connect, deploy, and sync Claude Code agents to the Trinity Deep Agent O
 | **connect** | Authenticate with Trinity instance, configure MCP server connection |
 | **onboard** | Full onboarding flow — compatibility check, file creation, deploy to remote |
 | **sync** | Synchronize local/remote changes, supports multiple remotes |
-| **create-dashboard** | Generate an `/update-dashboard` skill for existing agents |
+| **create-dashboard** | Generate an `/update-dashboard` skill for existing agents — declares the agent's KPIs in `template.yaml metrics:`, and the generated playbook writes `dashboard.yaml` **and** records the same numbers as points via `record_metrics` (declare → record → the Dashboard tab's button) |
 | **loop** | Run a remote agent task sequentially — fixed N iterations or until a stop signal, with optional response chaining. The remote counterpart to Claude Code's local `/loop` |
 
 ## User Flow
@@ -130,6 +130,8 @@ A deployed agent publishes results by calling one MCP tool: **`mcp__trinity__rep
 | `payload` | ✅ | A JSON **object**, ≤ **5 MiB** serialized (`REPORT_PAYLOAD_MAX_BYTES` — a code constant, raised from 256 KB by trinity#1537/#1838; oversize is a hard 413) |
 | `display_hint` | optional | `table` (`{columns, rows}`) · `kpi` (`{tiles:[{label,value,unit?}]}`) · `markdown` (`{markdown}`) · `timeline` (`{events:[{ts,label,detail}]}`) · `json` (raw) · omit → Trinity infers from the `report_type` prefix, then falls back to the JSON viewer. Set it deliberately: the customer-facing Workspace Reports tab renders through these same renderers (trinity#2162/#2173), so a wrong hint is visible to the agent's users, not just its operator |
 | `period_start` / `period_end` | optional | ISO-8601, for reports covering a window |
+
+**Business metrics — declare, record, read (trinity-enterprise#476):** an agent declares its KPIs once in `template.yaml metrics:` (name, type, `cadence`, optional `direction` / `aggregation` / `dimensions`; Trinity reads the block into a per-agent registry), its `/update-dashboard` playbook records the numbers it writes to `dashboard.yaml` as points via the `record_metrics` MCP tool (the only write path — validated against the declaration, idempotent, all-or-nothing), and the platform reads them back with one stale rule (no point within 2× cadence) on the agent's tiles, `get_metrics`, and any dashboard widget bound with `metric: <name>`. `/create-agent` and `/trinity:create-dashboard` scaffold all three halves; the Dashboard tab's *Update Dashboard* button calls the playbook by that exact name.
 
 **Reports complement `dashboard.yaml`:** the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only history* of what the agent accomplished (rolling — pruned past `agent_reports_retention_days`, default 90 days). The convention `/create-agent` bakes into every generated agent is: **result-producing and scheduled skills end with a guarded `report` call** — guarded so it's skipped silently when the tool is absent (running locally, off Trinity) or refuses with `The report tool requires an agent-scoped API key` (a user/admin-key session) — never retried. Reporting is an upgrade, never a requirement.
 
