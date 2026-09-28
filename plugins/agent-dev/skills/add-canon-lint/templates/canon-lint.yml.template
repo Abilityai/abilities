@@ -1,11 +1,20 @@
-# canon-lint — deterministic consistency check on every push and PR.
+# canon-lint — deterministic consistency check on every PR and on main.
 # Stdlib-only Python; no pip install, no LLM, no network beyond checkout.
 # Division of labor: this workflow = internal consistency on every push;
 # each agent's weekly /canon-reconcile = external truth verification (the LLM residual).
+#
+# Two gates, one linter:
+#   pull_request → the RATCHET: "no NEW failures vs the PR's base" (the linter's --baseline).
+#                  A repo that is already red can still gate every PR on not making it redder,
+#                  and a PR whose own scope is clean goes green even while main is not.
+#                  The base is linted with the PR's linter + rules, so a rule change is judged
+#                  against what it says about the old tree, not against an older rule set.
+#   push to main   → the FULL report: red until every finding is paid down (tracked, not hidden).
 name: canon-lint
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
@@ -16,5 +25,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Run canon-lint
-        run: python tools/canon-lint/canon_lint.py --repo .
+      - name: Full report (informational on a PR, the gate on main)
+        run: python tools/canon-lint/canon_lint.py --repo . || [ "${{ github.event_name }}" = "pull_request" ]
+      - name: Baseline — lint the base tree with THIS linter + rules
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+          git worktree add --detach /tmp/canon-base "${{ github.event.pull_request.base.sha }}"
+          python tools/canon-lint/canon_lint.py --repo /tmp/canon-base --rules lint/rules.yaml --format json > /tmp/baseline.json || true
+          python -c "import json;d=json.load(open('/tmp/baseline.json'))['summary'];print('baseline:',d['failures'],'failure(s),',d['warnings'],'warning(s) on base')"
+      - name: Ratchet — no new failures vs base
+        if: github.event_name == 'pull_request'
+        run: python tools/canon-lint/canon_lint.py --repo . --baseline /tmp/baseline.json

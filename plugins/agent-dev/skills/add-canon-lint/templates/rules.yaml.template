@@ -15,6 +15,8 @@
 #   staleness         canonical items past their review_by date
 #   source-resolution local fact sources (docs/, files/) must exist
 #   reachability      canonical docs indexed in profile.md, drafts unlinked, no orphan files
+#   project-envelope  projects/<slug>/project.md present with the charter envelope (owner, status,
+#                     epic owner/repo#N, updated, review_by, tldr); decisions.md ledger envelope
 version: 1
 rules:
   layout: warn
@@ -26,3 +28,4 @@ rules:
   staleness: {{SEVERITY}}
   source-resolution: {{SEVERITY}}
   reachability: {{SEVERITY}}
+  project-envelope: {{SEVERITY}}
