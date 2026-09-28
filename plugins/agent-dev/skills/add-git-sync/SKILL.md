@@ -1,13 +1,14 @@
 ---
 name: add-git-sync
-description: Add git-as-state hooks to an agent — auto-commits on Stop, rebases on SessionStart, snapshots on PreCompact. Gives agents durable cross-session memory through their own repo.
+description: Add git-as-state hooks to an agent — auto-commits on Stop, rebases on SessionStart, snapshots on PreCompact. Gives agents durable cross-session memory through their own repo in LOCAL sessions; on a Trinity-deployed agent the hooks stand down, because the platform's auto-sync heartbeat owns durability there.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-04-21
   author: Ability.ai
   changelog:
+    - "1.4: Stand down on Trinity (ruling on trinity-enterprise#708, 2026-09-25 — one durability owner per deployed agent): every hook script exits immediately when it runs inside a Trinity agent container (TRINITY_BACKEND_URL and AGENT_NAME both set), so the platform's auto-sync heartbeat and pull cycle are the only writers of a deployed agent's tree; the hooks keep working for local sessions on any clone of the same repo. The check lives in the scripts, not the installer, so a repo that carries the hooks behaves correctly wherever it runs — re-running this skill on an older install updates the scripts. The `.claude/settings.json` + `!.claude/settings.json` negation pair is dropped from the .gitignore block: Trinity no longer ignores that file (it keeps a copy out of a commit only when it registers container-only /opt/trinity/ hook paths — trinity-enterprise#708), so the escape hatch has nothing left to escape; an existing negation line is harmless and left alone"
     - "1.3: .gitignore rationale corrected — the platform no longer bakes ~/.claude/settings.json (guardrail registration moved to root-owned /etc/claude-code/managed-settings.json, ent#345); the ignore rule stays because a committed copy with container-only hook paths bricks outside clones"
     - "1.2: The .gitignore block now carries `.claude/settings.json` + `!.claude/settings.json` (plain rule first, negation last). Trinity#2036 ignores that file fleet-wide and untracks a committed copy on every Push — and it is exactly where this skill registers its hooks, so on a deployed agent the entire setup silently ceased to exist. First-run checklist now stages the hook files explicitly and verifies with git check-ignore"
     - "1.1: State why the hooks pair with deployment — Trinity deploys by cloning the repo and tracking the branch, so these hooks keep the branch tip the real agent state and make git_pull//trinity:sync carry work forward"
@@ -26,9 +27,11 @@ Installs three hooks that turn the agent's own repo into its durable state layer
 | `git-pre-compact.sh` | `PreCompact` | Fast local commit so in-flight work survives context compaction. No push. |
 | `git-sync.sh` | `Stop` (async) | `git add -A` → commit → push with rebase-on-reject retry. Drops `.git/SYNC_FAILED` if it can't reconcile; SessionStart surfaces the note next run. |
 
-**Who this is for:** any agent whose directory is its own git repo and benefits from cross-session continuity (Trinity-deployed agents, autonomous workers, long-running research agents). Not appropriate for agents nested inside a larger monorepo.
+**Who this is for:** any agent whose directory is its own git repo and benefits from cross-session continuity (autonomous workers, long-running research agents, and the local sessions of agents you deploy to Trinity). Not appropriate for agents nested inside a larger monorepo.
 
-**Why this pairs with deployment:** Trinity deploys an agent by **cloning its GitHub repo** and tracking the branch, so the remote agent's state is whatever the branch tip holds. These hooks keep that tip honest — work is committed and pushed at session end instead of lingering uncommitted, so a `git_pull` (or `/trinity:sync`) actually carries the agent forward. Install this before deploying, not after the first surprise.
+**On a Trinity-deployed agent the hooks stand down.** Trinity owns commit-and-push durability for a deployed agent — its auto-sync heartbeat commits and pushes on a schedule, its pull cycle brings in what others pushed, and both feed the platform's sync-health and schedule-freeze surfaces (ruling on trinity-enterprise#708). Two writers running `git add -A` on one working tree would race, and hooks also do not fire in headless `claude --print` executions. So every script below begins with a check: when both `TRINITY_BACKEND_URL` and `AGENT_NAME` are set (the Trinity agent container's own environment), it exits without touching git. The same repo keeps full hook behaviour in your local sessions. Turn on auto-sync for the deployed agent in Trinity (Settings → Git sync) instead.
+
+**Why this pairs with deployment:** Trinity deploys an agent by **cloning its GitHub repo** and tracking the branch, so the deployed agent starts from whatever the branch tip holds. These hooks keep that tip honest from your **local** sessions — work you do locally is committed and pushed at session end instead of lingering uncommitted, so the deployed agent's pull cycle (or `/trinity:sync`) actually carries it forward. Once deployed, the platform takes over durability for the container's own work.
 
 **Escape hatches baked in:**
 - `touch .git/NO_AUTOSYNC` — disables all three hooks
@@ -59,8 +62,18 @@ elif [ "$(cd "$REPO_ROOT" && pwd -P)" != "$(pwd -P)" ]; then
   exit 1
 fi
 
-# 3. Does .claude/settings.json exist? (create if missing)
-# 4. Do any of the target hooks already exist? (if yes, diff and ask)
+# 3. Running inside a Trinity agent container? The hooks will stand down there
+#    (they only act in local sessions). Install anyway so the repo carries them for
+#    local clones — but say so plainly:
+if [ -n "$TRINITY_BACKEND_URL" ] && [ -n "$AGENT_NAME" ]; then
+  echo "NOTE: this is a Trinity-deployed agent ($AGENT_NAME). The platform's auto-sync heartbeat owns"
+  echo "      commit/push here, so these hooks will do nothing in this container — they act only in"
+  echo "      local sessions on a clone of this repo. Turn on auto-sync in Trinity for this agent."
+fi
+
+# 4. Does .claude/settings.json exist? (create if missing)
+# 5. Do any of the target hooks already exist? (if yes, diff and ask — an older
+#    install lacks the Trinity stand-down check, so the diff will show it; overwrite)
 ```
 
 If no `.git/`: ask "Initialize git repo here?" If yes, `git init`.
@@ -172,18 +185,10 @@ Add only entries not already present. Block-wrap with a header so it's clear wha
 
 ```
 # --- agent-dev:add-git-sync runtime exclusions ---
-# Trinity (#2036) ignores .claude/settings.json fleet-wide and `git rm --cached`s
-# an already-committed copy on the next Push, because a legacy/agent-authored copy can
-# register absolute container-only hook paths that brick outside clones (platform
-# guardrails now live in root-owned /etc/claude-code/managed-settings.json, ent#345)
-# and HOME is the repo root. THIS SKILL registers its hooks in
-# that file — so on a Trinity-deployed agent the registration would be untracked and
-# the whole setup would silently stop existing. Emit BOTH lines, plain rule FIRST:
-# the plain line satisfies Trinity's exact-line `grep -qxF` gate so it stops appending
-# its own copy at the end of the file, and the negation comes last so git's
-# last-match-wins re-includes the file.
-.claude/settings.json
-!.claude/settings.json
+# .claude/settings.json is deliberately NOT here: this skill registers its hooks in it,
+# so it must be tracked. (Trinity no longer ignores it either — trinity-enterprise#708
+# keeps a copy out of a commit only when it registers container-only /opt/trinity/
+# hook paths.)
 .claude/projects/
 .claude/statsig/
 .claude/todos/
@@ -227,6 +232,8 @@ Three hooks manage git sync for this agent. Defined in `.claude/settings.json`, 
 - `.git/SYNC_FAILED` — written when push can't reconcile; surfaced in next SessionStart
 
 **Design principle:** hooks enforce session-boundary consistency. Inside a session the agent is free; at boundaries (start / compact / stop) the repo reconciles.
+
+**Local sessions only.** In a Trinity agent container the hooks exit immediately — Trinity's auto-sync owns commit/push for the deployed agent.
 ```
 
 Substitute `<REMOTE>` and `<BRANCH>` (or drop the SessionStart row entirely in local-only mode).
@@ -264,9 +271,10 @@ Remote: `<REMOTE>/<BRANCH>`  (if applicable)
 - Stop: auto-commit (and push, if remote-push)
 
 ### First-run checklist
-1. Commit this setup: `git add .claude/hooks/ .claude/settings.json .gitignore CLAUDE.md && git commit -m "Add git-sync hooks"` — then verify the negation actually wins with `git check-ignore -v .claude/settings.json` (it should report the `!` line, or report nothing). If `settings.json` is ignored, the hooks are registered nowhere on any clone but this one.
+1. Commit this setup: `git add .claude/hooks/ .claude/settings.json .gitignore CLAUDE.md && git commit -m "Add git-sync hooks"` — then check `git check-ignore -v .claude/settings.json` reports nothing (or only a `!` line from an older install). If `settings.json` is ignored (an old rule in `.gitignore`), the hooks are registered nowhere on any clone but this one — remove that rule.
 2. If remote-push: confirm `git remote -v` points at the right repo
 3. Trigger a test: make a trivial edit, let the session end, verify a Heartbeat commit appears
+4. Deploying to Trinity? The hooks stand down inside the container (see "On a Trinity-deployed agent" above) — turn on auto-sync for the agent in Trinity, which then owns commit/push there.
 
 ### Disable temporarily
 `touch .git/NO_AUTOSYNC` — re-enable by deleting the file.
@@ -280,3 +288,4 @@ Remote: `<REMOTE>/<BRANCH>`  (if applicable)
 - **Monorepo guard:** the preflight refuses to install when the agent dir is nested inside a larger repo. The user can either pull the agent into its own repo or pick `local-only` mode at their own risk (the Stop hook would still commit to the wrong scope — safer to refuse).
 - **Co-author line:** the `__COAUTHOR__` placeholder is substituted as a single line. If the user wants multi-line sign-offs, they can edit `git-sync.sh` directly post-install.
 - **Re-running is safe.** Every write checks for prior state. Running the skill twice produces no diff on the second run.
+- **Upgrading an older install** (before 1.4): re-run the skill — the hook scripts differ by the Trinity stand-down block, so Step 3 shows the diff; overwrite. Until then an older copy still runs on a deployed agent and races the platform heartbeat; `touch .git/NO_AUTOSYNC` in the container stops it immediately (every version honours it). An existing `!.claude/settings.json` line in `.gitignore` is harmless and can stay.
