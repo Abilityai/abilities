@@ -11,6 +11,15 @@
 
 set +e  # never exit non-zero from SessionStart
 
+# On a Trinity-deployed agent the platform owns durability (trinity-enterprise#708):
+# its auto-sync heartbeat commits and pushes on a schedule, and its pull cycle keeps
+# the tree current. These hooks are for local sessions only, so two writers never
+# race on one working tree. Detection is the container's own environment.
+if [ -n "$TRINITY_BACKEND_URL" ] && [ -n "$AGENT_NAME" ]; then
+  echo '{"suppressOutput":true}'
+  exit 0
+fi
+
 INPUT=$(cat)
 SOURCE=$(echo "$INPUT" | jq -r '.source // "startup"')
 cd "$CLAUDE_PROJECT_DIR" 2>/dev/null || { echo '{"suppressOutput":true}'; exit 0; }

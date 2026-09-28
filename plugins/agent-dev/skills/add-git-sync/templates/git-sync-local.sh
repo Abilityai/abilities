@@ -5,6 +5,16 @@
 # local durability without syncing to a remote.
 
 set +e
+
+# On a Trinity-deployed agent the platform owns durability (trinity-enterprise#708):
+# its auto-sync heartbeat commits and pushes on a schedule, and its pull cycle keeps
+# the tree current. These hooks are for local sessions only, so two writers never
+# race on one working tree. Detection is the container's own environment.
+if [ -n "$TRINITY_BACKEND_URL" ] && [ -n "$AGENT_NAME" ]; then
+  echo '{"suppressOutput":true}'
+  exit 0
+fi
+
 INPUT=$(cat)
 STOP_HOOK_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // false')
 [ "$STOP_HOOK_ACTIVE" = "true" ] && exit 0
