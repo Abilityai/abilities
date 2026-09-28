@@ -1,14 +1,15 @@
 ---
 name: project-reconcile
-description: Sync projection adapters against the GitHub Issues registry per PROJECT_STANDARD.md. Processes projection gestures (check/date-push/delete) back into the registry with correct reversibility typing. Ships with Google Tasks adapter v1 (notes-field [#NN] key). Other adapters are per-deployment extensions. Reconciler is idempotent; refuses unkeyed items with a sync-gap alert.
+description: Sync projection adapters against the registry per PROJECT_STANDARD.md — GitHub Issues for external projects, task files for internal ones (standard §16). Processes projection gestures (check/date-push/delete) back into the registry with correct reversibility typing. Ships with Google Tasks adapter v1 (notes-field [#NN] key). Other adapters are per-deployment extensions. Reconciler is idempotent; refuses unkeyed items with a sync-gap alert.
 argument-hint: "[adapter] — default: google-tasks"
 allowed-tools: Bash, Read, Write, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.2: Internal tracking (ent#673): internal projects' task files join the registry map under the key `[<slug>/T-NNN]` (external keeps `[#NN]`); a check gesture on one writes the task's front matter and an appended Log entry instead of labels and a comment (human owner → status: done; agent owner → pending-verification + pending_since), and the projection item's note carries the task file path. Everything else — gesture typing, absence never authoritative, unkeyed items personal — is unchanged"
     - "1.1: Read-the-standard guard (missing PROJECT_STANDARD.md → run /project-init first); skill is now authored standalone (installer copies from here)"
     - "1.0: Initial version — generic adapter contract, Google Tasks adapter v1 with gesture typing, idempotent reconciler, sync-gap alerts for unkeyed items"
 ---
@@ -47,7 +48,7 @@ Otherwise ask:
 
 ### Step 3: Load registry state
 
-Fetch all open task issues from the registry:
+Both modes feed one registry map. **Internal projects** (standard §16 — charters whose mode is internal): every `tasks/T-*.md` becomes an entry keyed `<slug>/T-NNN`, from its front matter (`title`, `status`, `priority`, `owner`) with the file path standing in for the URL, `is_closed` = `status: done`. **External** (skip when `$REGISTRY` is `none`) — fetch all open task issues from the registry:
 ```bash
 gh issue list --repo "$REGISTRY" --label task --state open \
   --json number,title,labels,body,url --limit 200
@@ -88,7 +89,10 @@ curl -sf "https://tasks.googleapis.com/tasks/v1/lists/$LIST_ID/tasks?showComplet
 
 Parse each task into: `{id, title, notes, status ("needsAction"|"completed"), due, updated}`.
 
-Extract the `[#NN]` key from the title using: `echo "$TITLE" | grep -oP '(?<=\[#)\d+(?=\])'`
+Extract the key from the title — `[#NN]` (external) or `[<slug>/T-NNN]` (internal):
+```bash
+echo "$TITLE" | grep -oP '(?<=\[)(#\d+|[a-z0-9][a-z0-9._-]*/T-\d{3,})(?=\])'
+```
 
 **Adapter contract (implement this for custom adapters):**
 ```python
@@ -129,7 +133,7 @@ Read the last sync log (`project-steward/reconcile-log/google-tasks-YYYY-MM-DD.j
 
 ### Step 6: Apply registry updates (per gesture type)
 
-**Check (completion endorsement):**
+**Check (completion endorsement):** — for an internal task (`<slug>/T-NNN`) make the same two decisions with file writes: read `owner:` from the front matter; human owner → append `### Done claim — projection endorsement YYYY-MM-DD` to its `## Log`, set `status: done` and `updated:`, check it off in project.md's `## Tasks`; agent owner → append `### Done claim — projection signal YYYY-MM-DD`, set `status: pending-verification` and `pending_since:`. Commit the file (canon: `/canon-publish`). For an external task:
 ```bash
 OWNER=$(gh issue view $NUMBER --repo "$REGISTRY" --json labels -q '.labels[].name | select(startswith("owner:"))' | head -1 | sed 's/owner://')
 ```
@@ -165,9 +169,9 @@ OWNER=$(gh issue view $NUMBER --repo "$REGISTRY" --json labels -q '.labels[].nam
 
 For each open registry task issue NOT in the projection:
 - This is an item the projection is missing. Add it to the projection using `write_item`:
-  - Title: `[#NN] <issue title>`
+  - Title: `[#NN] <issue title>` (internal: `[<slug>/T-NNN] <title>`)
   - Priority prefix: `[P1] ` / `[P2] ` / `[P3] ` based on the issue's priority label (read-only display)
-  - Note: the GitHub issue URL
+  - Note: the GitHub issue URL (internal: the task file path)
 
 For each registry issue now closed but still open in the projection:
 - Call `mark_complete(key)` in the projection.

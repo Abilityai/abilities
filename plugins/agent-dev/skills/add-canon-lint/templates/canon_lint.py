@@ -66,6 +66,14 @@ REQUIRED_DOC_KEYS = ("owner", "status", "updated", "review_by", "tldr")
 # `status` mirrors the registry epic's status:* label, so the vocabulary is the PM standard's, not
 # the doc conviction levels; `epic` names the registry epic the charter mirrors.
 REQUIRED_PROJECT_KEYS = ("owner", "status", "epic", "updated", "review_by", "tldr")
+# ent#673: `tracking:` — where the project's tasks live. `internal` projects keep them in the
+# project folder (tasks/T-NNN.md) and have no epic; omitted = external when `epic:` names a real
+# epic (#N, N > 0), else internal. Every charter written before the key existed stays external.
+TRACKING_VOCAB = ("external", "internal")
+PRIORITY_VOCAB = ("p1", "p2", "p3")
+# tasks/T-NNN.md — an internal project's task file. Front matter only, like every other lint.
+REQUIRED_TASK_KEYS = ("id", "title", "status", "owner", "priority", "updated")
+TASK_ID_RE = re.compile(r"^T-[0-9]{3,}$")
 PROJECT_STATUS_VOCAB = ("active", "blocked", "needs-decision", "paused", "pending-verification", "done")
 PROJECT_STALENESS_EXEMPT = ("paused", "done")   # the steward skips paused; done is terminal
 # decisions.md — append-only ledger. Standard doc envelope keys minus review_by: nothing ever
@@ -197,6 +205,45 @@ def check_dates_and_staleness(lint, path, line, item, status, label):
         lint.add("staleness", path, line, f"{label} past review_by {item['review_by']} — verify and re-stamp (canon-reconcile)")
 
 
+def project_tracking(meta):
+    """external | internal, by the PM standard §16 rule: an explicit `tracking:` wins;
+    otherwise a real epic (#N, N > 0) means external and anything else internal."""
+    t = meta.get("tracking")
+    if t in TRACKING_VOCAB:
+        return t
+    epic = meta.get("epic") or ""
+    return "external" if re.search(r"#[1-9][0-9]*$", epic) else "internal"
+
+
+def lint_project_tasks(lint, project_dir):
+    """tasks/T-NNN.md of an internal project (ent#673). Front matter only: the id matches the
+    file name, the required keys are present, status/priority are in the standard's vocabulary,
+    dates parse. The body (Objective, DoD, Log…) is the project's to write and is never read."""
+    tasks_dir = project_dir / "tasks"
+    if not tasks_dir.is_dir():
+        return
+    for task in sorted(tasks_dir.iterdir()):
+        if task.name.startswith(".") or task.is_dir():
+            continue
+        if task.suffix != ".md" or not TASK_ID_RE.match(task.stem):
+            lint.add("layout", task, 0, f"unexpected `{task.name}` in tasks/ — task files are named T-NNN.md")
+            continue
+        lint.counts["docs"] += 1
+        meta, _ = parse_front_matter(lint, task, task.read_text(encoding="utf-8", errors="replace"))
+        for k in REQUIRED_TASK_KEYS:
+            if k not in meta:
+                lint.add("project-envelope", task, 1, f"missing required task key `{k}`")
+        if meta.get("id") and meta["id"] != task.stem:
+            lint.add("project-envelope", task, 1, f"id `{meta['id']}` != file name `{task.stem}`")
+        if meta.get("status") and meta["status"] not in PROJECT_STATUS_VOCAB:
+            lint.add("project-envelope", task, 1, f"status `{meta['status']}` not in {list(PROJECT_STATUS_VOCAB)}")
+        if meta.get("priority") and meta["priority"] not in PRIORITY_VOCAB:
+            lint.add("project-envelope", task, 1, f"priority `{meta['priority']}` not in {list(PRIORITY_VOCAB)}")
+        for field in ("created", "updated"):
+            if field in meta and valid_date(meta.get(field)) is None:
+                lint.add("project-envelope", task, 1, f"`{field}: {meta.get(field)}` is not a valid YYYY-MM-DD date")
+
+
 def lint_projects(lint, projects_dir, agent_names, legacy_owner=None):
     """A `projects/` zone — shared (company) projects (ruling R21: one PM standard, two
     visibility levels — canon placement decides only who can read it).
@@ -232,18 +279,26 @@ def lint_projects(lint, projects_dir, agent_names, legacy_owner=None):
         if legacy_owner is not None:
             lint.add("project-placement", entry, 0, f"shared projects live at the canon root — move agents/{legacy_owner}/projects/{slug}/ to projects/{slug}/ (ruling 2026-09-22)")
         charter = entry / "project.md"
+        tracking = None
         if not charter.is_file():
             lint.add("project-envelope", charter, 0, f"project.md missing — every projects/<slug>/ needs its charter (owner, status, epic, updated, review_by, tldr)")
         else:
             lint.counts["docs"] += 1
             meta, _ = parse_front_matter(lint, charter, charter.read_text(encoding="utf-8", errors="replace"))
+            tracking = project_tracking(meta)
+            if meta.get("tracking") and meta["tracking"] not in TRACKING_VOCAB:
+                lint.add("project-envelope", charter, 1, f"tracking `{meta['tracking']}` not in {list(TRACKING_VOCAB)}")
             for k in REQUIRED_PROJECT_KEYS:
+                if k == "epic" and tracking == "internal":
+                    continue   # an internal project's registry is its own folder — no epic
                 if k not in meta:
                     lint.add("project-envelope", charter, 1, f"missing required charter key `{k}`")
+            if tracking == "internal" and meta.get("priority") and meta["priority"] not in PRIORITY_VOCAB:
+                lint.add("project-envelope", charter, 1, f"priority `{meta['priority']}` not in {list(PRIORITY_VOCAB)}")
             status = meta.get("status")
             if status and status not in PROJECT_STATUS_VOCAB:
                 lint.add("project-envelope", charter, 1, f"status `{status}` not in {list(PROJECT_STATUS_VOCAB)} (mirrors the registry epic's status:* label)")
-            if meta.get("epic") and not EPIC_RE.match(meta["epic"]):
+            if meta.get("epic") and meta["epic"] != "none" and not EPIC_RE.match(meta["epic"]):
                 lint.add("project-envelope", charter, 1, f"epic `{meta['epic']}` must be the registry epic as `owner/repo#N`")
             if meta.get("owner"):
                 check_owner(charter, meta["owner"])
@@ -252,7 +307,9 @@ def lint_projects(lint, projects_dir, agent_names, legacy_owner=None):
                     lint.add("project-envelope", charter, 1, f"`{field}: {meta.get(field)}` is not a valid YYYY-MM-DD date")
             due = valid_date(meta.get("review_by", ""))
             if status not in PROJECT_STALENESS_EXEMPT and due is not None and due < lint.today:
-                lint.add("staleness", charter, 1, f"project `{slug}` charter past review_by {meta['review_by']} — verify against the epic and re-stamp (canon-reconcile)")
+                lint.add("staleness", charter, 1, f"project `{slug}` charter past review_by {meta['review_by']} — verify against the {'epic' if tracking == 'external' else 'tasks/'} and re-stamp (canon-reconcile)")
+        if tracking == "internal":
+            lint_project_tasks(lint, entry)
         ledger = entry / "decisions.md"
         if ledger.is_file():
             lint.counts["docs"] += 1

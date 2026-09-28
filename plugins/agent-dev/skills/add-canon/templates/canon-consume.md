@@ -5,10 +5,11 @@ allowed-tools: Read, Bash, Glob, Grep
 user-invocable: true
 argument-hint: "<agent-or-protocol> [path | relations | projects [slug]] | projects [slug]"
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.5: Internal tracking (ent#673): the projects listing shows `internal · N open tasks` in place of the epic for an internal project, and a project read serves task state from its own tasks/T-NNN.md and log.md at the same cited sha (an external charter still points at its epic for live task state)"
     - "1.4: Projects mode (rulings R21 + 2026-09-22 — one PM standard, two visibility levels; shared projects at the canon root; CONVENTIONS.md § Projects) — `/canon-consume projects` lists every shared project (slug, owner/steward, status, epic, review_by, tldr) from projects/*/project.md, `/canon-consume projects <slug>` serves the charter + the append-only decisions.md ledger at a cited canon@<sha>, and `<agent> projects [slug]` narrows to the projects that agent stewards (charter owner:); staleness per the charter's review_by: (paused/done charters are never stale); the charter mirrors the registry epic, so the answer names the epic and points at it for live task state; everything else in the slug folder is the project's workspace — listed, never served as canon. Projects still under the earlier agents/<agent>/projects/ placement are read too, marked as pending the move"
     - "1.3: Relations mode — `/canon-consume <agent> relations` serves both sides of a collaboration record (the counterpart's docs/relations/<self>.md and this agent's own docs/relations/<counterpart>.md) and notes divergence explicitly — open threads or events one side logged that the other didn't are the dropped-thread signal CONVENTIONS.md § Relations defines; plain agent reads gain a one-line footer when a relation pair exists"
     - "1.2: Two-zone fast path — resolve against the owner's facts.yaml first (key/value entries are the claims the fleet may rely on; cite the fact key in the citation) and open docs/ prose only when the question needs the explanation behind the claim; staleness now reads per-item review_by: dates (canonical + past due = flagged) instead of a blanket 30-day bound, with the verified:-stamp rule kept as fallback for v1-contract folders; status honored — draft and superseded items are never served as current fact"
@@ -46,11 +47,11 @@ On failure, continue with the local copy but **say so** — the citation then re
 
 **Projects mode** — the first argument is the literal word `projects`, or `[path]` is (`<agent> projects`). CONVENTIONS.md § Projects: a shared project is managed exactly like an agent-level one, canon placement only decides who can read it (ruling R21), and the zone sits at the canon root, `projects/<slug>/` (ruling 2026-09-22). Check this before step 1's agent resolution, so a literal `projects` never fuzzy-matches an agent. Resolve under `projects/`:
 
-- `projects` alone → **list** every shared project: one line per `projects/<slug>/project.md` — `<slug> · owner · status · epic · review_by · tldr` — with a stale flag per Step 4. A slug folder with no `project.md` is listed as `<slug> — no charter (lint: project-envelope)`, never served. No `projects/` at all → "no shared projects in canon."
+- `projects` alone → **list** every shared project: one line per `projects/<slug>/project.md` — `<slug> · owner · status · epic (or "internal · N open tasks" — PM standard §16) · review_by · tldr` — with a stale flag per Step 4. A slug folder with no `project.md` is listed as `<slug> — no charter (lint: project-envelope)`, never served. No `projects/` at all → "no shared projects in canon."
 - `<agent> projects` → the same list, narrowed to the charters whose `owner:` is `<agent>` (the projects it stewards). None → "`<agent>` stewards no shared projects in canon."
 - Also list any project still at the earlier placement, `agents/*/projects/<slug>/project.md` (or `agents/<agent>/projects/` when narrowed), marked `(earlier placement — pending the move to projects/<slug>/)`; read it the same way.
 - `projects <slug>` → **read** the charter `projects/<slug>/project.md` (envelope + body) and, when present, the ledger `projects/<slug>/decisions.md`; cite each file separately. Unknown slug → list what exists and stop. Also list the *other* entries of the slug folder by name so the caller knows the workspace exists — but never serve them as canon: they are the project's free-form workspace, unlinted and unenveloped by design.
-- The charter **mirrors** its registry epic (`epic:` in the envelope, the authoritative record for tasks and status); name the epic in the answer and point at it for live task state rather than inferring it from the charter body. `status:` is the epic vocabulary (`active | blocked | needs-decision | paused | pending-verification | done`), not the doc conviction levels — don't apply the draft/superseded rules to it.
+- An **internal** project's tasks are in its folder (`tasks/T-NNN.md`, thread in `log.md`) — read them at the same cited sha for task state. An **external** charter **mirrors** its registry epic (`epic:` in the envelope, the authoritative record for tasks and status); name the epic in the answer and point at it for live task state rather than inferring it from the charter body. `status:` is the epic vocabulary (`active | blocked | needs-decision | paused | pending-verification | done`), not the doc conviction levels — don't apply the draft/superseded rules to it.
 
 ### Step 3: Read and cite — facts first, prose second
 
@@ -94,4 +95,4 @@ Answer the actual question from the consumed data, citations inline, stale flags
 | Target not found | List published agents/protocols; suggest the owning agent — never guess |
 | `projects <slug>` with no such slug / slug folder without `project.md` | List the agent's projects (charter-less slugs marked); never serve workspace files as the charter |
 | File lacks front-matter stamps | Consume it, but flag `unstamped — freshness unknown` |
-| Asked to write/fix canon data | Refuse — that's `/canon-publish` (own folder) or a PR (someone else's) |
+| Asked to write/fix canon data | Refuse — that's `/canon-publish` (own folder or the shared `projects/` zone) or a PR (someone else's folder) |
