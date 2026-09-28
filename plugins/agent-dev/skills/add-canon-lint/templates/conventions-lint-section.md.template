@@ -79,7 +79,9 @@ Charter envelope — `project.md`:
 ---
 owner: <agent-name>                 # the steward — must name an agents/<name>/ folder in this canon
 status: active                      # active | blocked | needs-decision | paused | pending-verification | done
-epic: <owner>/<repo>#<N>            # the registry epic this charter mirrors (the epic is the authoritative record); #0 = not yet registered
+tracking: external                  # external | internal — where the tasks live. Omitted = external when epic: is #N (N > 0), else internal
+epic: <owner>/<repo>#<N>            # external: the registry epic this charter mirrors (the epic is the authoritative record); #0 = not yet registered. Internal: omit
+priority: p2                        # internal only — p1 | p2 | p3 (external keeps priority on the epic)
 updated: YYYY-MM-DD                 # last charter change
 review_by: YYYY-MM-DD               # verification due date — past due (unless paused/done) = stale
 tldr: "One line — what this project is for"
@@ -87,9 +89,16 @@ tldr: "One line — what this project is for"
 ```
 
 `status` mirrors the epic's `status:*` label (the PM standard's vocabulary, not the doc conviction
-levels). `paused` and `done` charters are exempt from staleness; everything else past `review_by`
-is a stale charter — the steward's `/canon-reconcile` verifies it against the epic (open/closed,
-status) and re-stamps it.
+levels); for an internal project it *is* the project's status. `paused` and `done` charters are
+exempt from staleness; everything else past `review_by` is a stale charter — the steward's
+`/canon-reconcile` verifies it against the epic (external: open/closed, status) or its own `tasks/` and `log.md`
+(internal: recent activity) and re-stamps it.
+
+**Internal tracking** (PM standard §16): the project's tasks live in the slug folder as
+`tasks/T-NNN.md`, one file per task, with its thread in `log.md` beside the charter. The linter reads
+each task file's front matter only — `id` (= file name) · `title` · `status` (the vocabulary above)
+· `owner` · `priority` · `updated` — never its body. Task files are written by the managing agent
+(own-folder write, like the charter).
 
 Ledger envelope — `decisions.md`: `owner` (an agent in this canon — usually the steward) ·
 `status` (`canonical | draft | superseded`) · `updated` (last append) · `tldr`. **Append-only.**
@@ -123,7 +132,7 @@ Everything remains valid YAML for ordinary tools. Richer structure belongs in pr
 | `staleness` | anything `canonical` past its `review_by` |
 | `source-resolution` | a fact `source:` pointing at a local path that doesn't exist |
 | `reachability` | canonical doc missing from `profile.md`'s index; draft linked; orphan in `files/` |
-| `project-envelope` | `projects/<slug>/` without `project.md`; charter missing keys, bad `epic` shape (`owner/repo#N`), bad dates, status outside the epic vocabulary; `decisions.md` ledger envelope incomplete |
+| `project-envelope` | `projects/<slug>/` without `project.md`; charter missing keys (`epic` only when external), bad `epic` shape (`owner/repo#N`), `tracking` outside `external`/`internal`, bad dates, status outside the epic vocabulary; `decisions.md` ledger envelope incomplete; an internal project's `tasks/T-NNN.md` with a missing key, an `id` that is not its file name, or a status/priority outside the vocabulary |
 | `ownership` (projects) | a charter or ledger `owner` that is not an agent folder in this canon |
 | `project-placement` (warn) | a shared project still under `agents/<name>/projects/<slug>/` — move it to the root `projects/<slug>/` |
 | `layout` (warn) | top-level entries outside the folder schema; a file directly under `projects/` |
