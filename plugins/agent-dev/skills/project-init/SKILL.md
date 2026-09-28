@@ -1,6 +1,6 @@
 ---
 name: project-init
-description: Create or adopt a long-term managed project per PROJECT_STANDARD.md — GitHub epic issue with idempotent label creation and a workspace carrying the project.md charter, at agent level (project_files/<slug>/) or, with --canon, as a shared project in the fleet's canon repo (agents/<self>/projects/<slug>/ — same charter, same epic, same steward; canon placement only decides who can read it). Use when starting a new multi-session project or bringing an existing project folder under management.
+description: Create or adopt a long-term managed project per PROJECT_STANDARD.md — GitHub epic issue with idempotent label creation and a workspace carrying the project.md charter, at agent level (project_files/<slug>/) or, with --canon, as a shared project in the fleet's canon repo (projects/<slug>/ at the canon root — same charter, same epic, same steward; canon placement only decides who can read it). Use when starting a new multi-session project or bringing an existing project folder under management.
 argument-hint: "[project name | adopt <existing-folder>] [--canon] [--dry-run]"
 allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 user-invocable: true
@@ -9,7 +9,7 @@ metadata:
   created: 2026-07-30
   author: add-project-management
   changelog:
-    - "1.2: Shared projects (operator ruling R21, 2026-09-10 — one PM standard, two visibility levels; ent#588): `--canon` creates the workspace in the fleet's canon repo at agents/<self>/projects/<slug>/ (own-folder write through the x-canon clone, pushed with /canon-publish) instead of project_files/<slug>/, and records `canon:agents/<self>/projects/<slug>/` in the epic's Workspace field; `adopt --canon <path>` adopts an existing canon folder. The charter is the same file at both levels and now carries the linted envelope the canon convention § Projects defines (owner = self, status mirrors the epic label, epic as owner/repo#N, updated, review_by, tldr) plus an append-only decisions.md ledger with its own envelope; agent-level project.md gains the same envelope so moving a project changes readers and nothing else. `--dry-run` writes the workspace and prints the epic body without touching GitHub (so a scaffold can be linted before it exists). Default placement is unchanged (agent level)"
+    - "1.2: Shared projects (operator rulings R21, 2026-09-10 — one PM standard, two visibility levels — and 2026-09-22 — shared projects at the canon root; ent#588): `--canon` creates the workspace in the fleet's canon repo at projects/<slug>/ — the top-level zone every agent writes directly, not inside any agent's folder — through the x-canon clone, pushed with /canon-publish, instead of project_files/<slug>/, and records `canon:projects/<slug>/` in the epic's Workspace field; this agent becomes the charter's owner: (the steward). A slug already taken in canon — by any steward — is a collision. `adopt --canon <slug>` adopts an existing canon project: one at the root keeps its steward unless it is this agent's (a project stewarded by another agent is refused — ask that agent); one still at the earlier agents/<self>/projects/<slug>/ placement is moved to projects/<slug>/ in the same publish (another agent's earlier-placement project is theirs to move). The charter is the same file at both levels and now carries the linted envelope the canon convention § Projects defines (owner = steward, status mirrors the epic label, epic as owner/repo#N, updated, review_by, tldr) plus an append-only decisions.md ledger with its own envelope; agent-level project.md gains the same envelope so moving a project changes readers and nothing else. `--dry-run` writes the workspace and prints the epic body without touching GitHub (so a scaffold can be linted before it exists). Default placement is unchanged (agent level)"
     - "1.1: Self-heal — when PROJECT_STANDARD.md is missing, materialize it from PROJECT_STANDARD.template.md shipped in this skill directory (resolving registry/operator/agent/max-age with sensible defaults). Makes the skill usable when assigned from the skills library without running the installer; the installer now copies from this directory instead of carrying its own copy"
     - "1.0: Initial version — owner/agent label distinction, unclassified quarantine, full Epic anatomy per PROJECT_STANDARD.md §4"
 ---
@@ -29,7 +29,7 @@ Bring a long-term project under standardized management: create the GitHub epic 
 | Convention doc | `PROJECT_STANDARD.md` (repo root) | Yes | No |
 | GitHub issues + labels | the `$REGISTRY` repo via `gh` | Yes | Yes |
 | Project workspace (agent level) | `project_files/<slug>/` | Yes | Yes |
-| Project workspace (`--canon`) | `<x-canon.clone_path>/agents/<self>/projects/<slug>/` — this agent's own canon folder | Yes | Yes (own folder only; push = `/canon-publish`) |
+| Project workspace (`--canon`) | `<x-canon.clone_path>/projects/<slug>/` — the canon's shared projects zone | Yes | Yes (the shared zone every agent writes directly; push = `/canon-publish`) |
 | Canon declaration | `template.yaml → x-canon:` (`repo`, `clone_path`, `folder`) | Yes (`--canon` only) | No |
 
 ## Process
@@ -65,7 +65,7 @@ If this returns an error (403, 404, or "Resource not accessible"), stop and repo
 
 Determine mode from the argument: `adopt` (argument starts with "adopt" or names an existing `project_files/` folder) or `new` (default). Two flags, both off by default:
 
-- **`--canon`** — a **shared (company) project** (standard §15, ruling R21): the workspace lives in the fleet's canon repo at `agents/<self>/projects/<slug>/`, so every agent and human on the canon can read the definition. Managed exactly like an agent-level project — same charter, same epic, same steward, same intake, same ledger; only the readers differ. Requires this agent to be enrolled in the canon:
+- **`--canon`** — a **shared (company) project** (standard §15, ruling R21): the workspace lives in the fleet's canon repo at `projects/<slug>/` — the top-level shared zone, not inside any agent's folder (ruling 2026-09-22) — so every agent and human on the canon can read the definition, and this agent is its steward (the charter's `owner:`). Managed exactly like an agent-level project — same charter, same epic, same steward, same intake, same ledger; only the readers differ. Requires this agent to be enrolled in the canon:
   ```bash
   grep -q '^x-canon:' template.yaml || { echo "not enrolled in a canon — run /add-canon first, or drop --canon"; exit 1; }
   CANON=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/clone_path:/{print $2}' template.yaml); CANON=${CANON:-canon}
@@ -73,10 +73,14 @@ Determine mode from the argument: `adopt` (argument starts with "adopt" or names
   [ -d "$CANON/.git" ] || { echo "canon clone missing at $CANON/ — run /canon-doctor (it self-heals from x-canon.repo)"; exit 1; }
   git -C "$CANON" pull --ff-only || { echo "canon clone diverged — resolve with /canon-publish before creating a shared project"; exit 1; }
   ```
-  `$SELF` is the agent's own canon folder — the **only** folder this skill may write in the canon. Never write another agent's `projects/`.
+  `$SELF` is this agent's canon name — it becomes the new charter's `owner:` (the steward). The skill writes only `projects/<slug>/` in the canon: the shared zone every agent writes directly (CONVENTIONS.md § Projects). It never writes another agent's folder, and never takes over a project another agent stewards.
 - **`--dry-run`** — write the workspace (charter + ledger) and print the epic body, but create nothing on GitHub (no labels, no issue). The charter's `epic:` then reads `<registry>#0` until the real init replaces it. Use it to lint a canon scaffold before it exists, or to preview.
 
-For `adopt` mode: read the existing folder (look for `project.md`, `README.md`, any status files) and draft goal/criteria from what's there. `adopt --canon <path>` names an existing folder **inside** `$CANON/agents/$SELF/projects/` (e.g. `adopt --canon tandem`); a path outside this agent's own canon folder is refused — adopt it from the agent that owns it.
+For `adopt` mode: read the existing folder (look for `project.md`, `README.md`, any status files) and draft goal/criteria from what's there. `adopt --canon <slug>` names an existing canon project (e.g. `adopt --canon tandem`), resolved in this order:
+
+1. `$CANON/projects/<slug>/` (the root zone). Its charter already names an `owner:` other than `$SELF` → **refuse**: it is stewarded by that agent — adopt it from there, or have the operator reassign the steward in the charter. No charter, or `owner: $SELF` → adopt it here.
+2. `$CANON/agents/$SELF/projects/<slug>/` — this agent's project at the **earlier placement**. Adopt it and **move** it to the root in the same publish: `git -C "$CANON" mv "agents/$SELF/projects/<slug>" "projects/<slug>"` (fails if `projects/<slug>/` already exists — stop and report the clash). The epic's Workspace field then records `canon:projects/<slug>/`.
+3. `$CANON/agents/<other>/projects/<slug>/` — another agent's project at the earlier placement → **refuse**: moving it is that agent's write (its own folder), not this one's.
 
 Use AskUserQuestion for inputs that cannot be determined from context:
 - **Name** (derive slug as kebab-case; confirm no collision with existing epics)
@@ -91,7 +95,7 @@ Use AskUserQuestion for inputs that cannot be determined from context:
 ```bash
 gh issue list --repo "$REGISTRY" --label project --state all --search "$NAME" --json number,title,labels
 ls -d project_files/$SLUG 2>/dev/null                                  # agent level
-[ -n "$CANON" ] && ls -d "$CANON/agents/$SELF/projects/$SLUG" 2>/dev/null   # --canon
+[ -n "$CANON" ] && ls -d "$CANON/projects/$SLUG" "$CANON"/agents/*/projects/"$SLUG" 2>/dev/null   # --canon: any steward's, either placement
 ```
 
 If an epic already exists for this project, stop and show it — offer to update instead.
@@ -154,7 +158,7 @@ gh issue create --repo "$REGISTRY" \
   --body-file /tmp/epic-body.md
 ```
 
-`$WORKSPACE_FIELD` is the **recorded** workspace path — the field every project skill resolves from (standard §15; nothing derives it from the slug): `` `project_files/$SLUG/` `` at agent level, `` `canon:agents/$SELF/projects/$SLUG/` `` with `--canon` (adopt: the actual folder). With `--dry-run`, print `/tmp/epic-body.md` instead of creating the issue and skip Step 5 too.
+`$WORKSPACE_FIELD` is the **recorded** workspace path — the field every project skill resolves from (standard §15; nothing derives it from the slug): `` `project_files/$SLUG/` `` at agent level, `` `canon:projects/$SLUG/` `` with `--canon` (adopt: the actual folder after any move). With `--dry-run`, print `/tmp/epic-body.md` instead of creating the issue and skip Step 5 too.
 
 For each owner, add the `owner:<name>` label:
 ```bash
@@ -165,7 +169,7 @@ done
 
 ### Step 7: Scaffold the workspace
 
-The workspace root is `$WS` = `project_files/$SLUG` (agent level) or `$CANON/agents/$SELF/projects/$SLUG` (`--canon`). **The charter is the same file at both levels** — `project.md` with the envelope the canon convention § Projects defines (standard §15), so moving a project later changes readers and nothing else:
+The workspace root is `$WS` = `project_files/$SLUG` (agent level) or `$CANON/projects/$SLUG` (`--canon`). **The charter is the same file at both levels** — `project.md` with the envelope the canon convention § Projects defines (standard §15), so moving a project later changes readers and nothing else:
 
 ```bash
 mkdir -p "$WS"
@@ -210,7 +214,7 @@ Append-only: what was decided, by whom, when, and the consequence. Never rewrite
 LEDGER
 ```
 
-`$SELF_OR_AGENT_NAME` is `$SELF` with `--canon` (it must equal the enclosing `agents/<name>/` folder — the canon linter's `ownership` rule) and `$AGENT_NAME` at agent level. `$TLDR` is one line (quoted; no unescaped `"`), drafted from the goal. `status:` is the epic vocabulary (`active | blocked | needs-decision | paused | pending-verification | done`) — never `canonical`/`draft`. With `--dry-run`, `$ISSUE_NUMBER` is `0`.
+`$SELF_OR_AGENT_NAME` is `$SELF` with `--canon` (the steward — the canon linter's `ownership` rule requires it to name an `agents/<name>/` folder in the canon) and `$AGENT_NAME` at agent level. `$TLDR` is one line (quoted; no unescaped `"`), drafted from the goal. `status:` is the epic vocabulary (`active | blocked | needs-decision | paused | pending-verification | done`) — never `canonical`/`draft`. With `--dry-run`, `$ISSUE_NUMBER` is `0`.
 
 **Adopt mode:** keep the existing folder; create or update `project.md` so it carries the envelope above plus the charter sections (an adopted canon folder like Tandem may already have one — then only fill missing keys, never rewrite the body). Record the **actual** folder path in the epic body's Workspace field (may differ from the slug).
 
@@ -218,10 +222,10 @@ LEDGER
 
 ```bash
 [ -f "$CANON/tools/canon-lint/canon_lint.py" ] && \
-  python3 "$CANON/tools/canon-lint/canon_lint.py" --repo "$CANON" --scope "agents/$SELF/projects/$SLUG"
+  python3 "$CANON/tools/canon-lint/canon_lint.py" --repo "$CANON" --scope "projects/$SLUG"
 ```
 
-A `project-envelope` / `ownership` FAIL here is fixed before anything is pushed (the charter is the linter's contract). Then push through the canon's own gate — `/canon-publish` (own-folder direct commit; it re-runs the lint and refuses a red folder). Never `git push` the canon clone by hand from this skill, and never with `--dry-run`.
+A `project-envelope` / `ownership` FAIL here is fixed before anything is pushed (the charter is the linter's contract). Then push through the canon's own gate — `/canon-publish` (the `projects/` zone is a direct commit for any agent; it re-runs the lint and refuses a red project). Never `git push` the canon clone by hand from this skill, and never with `--dry-run`.
 
 ### Step 8: Summary
 
@@ -230,13 +234,13 @@ Print:
 ## Project initialized: $NAME
 
 Epic:      $EPIC_URL
-Workspace: <project_files/$SLUG/ | canon:agents/$SELF/projects/$SLUG/ (shared — readable by every agent and human on the canon)>
+Workspace: <project_files/$SLUG/ | canon:projects/$SLUG/ (shared — readable and writable by every agent and human on the canon; steward: $SELF)>
 Labels:    project, project:$SLUG, status:active, priority:$PRIORITY, owner:<...>
 
 Next steps:
   /project-task — create the first task
   /project-steward — run a sweep (or let the schedule do it)
-  /canon-publish — (--canon only) push the charter + ledger; others read it with /canon-consume <self> projects $SLUG
+  /canon-publish — (--canon only) push the charter + ledger; others read it with /canon-consume projects $SLUG
 ```
 
 With `--dry-run`: `Epic: (dry run — not created)` and the printed epic body.

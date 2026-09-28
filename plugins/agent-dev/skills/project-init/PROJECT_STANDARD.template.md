@@ -65,7 +65,7 @@ One paragraph: what done looks like and why it matters.
 
 ## Workspace
 `project_files/<slug>/`                              ← agent level, or
-`canon:agents/<owner>/projects/<slug>/`              ← canon level (shared project, §15)
+`canon:projects/<slug>/`                             ← canon level (shared project, §15)
 
 ## Owners
 - <actor-name> — <what they own in this project>
@@ -287,27 +287,28 @@ Work regularly parks on someone this system cannot dispatch to: a client, a lawy
 
 *Deployers: the 3-day nudge / 7-day re-nudge / 14-day decision ladder is the default. Edit these numbers to match how your counterparties actually respond.*
 
-## 15. Visibility — one standard, two placements (operator ruling R21, 2026-09-10)
+## 15. Visibility — one standard, two placements (operator rulings R21, 2026-09-10, and 2026-09-22)
 
 A project is managed **the same way** whether it lives at agent level or at canon level:
 
 | | Agent-level project | Shared (company) project |
 |---|---|---|
-| Workspace | `project_files/<slug>/` in the managing agent's repo | `agents/{{AGENT_NAME}}/projects/<slug>/` in the fleet's canon repo (own-folder write; pushed with `/canon-publish`) |
+| Workspace | `project_files/<slug>/` in the managing agent's repo | `projects/<slug>/` at the root of the fleet's canon repo — the shared zone every agent and human writes directly; pushed with `/canon-publish` |
 | Charter | `project.md` | `project.md` — the **same** file, same envelope |
 | Registry epic | one, in `{{REGISTRY}}` | one, in `{{REGISTRY}}` |
 | Steward | `/project-steward` | `/project-steward` |
 | Intake | `/project-intake` | `/project-intake` |
 | Decision ledger | `decisions.md` (append-only) | `decisions.md` (append-only) |
 | Who can read the definition | this agent + its operator | every agent and human on the canon |
+| Who can write it | this agent | every agent and human on the canon — the charter's `owner:` stays the steward |
 
-**Placement decides only who can read the definition and rely on it.** Company projects are shared projects by design and live in canon. Moving a project from agent level to canon changes its readers and nothing else — same epic, same steward, same intake, same ledger. Tandem (`agents/corbin/projects/tandem/` in the Ability canon) is the first shared project and the reference instance.
+**Placement decides only who can read the definition and rely on it.** Company projects are shared projects by design and live in canon. Moving a project from agent level to canon changes its readers and nothing else — same epic, same steward, same intake, same ledger. Many contributors, one steward: in canon anyone may edit the workspace and append to the ledger, but the charter's `owner:` names the one agent that stewards the project, and git history records who changed what. Tandem (`projects/tandem/` in the Ability canon) is the first shared project and the reference instance. A project created before 2026-09-22 may still sit at the earlier placement, `agents/<owner>/projects/<slug>/`; the canon linter warns (`project-placement`) until its steward moves it (`/project-init adopt --canon <slug>` does the move).
 
 **Charter envelope** (both levels; linted in canon by `project-envelope`, see the canon convention § Projects):
 
 ```yaml
 ---
-owner: {{AGENT_NAME}}                # the managing agent (= the enclosing canon folder)
+owner: {{AGENT_NAME}}                # the steward — the one managing agent (in canon: must name an agents/<name>/ folder)
 status: active                      # mirrors the epic's status:* label — active | blocked | needs-decision | paused | pending-verification | done
 epic: {{REGISTRY}}#<N>              # the registry epic this charter mirrors — the epic is the authoritative record
 updated: YYYY-MM-DD
@@ -318,9 +319,9 @@ tldr: "One line — what this project is for"
 
 **Workspace resolution (every project skill uses this, nothing derives a path from the slug):**
 
-1. Read the epic body's `## Workspace` field — the **first backticked path** in the section (prose around it is fine: `` `canon/agents/corbin/projects/tandem/` in the fleet canon repo`` resolves), else the first non-empty line.
+1. Read the epic body's `## Workspace` field — the **first backticked path** in the section (prose around it is fine: `` `canon/projects/tandem/` in the fleet canon repo`` resolves), else the first non-empty line.
 2. `canon:<path>` → the workspace is `<clone_path>/<path>` where `clone_path` is `template.yaml → x-canon.clone_path` (default `canon/`); `git -C <clone_path> pull --ff-only` before reading (never force; on failure read the local copy and say so). A missing clone is self-healed the way the canon skills do it (`x-canon.repo`); no `x-canon:` block at all means this agent is not enrolled in the canon and the epic body is the authoritative context.
-3. Any other value → a path relative to the managing agent's repo (`project_files/<slug>/` is the convention, but the field wins — a hand-written `canon/agents/<owner>/projects/<slug>/` is simply the clone-relative form and resolves through the same clone).
+3. Any other value → a path relative to the managing agent's repo (`project_files/<slug>/` is the convention, but the field wins — a hand-written `canon/projects/<slug>/` is simply the clone-relative form and resolves through the same clone; an earlier-placement `canon:agents/<owner>/projects/<slug>/` resolves the same way until the project moves).
 4. Field missing (an epic predating this section) → no workspace; the epic body is the authoritative context. Do **not** guess `project_files/<slug>/`.
 
-`/project-init --canon` creates a shared project (writes the charter + ledger into the canon clone, records the canon path in the epic); `/project-init adopt --canon <path>` adopts an existing canon folder. Reading a shared project from another agent is `/canon-consume <agent> projects [slug]`.
+`/project-init --canon` creates a shared project (writes the charter + ledger into the canon clone, records the canon path in the epic); `/project-init adopt --canon <slug>` adopts an existing canon project (moving it to the root if it is this agent's at the earlier placement). Reading a shared project is `/canon-consume projects [slug]`.
