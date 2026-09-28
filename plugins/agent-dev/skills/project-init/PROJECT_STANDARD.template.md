@@ -12,7 +12,7 @@
 
 | Thing | Location | Notes |
 |---|---|---|
-| Registry (single source of truth) | **Per project, declared in its charter's `tracking:` (§16).** *External:* GitHub issues in `{{REGISTRY}}` — one **epic issue** per project (`project` label), one task issue per task (`task` + `project:<slug>`). *Internal:* the project's own workspace — `project.md` stands in for the epic, `tasks/<id>.md` for each task issue, `log.md` for the epic's comment thread | `{{REGISTRY}}` may be `none`: then every project is internal and no GitHub access is needed |
+| Registry (single source of truth) | **Per project, declared in its charter's `tracking:` (§16).** *External:* GitHub issues in `{{REGISTRY}}` — one **epic issue** per project (`project` label), one task issue per task (`task` + `project:<slug>`). *Internal:* the project's own workspace — `project.md` stands in for the epic, `tasks/<id>.md` for each task issue, `log.md` for the epic's comment thread | A registry of `none` (set when this standard was materialized) means every project is internal and no GitHub access is needed |
 | Workspace (files, drafts, outputs) | **Agent level:** `project_files/<slug>/` in the managing agent's repo. **Canon level (shared project, §15):** `agents/{{AGENT_NAME}}/projects/<slug>/` in the fleet's canon repo, read through the agent's clone (`x-canon.clone_path`, default `canon/`) | Free-form except `project.md` (charter — the linted envelope of the canon convention § Projects, at both levels) and the optional append-only `decisions.md` ledger. **The path is recorded in the epic body's `## Workspace` field and is always read from there — never derived from the slug** (§15). **Visibility is deployment config**: if git-synced to the agent's container, the steward reads workspaces directly; if local-only / gitignored, Trinity runs use the epic body as authoritative context. The quarantine pass is idempotent wherever `project_files/` is visible and never scans the canon. |
 | Steward state, digests, run log | `project-steward/` in the managing agent's repo | Written only by `/project-steward`; tracked in git after each material run |
 
@@ -192,7 +192,7 @@ Closes when: <the observable answer or artifact that ends the wait>
 
 ## 9. Workspace discovery and quarantine (Invariant 6)
 
-The steward auto-stubs any `project_files/<slug>/` folder that is not a registered project into quarantine. A folder is registered when it has an epic (external) **or** a `project.md` whose mode resolves to internal (§16) — an internal project is registered by its own charter. Quarantine is a stub epic (`status:unclassified`) when `{{REGISTRY}}` is set, and a stub charter (`tracking: internal`, `status: paused`, `tldr: "(unclassified) …"`) when it is `none`. The quarantine pass runs wherever `project_files/` is visible — it is idempotent and safe on any deployment config (local-only, git-synced container, or absent entirely when workspaces live elsewhere). **It never scans the canon clone**: a canon-placed project (§15) is registered by its epic, never discovered from a folder — a `projects/<slug>/` folder in canon without an epic is the canon linter's `project-envelope` finding, not a quarantine case. Unclassified projects are:
+The steward auto-stubs any `project_files/<slug>/` folder that is not a registered project into quarantine. A folder is registered when it has an epic (external) **or** a `project.md` whose mode resolves to internal (§16) — an internal project is registered by its own charter. Quarantine is a stub epic (`status:unclassified`) when the registry is a GitHub repo, and a stub charter (`tracking: internal`, `status: paused`, `tldr: "(unclassified) …"`) when it is `none`. The quarantine pass runs wherever `project_files/` is visible — it is idempotent and safe on any deployment config (local-only, git-synced container, or absent entirely when workspaces live elsewhere). **It never scans the canon clone**: a canon-placed project (§15) is registered by its epic, never discovered from a folder — a `projects/<slug>/` folder in canon without an epic is the canon linter's `project-envelope` finding, not a quarantine case. Unclassified projects are:
 - Excluded from all projections
 - Excluded from priority tracking (no priority label)
 - Classified lazily: one batch line in the weekly digest ("N unclassified folders: <names>"), never per-item interrupts
@@ -336,7 +336,7 @@ A project tracks its tasks in **one** of two places, declared in the charter's `
 
 1. `tracking: external` or `tracking: internal` in `project.md` → that mode.
 2. No `tracking:` key → **external** if `epic:` names a real epic (`owner/repo#N`, N > 0), otherwise **internal**. Every charter written before this section has a real epic, so every existing project stays external untouched.
-3. `{{REGISTRY}}` is `none` → every project is internal; an external charter there is an error to report, never a reason to call GitHub.
+3. The registry configured in §1 is `none` → every project is internal; an external charter there is an error to report, never a reason to call GitHub.
 
 **Finding projects** (every project skill uses this, never a path of its own):
 
