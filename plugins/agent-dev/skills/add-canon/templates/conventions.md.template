@@ -11,6 +11,7 @@
 CONVENTIONS.md      # this file — the rules of the layer
 CODEOWNERS          # folder → responsible human counterpart (review routing)
 agents/<name>/      # one folder per agent — that agent's published record, owned
+projects/<slug>/    # shared (company) projects — the one zone everyone writes directly (§ Projects)
 protocols/          # inter-agent contracts — schemas, channels, cadences
 lint/ tools/ .github/   # deterministic linting, once /add-canon-lint has seeded it
 ```
@@ -22,6 +23,10 @@ lint/ tools/ .github/   # deterministic linting, once /add-canon-lint has seeded
   true (its `/canon-reconcile` pass verifies and stamps on a schedule).
 - **Everyone else — agent or human — changes someone's folder or `protocols/` via
   branch + PR.** CODEOWNERS routes the review. No exceptions for trivial edits.
+- **The one carve-out — `projects/`** (ruling 2026-09-22): shared projects are written
+  **directly** by any agent or human on the canon. The charter's `owner` is the project's
+  steward, not the folder's; git history is the provenance; CODEOWNERS routes no review.
+  The envelope rules (§ Projects) still hold, and the linter gates every push.
 - **Sanctioned installer writes (creation/scaffolding only, never content):**
   *enrollment seeding* — when an agent joins (`/add-canon`, incl. fleet enrollment), the
   installer may create its `agents/<name>/` stub + CODEOWNERS line; *lint migration
@@ -81,7 +86,6 @@ agents/<name>/
   facts.yaml      REQUIRED — the purely lintable zone: the claims other agents may rely on
   docs/           prose zone — explanations and models; front-matter envelope linted, body never read
   files/          shared artifacts (exports, specs, decks) — every file must be referenced somewhere
-  projects/       shared (company) projects this agent manages — one `<slug>/` per project, see § Projects
   NEEDS-REVIEW.md reconcile's flag file — exempt from the schema
 ```
 
@@ -121,17 +125,22 @@ tldr: "One line — what this doc establishes"
   not** be linked from `profile.md`.
 - `superseded` — kept for history; exempt from staleness and the one-home rule.
 
-### Projects — `projects/<slug>/` (shared projects, ruling R21)
+### Projects — `projects/<slug>/` at the canon root (shared projects, rulings R21 + 2026-09-22)
 
 **One project-management standard, two visibility levels.** A project is managed the same
 way whether it lives at agent level (`project_files/<slug>/` in the managing agent's own repo)
-or at canon level (`agents/<owner>/projects/<slug>/` here): same `project.md` charter, same
-registry epic, same steward, same intake path, same append-only decision ledger. Canon
-placement decides **visibility only** — who can read the definition and rely on it. Company
-projects are shared projects by design and live in canon.
+or at canon level (`projects/<slug>/` here): same `project.md` charter, same registry epic, same
+steward, same intake path, same append-only decision ledger. Canon placement decides
+**visibility only** — who can read the definition and rely on it. Company projects are shared
+projects by design and live in canon.
+
+**The zone sits at the canon root, not inside any agent's folder, and everyone writes there
+directly** (ruling 2026-09-22) — the one carve-out from the own-folder rule (§ Ownership).
+Many contributors, one steward: provenance comes from git history and the charter's `owner`,
+not from folder ownership, and CODEOWNERS routes no review for the zone.
 
 ```
-agents/<name>/projects/<slug>/
+projects/<slug>/
   project.md      REQUIRED — the charter; front-matter envelope linted, body never read
   decisions.md    optional — append-only decision ledger; envelope linted, never re-stamped
   <anything else> the project's workspace — free-form and unlinted, exactly like project_files/<slug>/
@@ -141,7 +150,7 @@ Charter envelope — `project.md`:
 
 ```yaml
 ---
-owner: <agent-name>                 # must equal the enclosing agents/<name>/ folder — the managing agent
+owner: <agent-name>                 # the steward — must name an agents/<name>/ folder in this canon
 status: active                      # active | blocked | needs-decision | paused | pending-verification | done
 epic: <owner>/<repo>#<N>            # the registry epic this charter mirrors (the epic is the authoritative record); #0 = not yet registered
 updated: YYYY-MM-DD                 # last charter change
@@ -152,16 +161,22 @@ tldr: "One line — what this project is for"
 
 `status` mirrors the epic's `status:*` label (the PM standard's vocabulary, not the doc conviction
 levels). `paused` and `done` charters are exempt from staleness; everything else past `review_by`
-is a stale charter — `/canon-reconcile` verifies it against the epic (open/closed, status) and
-re-stamps it.
+is a stale charter — the steward's `/canon-reconcile` verifies it against the epic (open/closed,
+status) and re-stamps it.
 
-Ledger envelope — `decisions.md`: `owner` (= folder) · `status` (`canonical | draft | superseded`)
-· `updated` (last append) · `tldr`. **Append-only.** Nothing re-stamps a ledger — `updated:` moves
-only when a decision is appended, and it carries no `review_by`; the charter's review covers it.
+Ledger envelope — `decisions.md`: `owner` (an agent in this canon — usually the steward) ·
+`status` (`canonical | draft | superseded`) · `updated` (last append) · `tldr`. **Append-only.**
+Nothing re-stamps a ledger — `updated:` moves only when a decision is appended, and it carries no
+`review_by`; the charter's review covers it.
 
-Read a shared project with `/canon-consume <agent> projects [slug]`; create one with
-`/project-init --canon` (records the canon path in the epic body). Tandem —
-`agents/corbin/projects/tandem/` — is the first shared project and the reference instance.
+**Earlier placement.** Shared projects created before 2026-09-22 sit at
+`agents/<owner>/projects/<slug>/`. They are still linted (same envelope, owner = folder) and each
+raises a `project-placement` warning until it moves: `git mv agents/<owner>/projects/<slug>
+projects/<slug>` in one commit, then point the epic's `## Workspace` field at the new path.
+
+Read a shared project with `/canon-consume projects [slug]` (or `<agent> projects` for the ones an
+agent stewards); create one with `/project-init --canon` (records the canon path in the epic body).
+Tandem — `projects/tandem/` — is the first shared project and the reference instance.
 
 ### Restricted grammar (why these files stay boring)
 

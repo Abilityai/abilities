@@ -1,6 +1,6 @@
 ---
 name: canon-publish
-description: "Publish this agent's canonical data — freshen the shared canon repo clone, review working changes, enforce the own-folder-only write rule (cross-folder changes split to a branch + PR), stamp the two-zone schema (facts.yaml entries + doc envelopes), run the deterministic canon linter as the pre-push gate, commit and push."
+description: "Publish this agent's canonical data — freshen the shared canon repo clone, review working changes, enforce the own-folder-only write rule (the shared projects/ zone publishes directly; other cross-folder changes split to a branch + PR), stamp the two-zone schema (facts.yaml entries + doc envelopes), run the deterministic canon linter as the pre-push gate, commit and push."
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
@@ -8,7 +8,7 @@ metadata:
   created: 2026-07-28
   author: Ability.ai
   changelog:
-    - "1.5: Shared-project files (projects/<slug>/ — CONVENTIONS.md § Projects, ruling R21) stamp by their own envelopes at Step 4: project.md is the charter — on change set updated: today, push review_by: forward when missing/past, keep status: in the registry epic's vocabulary (active|blocked|needs-decision|paused|pending-verification|done — never canonical/draft) and epic: as owner/repo#N; decisions.md is the append-only ledger — bump updated: only when a decision was appended, never add a review_by:, never rewrite earlier entries; nothing else in a slug folder is stamped (it is the project's workspace, unlinted). The Step 4b lint gate's project-envelope findings stop the publish like any other FAIL; a missing charter is /project-init --canon's job, not a stamp"
+    - "1.5: Shared projects (projects/<slug>/ at the canon root — CONVENTIONS.md § Projects, rulings R21 + 2026-09-22) are a third class beside IN and OUT: SHARED — published directly by any agent (the one carve-out from own-folder-only), linted per project (--scope projects/<slug>) before the push, committed as canon(projects/<slug>): … by <name>. Stamping follows their own envelopes at Step 4: project.md is the charter — on change set updated: today, push review_by: forward when missing/past, keep status: in the registry epic's vocabulary (active|blocked|needs-decision|paused|pending-verification|done — never canonical/draft), epic: as owner/repo#N and owner: as the steward (never rewrite someone else's stewardship to yourself); decisions.md is the append-only ledger — bump updated: only when a decision was appended, never add a review_by:, never rewrite earlier entries; nothing else in a slug folder is stamped (it is the project's workspace, unlinted). A project still under the earlier agents/<name>/projects/ placement is IN like the rest of the folder and its project-placement lint warning is reported; a missing charter is /project-init --canon's job, not a stamp"
     - "1.4: Relation docs (docs/relations/<counterpart>.md, CONVENTIONS.md § Relations) — sanctioned home for relational events (asks, commitments, handoffs, outcomes with refs): Step 4's process-state exclusion does not bar them, tick-by-tick status still stays out; on publish the cap is enforced (more than 10 events → fold the oldest into the Earlier: rolling summary) and the doc must be linked from profile.md under ## Relations before the commit — an unlinked canonical doc is exactly what the reachability lint rejects"
     - "1.3: Publish test as the first review gate (Step 4) — before stamping, each new/changed claim must pass 'would another agent decide something differently knowing this?'; self-describing registry data (agent version, schedule counts, internal cadences) is working state and stays out of the publish, reported rather than silently committed; process state (active runs, pending requests) never publishes — it belongs in messages/events, not a durable repo"
     - "1.2: Two-zone schema + local lint gate — stamping follows the new contract (docs: owner/status/updated/review_by/tldr envelope; facts.yaml entries: key/value/status/updated/review_by/source; updated: today on content change, review_by: pushed +30 days when it's missing or past); new Step 4b runs the canon repo's deterministic linter (tools/canon-lint, seeded by /add-canon-lint) scoped to this folder before any push — lint FAILs stop the publish (this local gate is what CI cannot be for direct own-folder pushes); linter absent → note /add-canon-lint once and continue; v1-contract folders (verified:/source:, no facts.yaml) still publish, with a one-line migration nudge"
@@ -20,7 +20,7 @@ metadata:
 
 > ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `canon-publish vX.Y — recent: <summary>`. Then proceed.
 
-Move this agent's canonical data from *edited* to *published*: review what changed in the canon clone, stamp it, commit it, push it. The write rule is structural, not etiquette: **direct commits only inside this agent's own folder**; every other path goes out as a branch + PR so the owner (via CODEOWNERS) reviews it.
+Move this agent's canonical data from *edited* to *published*: review what changed in the canon clone, stamp it, commit it, push it. The write rule is structural, not etiquette: **direct commits only inside this agent's own folder** — plus the shared `projects/` zone, which every agent writes directly (CONVENTIONS.md § Projects) — and every other path goes out as a branch + PR so the owner (via CODEOWNERS) reviews it.
 
 ## Process
 
@@ -65,16 +65,17 @@ git -C canon status --porcelain
 
 Split changed paths into:
 - **IN** — inside `x-canon.folder` (e.g. `agents/<name>/…`) → publishable directly.
-- **OUT** — everything else: another agent's folder, `protocols/`, root files → PR-only.
+- **SHARED** — under `projects/<slug>/` at the canon root → publishable directly by any agent (the one carve-out, ruling 2026-09-22); stamped and linted per project, never folded into another class.
+- **OUT** — everything else: another agent's folder, `protocols/`, other root files → PR-only.
 
 Nothing changed → say so and stop.
 
-### Step 4: Stamp the IN files (two-zone contract — see `canon/CONVENTIONS.md` § Lintable structure)
+### Step 4: Stamp the IN and SHARED files (two-zone contract — see `canon/CONVENTIONS.md` § Lintable structure)
 
 - **The publish test comes first — content, then stamps.** For each new or changed claim: *would another agent (or a human) decide something differently knowing this?* If it only describes this agent — its version, schedule counts, internal cadences — it is working state, not canon: leave it out of the publish and say so in the report (see `canon/CONVENTIONS.md` § What belongs here, where present). Process state (active runs, pending requests) never publishes — that traffic belongs in messages/events. (`profile.md`, `docs/*.md`): set `updated:` to today (UTC); if `review_by:` is missing or already past, push it to today + 30 days; ensure `owner:` matches this agent's folder and `status:` is one of `canonical | draft | superseded`. New docs get the full envelope — `owner`, `status`, `updated`, `review_by`, `tldr` (one line, quoted).
 - **Changed `facts.yaml` entries**: same stamping (`updated:` today, `review_by:` forward when missing/past); every entry needs `key` (lowercase dotted `subject.relation`), `value`, `status`, `source`. A claim other agents will rely on that only exists in prose → offer to mirror it as a fact entry now.
 - **Relation docs** (`docs/relations/<counterpart>.md` — CONVENTIONS.md § Relations): the sanctioned home for *relational* events — asks, commitments, handoffs, deliveries, outcomes, one line each with refs. The process-state exclusion above does not bar them; tick-by-tick status still stays out. On publish, enforce the cap — more than 10 events → fold the oldest into the `Earlier:` rolling summary — and make sure the doc is linked from `profile.md` under `## Relations` (add the link in the same commit; an unlinked canonical doc is exactly what the reachability lint rejects).
-- **Shared-project files** (`projects/<slug>/` — CONVENTIONS.md § Projects): stamp by their own envelopes, not the doc one. `project.md` is the charter — on change set `updated:` today, push `review_by:` forward when missing/past, keep `status:` in the registry epic's vocabulary (`active | blocked | needs-decision | paused | pending-verification | done`, never `canonical`/`draft`) and `epic:` as `owner/repo#N`. `decisions.md` is the append-only ledger — bump `updated:` only when a decision was appended, never add a `review_by:`, never rewrite earlier entries. Nothing else in a slug folder is stamped (workspace, unlinted). A missing charter is `/project-init --canon`'s job — don't scaffold one here.
+- **Shared-project files** (SHARED — `projects/<slug>/` — CONVENTIONS.md § Projects): stamp by their own envelopes, not the doc one. `project.md` is the charter — on change set `updated:` today, push `review_by:` forward when missing/past, keep `status:` in the registry epic's vocabulary (`active | blocked | needs-decision | paused | pending-verification | done`, never `canonical`/`draft`), `epic:` as `owner/repo#N`, and `owner:` as the project's steward — editing someone else's project does not make you its steward. `decisions.md` is the append-only ledger — bump `updated:` only when a decision was appended, never add a `review_by:`, never rewrite earlier entries. Nothing else in a slug folder is stamped (workspace, unlinted). A missing charter is `/project-init --canon`'s job — don't scaffold one here.
 - **Draft discipline:** a doc you're linking from `profile.md` must be `status: canonical` — publishing a draft into the index is exactly what the linter rejects.
 - **v1-contract folder** (old `verified:` stamps, no `facts.yaml`): stamp the old way, publish, and add one line to the report — "folder predates the two-zone schema; migrate via /add-canon-lint's seeding or CONVENTIONS.md § Migration note."
 
@@ -85,13 +86,16 @@ Own-folder writes are direct pushes, so the repo's CI can only report them after
 ```bash
 [ -f canon/tools/canon-lint/canon_lint.py ] && \
   python3 canon/tools/canon-lint/canon_lint.py --repo canon --scope "agents/<name>" || true
+# and once per SHARED project touched:
+[ -f canon/tools/canon-lint/canon_lint.py ] && \
+  python3 canon/tools/canon-lint/canon_lint.py --repo canon --scope "projects/<slug>" || true
 ```
 
-- Linter present + **FAIL** findings in scope → **stop before committing**: show the findings, fix (or downgrade the item to `status: draft` and unlink it), re-run. Never push a red own folder — cross-folder `one-home-per-key` conflicts surfacing here are a dispute to settle with the other owner via PR, not to push past.
+- Linter present + **FAIL** findings in scope → **stop before committing**: show the findings, fix (or downgrade the item to `status: draft` and unlink it), re-run. Never push a red own folder or a red shared project — cross-folder `one-home-per-key` conflicts surfacing here are a dispute to settle with the other owner via PR, not to push past.
 - Linter present + warnings only → publish, include the warnings in the report.
 - Linter absent → continue (fleets without linting still publish); note once: "no deterministic linter in this canon — seed it with /add-canon-lint."
 
-### Step 5: Publish IN — direct commit + push
+### Step 5: Publish IN and SHARED — direct commit + push
 
 Show a diffstat first (`git -C canon diff --stat` scoped to the folder). Then commit — with an identity fallback so a bare deployed container never fails the commit itself:
 
@@ -99,10 +103,13 @@ Show a diffstat first (`git -C canon diff --stat` scoped to the folder). Then co
 git -C canon config user.email >/dev/null || { git -C canon config user.name "<name>"; git -C canon config user.email "<name>@agents.local"; }
 git -C canon add "agents/<name>/"
 git -C canon commit -m "canon(<name>): <one-line summary of what changed and why>"
+# SHARED, one commit per project touched — provenance is the commit, not the folder:
+git -C canon add "projects/<slug>/"
+git -C canon commit -m "canon(projects/<slug>): <one-line summary> — by <name>"
 git -C canon push || { git -C canon pull --rebase --autostash && git -C canon push; }
 ```
 
-One rebase-on-reject retry; if it still fails, report the exact error — never leave the operator guessing whether the publish landed. Own-folder publishes need no approval gate: the folder is this agent's to keep true, and git history is the audit trail.
+One rebase-on-reject retry; if it still fails, report the exact error — never leave the operator guessing whether the publish landed. Own-folder and shared-project publishes need no approval gate: the folder is this agent's to keep true, the `projects/` zone is everyone's by ruling, and git history is the audit trail.
 
 ### Step 6: Route OUT via branch + PR (never direct)
 
@@ -126,6 +133,7 @@ Report the PR URL. `gh` absent or no remote → commit on the branch, stay on th
 
 ```
 Published: <n> file(s) in agents/<name>/ → canon@<short-sha>
+Shared:    <n> file(s) in projects/<slug>/ (per project) | none
 Proposed:  <PR URL | none> (<paths>)
 Skipped:   <anything left unstaged, and why>
 ```

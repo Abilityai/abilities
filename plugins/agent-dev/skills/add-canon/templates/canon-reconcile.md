@@ -1,6 +1,6 @@
 ---
 name: canon-reconcile
-description: "Scheduled freshness pass over this agent's own folder in the shared canon repo — run the deterministic linter first (its staleness findings are the worklist), verify each facts.yaml entry and doc against its declared source, update what changed, push review_by: forward on what verified, and flag what could not be verified in NEEDS-REVIEW.md. Shared-project charters (projects/<slug>/project.md) verify against their registry epic; decision ledgers are append-only and never re-stamped. The external-truth half of the division of labor: the linter proves internal consistency, this pass proves the facts still match reality. Headless-safe — never asks mid-run, never touches other folders."
+description: "Scheduled freshness pass over this agent's own folder in the shared canon repo — run the deterministic linter first (its staleness findings are the worklist), verify each facts.yaml entry and doc against its declared source, update what changed, push review_by: forward on what verified, and flag what could not be verified in NEEDS-REVIEW.md. Shared-project charters this agent stewards (projects/<slug>/project.md with owner: <self>) verify against their registry epic; decision ledgers are append-only and never re-stamped. The external-truth half of the division of labor: the linter proves internal consistency, this pass proves the facts still match reality. Headless-safe — never asks mid-run, never touches other folders or projects it does not steward."
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, mcp__trinity__report
 user-invocable: true
 metadata:
@@ -8,7 +8,7 @@ metadata:
   created: 2026-07-28
   author: Ability.ai
   changelog:
-    - "1.4: Shared projects (ruling R21, CONVENTIONS.md § Projects) — projects/<slug>/project.md is treated like a doc for staleness: the linter's project-envelope + staleness findings feed the worklist, and a charter on it is verified against its registry epic (`epic:` in the envelope — open/closed and the status:* label, via gh when available): epic agrees → re-stamp review_by; epic moved (closed, or a different status:* label) → `changed` (mirror the status, updated: today, review_by forward); epic unreachable → NEEDS-REVIEW row; paused/done charters are never on the worklist. decisions.md is append-only and is NEVER re-stamped by this pass — a ledger envelope failure is a NEEDS-REVIEW row, not a repair; the workspace files beside the charter are never read"
+    - "1.4: Shared projects (rulings R21 + 2026-09-22, CONVENTIONS.md § Projects) — the steward reconciles its charters: projects/<slug>/project.md at the canon root whose owner: is this agent (plus any still under the earlier agents/<name>/projects/ placement) is treated like a doc for staleness — linted per project (--scope projects/<slug>), the linter's project-envelope + staleness findings feed the worklist, and a charter on it is verified against its registry epic (`epic:` in the envelope — open/closed and the status:* label, via gh when available): epic agrees → re-stamp review_by; epic moved (closed, or a different status:* label) → `changed` (mirror the status, updated: today, review_by forward); epic unreachable → NEEDS-REVIEW row; paused/done charters are never on the worklist. decisions.md is append-only and is NEVER re-stamped by this pass — a ledger envelope failure is a NEEDS-REVIEW row, not a repair; the workspace files beside the charter are never read; projects stewarded by other agents are never touched. Step 3 publishes the stewarded charters directly (the projects/ carve-out), one commit per project"
     - "1.3: Relation docs (docs/relations/*.md, CONVENTIONS.md § Relations) reconcile mechanically — they are self-sourced (the owner's log IS the record; no external source to re-verify): enforce the 10-event cap (fold overflow into Earlier:), flag any Open-threads item older than 30 days as a NEEDS-REVIEW row — the dropped-thread alarm the convention exists for — and treat a rel doc past review_by: with no new events as dormant, not wrong (push review_by: forward, content untouched); report gains a relations line when threads have aged"
     - "1.2: Two-zone schema + linter-first — new Step 1b runs the canon repo's deterministic linter scoped to this folder (tools/canon-lint, seeded by /add-canon-lint): its staleness findings become the verification worklist (never re-derive what it already proved) and its other FAILs are repaired mechanically where safe (envelope stamps, ownership) or flagged; Step 2 walks facts.yaml entries as the primary verification units (each entry's source) plus canonical docs, with three outcomes per item — verified (push review_by +30d), changed (update value/content + updated: today + review_by forward), unverifiable (NEEDS-REVIEW.md row); drafts and superseded items are skipped by design; v1-contract folders (verified: stamps, no facts.yaml) still reconcile the old way with a migration note in the report"
     - "1.1: Deploy-ready auth — self-heal clone inherits /canon-publish v1.1's auth-aware resolution (gh → GH_TOKEN/GITHUB_TOKEN credential helper → plain https); git-identity fallback before commit; auth-failure reports name the headless fix (GH_TOKEN via .env + inject_credentials) and /canon-doctor — never an interactive gh auth login a scheduled run can't execute"
@@ -19,7 +19,7 @@ metadata:
 
 > ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `canon-reconcile vX.Y — recent: <summary>`. Then proceed.
 
-The duty that makes the canon trustworthy: **is my published folder still true?** This runs on a schedule (or manually), verifies every fact in `agents/<name>/` against its declared source, and repairs or flags — it never guesses and never asks. Scope is hard: this skill reads and writes **only this agent's own folder**. It is autonomous-safe: no `AskUserQuestion`, no gates, single task, well under the 45-minute budget.
+The duty that makes the canon trustworthy: **is my published folder still true?** This runs on a schedule (or manually), verifies every fact in `agents/<name>/` against its declared source, and repairs or flags — it never guesses and never asks. Scope is hard: this skill reads and writes **only this agent's own folder** — plus the charters of the shared projects it **stewards** (`projects/<slug>/project.md` whose `owner:` is this agent), which it verifies against their epics. It is autonomous-safe: no `AskUserQuestion`, no gates, single task, well under the 45-minute budget.
 
 ## Process
 
@@ -32,6 +32,11 @@ Read `template.yaml` → `x-canon:` (`repo`, `clone_path` default `canon/`, `fol
 ```bash
 [ -f canon/tools/canon-lint/canon_lint.py ] && \
   python3 canon/tools/canon-lint/canon_lint.py --repo canon --scope "agents/<name>" --format json || true
+# and once per shared project this agent stewards (charter owner: <name>):
+for d in canon/projects/*/; do
+  grep -qx 'owner: <name>' "$d/project.md" 2>/dev/null || continue
+  python3 canon/tools/canon-lint/canon_lint.py --repo canon --scope "projects/$(basename "$d")" --format json || true
+done
 ```
 
 The linter (seeded by `/add-canon-lint`) already computed what's past due — **never re-derive it**:
@@ -62,20 +67,23 @@ Three outcomes, exactly one per item:
    - **Open-thread aging** — any Open-threads item older than 30 days is the dropped-thread alarm this convention exists for: upsert a NEEDS-REVIEW.md row (`relation <counterpart>: thread open since <date> — <one-line ask>`) and count it as flagged. Never resolve or delete the thread itself — whether it's truly dead is the owner's call, made in conversation, not on a schedule.
    - **Dormancy** — a rel doc past `review_by:` with no new events is *dormant, not wrong*: push `review_by:` forward and leave content untouched; the event dates already say how current the relationship is.
 
-**Shared projects** (`projects/<slug>/` — CONVENTIONS.md § Projects, ruling R21: managed exactly like an agent-level project; canon placement only decides who can read it). Two files, two rules:
+**Shared projects** this agent stewards (`projects/<slug>/` at the canon root whose charter `owner:` is this agent, plus any still at the earlier `agents/<name>/projects/<slug>/` — CONVENTIONS.md § Projects, ruling R21: managed exactly like an agent-level project; canon placement only decides who can read it). Projects stewarded by another agent are that steward's reconcile, never this one's. Two files, two rules:
    - **`project.md` — the charter — is a doc for staleness purposes.** It mirrors the registry epic named in its `epic:` (`owner/repo#N`), so the epic is its source. A charter on the worklist (linter `staleness` on it; `paused` / `done` charters are never on it): `gh issue view <N> --repo <owner/repo> --json state,labels` when `gh` is available — epic open and its `status:*` label equals the charter's `status:` → **verified** (push `review_by:` +30d); epic closed, or a different `status:*` label → **changed** (mirror the epic — `status:` to the label, `done` when closed — `updated:` today, `review_by:` forward; the epic is authoritative, the charter never argues with it); `gh` absent / epic unreachable → **unverifiable** (NEEDS-REVIEW row `project <slug>: epic <ref> unreachable`). A charter with a missing or malformed `epic:`, or one still reading `#0` (scaffolded, never registered), is a judgment item → NEEDS-REVIEW row (`project <slug>: epic not registered`); a missing `project.md` under a slug folder is reported, never scaffolded (the charter's content is `/project-init`'s job).
    - **`decisions.md` — the ledger — is append-only and NEVER re-stamped by this pass.** Its `updated:` moves only when a decision is appended, by the owner in conversation; a ledger envelope failure (missing `status`/`tldr`) is a NEEDS-REVIEW row, not a repair. Everything else in the slug folder is the project's workspace — never read, never stamped.
 
 Never invent a fact to fill a gap, and never delete a published fact just because its source is unreachable today — that's what the flag is for. **v1-contract folder** (old `verified:` stamps, no `facts.yaml`): reconcile the old way (bump `verified:`) and add one migration-nudge line to the report.
 
-### Step 3: Publish (own folder only)
+### Step 3: Publish (own folder + stewarded charters only)
 
-Changes staged strictly under `agents/<name>/` (identity fallback first, so a bare deployed container never fails the commit):
+Changes staged strictly under `agents/<name>/` and the `project.md` of each project this agent stewards (identity fallback first, so a bare deployed container never fails the commit):
 
 ```bash
 git -C canon config user.email >/dev/null || { git -C canon config user.name "<name>"; git -C canon config user.email "<name>@agents.local"; }
 git -C canon add "agents/<name>/"
 git -C canon commit -m "canon(<name>): reconcile — <V> verified, <U> updated, <F> flagged"
+# per stewarded project whose charter changed (the projects/ carve-out — a direct push):
+git -C canon add "projects/<slug>/project.md"
+git -C canon commit -m "canon(projects/<slug>): reconcile charter against <epic> — by <name>"
 git -C canon push || { git -C canon pull --rebase --autostash && git -C canon push; }
 ```
 
@@ -109,5 +117,5 @@ Then publish a guarded Trinity report: `mcp__trinity__report(report_type: "<agen
 | Project charter's epic unreachable / `gh` absent | NEEDS-REVIEW row; stamps untouched |
 | `decisions.md` ledger fails its envelope | NEEDS-REVIEW row — never re-stamp or edit a ledger on a schedule |
 | Push rejected twice | Report verbatim; commit stays local — next run retries |
-| Change detected outside own folder | Do not stage it; note it in the report (someone edited the clone — `/canon-publish` classifies it properly) |
+| Change detected outside own folder and stewarded charters | Do not stage it; note it in the report (someone edited the clone — `/canon-publish` classifies it properly) |
 | Report tool absent / key out of scope | Swallow; the reconcile already succeeded |

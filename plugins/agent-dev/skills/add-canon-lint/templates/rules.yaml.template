@@ -17,6 +17,8 @@
 #   reachability      canonical docs indexed in profile.md, drafts unlinked, no orphan files
 #   project-envelope  projects/<slug>/project.md present with the charter envelope (owner, status,
 #                     epic owner/repo#N, updated, review_by, tldr); decisions.md ledger envelope
+#   project-placement a shared project still under agents/<name>/projects/ — move it to the root
+#                     projects/<slug>/ (ruling 2026-09-22); warn while the move is pending
 version: 1
 rules:
   layout: warn
@@ -29,3 +31,4 @@ rules:
   source-resolution: {{SEVERITY}}
   reachability: {{SEVERITY}}
   project-envelope: {{SEVERITY}}
+  project-placement: warn

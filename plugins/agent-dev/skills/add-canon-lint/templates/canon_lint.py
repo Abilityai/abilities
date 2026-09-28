@@ -9,9 +9,15 @@ defined in CONVENTIONS.md ("Lintable structure"):
       facts.yaml    required — the purely lintable zone: structured claims
       docs/         prose zone — front-matter envelope linted, body never read
       files/        shared artifacts — must be referenced, no orphans
-      projects/     shared (company) projects — projects/<slug>/project.md carries a
-                    linted charter envelope; decisions.md is an append-only ledger;
-                    everything else in the slug folder is unlinted workspace
+
+    projects/<slug>/        shared (company) projects, at the canon ROOT — not inside any
+                            agent's folder (ruling 2026-09-22): project.md carries a linted
+                            charter envelope whose `owner` is the steward (an agents/<name>/
+                            in this canon); decisions.md is an append-only ledger; everything
+                            else in the slug folder is unlinted workspace. The one zone every
+                            agent and human writes directly. The earlier placement,
+                            agents/<name>/projects/<slug>/, is still linted and warned
+                            (project-placement) until it moves.
 
 The lintable zone uses a deliberately RESTRICTED grammar (a strict YAML
 subset): flat `key: value` scalars, full-line comments only, values that
@@ -51,6 +57,7 @@ RULE_DEFAULTS = {
     "source-resolution": "fail",  # local fact sources must exist
     "reachability": "fail",       # canonical docs linked from profile.md; no orphan files; drafts unlinked
     "project-envelope": "fail",   # projects/<slug>/project.md present + charter envelope; decisions.md envelope
+    "project-placement": "warn",  # a shared project still under agents/<name>/projects/ — move it to the root projects/
 }
 STATUS_VOCAB = ("canonical", "draft", "superseded")
 REQUIRED_FACT_KEYS = ("key", "value", "status", "updated", "review_by", "source")
@@ -190,18 +197,31 @@ def check_dates_and_staleness(lint, path, line, item, status, label):
         lint.add("staleness", path, line, f"{label} past review_by {item['review_by']} — verify and re-stamp (canon-reconcile)")
 
 
-def lint_projects(lint, folder, name):
-    """projects/<slug>/ — a shared (company) project managed by this agent (ruling R21:
-    one PM standard, two visibility levels — canon placement decides only who can read it).
+def lint_projects(lint, projects_dir, agent_names, legacy_owner=None):
+    """A `projects/` zone — shared (company) projects (ruling R21: one PM standard, two
+    visibility levels — canon placement decides only who can read it).
+
+    The zone lives at the canon ROOT (`projects/<slug>/`, ruling 2026-09-22): everyone on the
+    canon writes there directly, so provenance is git history plus the charter's `owner` — the
+    steward, which must name an agent folder in this canon. `legacy_owner` is set when linting
+    the earlier placement, `agents/<legacy_owner>/projects/`: same envelope checks, the old
+    owner-equals-folder rule, and a `project-placement` finding per project pointing at the move.
 
     Only two files are linted, both by front matter alone: `project.md` (REQUIRED — the
     charter, mirroring the registry epic) and `decisions.md` (optional — the append-only
     ledger). Everything else in the slug folder is the project's workspace and is never
     read, exactly as `project_files/<slug>/` is free-form at agent level.
     """
-    projects_dir = folder / "projects"
     if not projects_dir.is_dir():
         return
+
+    def check_owner(path, owner):
+        if legacy_owner is not None:
+            if owner != legacy_owner:
+                lint.add("ownership", path, 1, f"owner `{owner}` != folder `{legacy_owner}` — a shared project is managed by the agent whose folder holds it")
+        elif owner not in agent_names:
+            lint.add("ownership", path, 1, f"owner `{owner}` is not an agent in this canon — a shared project's owner is its steward, an agents/<name>/ folder")
+
     for entry in sorted(projects_dir.iterdir()):
         if entry.name.startswith("."):
             continue
@@ -209,6 +229,8 @@ def lint_projects(lint, folder, name):
             lint.add("layout", entry, 0, f"unexpected file `{entry.name}` directly under projects/ — every project is a `projects/<slug>/` folder")
             continue
         slug = entry.name
+        if legacy_owner is not None:
+            lint.add("project-placement", entry, 0, f"shared projects live at the canon root — move agents/{legacy_owner}/projects/{slug}/ to projects/{slug}/ (ruling 2026-09-22)")
         charter = entry / "project.md"
         if not charter.is_file():
             lint.add("project-envelope", charter, 0, f"project.md missing — every projects/<slug>/ needs its charter (owner, status, epic, updated, review_by, tldr)")
@@ -223,8 +245,8 @@ def lint_projects(lint, folder, name):
                 lint.add("project-envelope", charter, 1, f"status `{status}` not in {list(PROJECT_STATUS_VOCAB)} (mirrors the registry epic's status:* label)")
             if meta.get("epic") and not EPIC_RE.match(meta["epic"]):
                 lint.add("project-envelope", charter, 1, f"epic `{meta['epic']}` must be the registry epic as `owner/repo#N`")
-            if meta.get("owner") and meta["owner"] != name:
-                lint.add("ownership", charter, 1, f"owner `{meta['owner']}` != folder `{name}` — a shared project is managed by the agent whose folder holds it")
+            if meta.get("owner"):
+                check_owner(charter, meta["owner"])
             for field in ("updated", "review_by"):
                 if field in meta and valid_date(meta.get(field)) is None:
                     lint.add("project-envelope", charter, 1, f"`{field}: {meta.get(field)}` is not a valid YYYY-MM-DD date")
@@ -240,8 +262,8 @@ def lint_projects(lint, folder, name):
                     lint.add("project-envelope", ledger, 1, f"missing required ledger key `{k}`")
             if meta.get("status") and meta["status"] not in STATUS_VOCAB:
                 lint.add("project-envelope", ledger, 1, f"status `{meta['status']}` not in {list(STATUS_VOCAB)}")
-            if meta.get("owner") and meta["owner"] != name:
-                lint.add("ownership", ledger, 1, f"owner `{meta['owner']}` != folder `{name}`")
+            if meta.get("owner"):
+                check_owner(ledger, meta["owner"])
             if "updated" in meta and valid_date(meta.get("updated")) is None:
                 lint.add("project-envelope", ledger, 1, f"`updated: {meta.get('updated')}` is not a valid YYYY-MM-DD date")
             # No staleness arm: the ledger is append-only and never re-stamped (its review date is the charter's).
@@ -322,8 +344,8 @@ def lint_folder(lint, repo, folder):
             # http(s):// and external refs (workspace paths, APIs, "manual") pass here —
             # verifying them against reality is /canon-reconcile's job, not the linter's.
 
-    # ---- projects/ (shared-project charters — envelope only, body never read) ----
-    lint_projects(lint, folder, name)
+    # ---- projects/ — the earlier placement of shared projects (linted + warned until moved) ----
+    lint_projects(lint, folder / "projects", None, legacy_owner=name)
 
     # ---- reachability ----
     linked = set()
@@ -384,7 +406,7 @@ def main():
     ap = argparse.ArgumentParser(description="Deterministic canon repo linter")
     ap.add_argument("--repo", default=".", help="canon repo root (default: cwd)")
     ap.add_argument("--rules", default=None, help="rules.yaml path (default: <repo>/lint/rules.yaml)")
-    ap.add_argument("--scope", default=None, help="report only findings under this folder, e.g. agents/corbin (cross-folder conflicts touching it included)")
+    ap.add_argument("--scope", default=None, help="report only findings under this folder, e.g. agents/corbin or projects/tandem (cross-folder conflicts touching it included)")
     ap.add_argument("--format", choices=("text", "json"), default="text")
     ap.add_argument("--today", default=None, help="override today's date (testing)")
     ap.add_argument("--baseline", default=None, help="JSON report to ratchet against: exit 1 only on failures NOT in it")
@@ -417,8 +439,12 @@ def main():
 
     lint = Lint(severities, today)
     all_keys = []
-    for folder in sorted(p for p in agents_dir.iterdir() if p.is_dir()):
+    agent_folders = sorted(p for p in agents_dir.iterdir() if p.is_dir())
+    for folder in agent_folders:
         all_keys.extend(lint_folder(lint, repo, folder))
+
+    # ---- projects/ at the canon root — the shared zone (charter envelope only, body never read) ----
+    lint_projects(lint, repo / "projects", {f.name for f in agent_folders})
 
     # ---- one home per key (global index over non-superseded facts) ----
     index = {}
