@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__create_agent, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__get_agent_github_pat_status, mcp__trinity__set_agent_github_pat, mcp__trinity__initialize_github_sync, mcp__trinity__git_pull, mcp__trinity__get_git_sync_state, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule, mcp__trinity__get_agent_compatibility_report, mcp__trinity__git_sync
 metadata:
-  version: "6.3"
+  version: "6.4"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "6.4: Trinity dev 863240f3 truth sync — .gitignore scaffold stops ignoring .claude/settings.json and the negation escape hatch is gone (ent#708 content guard); create_agent documents `kind` agent|deployment and reports git_mode (ent#705 working-branch default, own-token write PAT); autonomy toggle is person-only (#2996); claude-opus-5-5 with its CLI floor (#2987/#3012); report guard matches the #2975 refusal + `to` role (ent#606); native asks ask_operator/get_my_ask (ent#611); chain-depth refusal never retried (#2806)"
     - "6.3: No managed hosting — the 'Managed by Ability AI' option is gone (Trinity is self-hosted only). The instance-access preamble now hands off to /trinity:deploy-new-instance (DigitalOcean guided installer, SSH server, or local Docker) instead of a request-access email"
     - "6.2: Platform-truth refresh (Trinity 0.9.5-rc, dev 9ac2ceae) — ent#411 shipped: trinity@abilityai is pre-installed in the agent base image and the boot hook is default-ON (opt-out TRINITY_PLATFORM_PLUGINS=0, state in ~/.trinity/plugins-state.json read by compat check I-006), so Path C needs no CLI bootstrap; deployed agents deny the promise-a-second-turn tool family (ScheduleWakeup/Monitor/TaskOutput/Cron*/… — 11 names, trinity#2468) and stamp turn_integrity (a success row prefixed 'Background work lost' is a defect, #2467) — polling automation now says schedule/set_reminder, never CronCreate; execution tools gain get_fan_out_result (fan_out_timeout receipt, #2670; parallel chat gets the queued_timeout receipt, #2661); model example moved off the now-legacy claude-opus-4-8; #2529 gitignore rebuild + gitignore_untracked queue item; report guard also swallows the agent-scoped-key refusal; Telegram setup is the per-agent binding, not ANNOUNCE_* vars"
     - "6.1: Platform-truth refresh (Trinity v0.9.0, tag 93d7ce7c) — .mcp.json.template gains the fourth rule: http/sse `url` must resolve to a public address (loopback/private/link-local/CGNAT 100.64/10 = Tailscale refused with 400, no override — trinity-enterprise#394); the heavy-jobs rule now says turn-end kills background SHELL jobs while background subagents/forks are waited for since trinity#2127 (bounded by execution timeout + 300s idle-finalize, rebuilt base image); the autonomy gate is no longer invisible — the Schedules tab shows an amber Autonomy-is-off banner with an Enable button (trinity#1796), run history still stays empty and there is still no MCP tool"
@@ -251,6 +252,10 @@ Streaming heartbeat output changes nothing — the no-output stall watchdog (`AG
 
 Once deployed to Trinity, agents gain access to these platform features. These don't require configuration during onboarding but are important to understand for full platform utilization.
 
+### Asking a Person (Native Asks)
+
+An agent asks for an approval, a question, or raises an alert with `mcp__trinity__ask_operator` — validated at the call, idempotent by `request_id`, answered with a receipt — and reads how it ended with `get_my_ask(request_id)` (trinity-enterprise#611). Only a person can answer or cancel an ask; an expired ask means *denied*. The `~/.trinity/operator-queue.json` file is a fallback for two releases, then removed.
+
 ### Persistent Setup Script
 
 Agents can persist system-level packages (apt-get, npm -g, pip) across container restarts by placing a script at `~/.trinity/setup.sh`. This file runs automatically on every container start.
@@ -314,6 +319,8 @@ Four MCP tools enable programmatic monitoring and async result polling:
 | `get_execution_result` | Get full result of a specific execution (including transcript) |
 | `get_agent_activity_summary` | High-level activity summary (by trigger type, agent) |
 | `get_fan_out_result` | Poll a `fan_out` batch after a `{status: "fan_out_timeout", fan_out_id}` receipt (`running` / `completed` / `partial` / `failed`) |
+
+A `chat_with_agent` / `fan_out` hop past the instance's chain-depth limit (`inter_agent_max_chain_depth`, default 8) returns `inter_agent_depth_exceeded` with `retryable: false` — never retry it (#2806).
 
 These are especially useful for orchestrator agents monitoring worker fleets, and for polling async task results: a sync `chat_with_agent` call that outlives `MCP_CHAT_TIMEOUT_MS` (~25s) returns a `{status: "queued_timeout", execution_id}` receipt — poll `get_execution_result` with that id instead of re-sending; the same receipt covers `chat_with_agent(parallel=true)` (trinity#2661), and `fan_out` returns `fan_out_timeout` → poll `get_fan_out_result` (trinity#2670). For push-style report-back, subscribe to the worker's backend-emitted `agent.task.completed` / `agent.task.failed` events (trinity#1578) instead of polling.
 
@@ -466,7 +473,7 @@ Keep the defaults (`cpu: "2"`, `memory: "4g"`) unless the user explicitly needs 
 - **Design (this block):** the agent declares the schedules it's built to run. Travels with the agent through git; identical on every instance.
 - **Operator decision (the instance):** which of those actually fire is the live state on Trinity — and it is **two gates, not one**:
   1. **The per-schedule `enabled` flag**, applied only at creation. An entry that omits `enabled`, or gives anything other than a literal YAML `true`, lands **disabled** (trinity-enterprise#89).
-  2. **The agent's autonomy gate**, which is **OFF for every newly created agent** (`agent_ownership.autonomy_enabled` defaults to `0`). While it is off the scheduler refuses to fire any cron trigger — the schedule shows as enabled, nothing runs, and **no execution row is written**, so the run history stays empty; since v0.9.0 the agent's **Schedules tab shows an amber "Autonomy is off — N schedules will not fire" banner with an *Enable autonomy* button** (trinity#1796), which is the only visible signal. There is still no MCP tool for this; after deploying, tell the user to turn autonomy on for the agent in the Trinity UI (`PUT /api/agents/{name}/autonomy`), or their schedules are live and inert.
+  2. **The agent's autonomy gate**, which is **OFF for every newly created agent** (`agent_ownership.autonomy_enabled` defaults to `0`). While it is off the scheduler refuses to fire any cron trigger — the schedule shows as enabled, nothing runs, and **no execution row is written**, so the run history stays empty; since v0.9.0 the agent's **Schedules tab shows an amber "Autonomy is off — N schedules will not fire" banner with an *Enable autonomy* button** (trinity#1796), which is the only visible signal. There is still no MCP tool for this; after deploying, tell the user to turn autonomy on for the agent in the Trinity UI (`PUT /api/agents/{name}/autonomy`), or their schedules are live and inert. The toggle is **person-only** (#2996): an agent key — including an in-place onboarding session (Step 5-IP) — gets `403`, so the owner flips it.
 
 Append a `schedules:` list to `template.yaml`. **Trinity's creation-time reader honours exactly six keys** — `name`, `cron`, `message`, `enabled`, `timezone`, and `description` (`purpose` is accepted as an alias). `timeout_seconds`, `max_retries`, `model`, and `allowed_tools` are valid arguments to `create_agent_schedule` but are **dropped** when Trinity materializes the block from a `github:` repo — declare them here for the reconcile path (Step 5f), and expect a Path-A schedule to carry platform defaults instead. Hard bounds: **20 entries per template** (extras dropped), `name` ≤ 200 chars, `message` ≤ 10 000 chars (truncated), `description` ≤ 1000 chars (dropped); a malformed entry is dropped silently rather than failing the create.
 
@@ -481,7 +488,7 @@ schedules:
     enabled: true              # the RECOMMENDED default state (operator can override on the instance)
     timeout_seconds: 900       # optional — omit to inherit the agent's execution cap (default 60 min); must be ≤ that cap or schedule create 400s
     max_retries: 1             # optional — 0–5
-    model: claude-sonnet-4-6   # optional — any id from the platform model catalog (claude-opus-5 / claude-fable-5-1 / claude-sonnet-5 / claude-sonnet-4-6 …)
+    model: claude-sonnet-4-6   # optional — any id from the platform model catalog (claude-opus-5-5 / claude-opus-5 / claude-fable-5-1 / claude-sonnet-5 / claude-sonnet-4-6 …; an id is usable only when the agent image's Claude Code CLI knows it — claude-opus-5-5 needs ≥ 2.1.280, else `400 model_unsupported`, #2987/#3012)
     allowed_tools: []          # optional — least-privilege tool scoping for the run
 ```
 
@@ -584,29 +591,18 @@ credentials.json
 .claude/shell-snapshots/
 .claude/plugins/
 .claude/backups/
-# Container-only config: platform hook registration lives in root-owned
-# /etc/claude-code/managed-settings.json (ent#345), so ~/.claude/settings.json
-# is agent-local — and HOME is the repo root. A committed copy carrying
-# container-only ABSOLUTE hook paths bricks any clone made outside the
-# container — the missing hook script exits 2, which Claude Code reads as
-# "block this tool call", so every Bash/Edit/Write fails there. Trinity
-# enforces this fleet-wide and untracks a committed copy on the next Push
-# (trinity#2036/#2529).
-.claude/settings.json
+# .claude/settings.json is NOT ignored — it is the project settings file and may
+# be committed (ent#708). Trinity keeps it out of a commit only when it carries
+# container paths (/opt/trinity/ hooks) or credential-bearing keys (env,
+# apiKeyHelper, awsAuthRefresh, awsCredentialExport, gcpAuthRefresh,
+# otelHeadersHelper). Don't put secrets there; use .env.
 
 # Runtime
 content/
 session-files/
 ```
 
-**Keep this list in step with the platform's own.** Trinity applies `_GITIGNORE_PATTERNS` to every agent repo on each Push and `git rm --cached`s anything newly matched, so a scaffold that omits an entry doesn't win — it just churns. Since trinity#2529 the Push rebuilds the block (defaults → your rules → protected floor) instead of appending, keeps `!.env.example` / `!.mcp.json.template`, and files a `gitignore_untracked` operator-queue item listing anything it untracked — expect one on the first Push after an upgrade. If a skill genuinely needs `.claude/settings.json` tracked (e.g. `/agent-dev:add-git-sync` registers its hooks there), the sanctioned escape hatch is to add the plain rule **and then** a negation, in that order:
-
-```gitignore
-.claude/settings.json
-!.claude/settings.json
-```
-
-The plain line satisfies Trinity's exact-line `grep -qxF` check so it stops appending its own copy; the negation comes last so git's last-match-wins re-includes the file. Verify with `git check-ignore -v .claude/settings.json` before pushing.
+**Keep this list in step with the platform's own.** Trinity applies `_GITIGNORE_PATTERNS` to every agent repo on each Push and `git rm --cached`s anything newly matched, so a scaffold that omits an entry doesn't win — it just churns. Since trinity#2529 the Push rebuilds the block (defaults → your rules → protected floor) instead of appending, keeps `!.env.example` / `!.mcp.json.template`, and files a `gitignore_untracked` operator-queue item listing anything it untracked — expect one on the first Push after an upgrade. `.claude/settings.json` left that list in ent#708: don't ignore it (the Push strips a plain `.claude/settings.json` line again once the container carries the content guard), and the old `!.claude/settings.json` negation is no longer needed.
 
 ---
 
@@ -723,11 +719,12 @@ mcp__trinity__create_agent(
   name: [agent-name from template.yaml],
   template: "github:[owner]/[repo]",     # add @branch for a non-default branch
   source_branch: [branch],               # e.g. "main"
+  kind: "agent",                         # default — or "deployment" for pull-only (see below)
   resources: { cpu: "[cpu]", memory: "[memory]" }   # from template.yaml — see the note below
 )
 ```
 
-Trinity clones the repo into the agent workspace, tracks that branch in **source mode (pull-only)**, materializes the repo's declared `schedules:` (Step 5f), and starts the agent.
+Trinity clones the repo into the agent workspace, materializes the repo's declared `schedules:` (Step 5f), and starts the agent. **Git mode follows `kind` (trinity-enterprise#705):** `agent` (the default) gets a working branch `trinity/<agent>/<id>` it alone writes, auto-sync on, and schedules paused while sync fails — but only when the repo belongs to the creator's own GitHub account and the creator's **own** token (not the instance-wide one) can push to it; otherwise it is created **pull-only** (source mode) on the tracked branch. `kind: "deployment"` is always pull-only. Read `git_mode` from the create response and tell the user which mode they got and why. A read-only token at creation of an auto-pushing agent is refused with a 400 naming the fix.
 
 Notes that bite if ignored:
 
@@ -871,7 +868,7 @@ If there is no `schedules:` block, skip this step.
 
 **Only when Step 1b chose "Onboard in place".** The agent exists; nothing is created. The job is: files → plugins → *get it back into the repo* → schedules → verify with the platform. Four facts shape it:
 
-- **Source mode is pull-only.** `github:`-created agents track their branch read-only — a file written here is container-local until pushed. An in-place result that is not pushed **is lost on the next reset**. Never end this step silently in that state.
+- **Source mode is pull-only.** `github:`-created agents in source mode (all agents created before trinity-enterprise#705, and `kind: "deployment"` or non-owned repos since) track their branch read-only — a file written here is container-local until pushed. An in-place result that is not pushed **is lost on the next reset**. Never end this step silently in that state.
 - **Materialization is creation-time.** Schedules (ent#89) and plugins (#1704) declared *now* are not re-read by the platform; schedules reconcile live over MCP (5f), plugins install via the CLI now and via the boot hook's template fallback on every later start.
 - **The `mcp__trinity__*` tools are already here** — injected by the platform for this agent (agent-scoped key). `list_agents` proving they work is Step 4 for this path.
 - **Nothing to inject.** `.env` already lives in this workspace; `.env.example` is what you write for the repo.
@@ -974,7 +971,7 @@ Your agent is now live on Trinity.
    Declare them in `template.yaml` under `schedules:` (see Step 3a), then re-run onboard or `/trinity:sync` to reconcile them onto the instance. For one-off changes, `mcp__trinity__create_agent_schedule` / `toggle_agent_schedule` act directly on the live agent.
 
 4. **Publish structured reports:**
-   Once running remotely, have result-producing and scheduled skills end with a guarded `mcp__trinity__report` call so their output lands on the agent's **Reports** tab (and the fleet **Operations → Reports** view) instead of vanishing into a headless run's chat. Namespace `report_type` as `<agent>.<result>`, pick a `display_hint` (`table` / `kpi` / `markdown` / `timeline`), and skip silently when the tool isn't present (running locally) **or** when it refuses with `The report tool requires an agent-scoped API key` (a user/admin-key session sees the tool but cannot publish; never retry). Reports are the append-only history that complements the live `dashboard.yaml` snapshot (pruned past `agent_reports_retention_days`, default 90 days — rolling history, not a permanent archive). Agents built with `/create-agent` already carry this pattern; add it to hand-built skills via `/agent-dev:create-playbook` (the Reporting Rule).
+   Once running remotely, have result-producing and scheduled skills end with a guarded `mcp__trinity__report` call so their output lands on the agent's **Reports** tab (and the fleet **Operations → Reports** view) instead of vanishing into a headless run's chat. Namespace `report_type` as `<agent>.<result>`, pick a `display_hint` (`table` / `kpi` / `markdown` / `timeline`), and skip silently when the tool isn't present (running locally) **or** when it refuses because the key `requires a key that carries an agent identity` (a user/admin-key session sees the tool but cannot publish, #2975; never retry). Name who the report is for with `to` (`primary` / `approver` / `viewer` / `operator`); omit it for an operator-only report — `audience_email` is deprecated (ent#606). Reports are the append-only history that complements the live `dashboard.yaml` snapshot (pruned past `agent_reports_retention_days`, default 90 days — rolling history, not a permanent archive). Agents built with `/create-agent` already carry this pattern; add it to hand-built skills via `/agent-dev:create-playbook` (the Reporting Rule).
 
 5. **Add cross-session durability** (recommended):
    ```
@@ -1097,7 +1094,7 @@ Check what an existing agent resolved with `mcp__trinity__get_agent_github_pat_s
    - **Permissions**: Under "Repository permissions", set **Contents** to **Read-only**
 4. Click **Generate token** and copy the token (starts with `github_pat_`)
 
-Read-only is enough for the default (source-mode, pull-only) deploy. Only grant **Contents: Read and write** if the agent itself pushes back to the repo.
+Read-only is enough for a pull-only deploy (`kind: "deployment"`, or a repo you don't own). For the default `kind: "agent"` on your own repo, a working branch with auto-sync needs **your own** token (Settings → your GitHub token, not the instance-wide one) with **Contents: Read and write** — without it the agent is created pull-only (trinity-enterprise#705).
 
 ### Configuring the PAT in Trinity
 

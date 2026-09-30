@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
 metadata:
-  version: "1.14"
+  version: "1.15"
   created: 2026-04-01
-  updated: 2026-09-22
+  updated: 2026-09-30
   author: Ability.ai
   changelog:
+    - "1.15: Platform-truth refresh (Trinity dev 863240f3, 2026-09-30) — generated .gitignore stops ignoring .claude/settings.json (ent#708: project settings may be committed; the platform filters only /opt/trinity/-hook or credential-bearing copies); playbook-gap escalation raises mcp__trinity__ask_operator + reads back with get_my_ask, queue file kept as the two-release fallback (ent#611); deploy guidance explains the working-branch default — own write-scoped token → trinity/<agent>/<id> + auto-sync, else pull-only, git_mode reports which (ent#705); Reporting section gains the `to` role, audience_email deprecated (ent#606); report guard matches the new refusal wording `requires a key that carries an agent identity` (#2975)"
     - "1.14: Platform-truth refresh (Trinity dev 1a1deb2b, the ent#476 metrics merge, 2026-09-22) — the generated /update-dashboard no longer publishes a kpi_snapshot report: with record_metrics live the metric store IS the history, and a KPI report was a second store for the same number (operator ruling 2026-09-21: one mechanism, report retired as a data path; reports stay for narrative results). Fence hygiene: every generated-file block that itself contains fences (CLAUDE.md, onboarding, update-dashboard, README, reconcile-docs, the plugin-install example) now uses a four-backtick outer fence so the inner fences nest instead of closing the block — clears the standing Gate 1 B4 findings"
     - "1.13: Declared business metrics (trinity-enterprise#482; platform contract ent#477 registry / ent#478 record_metrics / ent#479 read) — Step 5 template.yaml gains a `metrics:` block derived from the wizard's answers (each one a KPI the agent's domain actually produces, never decorative; `cadence` matches the scaffolded /update-dashboard schedule; `direction` / `aggregation` / `dimensions` where they carry meaning), the generated /update-dashboard posts the same numbers as points via `record_metrics` after writing dashboard.yaml (guarded: off Trinity it degrades to the file write; `metric_undeclared` → `refresh_metric_definitions`), and dashboard widgets may bind `metric: <name>` to a declared series instead of being snapshotted. One playbook computes the numbers once and writes both surfaces — the Dashboard tab's button already calls /update-dashboard"
     - "1.12: Platform-truth refresh (Trinity dev 9ac2ceae, 0.9.5-rc2) — the playbook-gap operator-queue item is keyed `id` (operator-queue-v1 schema; an entry carrying only request_id is silently skipped), the schedules timezone note no longer claims legacy IANA aliases 500 (tzdata-legacy shipped in v0.9.0, #1823), and the .gitignore comment for .claude/settings.json reflects ent#345 — platform hooks live in root-owned /etc/claude-code/managed-settings.json, the ignore rule guards against a stale agent-local copy bricking outside clones"
@@ -166,7 +167,7 @@ Standard operating procedure for incoming requests — from your user, from othe
 | Question about this agent, its data, or its domain | Answer directly — no skill needed |
 | Any other task request | **Playbook gap** — see below |
 
-**Playbook gap** — a task request no skill covers. Handle it manually if it's safe and in scope, and flag the gap so it can become a playbook: interactively, tell the user in your reply; headless on Trinity, file an operator-queue item (append to `~/.trinity/operator-queue.json` — schema `operator-queue-v1`, a `requests[]` entry with `"id": "playbook-gap-<slug>"` (the key is `id`, not `request_id` — an entry without `id` is silently skipped), `"type": "alert"`, `"status": "pending"`, a short `title`, and `question` = what was asked). Suggest `/agent-dev:create-playbook` for request types that recur. When a new skill lands, add its row here and to Core Capabilities.
+**Playbook gap** — a task request no skill covers. Handle it manually if it's safe and in scope, and flag the gap so it can become a playbook: interactively, tell the user in your reply; headless on Trinity, raise an ask with `mcp__trinity__ask_operator` (`request_id: "playbook-gap-<execution_id>-<slug>"`, `type: "alert"`, a short `title`, `question` = what was asked) — a repeat with the same `request_id` returns the first receipt instead of a second ask; read how it ended with `mcp__trinity__get_my_ask`. An expired ask means *not approved*: re-ask only with new information and set `supersedes_expired`. On an image without the tool, append the entry to `~/.trinity/operator-queue.json` instead (a two-release fallback, keyed `id`). Suggest `/agent-dev:create-playbook` for request types that recur. When a new skill lands, add its row here and to Core Capabilities.
 
 ## How to Work With This Agent
 
@@ -198,7 +199,7 @@ Build this agent iteratively:
 
 When you're ready to run this agent remotely (scheduled tasks, always-on, API access), run `/trinity:onboard` from this directory. It configures Trinity compatibility and deploys the agent to your instance.
 
-**Deploy from the repository.** Push this agent to GitHub and add a GitHub token to your Trinity instance (Settings → GitHub token, fine-grained PAT with *Contents: Read*) before onboarding. Trinity then clones the repo and tracks the branch, so the deployed agent is always a named commit and updates ship with `git push` — no re-uploading. Deploying from local files still works and stays the fallback for an agent with no repo yet.
+**Deploy from the repository.** Push this agent to GitHub before onboarding. With **your own** GitHub token on Trinity (a fine-grained PAT with *Contents: Read and write* on this repo), Trinity clones the repo and gives the agent a working branch it alone writes (`trinity/<agent>/<id>`) with auto-sync on, so its work lands back in git. A read-only token, or the instance-wide token an admin set, gives a pull-only agent that tracks the branch; the create response's `git_mode` says which you got. Either way the deployed agent is a named commit — no re-uploading. Deploying from local files still works and stays the fallback for an agent with no repo yet.
 
 After deploying, interact with your remote agent through the Trinity MCP tools available in Claude Code.
 
@@ -208,12 +209,14 @@ Learn more at [ability.ai](https://ability.ai)
 
 Once deployed, publish **structured reports** so an operator can see what you produced without reading chat. At the end of any skill that yields a meaningful result — a summary, a batch of items, a metrics snapshot — call the `mcp__trinity__report` MCP tool. The report appears on this agent's **Reports** tab and the fleet-wide **Operations → Reports** view.
 
+- **`to`:** name the role the report is for — `primary` (the person this agent serves), `approver`, `viewer` or `operator`; the platform resolves the person. Omitting it publishes an operator-only report. Never pass `audience_email` (deprecated).
+
 - **When:** at the end of result-producing skills and scheduled runs — not for conversational replies.
 - **`report_type`:** namespaced `lower_snake` segments joined by `.` — `^[a-z0-9_]+(\.[a-z0-9_]+)+$`. **Hyphens are rejected (422)**, so an agent named `pr-reviewer` reports as `pr_reviewer.weekly_summary`, not `pr-reviewer.weekly_summary`.
 - **`title`:** one short line (≤300 chars). **`payload`:** a JSON **object** (≤5 MiB serialized — a top-level array or scalar is rejected).
 - **`display_hint`:** `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), `json` (raw), or omit to let Trinity infer from `report_type`. Pick deliberately — the customer-facing Workspace Reports tab renders through these same renderers, so a mismatched hint is visible to users.
 - **Read before you write:** call `mcp__trinity__list_reports` first (metadata only — filters `report_type`, `hours` ∈ {0,1,6,24,168,720}, `search`) to avoid duplicating or contradicting a report you already filed, then `mcp__trinity__get_report` with an id to diff this period against the last.
-- **Guard the call:** the tool publishes under this agent's own **agent-scoped** key. If `mcp__trinity__report` isn't available — e.g. running locally — or it refuses with `The report tool requires an agent-scoped API key` (a session connected with a user/admin key sees the tool but cannot report), skip it silently and never retry. **Trinity is an upgrade, not a requirement.**
+- **Guard the call:** the tool publishes under this agent's own **agent-scoped** key. If `mcp__trinity__report` isn't available — e.g. running locally — or it refuses because the key `requires a key that carries an agent identity` (a session connected with a user/admin key sees the tool but cannot report), skip it silently and never retry. **Trinity is an upgrade, not a requirement.**
 
 Reports complement `dashboard.yaml`: the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only* history of what the agent accomplished.
 
@@ -1124,13 +1127,10 @@ Write `[destination]/.gitignore`:
 .claude/plugins/
 .claude/backups/
 .claude/settings.local.json
-# Container-only config: platform hook registration lives in root-owned
-# /etc/claude-code/managed-settings.json (ent#345) — a committed ~/.claude/settings.json
-# is agent-local, and a stale copy carrying container-only hook paths bricks any clone
-# made outside the container (the missing hook exits 2, which Claude Code reads as
-# "block this tool call"). Trinity untracks a committed copy on the next Push
-# (trinity#2036/#2529).
-.claude/settings.json
+# .claude/settings.json is NOT ignored: it is this agent's project settings and may be
+# committed (ent#708). Trinity keeps it out of a commit only when it carries container
+# paths (/opt/trinity/ hooks) or credential-bearing keys (env, apiKeyHelper,
+# awsAuthRefresh, awsCredentialExport, gcpAuthRefresh, otelHeadersHelper).
 # Trinity runtime state — star form so authored hooks stay tracked
 .trinity/*
 !.trinity/pre-check

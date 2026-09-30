@@ -4,11 +4,12 @@ description: Scan one or more directories of agents in ANY paradigm — Claude C
 allowed-tools: Read, Bash, Write, Glob, Grep, mcp__trinity__share_file
 user-invocable: true
 metadata:
-  version: "2.4"
+  version: "2.5"
   created: 2026-07-30
-  updated: 2026-08-07
+  updated: 2026-09-30
   author: Ability.ai
   changelog:
+    - "2.5: .claude/settings.json leaves the required-ignore audit list — Trinity no longer ignores it (ent#708: it is project settings and may be committed); a committed copy is flagged only when it carries /opt/trinity/ hook paths or credential keys."
     - "2.4: Knowledge-brain upgrade path now points at /create-agent:custom + /agent-dev:add-memory — the kb-agent wizard was retired from the marketplace (create-agent 2.0.0, 2026-09-14)"
     - "2.3.3: New gap `freeform delegation` — prose schedule messages or prose inter-agent briefs instead of one-line playbook calls (fleet convention protocols/playbook-call.md); mapped to agent-dev:adjust-playbook in the marketplace table"
     - "2.3.2: The .gitignore audit list matches Trinity's current birth-state set — adds .env.*, credentials.json, *.pem, *.key, .claude/plugins/ and .claude/settings.json (container-only config that bricks outside clones, trinity#2036), and notes the platform enforces this on every Push"
@@ -128,7 +129,7 @@ Read CLAUDE.md to extract: purpose (first non-empty paragraph), any explicit aut
 
 If template.yaml exists, read it for: `name`, `display_name`, `description`, `resources`, `credentials`, `schedules`.
 
-If .gitignore exists, check it excludes: `.env`, `.env.*`, `.mcp.json`, `credentials.json`, `*.pem`, `*.key`, `content/`, `.claude/projects/`, `.claude/plugins/`, and `.claude/settings.json` (container-only config — a committed copy bricks clones made outside the container, trinity#2036). For a Trinity-deployed agent this list is enforced platform-side on every Push, so a gap is repaired rather than silently persisted — but it churns until the repo matches.
+If .gitignore exists, check it excludes: `.env`, `.env.*`, `.mcp.json`, `credentials.json`, `*.pem`, `*.key`, `content/`, `.claude/projects/`, and `.claude/plugins/`. Do **not** require `.claude/settings.json` — it is the agent's project settings and may be committed (Trinity ent#708); flag a committed copy only when it registers `/opt/trinity/` hook paths or carries a credential key (`env`, `apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`, `gcpAuthRefresh`, `otelHeadersHelper`). For a Trinity-deployed agent this list is enforced platform-side on every Push, so a gap is repaired rather than silently persisted — but it churns until the repo matches.
 
 ### 3b: Credential Security Scan
 
@@ -172,7 +173,7 @@ Score label:
 For each failed criterion, produce a gap entry with a plain-language action:
 - `CLAUDE.md missing` → "Add CLAUDE.md: write a clear purpose statement and operating instructions for this agent. This is the single most important file."
 - `.env.example missing` → "Add .env.example listing every environment variable the agent needs (with placeholder values, not real ones). Makes the agent portable and self-documenting."
-- `.gitignore missing/incomplete` → "Add .gitignore excluding .env, .env.*, .mcp.json, credentials.json, *.pem, *.key, content/, .claude/projects/, .claude/plugins/, .claude/settings.json — prevents secrets reaching version control and keeps container-only config out of clones (trinity#2036)."
+- `.gitignore missing/incomplete` → "Add .gitignore excluding .env, .env.*, .mcp.json, credentials.json, *.pem, *.key, content/, .claude/projects/, .claude/plugins/ — prevents secrets reaching version control. Commit .claude/settings.json only without /opt/trinity/ hook paths or credential keys (ent#708)."
 - `.claude/skills/ missing` → "Create .claude/skills/ and add at least one skill file — a markdown file describing a specific task the agent knows how to do. This gives the agent structured, reusable capabilities."
 - `.claude/memory/ missing` → "Create .claude/memory/ with a memory_index.json file — lets the agent persist facts, decisions, and context across sessions instead of starting fresh every time."
 - `credential exposure` → "URGENT: Remove credentials from tracked files before sharing or deploying this agent. Use .env.example to document what's needed; actual values go in .env (gitignored)."

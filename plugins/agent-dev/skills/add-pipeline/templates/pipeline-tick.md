@@ -1,14 +1,15 @@
 ---
 name: pipeline-tick
 description: Heartbeat that advances pipelines through their stages — reads ~/.trinity/pipelines/*.yaml + ~/.trinity/pipeline-state/**/*.json, evaluates each instance, advances or retries or escalates. Invoked by scheduler every 15 minutes.
-allowed-tools: Bash, Read, Write, Edit, Glob, Skill, Agent, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result
+allowed-tools: Bash, Read, Write, Edit, Glob, Skill, Agent, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result, mcp__trinity__ask_operator, mcp__trinity__get_my_ask
 automation: autonomous
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.4"
   author: agent-dev
   source: agent-dev:add-pipeline
   changelog:
+    - "1.4: Escalations are native asks — filed with ask_operator (request_id = the idempotency key), read back each tick with get_my_ask, which stamps resolved_at + disposition; expired = denied, a re-ask sets supersedes_expired (Trinity ent#611/ent#715; the queue file is a two-release fallback). A remote stage refused with inter_agent_depth_exceeded (retryable:false, #2806) escalates at once, never retries."
     - "1.3: Remote stages — a stage with agent: <fleet-agent> is that agent's playbook, dispatched as a one-line call via chat_with_agent(async) with --run <pipeline>/<instance>, execution_id parked in state, result polled with get_execution_result on later ticks (fleet convention protocols/playbook-call.md); artifact check still applies"
     - "1.2: Verify-the-artifact-before-success rule in Step 4 — a stage counts as done only when its output actually moved (mtime advanced / count > 0), never off an exit code or business_status; if it didn't move the stage failed → retry/escalate, don't advance. A stage's heavy work belongs in an OS-level job, not the tick's turn (a headless run can't host a >~10-min job — see add-pipeline → Keep heavy CPU jobs out of the heartbeat turn)"
     - "1.1: Drop the pre-check premise — the hook is removed (Trinity's agent-global pre-check contract cannot express a safe gate: any stdout replaces the calling schedule's message); the tick itself is the cheap no-op filter. New Step 9 materializes the dashboard.yaml Pipelines table rows after state writes"
@@ -55,7 +56,7 @@ Read `~/.trinity/pipeline-state/$PIPELINE_ID/$INSTANCE_ID.json`. If missing, sca
 Apply decision rules **in priority order** — stop at the first match:
 
 1. **Open escalation unresolved** → action `wait`
-   - Check `state.open_escalations[]`. If any has no `resolved_at`, wait.
+   - Check `state.open_escalations[]`. For each entry with no `resolved_at`, read it with `mcp__trinity__get_my_ask(request_id)`; when it has ended, stamp `resolved_at` and `disposition` (`answered` + the answer / `cancelled` / `expired`). `expired` means denied — do not re-file the same escalation without new information, and a re-filed one sets `supersedes_expired`. If any entry is still pending, wait.
 2. **Current stage `in_progress` and not yet timed out** → action `wait`
    - `now - stages[current_stage].started_at < pipeline.stages[current_stage].timeout_seconds` → wait.
 3. **Current stage `in_progress` and timed out** → action `retry` or `escalate`
@@ -78,7 +79,7 @@ Apply decision rules **in priority order** — stop at the first match:
 4. Emit event `pipeline.$PIPELINE_ID.$INSTANCE_ID.stage_advanced` via Trinity MCP if available.
 5. Trigger the stage skill:
    - **Local stage** (no `agent:`): invoke `Skill` with `skill: <stages[next_stage].skill>` and `args: instance=$INSTANCE_ID pipeline=$PIPELINE_ID`.
-   - **Remote stage** (`agent: <fleet-agent>`): the stage is another agent's playbook — call it, don't copy it (fleet convention `protocols/playbook-call.md`). Send **one line** via `mcp__trinity__chat_with_agent(<agent>, "/<skill> instance=$INSTANCE_ID pipeline=$PIPELINE_ID --run $PIPELINE_ID/$INSTANCE_ID", async=true)`, store the returned `execution_id` in `stages[next_stage].execution_id`, and end this tick's work on the instance. On later ticks, `mcp__trinity__get_execution_result(execution_id)`: terminal success → apply the artifact check below and advance; failed/cancelled → `last_status = "failed"` with the error. Never restate the playbook's instructions in the message; if the target lacks the playbook (`SKILL_NOT_FOUND` / it improvises), that is a `failed` stage, not a prompt to describe the work in prose.
+   - **Remote stage** (`agent: <fleet-agent>`): the stage is another agent's playbook — call it, don't copy it (fleet convention `protocols/playbook-call.md`). Send **one line** via `mcp__trinity__chat_with_agent(<agent>, "/<skill> instance=$INSTANCE_ID pipeline=$PIPELINE_ID --run $PIPELINE_ID/$INSTANCE_ID", async=true)`, store the returned `execution_id` in `stages[next_stage].execution_id`, and end this tick's work on the instance. On later ticks, `mcp__trinity__get_execution_result(execution_id)`: terminal success → apply the artifact check below and advance; failed/cancelled → `last_status = "failed"` with the error. A dispatch refused with `inter_agent_depth_exceeded` (`retryable: false`, the chain-depth limit) is `failed` and goes straight to `escalate` — never `retry` it. Never restate the playbook's instructions in the message; if the target lacks the playbook (`SKILL_NOT_FOUND` / it improvises), that is a `failed` stage, not a prompt to describe the work in prose.
 
 **`retry`:**
 - If `stage_attempt < stage_max_attempts`:
@@ -91,7 +92,7 @@ Apply decision rules **in priority order** — stop at the first match:
 **`escalate`:**
 1. Build escalation message from `pipeline.escalation.template` with substitutions.
 2. Determine `suggested_actions` key by inspecting last error (precondition kind, timeout, generic).
-3. File the escalation as an operator-queue item: append an entry to `~/.trinity/operator-queue.json` with an agent-chosen **`request_id`** (e.g. `pipeline-$PIPELINE_ID-$INSTANCE_ID-<stage>-<attempt>` — unique per agent, and never a platform-reserved prefix: `queue-flood-`, `poison-`, `cb-dormant-`, `sync-failing-`, `git-bloat-`, `skill-not-found-`, `val_`), a title (≤300 chars), the question, and `context: { pipeline_id, instance_id, stage, last_error }`. The platform ingests the file within ~5s. (`send_notification` is a different subsystem — it creates a notification, not an operator-queue item, and returns no queue handle.)
+3. File the escalation with `mcp__trinity__ask_operator` — `request_id` `pipeline-$PIPELINE_ID-$INSTANCE_ID-<stage>-<attempt>` (unique per agent, never a platform-reserved prefix: `queue-flood-`, `poison-`, `cb-dormant-`, `sync-failing-`, `git-bloat-`, `skill-not-found-`, `val_`), `type: "question"` (or `"alert"` when no decision is needed), a title (≤300 chars), the question, `priority`, and `context: { pipeline_id, instance_id, stage, last_error }`. Re-filing with the same `request_id` returns the first receipt, so a re-run never duplicates it. Only when the tool is absent (an older image) fall back to appending the entry to `~/.trinity/operator-queue.json` — keyed `id`, ingested within ~5s; that file channel is removed after two releases. (`send_notification` is a different subsystem — it creates a notification, not an operator-queue item, and returns no queue handle.)
 4. Append to `state.open_escalations[]`: `{ request_id, filed_at, stage, reason }`.
 5. Set `state.status = "escalated"`.
 6. Write state. Emit `pipeline.$PIPELINE_ID.$INSTANCE_ID.escalated` event.

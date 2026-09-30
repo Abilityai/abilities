@@ -6,10 +6,11 @@ disable-model-invocation: true
 user-invocable: true
 allowed-tools: AskUserQuestion, Read, Skill, mcp__trinity__list_agents, mcp__trinity__run_agent_loop, mcp__trinity__get_loop_status, mcp__trinity__stop_loop
 metadata:
-  version: "1.9"
+  version: "1.10"
   created: 2026-06-09
   author: Ability.ai
   changelog:
+    - "1.10: Raising the agent's execution cap is the owner's act — PUT /timeout is person-only since #2996 (an agent key gets 403), so a loop launched from inside a deployed agent tells the owner instead of calling it"
     - "1.9: Trinity v0.9.5 — the loop tools enforce the agent-to-agent permission edge (ent#628): an agent-scoped key can loop only itself and granted agents; Guardrails names the two uniform denial strings and the fix (owner grants the edge), so a denial is never treated as a typo or retried"
     - "1.8: Loop contract refresh (0.9.5-rc) — timeout_per_run above the agent execution cap is refused 400 loop_timeout_exceeds_agent_cap (ent#338); delay_seconds is a durable park that survives restarts and terminal statuses gain completed_with_errors while interrupted is legacy (trinity#2523); fan_out_timeout → get_fan_out_result (trinity#2670); the local /loop watch is skipped inside deployed agents where ScheduleWakeup/Monitor are platform-denied (trinity#2468); model example moved off the legacy claude-opus-4-8"
     - "1.7: Teach the server-side loop guardrails — on_failure abort|continue + max_consecutive_failures (#1167), max_duration_seconds / max_cost_usd / no_progress_threshold hard stops — in Phase 2 and Guardrails; queued_timeout receipt framing (~25s, not 60s); point one-shot deferred checks at set_reminder and completion-notification at agent.task.* events instead of loops"
@@ -178,7 +179,7 @@ From the parse, assemble the `run_agent_loop` arguments:
 - `max_runs` — the count, or the default cap (1–100)
 - `stop_signal` — `[[DONE]]` for Until mode; omit for Fixed mode
 - `delay_seconds` — from any cadence clause (0–3600); omit if none
-- `timeout_per_run` — set it for Until-mode loops (a hung iteration silently stalls the whole sequence); size it to the task, e.g. 600 for a test suite. For Fixed mode, set only if the task is long-running; else omit to inherit the agent default. Range 10–7200 and never above the agent's `execution_timeout_seconds` — the API refuses it with 400 `loop_timeout_exceeds_agent_cap` (ent#338); raise the agent cap first via `PUT /api/agents/{name}/timeout`
+- `timeout_per_run` — set it for Until-mode loops (a hung iteration silently stalls the whole sequence); size it to the task, e.g. 600 for a test suite. For Fixed mode, set only if the task is long-running; else omit to inherit the agent default. Range 10–7200 and never above the agent's `execution_timeout_seconds` — the API refuses it with 400 `loop_timeout_exceeds_agent_cap` (ent#338); the agent's owner raises the cap first (agent Settings, or `PUT /api/agents/{name}/timeout` with their own session or user key) — the route is person-only, so an agent-scoped key gets 403 (#2996)
 - `on_failure` — `abort` (default: the first failed iteration ends the loop) or `continue` (tolerate failed iterations, bounded by `max_consecutive_failures`, 1–100, default 3). Set `continue` for agentic-retry loops where a failed run is part of the plan — otherwise the loop dies on the very failure it was built to retry
 - `max_duration_seconds` / `max_cost_usd` — loop-level wall-clock and cumulative-cost hard stops enforced server-side; set them whenever `max_runs` × model is expensive
 - `no_progress_threshold` — server-side doom-loop detection: the backend stops the loop after N consecutive near-identical responses

@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Skill
 metadata:
-  version: "1.8"
+  version: "1.9"
   created: 2026-06-14
-  updated: 2026-09-22
+  updated: 2026-09-30
   author: Ability.ai
   changelog:
+    - "1.9: Platform-truth refresh (Trinity dev 863240f3, 2026-09-30) — Trinity Readiness stops requiring .claude/settings.json in .gitignore (ent#708: project settings may be committed; flag a committed copy only for /opt/trinity/ hooks or credential keys); new warning for deprecated operator-queue paths (file appends, responded_by, agent-side respond — ent#611/ent#715) and recipient_email/audience_email (ent#606 `to` role); report-guard check matches the #2975 refusal wording; repository check explains the working-branch default vs pull-only by token tier (ent#705)"
     - "1.8: Trinity Readiness gains the declared-metrics checks (Trinity dev 1a1deb2b, the ent#476 metrics merge, 2026-09-22): template.yaml metrics: entries must be well-formed (name charset, six types, status values, cadence 60 s–366 d — finding D-009) and metrics.json must be gone (retired, finding D-010; record_metrics is the only write path)"
     - "1.7: Trinity Readiness (2h) gains two checks — template.yaml declares a plugins: block (trinity#1704; trinity@abilityai is pre-installed since ent#411, so its absence is a warning, not a blocker), and CLAUDE.md's Reporting to Trinity guard covers both tool absence and the `requires an agent-scoped API key` refusal, never retrying"
     - "1.6: Audit checklist adds the .mcp.json.template URL rule from Trinity v0.9.0 — an http/sse server url must resolve to a public address (loopback/private/link-local/CGNAT 100.64/10 refused, trinity-enterprise#394)"
@@ -138,14 +139,15 @@ Real findings:
 - `template.yaml` with `name`, `display_name`, `description`, `avatar_prompt`, and a `credentials:` block naming every `${VAR}` used in `.mcp.json.template` (gate T-015), each enriched by a `credential_setup:` entry (ent#128)
 - `template.yaml` declares `plugins:` (`marketplaces:` + `installed:`, trinity#1704) mirroring CLAUDE.md's Installed Plugins — Trinity re-installs them headlessly on every boot; `trinity@abilityai` is pre-installed in the agent base image since ent#411, so its absence is a warning, not a blocker
 - If `template.yaml` declares `metrics:`, every entry is well-formed — `name` matches `^[a-z][a-z0-9_]{0,63}$` and is unique, `type` is one of counter/gauge/percentage/status/duration/bytes, a `status` metric lists `values`, `cadence` is `<n>(s|m|h|d|w)` or an ISO 8601 duration between 60 s and 366 d — a malformed entry is silently dropped from the registry and reported as compatibility finding **D-009** (trinity-enterprise#477); and no `metrics.json` exists in the workspace — the file is retired, nothing reads it, and its presence is finding **D-010** (trinity-enterprise#479): numbers enter Trinity only via `record_metrics`
-- CLAUDE.md's **Reporting to Trinity** section guards `mcp__trinity__report` on both tool absence and the `The report tool requires an agent-scoped API key` refusal (a user/admin-key session sees the tool but cannot publish) and never retries
+- CLAUDE.md's **Reporting to Trinity** section guards `mcp__trinity__report` on both tool absence and the refusal for a key that `requires a key that carries an agent identity` (a user/admin-key session sees the tool but cannot publish; the older `requires an agent-scoped API key` wording is gone since trinity#2975) and never retries; a report meant for the person the agent serves names the role with `to` (`primary`/`approver`/`viewer`/`operator`) — `audience_email` is deprecated (ent#606), a **warning**
 - `.env.example` documenting required variables
 - `.mcp.json.template` declaring the agent's **own** MCP servers, with `${VAR}` placeholders **inside `env` blocks only** (a placeholder in `command`/`url`/`args` makes Trinity withhold the whole server at startup) an allowlisted literal `command`, and — for `http`/`sse` servers — a `url` that resolves to a public address (loopback/private/link-local/CGNAT `100.64/10` are refused with 400, trinity-enterprise#394) — never a hand-written `trinity` entry, which the platform overwrites
-- `.gitignore` excluding `.env`, `.env.*`, `.mcp.json`, `credentials.json`, `*.pem`, `*.key`, `.claude/projects/`, `.claude/todos/`, `.claude/plugins/`, `.claude/settings.json` (trinity#2036), and `.trinity/*` with the authored hooks negated
+- `.gitignore` excluding `.env`, `.env.*`, `.mcp.json`, `credentials.json`, `*.pem`, `*.key`, `.claude/projects/`, `.claude/todos/`, `.claude/plugins/`, and `.trinity/*` with the authored hooks negated. `.claude/settings.json` is **not** required to be ignored — it is the agent's project settings and may be committed (ent#708); a *committed* copy is a finding only when it registers `/opt/trinity/` hook paths or carries a credential-bearing key (`env`, `apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`, `gcpAuthRefresh`, `otelHeadersHelper`)
+- Deprecated operator-queue paths — a skill or CLAUDE.md that appends to `~/.trinity/operator-queue.json`, reads `responded_by` from it, or calls `respond_to_operator_queue` itself is a **warning**: agents raise asks with `mcp__trinity__ask_operator` and read the outcome with `get_my_ask` (ent#611; the file is a two-release fallback and only a person can end an ask); likewise `send_message` with `recipient_email` instead of the `to` role
 - **Deployable from its repository** — Trinity deploys an agent by cloning its GitHub repo, so this is the difference between a reproducible deployment and an upload:
   - a `git remote` exists (`git remote get-url origin`)
   - the working tree is clean and the branch is pushed — anything uncommitted or unpushed simply won't exist on the deployed agent
-  - if the repo is private, note that the instance needs a GitHub token (**Settings → GitHub token**, *Contents: Read*) to clone it
+  - note the token tier: with the owner's **own** GitHub token holding *Contents: Read and write* on the repo, Trinity creates the agent on a working branch it alone writes (`trinity/<agent>/<id>`) with auto-sync on (ent#705); a read-only or instance-wide token yields a pull-only agent whose work never reaches git (a private repo needs at least *Contents: Read* to clone)
   - no remote → finding: *deploys by upload only; no reproducible source*. Not a blocker (the local-file path works), but the fix is one command: `gh repo create <name> --private --source=. --push`
 
 ### 2i. Project Hygiene

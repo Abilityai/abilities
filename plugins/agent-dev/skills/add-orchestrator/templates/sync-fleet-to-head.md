@@ -8,10 +8,11 @@ allowed-tools: Read, Grep, Skill, AskUserQuestion, mcp__trinity__list_agents, mc
 effort: high
 user-invocable: true
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.6: A null ahead/behind count is unknown, never at-HEAD — Trinity now reports a count it cannot compute (no upstream, detached HEAD) as null instead of 0, and measures the working tuple against the agent's own branch whatever it is named (#2105)."
     - "1.5: Permission denials are a regression signal, never a scope boundary — universalized from the production orchestrator (field lesson 2026-08-17, closing the issue #5 back-flow gap once more): a key that loses read access to an agent used to make that agent silently disappear from the run ('nothing to pull' over a shrinking reachable set), and in one fleet ~10 agents went unsynced for six weeks that way — the losses clustered around container recreations, nobody revoked anything on purpose. New rule block after Step 3: every narrative-scoped agent is attempted every run (no known-denied skip list, ever), each denial is classified covered-by-another-tier / covered-by-nobody and named with the verbatim error, and a previously-denied agent that becomes reachable is reported FIRST and loudly because nothing else in the fleet watches for it. Optional tiering documented: where one key cannot read the whole fleet, a second agent runs this same playbook for its own group, earlier, with intentional overlap (pull-only is idempotent) — tiers are declared in the fleet narrative, never hard-coded here. Report section and the Error Recovery row updated to match"
     - "1.4: `--autonomous` run mode (new Run modes section) — back-ported from the production orchestrator (issue #5). A gated skill on an unattended cron otherwise blocks on an approval prompt nobody sees and burns its whole timeout; the mode makes the cron message the bare call `/sync-fleet-to-head --autonomous`. It relaxes nothing safety-relevant: the pull ladder stays clean → stash_reapply, force_reset/reset_to_main_preserve_state stay forbidden, and a non-trivial conflict is never guessed — it becomes a needs-attention line. Auto-proceeding past Step 4 is safe precisely because every action below it is non-destructive by construction — that invariant earns the mode, not convenience. The bundle-wide convention this instantiates is tracked in issue #6"
     - "1.3: Error Recovery row for the 400 submodule-fetch failure — `git pull --rebase` fetches submodules and fails on an unmounted one, and MCP `git_pull` has no `--no-recurse-submodules`; flag as needs-attention with a direct-Bash workaround, do not retry"
@@ -106,6 +107,7 @@ For every in-scope + GitHub-backed agent, call `get_git_sync_state` (compact —
 - **behind** — behind > 0, ahead 0 → will pull.
 - **ahead** — ahead > 0, behind 0 → **unpushed local commits**; flag, do **not** touch (not behind = nothing to pull; pushing is out of scope).
 - **diverged** — ahead > 0 and behind > 0 → attempt non-destructive pull; likely needs manual resolution (Step 6).
+- **unknown** — `ahead_working` or `behind_working` is `null` (no upstream, detached HEAD — the platform reports a count it cannot compute as `null`, never 0) → flag, do not pull, never count as at-HEAD.
 
 **Permission denials are a regression signal, never a scope boundary.** A `get_git_*` denial on an in-scope agent does not remove it from scope — not this run, not the next. Keys lose access without anyone deciding it (the losses cluster around container recreations and re-shares), and a run that quietly reports "nothing to pull" over a shrinking reachable set is exactly how a fleet ends up with agents nobody has synced for weeks. So:
 

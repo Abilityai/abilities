@@ -8,10 +8,11 @@ allowed-tools: Read, Write, Edit, Grep, AskUserQuestion, mcp__trinity__get_agent
 effort: medium
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-09-20
   author: orchestrator
   changelog:
+    - "1.2: The skill-manager permission is enforced (Trinity ent#596): an agent key gets 403 skill_management_not_permitted — even for its own skills — until an instance admin grants it; the skill stops and reports the missing grant, never retries. Skill sets shipped (ent#530): a map entry may name set:<name>, applied via assign_skill_to_agent, and skills held via a declared set (get_agent_skills via_sets) count as in sync."
     - "1.1: Delivery ladder gains the `conflict` state (trinity#2914, Trinity dev 1a1deb2b, 2026-09-22) — a library skill whose name matches an agent-authored .claude/skills/<name>/ is now refused before a byte is staged; never retried via sync_agent_skills (force does not override), reported as an unassign-or-rename decision; pre-fix instances still overwrite, so diff repo-native names first there"
     - "1.0: Initial version — declared-intent skill map (fleet/skill-map.yaml) reconciled against live get_agent_skills; missing entries proposed for apply via assign_skill_to_agent (additive, single-skill — never set_agent_skills, which replaces the whole list and would silently wipe undeclared skills); undeclared live skills reported as drift and never auto-removed (no safe single-skill removal call exists yet, #493); live agents absent from the map entirely surface as a distinct `unmapped` state, never conflated with a reviewed `skills: []` entry; excludes role-companion agents (capabilities come from their canon role file instead) and an agent's own in-repo playbooks (a separate plane, governed by /sync-fleet-to-head). ent#646"
 ---
@@ -43,7 +44,7 @@ Keep each agent's **Trinity Library skill assignments** matched to what `fleet/s
 
 - Trinity MCP reachable.
 - `fleet/skill-map.yaml` exists — seeded empty at install (`agents: {}`); this skill scaffolds it from the bundled template if still missing, then has nothing to reconcile until entries are added by hand.
-- The permission this ruling describes (ent#596) may or may not be enforced yet on a given instance — mechanically, any agent key can call these MCP tools today regardless. This skill is the discipline layer, not the enforcement; behave identically either way.
+- **This agent holds the skill-manager permission.** Trinity enforces it (ent#596): an agent key without it gets `403 skill_management_not_permitted` on every assignment — its own skills included — and nothing changes. An instance admin grants it interactively (the agent's page, or `PUT /api/agents/{name}/skill-manager` from a signed-in session). A refusal means stop and report the missing grant; never retry. Check mode needs no grant.
 
 ## Run modes
 
@@ -66,7 +67,7 @@ Also read `fleet/system-map.yaml` (or `list_agents`) for the fleet's actual rost
 
 ### Step 2: Diff against live state
 
-For each remaining **mapped** agent (i.e. not `unmapped`, not skipped in Step 1), call `get_agent_skills(agent_name)`. Compare its `skills[].name` set against the map's declared `skills[].name` set:
+For each remaining **mapped** agent (i.e. not `unmapped`, not skipped in Step 1), call `get_agent_skills(agent_name)`. Compare its `skills[].name` set against the map's declared `skills[].name` set. A declared entry may be a **skill set** — `set:<name>`, a named family declared in a library source's `catalog.yaml` (`list_skill_sets` shows which exist and whether they are `ok`). A set entry is live when the agent's `sets` list holds it, and a skill that arrived through a declared set (`via_sets`) counts as `in sync`, never `undeclared`:
 
 - **declared, not live** → `missing` — candidate to apply.
 - **live, not declared** → `undeclared` — **drift**, report only, never auto-remove.
@@ -93,7 +94,7 @@ State plainly: only `missing` items are ever proposed for `assign_skill_to_agent
 
 ### Step 4: Apply approved additions
 
-For each approved `missing` item, call `assign_skill_to_agent(agent_name, skill_name)` — **never `set_agent_skills`**, which replaces an agent's entire skill list and would silently delete any `undeclared` skill this run already promised not to touch. This is single-skill and additive today; when a bundle-assign primitive (packs #342 / sets #530) ships, swap this call — the map's schema already carries a plain skill-name list either way.
+For each approved `missing` item, call `assign_skill_to_agent(agent_name, skill_name)` — **never `set_agent_skills`**, which replaces an agent's entire skill list and would silently delete any `undeclared` skill this run already promised not to touch. It is additive. A declared `set:<name>` entry goes through the same call — `assign_skill_to_agent(agent_name, "set:<name>")` assigns and delivers every member as a unit; only a set whose `list_skill_sets` status is `ok` can be assigned (`partial` / `invalid` are reported, not applied). A `403 skill_management_not_permitted` stops Step 4 for the whole run — report the missing grant (see Prerequisites).
 
 Read the response's `delivery` status per skill:
 - `injected` — done.
