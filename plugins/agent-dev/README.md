@@ -15,6 +15,8 @@ Develop and extend existing Claude Code agents with skills, memory systems, a fu
 ```
 /agent-dev:create-playbook    # Create a new skill/playbook for the agent
 /agent-dev:adjust-playbook    # Modify an existing skill/playbook
+/agent-dev:agent-biography init  # Study an agent, write its biography profile
+/agent-dev:agent-biography     # Git history → how the agent changed, as a microsite
 /agent-dev:add-memory         # Add a memory system (file-index, brain, json-state, workspace)
 /agent-dev:add-backlog        # Install the full GitHub Issues development workflow
 /agent-dev:add-git-sync       # Install auto-commit hooks for durable state
@@ -72,6 +74,7 @@ For autonomous processing of project-level issues:
 |-------|-------------|
 | **create-playbook** | Scaffold a new skill/playbook (guided wizard) |
 | **adjust-playbook** | Modify an existing skill — steps, logic, triggers, interface |
+| **agent-biography** | An agent's life story from git — `init` writes a per-agent profile; a run charts how instructions, skills and domain state changed, who changed them (self vs steered vs human), phases and drift, as a microsite |
 | **add-memory** | Copy a memory system into the agent |
 | **add-backlog** | Install the full GitHub Issues development workflow |
 | **add-git-sync** | Install auto-commit hooks for durable cross-session state |
