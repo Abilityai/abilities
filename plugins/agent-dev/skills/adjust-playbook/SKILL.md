@@ -3,14 +3,15 @@ name: adjust-playbook
 description: Modify an existing playbook based on conversation context or explicit instructions. Use when user wants to update, fix, extend, or refine a playbook they already have.
 disable-model-invocation: false
 user-invocable: true
-argument-hint: "[playbook-name] [what to change] [--archive]"
+argument-hint: "[playbook-name] [what to change] [--archive] [--review-proposals]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.12"
+  version: "1.13"
   created: 2025-02-10
-  updated: 2026-08-18
+  updated: 2026-09-30
   author: Ability.ai
   changelog:
+    - "1.13: Self-improving skills get a guard + an approval seat — Step 2 detects the Controlled Self-Improvement contract (create-playbook 2.19) or the legacy free-edit checklist; any edit to such a skill runs a conflict check against existing rules and a before/after scenario replay; 🔒 zones (purpose, stop rules, write scope — locked by kind) change only on an explicit human ask, never from a self-proposal; new --review-proposals triages the ledger (the proposing run never approves); new Upgrade adjustment migrates legacy self-improving skills (counterweight + scenarios required)"
     - "1.12: Platform-truth refresh (Trinity v0.9.0, tag 93d7ce7c) — headless-fitness checklist + fork note distinguish background shell jobs (still killed at turn-end) from background subagents/forks (waited for since trinity#2127, bounded by execution timeout + 300s idle-finalize); `background: false` stays the rule, now for the right reason"
     - "1.11: Add the Make-Callable-by-Other-Agents adjustment (Playbook-Call Rule, fleet convention protocols/playbook-call.md, operator direction 2026-08-16) — one-line invocability, declared args incl. --run <id>, runs-only-itself when called by another agent; no I/O schema"
     - "1.10: Schedule note corrected for ent#89 — Trinity materializes template.yaml schedules: at agent creation (disabled unless a literal YAML true, max 20, deduped by name, never re-applied on recreate), and firing also needs the agent's autonomy gate; /trinity:onboard and /trinity:sync remain the reconcile path for a live instance"
@@ -39,6 +40,7 @@ Modify existing playbooks while preserving their core structure and functionalit
 - User says "fix the Z step"
 - User says "change the schedule"
 - After running a playbook and finding issues
+- Reviewing a self-improving skill's pending proposals (`--review-proposals`)
 
 ---
 
@@ -102,6 +104,7 @@ Parse and display structure:
 ...
 
 **Approval Gates**: [count]
+**Self-Improvement**: [none / controlled — [N] pending proposals, [N] check-backs due / legacy checklist — offer upgrade]
 **Checklist Items**: [count]
 ```
 
@@ -120,6 +123,10 @@ From `$ARGUMENTS` or conversation context, identify:
 | **Update checklist** | "add verification for Z" |
 | **Fix issue** | "it's failing because...", "handle the edge case" |
 | **Promote to library** | "make this library-grade", "prep it for the skills library" |
+| **Review proposals** | `--review-proposals`, "go through its pending improvements" |
+| **Upgrade self-improvement** | "make its self-improvement controlled", legacy checklist detected |
+
+**If the playbook self-improves** (a `## Self-Improvement` section, 🔒 headings, or a `self-improvement.md` ledger), every change of every type also passes the [Self-Improving Skill Guard](#self-improving-skill-guard), including changes the human asked for.
 
 If unclear, ask:
 ```
@@ -167,6 +174,9 @@ Everything else remains the same:
 - State dependencies: [same / new reads / new writes]
 - Automation: [same / changed]
 - Breaking: [yes/no] - if yes, recommend archiving
+- Zone: [strategy / 🔒 locked: <kind>] (self-improving skills only)
+- Conflicts checked: [rules this might contradict, and how the proposal resolves each] (self-improving skills only)
+- Scenario replay: [N/N unchanged / changed: <which, before → after>] (self-improving skills only)
 ```
 
 **If change is breaking** (output format changes, steps removed, args changed), find the downstream callers first — every parent that invokes the **unversioned** name inherits this change automatically:
@@ -433,6 +443,34 @@ When a proven agent-local skill should move to a **shared skills library** (a ca
 5. **Prep the contribution** — copy the skill directory into the library repo per its contribution guide (changelog seeded, banner present) and open the PR there
 
 Promotion is non-breaking locally: the agent-local copy keeps working unchanged; the library copy is what gets reviewed.
+
+### Self-Improving Skill Guard
+
+Applies to any playbook carrying the Controlled Self-Improvement contract (see [create-playbook](../create-playbook/SKILL.md) → Controlled Self-Improvement). Its purpose: a self-editing skill drifts wherever its edit pressures push it, so every change has to hold those pressures in place.
+
+1. **Zone check.** A change to purpose, a stop rule, or write scope is **locked by kind**, wherever it sits. So is any change to a 🔒 section (Mission, Constraints, Scenarios, Self-Improvement). Locked changes go ahead only when the **human asked for them explicitly in this conversation**. A ledger proposal that targets a locked zone is rejected, with the reason recorded.
+2. **Conflict check.** List the existing rules the change could contradict, stop rules and the Mission's counterweight first. When two human rules conflict, the agent settles the conflict in the direction of its own bias. So resolve every conflict in the proposal text itself, or ask. Never leave a conflict for the next run to settle.
+3. **Scenario replay.** Answer every Scenario under the current rules, then under the proposed rules, and show both. A changed answer means the change alters the skill's character. It can still ship, but only as a deliberate human call, never by default.
+4. **History stays append-only.** Prepend to `metadata.changelog` and record the change in the ledger. Rule text may be compressed. Changelog and ledger entries are never rewritten or removed.
+
+### Review Proposals (`--review-proposals`)
+
+The approval seat for a self-improving skill. Whoever wrote a proposal does not approve it.
+
+1. Read `self-improvement.md`: the Metrics table, pending proposals, and applied proposals with a check-back due.
+2. **Check-backs first.** For each due proposal, compare its metric with its expectation. Recommend `confirmed`, or `reverted` together with the exact revert.
+3. **Omission scan.** Read the counterweight column. If it is drifting toward or past its bound while every proposal pushes toward the primary value, say so plainly. That is the drift pattern this contract exists to catch.
+4. **Triage pending proposals.** Run the Guard on each proposal and apply the pace limits from the ledger header (runs since that step was last edited, applied edits this week). Recommend apply, hold (with the reason), or reject (with the rationale).
+5. Present everything as one table and apply only what is approved (Steps 5–7). The ledger records every decision, rejections included.
+
+### Upgrade to Controlled Self-Improvement
+
+For skills still carrying the legacy free-edit checklist ("consider tactical improvements … edit this SKILL.md"):
+
+1. Look at the skill's git history (`git log --oneline -- <path>`). Self-authored edits that changed stop rules, gates, or write scope are the first thing to show the user. If the agent has an `/agent-biography` report, cite it.
+2. Ask the three contract questions from create-playbook Step 4c (counterweight, constraints, scenarios). All three are required. Seed at least one scenario from a conflict or drift found in step 1.
+3. Replace the legacy section with the contract, mark the locked sections, seed `self-improvement.md`, and set pace defaults.
+4. This is a breaking change for autonomous callers, because the skill stops editing itself mid-run. Report it as breaking in Step 4. Don't archive; the upgrade is the fix.
 
 ### Fix an Issue
 

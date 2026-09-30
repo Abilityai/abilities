@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.18"
+  version: "2.19"
   created: 2025-02-10
   updated: 2026-09-30
   author: Ability.ai
   changelog:
+    - "2.19: Controlled self-improvement replaces the free-edit checklist — opting in now asks for the counterweight (a mission written as a tension), the locked constraints, and 3–5 fixed scenarios; the generated contract is propose-only (a run logs standing metrics incl. the counterweight, writes hypotheses with a check-back, and never applies its own proposal), a later run or /adjust-playbook --review-proposals applies under rate limits after a conflict check + scenario replay, and edits whose metric did not move are reverted. Locks go by kind of rule (purpose, stop rules, write scope), not by list. Autonomous checklist gains the propose-only line (principles from Cornelius on the incubation-loop drift, 2026-09-30)"
     - "2.18: Platform-truth refresh (Trinity dev 863240f3) — human gates go through the native ask: raise with `ask_operator`, read the outcome with `get_my_ask`; only a person ends an ask (ent#611, ent#715 — `respond_to_operator_queue` refuses agent keys, so the playbook-gap flag is no longer self-resolved). Reporting Rule: `to` role addressing (ent#606 — omit for operator-only, `audience_email` deprecated). Report guard matches the new refusal `requires a key that carries an agent identity` (#2975). Chain-depth refusals are terminal (#2806)."
     - "2.17: Platform-truth refresh (Trinity dev 9ac2ceae, 0.9.5-rc2) — Long-Running-Task Rule: the in-turn monitor path does not exist inside a deployed agent (Monitor/TaskOutput/ScheduleWakeup/Cron*/Workflow/SendMessage/ListAgents/PushNotification/RemoteTrigger are platform-denied, #2468/#2454); a success row prefixed `> ⚠️ Background work lost` is a defect (#2467 turn_integrity); a cut-off run now records `Task execution aborted after …` (code NETWORK), not `timed out` (#2752). autonomous-template display_hint list gains json"
     - "2.16: Platform-truth refresh (Trinity v0.9.0, tag 93d7ce7c) — Long-Running-Task Rule: turn-end kills background BASH jobs/monitors, but since trinity#2127 a headless run waits for background subagents/forks (bounded by the execution timeout + 300s idle-finalize, rebuilt base image); Foreground-Fork Rule keeps `background: false` as the contract for the right reason (deterministic on every image, mandatory pre-0.9). Reporting Rule guard now also swallows the `requires an agent-scoped API key` refusal — a user/admin-key session sees the tool but cannot report (mcp-server reports.ts)"
@@ -115,11 +116,16 @@ Ask the user:
 
 > **Should this skill be self-improving?**
 >
-> Self-improving skills include a checklist at the end to consider tactical improvements after each run—things like clearer steps, better error handling, or more efficient flow. The skill's core purpose stays the same; only execution can improve.
->
-> If in a git repo, improvements are committed for version control.
+> A self-improving skill watches its own runs and refines *how* it works. It never changes *what it is for* or *when it must stop*. It doesn't edit itself freely: runs write **proposals**, and a later run (or `/adjust-playbook --review-proposals`) applies them under rate limits, after a conflict check and a replay of fixed scenarios.
 
-If user confirms YES, include the Self-Improvement Checklist (see below) at the end of the generated skill.
+If NO: proceed. If YES, gather the contract. **Every answer lands in the generated skill**; none of these questions is optional:
+
+1. **Counterweight (the mission as a tension).** "What does this skill optimize for, and what must it *also* achieve, by when, measurably?" Push for a number, for example "rigorous AND reaches a verdict within 6 runs". A skill that improves itself against one value drifts to that value's extreme. Without a counterweight, "more careful" always reads as "better". → `## Mission 🔒`
+2. **Constraints.** "When must it stop or conclude? What may it write, and what must it never touch?" → `## Constraints 🔒`
+3. **Scenarios.** Draft 3–5 *given → expect* cases from answers 1–2 and confirm them with the user. Include at least one case that tests the counterweight (e.g. "no signal by run 6 → calls it noise") and one that tests a stop rule. → `## Scenarios 🔒`
+4. **Pace (offer the defaults).** At least **3 runs** of evidence between edits to the same step, at most **2 applied edits per week**, and a check-back **3 runs** after an edit is applied.
+
+Then append the Controlled Self-Improvement contract (Appendix) to the generated skill and seed the `self-improvement.md` ledger next to it.
 
 ### Step 4d: Deep Reasoning
 
@@ -176,7 +182,7 @@ Present summary before creating:
 **Tier**: [1/2/3] ([Simple/Stateful/Full Playbook])
 **Automation**: [autonomous/gated/manual/n/a]
 **Location**: [path]
-**Self-Improving**: [yes/no]
+**Self-Improving**: [no / yes — mission: <primary> AND <counterweight>; [N] scenarios]
 **Library-Grade**: [yes/no]
 
 **State Dependencies**: [list or "none"]
@@ -317,24 +323,65 @@ When generating Tier 3 playbooks, keep the platform fields (the rest of the plug
 
 ---
 
-## Self-Improvement Checklist (Appendix)
+## Controlled Self-Improvement (Appendix)
 
-When user opts into self-improving skills, append this section to the generated skill:
+When the user opts in (Step 4c), the generated skill gets the locked sections below. Mission, Constraints and Scenarios go after `## Purpose`, and `## Self-Improvement` goes at the end of the file. Its existing `## Process` becomes the **Strategy zone**, the only part a self-edit may change. A `self-improvement.md` ledger is seeded in the skill directory.
 
 ```markdown
-## Self-Improvement
+## Mission 🔒
 
-After completing this skill's primary task, consider tactical improvements:
+[Primary value] **and** [counterweight: measurable, with a bound, e.g. "reaches a verdict within N runs"]. Missing either one is a failure. A change that improves one side by giving up the other is not an improvement.
 
-- [ ] **Review execution**: Were there friction points, unclear steps, or inefficiencies?
-- [ ] **Identify improvements**: Could error handling, step ordering, or instructions be clearer?
-- [ ] **Scope check**: Only tactical/execution changes—NOT changes to core purpose or goals
-- [ ] **Apply improvement** (if identified):
-  - [ ] Edit this SKILL.md with the specific improvement
-  - [ ] Keep changes minimal and focused
-- [ ] **Version control** (if in a git repository):
-  - [ ] Stage: `git add <skill-path>/SKILL.md`
-  - [ ] Commit: `git commit -m "refactor(<skill-name>): <brief improvement description>"`
+## Constraints 🔒
+
+- **Stop rules:** [when the skill must stop or conclude]
+- **Write scope:** [what it may write; everything else is read-only]
+- [Rules a human adds later go here and are locked on arrival]
+
+## Scenarios 🔒
+
+Fixed behavior tests. Replay each one against the current rules after every edit. If an answer changes, the edit changed the skill's character, whatever its changelog line says.
+
+1. Given [evidence pattern] → expect [behavior, e.g. "concludes by run 6"]
+2. Given [no evidence by the deadline] → expect [e.g. "calls it noise and stops"]
+3. Given [...] → expect [...]
+
+## Self-Improvement 🔒
+
+This skill improves its **Strategy zone** (`## Process` and any section not marked 🔒) through `self-improvement.md` in this directory. A run never applies its own proposal: noticing a problem and fixing it always happen in different runs.
+
+**Locked by kind, not by list.** A change that touches purpose, a stop rule, or write scope is locked wherever it would sit in the file. So is any change to a 🔒 section. Only a human can make these changes, in the conversation, through `/adjust-playbook`.
+
+At the end of every run:
+
+1. **Log metrics.** Append one row to the ledger's Metrics table: date, the item worked on, the outcome (`concluded` / `continued` / `stopped: <rule>`), the counterweight metric (e.g. runs so far on this item), and which stop rules fired. If the counterweight metric is past its bound, that counts as an incident, the same as an error. Failing to conclude must hurt as much as being wrong.
+2. **Check due hypotheses.** For each `applied` proposal whose check-back is due, compare its metric with its expectation. If the metric moved, mark it `confirmed`. If not, **revert** the edit, mark it `reverted`, and add a changelog line saying so. A convincing rationale is not evidence that an edit worked.
+3. **Propose, don't edit.** If this run noticed friction *or* omission, append a proposal to the ledger and do not touch this file. Each proposal records: the step it would change; the change; the hypothesis; the metric and the direction it should move; a check-back after [3] runs; and which existing rules the change might contradict, **with the conflict resolved in the proposal rather than left to the run**.
+4. **Apply** — [autonomous: at most one pending proposal, and only one written by an *earlier* run | gated/manual: never; leave proposals for `/adjust-playbook --review-proposals`]. Apply a proposal only if all of the following hold:
+   - it stays inside the Strategy zone
+   - its step has had at least [3] runs of evidence since that step was last edited
+   - fewer than [2] edits have been applied this week
+   - its conflict note is clean
+   - every scenario gives the same answer before and after the change
+
+   If any check fails, leave the proposal `pending` with the reason. On apply: make the edit, bump `metadata.version`, prepend a changelog line naming the proposal id, set the proposal to `applied` with its check-back run, and commit in a git repo (`git commit -m "refactor(<skill-name>): <proposal id> — <summary>"`).
+
+The rule body may be tightened over time. `metadata.changelog` and the ledger are **append-only history**: never compress them, never rewrite them.
+```
+
+Seed `self-improvement.md` with:
+
+```markdown
+# [skill-name] — self-improvement ledger
+
+Pace: ≥[3] runs between edits to the same step · ≤[2] applied edits/week · check-back [3] runs after apply
+
+## Metrics
+| date | item | outcome | [counterweight metric] | stop rules fired |
+|------|------|---------|------------------------|------------------|
+
+## Proposals
+<!-- one block per proposal, newest last; status: pending | applied (check-back: run N) | confirmed | reverted | rejected: <why> -->
 ```
 
 ---
@@ -439,6 +486,7 @@ Before generating any autonomous playbook, verify:
 - [ ] **Invocable when scheduled** — `disable-model-invocation` is false/absent, and the schedule message invokes the skill by slash name (the Scheduled-Invocation Rule)
 - [ ] **Callable as one line** — the playbook runs correctly when the entire request is `/name [args]` from another agent or a schedule; args are declared in `argument-hint`; no undeclared prompt blocks a headless caller (the Playbook-Call Rule)
 - [ ] **No background forks** — the skill and every composed child using `context: fork` sets `background: false` (the Foreground-Fork Rule) — a background fork is reaped at turn-end in a headless run
+- [ ] **Self-improvement is propose-only** — if the skill self-improves, it carries the Controlled Self-Improvement contract (Mission with a counterweight, locked Constraints + Scenarios, ledger), and nothing in it edits its own SKILL.md in the run that proposes the change
 - [ ] **Result-producing runs report** — a skill that yields a surfaceable result ends with a guarded `mcp__trinity__report` step (the Reporting Rule), skipped silently when the tool is absent — so a scheduled/headless run leaves a visible record on the Reports tab
 
 If any check fails, the playbook cannot be autonomous. Recommend `gated` instead.
