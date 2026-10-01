@@ -32,7 +32,6 @@
       "skills": [
         "./skills/create-playbook",
         "./skills/adjust-playbook",
-        "./skills/agent-biography",
         "./skills/add-memory",
         "./skills/add-backlog",
         "./skills/add-git-sync",

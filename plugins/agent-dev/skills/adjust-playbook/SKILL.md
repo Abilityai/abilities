@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[playbook-name] [what to change] [--archive] [--review-proposals]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.13"
+  version: "1.14"
   created: 2025-02-10
-  updated: 2026-09-30
+  updated: 2026-10-01
   author: Ability.ai
   changelog:
+    - "1.14: Upgrade step 1 reads git honestly — an edit committed in the agent's own workspace shows where a change was made, not who asked for it (a schedule, a user's chat, another agent and the agent itself all commit under one identity); dropped the pointer to a skill no longer in this marketplace"
     - "1.13: Self-improving skills get a guard + an approval seat — Step 2 detects the Controlled Self-Improvement contract (create-playbook 2.19) or the legacy free-edit checklist; any edit to such a skill runs a conflict check against existing rules and a before/after scenario replay; 🔒 zones (purpose, stop rules, write scope — locked by kind) change only on an explicit human ask, never from a self-proposal; new --review-proposals triages the ledger (the proposing run never approves); new Upgrade adjustment migrates legacy self-improving skills (counterweight + scenarios required)"
     - "1.12: Platform-truth refresh (Trinity v0.9.0, tag 93d7ce7c) — headless-fitness checklist + fork note distinguish background shell jobs (still killed at turn-end) from background subagents/forks (waited for since trinity#2127, bounded by execution timeout + 300s idle-finalize); `background: false` stays the rule, now for the right reason"
     - "1.11: Add the Make-Callable-by-Other-Agents adjustment (Playbook-Call Rule, fleet convention protocols/playbook-call.md, operator direction 2026-08-16) — one-line invocability, declared args incl. --run <id>, runs-only-itself when called by another agent; no I/O schema"
@@ -467,7 +468,7 @@ The approval seat for a self-improving skill. Whoever wrote a proposal does not 
 
 For skills still carrying the legacy free-edit checklist ("consider tactical improvements … edit this SKILL.md"):
 
-1. Look at the skill's git history (`git log --oneline -- <path>`). Self-authored edits that changed stop rules, gates, or write scope are the first thing to show the user. If the agent has an `/agent-biography` report, cite it.
+1. Look at the skill's git history (`git log --oneline -- <path>`). Edits committed in the agent's own workspace that changed stop rules, gates, or write scope are the first thing to show the user. Git shows where a change was committed, not who asked for it: a schedule, a user's chat, another agent and the agent itself all commit under the same identity, so present these as workspace edits, not as the agent's own decisions.
 2. Ask the three contract questions from create-playbook Step 4c (counterweight, constraints, scenarios). All three are required. Seed at least one scenario from a conflict or drift found in step 1.
 3. Replace the legacy section with the contract, mark the locked sections, seed `self-improvement.md`, and set pace defaults.
 4. This is a breaking change for autonomous callers, because the skill stops editing itself mid-run. Report it as breaking in Step 4. Don't archive; the upgrade is the fix.
