@@ -8,10 +8,11 @@ allowed-tools: Read, Grep, Skill, AskUserQuestion, mcp__trinity__list_agents, mc
 effort: high
 user-invocable: true
 metadata:
-  version: "1.6"
+  version: "1.7"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.7: Ahead is a finding, not a footnote — universalized from the production orchestrator (field lesson 2026-09-24): an audit found 40 commits on 10 agents that existed only on container disks, every one of them an agent this run had listed under 'Left ahead' each morning for weeks, which read as normal until it was a data-loss report. Ahead > 0 is now a needs-attention line with the commit count and the age of the oldest unpushed commit (get_git_log), confirmed over get_git_status before reporting (the sync-state row is a cache that has been wrong both ways); diverged/ahead agents lead the report and age over 24 h is red. Still pull-only — the push half is the agent's own."
     - "1.6: A null ahead/behind count is unknown, never at-HEAD — Trinity now reports a count it cannot compute (no upstream, detached HEAD) as null instead of 0, and measures the working tuple against the agent's own branch whatever it is named (#2105)."
     - "1.5: Permission denials are a regression signal, never a scope boundary — universalized from the production orchestrator (field lesson 2026-08-17, closing the issue #5 back-flow gap once more): a key that loses read access to an agent used to make that agent silently disappear from the run ('nothing to pull' over a shrinking reachable set), and in one fleet ~10 agents went unsynced for six weeks that way — the losses clustered around container recreations, nobody revoked anything on purpose. New rule block after Step 3: every narrative-scoped agent is attempted every run (no known-denied skip list, ever), each denial is classified covered-by-another-tier / covered-by-nobody and named with the verbatim error, and a previously-denied agent that becomes reachable is reported FIRST and loudly because nothing else in the fleet watches for it. Optional tiering documented: where one key cannot read the whole fleet, a second agent runs this same playbook for its own group, earlier, with intentional overlap (pull-only is idempotent) — tiers are declared in the fleet narrative, never hard-coded here. Report section and the Error Recovery row updated to match"
     - "1.4: `--autonomous` run mode (new Run modes section) — back-ported from the production orchestrator (issue #5). A gated skill on an unattended cron otherwise blocks on an approval prompt nobody sees and burns its whole timeout; the mode makes the cron message the bare call `/sync-fleet-to-head --autonomous`. It relaxes nothing safety-relevant: the pull ladder stays clean → stash_reapply, force_reset/reset_to_main_preserve_state stay forbidden, and a non-trivial conflict is never guessed — it becomes a needs-attention line. Auto-proceeding past Step 4 is safe precisely because every action below it is non-destructive by construction — that invariant earns the mode, not convenience. The bundle-wide convention this instantiates is tracked in issue #6"
@@ -105,7 +106,7 @@ For every in-scope + GitHub-backed agent, call `get_git_sync_state` (compact —
 
 - **at-HEAD** — behind 0, ahead 0 → no action.
 - **behind** — behind > 0, ahead 0 → will pull.
-- **ahead** — ahead > 0, behind 0 → **unpushed local commits**; flag, do **not** touch (not behind = nothing to pull; pushing is out of scope).
+- **ahead** — ahead > 0, behind 0 → **unpushed local commits = work that exists only on a container disk**. Do **not** touch (pushing is out of scope for this run), but it is a **finding**: confirm the count over `get_git_status`, take the oldest unpushed commit's date from `get_git_log`, and carry both into the report as needs-attention (ahead > 0 for more than 24 h is red).
 - **diverged** — ahead > 0 and behind > 0 → attempt non-destructive pull; likely needs manual resolution (Step 6).
 - **unknown** — `ahead_working` or `behind_working` is `null` (no upstream, detached HEAD — the platform reports a count it cannot compute as `null`, never 0) → flag, do not pull, never count as at-HEAD.
 
@@ -175,7 +176,7 @@ Re-call `get_git_sync_state` for each acted agent. **Note:** the sync-state row 
 
 - **Pulled to HEAD:** agent → new short SHA.
 - **Already at HEAD:** count / list.
-- **Left ahead (unpushed commits):** agent (+N) — note these are NOT on their GitHub HEAD by choice; offer to sync them up only if the user asks.
+- **NEEDS ATTENTION — diverged / ahead (unpushed commits):** first in the report, never last. One line per agent: `agent  +N unpushed  oldest <date> (<age>)  [+ behind M]`. Age over 24 h is red. This run never pushes; the fix is the agent's own push path (its Stop hook / the platform's git sync) or a human recovery-branch push — say which is missing. Do not write "by choice": nobody chose it.
 - **Conflicts:** resolved (how) vs handed back (which files).
 - **Skipped:** no-repo agents; out-of-scope (not in narrative) agents; declared-but-not-running drift.
 - **Newly reachable:** any agent denied on the previous run that answered this time — first line of the report, not a footnote.

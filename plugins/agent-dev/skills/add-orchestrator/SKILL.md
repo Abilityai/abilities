@@ -5,10 +5,11 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 argument-hint: "[--check]"
 metadata:
-  version: "1.32"
+  version: "1.33"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.33: Bundled sync-fleet-to-head 1.7 — ahead is a finding, not a footnote (universalized from the production orchestrator's 1.7, field lesson 2026-09-24: 40 commits on 10 agents existed only on container disks, all long listed as 'Left ahead'). Ahead > 0 is a needs-attention line with count + oldest unpushed commit age (get_git_log), confirmed over get_git_status; diverged/ahead lead the report; > 24 h is red. Still pull-only. Re-run /add-orchestrator (or --check) on an installed orchestrator to pick it up"
     - "1.32: Platform-truth refresh (Trinity dev 863240f3) — bundled reconcile-skill-map 1.2 (skill-manager permission enforced, ent#596: 403 skill_management_not_permitted until an admin grants it; skill sets set:<name>, ent#530), orchestrate 1.17 (notify is a role via send_message(to:) or an ask_operator alert, ent#606/ent#611; inter_agent_depth_exceeded is terminal, #2806; start_agent skill-delivery lines, #2991), sync-fleet-to-head 1.6 (null ahead/behind = unknown, #2105)."
     - "1.31: Bundled reconcile-skill-map 1.1 — the delivery ladder handles the `conflict` state Trinity now returns when a library skill would overwrite an agent-authored skill of the same name (trinity#2914, dev 1a1deb2b): never retried, never forced, reported as an unassign-or-rename decision; pre-fix instances still overwrite, so the pre-flight name diff stays. Re-run /add-orchestrator (or --check) on an installed orchestrator to pick it up"
     - "1.30: Bundled sync-fleet-to-head 1.5 — permission denials are a regression signal, never a scope boundary (universalized from the production orchestrator's 1.6, the second field lesson to flow back through the issue #5 channel): every narrative-scoped agent is attempted every run with no known-denied skip list, each denial is classified covered-by-tier / covered-by-nobody with the verbatim error, a newly-reachable agent is reported first, and optional tiering is declared in the fleet narrative rather than the skill. Re-run /add-orchestrator (or --check) on an installed orchestrator to pick it up"
