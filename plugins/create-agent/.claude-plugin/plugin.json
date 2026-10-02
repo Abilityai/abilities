@@ -1,7 +1,7 @@
 {
   "name": "create-agent",
   "description": "Create new Claude Code agents — the custom wizard (any domain, interview-driven) and the website scaffold, plus review/adjust/clone tooling for existing agents. The eight pre-built domain wizards were retired in 2.0.0.",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"

@@ -4,13 +4,14 @@ description: Scaffold a new Trinity-compatible Claude Code agent from scratch on
 argument-hint: "[topic or purpose]"
 disable-model-invocation: false
 user-invocable: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents, mcp__trinity__ask_operator, mcp__trinity__get_my_ask, mcp__trinity__create_agent, mcp__trinity__deploy_local_agent
 metadata:
-  version: "1.15"
+  version: "1.16"
   created: 2026-04-01
-  updated: 2026-09-30
+  updated: 2026-10-02
   author: Ability.ai
   changelog:
+    - "1.16: Headless mode — the wizard now runs inside a deployed Trinity agent (no interactive question tool): the brief carries every answer, real gaps go out as ONE batched ask_operator instead of guesses or placeholders, the skill-outline gate folds into one approval ask before creation, and the last step creates the agent on the agent's own instance (GitHub repo + create_agent when a token exists, else deploy_local_agent with an explicit no-reproducible-source warning) instead of /trinity:onboard. Also: dashboard.yaml widgets always carry value (+ color on status) — Trinity's compatibility check D-003 is HARD and requires them even on metric-bound widgets (trinity-enterprise#765, from the in-Trinity experiment #764)"
     - "1.15: Platform-truth refresh (Trinity dev 863240f3, 2026-09-30) — generated .gitignore stops ignoring .claude/settings.json (ent#708: project settings may be committed; the platform filters only /opt/trinity/-hook or credential-bearing copies); playbook-gap escalation raises mcp__trinity__ask_operator + reads back with get_my_ask, queue file kept as the two-release fallback (ent#611); deploy guidance explains the working-branch default — own write-scoped token → trinity/<agent>/<id> + auto-sync, else pull-only, git_mode reports which (ent#705); Reporting section gains the `to` role, audience_email deprecated (ent#606); report guard matches the new refusal wording `requires a key that carries an agent identity` (#2975)"
     - "1.14: Platform-truth refresh (Trinity dev 1a1deb2b, the ent#476 metrics merge, 2026-09-22) — the generated /update-dashboard no longer publishes a kpi_snapshot report: with record_metrics live the metric store IS the history, and a KPI report was a second store for the same number (operator ruling 2026-09-21: one mechanism, report retired as a data path; reports stay for narrative results). Fence hygiene: every generated-file block that itself contains fences (CLAUDE.md, onboarding, update-dashboard, README, reconcile-docs, the plugin-install example) now uses a four-backtick outer fence so the inner fences nest instead of closing the block — clears the standing Gate 1 B4 findings"
     - "1.13: Declared business metrics (trinity-enterprise#482; platform contract ent#477 registry / ent#478 record_metrics / ent#479 read) — Step 5 template.yaml gains a `metrics:` block derived from the wizard's answers (each one a KPI the agent's domain actually produces, never decorative; `cadence` matches the scaffolded /update-dashboard schedule; `direction` / `aggregation` / `dimensions` where they carry meaning), the generated /update-dashboard posts the same numbers as points via `record_metrics` after writing dashboard.yaml (guarded: off Trinity it degrades to the file write; `metric_undeclared` → `refresh_metric_definitions`), and dashboard widgets may bind `metric: <name>` to a declared series instead of being snapshotted. One playbook computes the numbers once and writes both surfaces — the Dashboard tab's button already calls /update-dashboard"
@@ -34,6 +35,20 @@ metadata:
 > ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `create-agent vX.Y — recent: <summary>`. Then proceed.
 
 Scaffold a complete Claude Code agent from scratch. The agent will be Trinity-compatible and ready for development with playbook-based skill creation.
+
+---
+
+## HEADLESS MODE (read first)
+
+You are **headless** when the `AskUserQuestion` tool is not available — typically when this wizard runs inside a deployed Trinity agent (a builder agent) rather than a person's Claude Code session. Interactive sessions ignore this section entirely.
+
+In headless mode every `AskUserQuestion` below is replaced by these rules:
+
+1. **The brief is the answer.** Take purpose, name, destination, skills, plugins, credentials and schedules from the argument. Destination defaults to `~/builds/[agent-name]`; plugins default to `agent-dev` + `trinity`.
+2. **Decorative choices take the default silently** — the avatar prompt, widget layout, wording. Never ask about them.
+3. **Real gaps go out as ONE ask, never as guesses.** A real gap is something the generated agent cannot work without and the brief does not say: the data sources it watches, the accounts it posts to, a currency or locale, an external system's name. Collect every gap first, then raise a single `mcp__trinity__ask_operator` — `request_id: "create-agent:[agent-name]:gaps"`, `type: "question"`, `title: "[Agent Display Name] — N details needed before I build it"`, `question`: the numbered gaps, each with the default you would use. Write `~/builds/[agent-name].pending.md` (the brief + the request_id + the gap list), report that you are waiting on the ask, and **end the turn**. On the next invocation for the same agent, read the pending file and `mcp__trinity__get_my_ask(request_id)`: answered → merge the answers and continue from Step 2; cancelled → stop and say so; expired → continue with the stated defaults and list them as assumptions in the Completion summary. Never write `REPLACE-ME` placeholders for a gap you could have asked about.
+4. **One approval before anything leaves the workspace.** The Step 6 "present each skill outline" gate and the Step 13/14 questions fold into a single approval ask at the end — see **Step 14 → Headless**. Nothing is pushed or created before it is approved.
+5. **Schedules stay declared `enabled: false`** (the default below). The created agent is non-production until a person reviews it.
 
 ---
 
@@ -557,7 +572,7 @@ metadata:
 - Match the tools to what the skill actually needs (don't grant Write if it only reads)
 - **Publish a report on result-producing skills:** if a skill yields a surfaceable result (a summary, a batch, metrics), end it with a step that calls `mcp__trinity__report` (`report_type: <agent>.<result>`, a fitting `display_hint`) — guarded so it only fires when the tool is available on Trinity (see CLAUDE.md → *Reporting to Trinity*)
 
-**Present each skill outline to the user before creating it.** Show the name, purpose, steps, and tools. Let them adjust before you write the files.
+**Present each skill outline to the user before creating it.** Show the name, purpose, steps, and tools. Let them adjust before you write the files. *(Headless: write the files directly; the outlines travel in the one approval ask at Step 14.)*
 
 ---
 
@@ -804,7 +819,7 @@ sections:
 
 **Customization:** Choose 2-3 sections with 3-6 widgets that reflect the agent's actual domain and skills. Keep it focused — `/update-dashboard` fills in real values later.
 
-**Bind widgets to declared metrics where one exists:** a `metric` or `status` widget may carry `metric: <name>` (a name from the Step 5 `metrics:` block). A bound widget reads the recorded series — value, point time, stale flag, sparkline — instead of being snapshotted, so `/update-dashboard` no longer has to hand-type its value (`value` / `color` become optional on bound widgets). Unbound widgets keep working as before.
+**Bind widgets to declared metrics where one exists:** a `metric` or `status` widget may carry `metric: <name>` (a name from the Step 5 `metrics:` block). A bound widget reads the recorded series — value, point time, stale flag, sparkline — instead of being snapshotted, so `/update-dashboard` no longer has to hand-type its value. **Still write `value` on every `metric` widget and `value` + `color` on every `status` widget, bound or not** (use `"—"` and `gray` as placeholders): Trinity's compatibility check `D-003` is HARD and requires them regardless of binding, and an agent that fails it is reported as incompatible. Unbound widgets keep working as before.
 
 ### 8b. Generate /update-dashboard skill
 
@@ -1193,6 +1208,8 @@ cd [destination] && git init && git add -A && git commit -m "Initial agent scaff
 
 ## STEP 13: Create GitHub Repository
 
+*Headless: skip this step here — the repository is created inside Step 14 → Headless, after approval.*
+
 Ask the user if they want to create a GitHub repository for this agent.
 
 Use AskUserQuestion:
@@ -1274,6 +1291,16 @@ Move on silently — the agent works fine without a remote. Note once, without p
 **If confirmed:** set the working directory to `[destination]`, then invoke `/trinity:onboard` (Skill tool). It owns the deployment end-to-end, and it is **repository-first**: with a pushed GitHub remote (Step 13) it deploys via `create_agent(template: "github:owner/repo@branch")` — Trinity clones the repo, tracks the branch, and materializes the `template.yaml` schedules at creation, after which every change ships by `git push` + `git_pull` instead of re-uploading the agent. Without a remote it falls back to a local-file deploy and offers to promote the agent onto the repo path afterwards. Either way it injects credentials and reconciles schedules. Do **not** inline raw `mcp__trinity__create_agent` / `mcp__trinity__deploy_local_agent` calls here — `/trinity:onboard` is the single source of truth for deployment. If `/trinity:onboard` isn't available (trinity plugin not installed), tell the user to run `/plugin install trinity@abilityai` and then `/trinity:onboard` from the agent directory — don't attempt a manual deploy.
 
 **If declined:** move on silently.
+
+### Headless (running inside a deployed Trinity agent)
+
+`/trinity:onboard` is for a person's local session; inside an agent, create the new agent on **this agent's own instance** with the Trinity tools directly:
+
+1. **Approval ask.** Raise one `mcp__trinity__ask_operator` — `request_id: "create-agent:[agent-name]:create"`, `type: "approval"`, `title: "Create [Agent Display Name] on this instance?"`, `proposal`: purpose (one line), each skill's name + one-line purpose + steps, the schedules (all declared off), credentials needed (names only), the assumptions made, and the source mode from step 2. Record it in the pending file and end the turn. On the next invocation read `get_my_ask`: approved → continue; declined/cancelled → keep the scaffold on disk, stop, and say where it is.
+2. **Pick the source mode.** If a GitHub token is usable here (`gh auth status` succeeds, or `GITHUB_TOKEN` is set), use the **repository path**; otherwise the **local path**.
+3. **Repository path (preferred — reproducible source, auto-sync):** create a **private** repo `[agent-name]` under the token's account (`gh repo create [agent-name] --private --source=[destination] --push`), add the `**Repository:**` line to CLAUDE.md as in Step 13, push, then `mcp__trinity__create_agent(name: "[agent-name]", template: "github:<owner>/[agent-name]", kind: "agent")`.
+4. **Local path (no token):** `mcp__trinity__deploy_local_agent(name: "[agent-name]", archive: <base64 of a gzipped tar of [destination]>)`. Build the archive exactly as the tool's own description specifies — including its `.trinity-manifest.json` integrity file — from a **copy** of the scaffold, excluding `.git`, `node_modules`, `__pycache__`, `.venv`, and never including a `.env`. State plainly in the Completion summary: *no reproducible source — this agent has no repository, no auto-sync, and changes must be re-uploaded; push it to a repo and recreate from it when a token is available.*
+5. **Verify on evidence, not on the call's status:** `mcp__trinity__get_agent_info(name)` returns the new agent's template, and `list_agent_schedules` shows every schedule `enabled: false`. Delete the pending file.
 
 **Carry the outcome forward:** if the deploy ran, reflect it in the Completion summary — a `✓ Deployed to Trinity — [instance URL]` line replacing any "deploy later" guidance; otherwise leave the summary as is.
 
