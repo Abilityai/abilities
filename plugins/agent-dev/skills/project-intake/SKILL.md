@@ -1,14 +1,16 @@
 ---
 name: project-intake
-description: Headless intake primitive — routes actionable items from any source (meetings, email, Slack, issue trackers) into the GitHub Issues registry. Dedupes by meaning (not exact title), creates task issues with full anatomy (Objective / Definition of Done / Context / Validation), or posts one-line state-news comments on the relevant epic. Returns the issue number. Never interactive — called by other skills and crons.
+description: Headless intake primitive — routes actionable items from any source (meetings, email, Slack, issue trackers) into the project's registry — GitHub Issues for an external project, the project's own tasks/ folder for an internal one (standard §16). Dedupes by meaning (not exact title), creates tasks with full anatomy (Objective / Definition of Done / Context / Validation), or records one-line state news (epic comment / log.md). Returns the task reference. Never interactive — called by other skills and crons.
 argument-hint: "--project=<slug> --title=\"...\" --source=\"<url-or-note>\" [--owner=<actor>] [--priority=p2] [--agent=<name>] [--waiting-on=<actor>] [--dod=\"item1|item2\"] [--objective=\"...\"] [--context=\"...\"] [--state-news]"
 allowed-tools: Bash, Read, Grep
 user-invocable: false
 metadata:
-  version: "1.2"
+  version: "1.4"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.4: Internal tracking (ent#673): a project whose charter resolves to `tracking: internal` (standard §16) takes intake as a task file — dedupe by meaning over the titles of its open tasks/*.md, create through the same internal path as /project-task (id allocation, front matter, Tasks list, commit / canon-publish), waiting-on as `waiting_on:` + a Log entry — and state news as one appended line in the project's log.md. Outputs `<slug>/T-NNN`, `DUPLICATE:<slug>/T-NNN`, `PROJECT:<slug>`. No GitHub access for internal projects. External: unchanged"
+    - "1.3: Shared projects (ruling R21, ent#588) — no behaviour change: intake targets the epic by `project:<slug>` label exactly as before, at both visibility levels; the one rule added is that a workspace path, when one is passed through, is the epic body's Workspace field resolved per PROJECT_STANDARD §15 (canon: paths through the x-canon clone), never project_files/<slug>/ derived from the slug"
     - "1.2: Read-the-standard guard (missing PROJECT_STANDARD.md → run /project-init first); skill is now authored standalone (installer copies from here)"
     - "1.1: Loop closure — optional --waiting-on opens the loop explicitly (label + ### Waiting on comment), so an item captured as \"X owes us an answer\" enters the steward's aging ladder instead of sitting silently in the backlog"
     - "1.0: Initial version — headless intake primitive, dedupe by meaning, task creation with full anatomy, state-news comment path, epic Tasks checklist linkage"
@@ -28,7 +30,7 @@ Route any actionable item from any source into the managed registry. **This skil
 
 | Argument | Required | Description |
 |---|---|---|
-| `--project=<slug>` | yes | Target project slug (from `project:<slug>` label) |
+| `--project=<slug>` | yes | Target project slug (from `project:<slug>` label, or an internal project's folder name) |
 | `--title="..."` | yes | Plain imperative title for the actionable item |
 | `--source="..."` | yes | URL or short description of origin (meeting link, email subject, Slack permalink, ticket URL) |
 | `--owner=<actor>` | no | Accountable party. Defaults to the project's primary owner from the epic. |
@@ -38,7 +40,12 @@ Route any actionable item from any source into the managed registry. **This skil
 | `--dod="item1\|item2"` | no | Pipe-separated DoD items. Default: single item derived from title. |
 | `--objective="..."` | no | Objective text. Defaults to the title. |
 | `--context="..."` | no | Additional context beyond the source link. |
-| `--state-news` | no | Flag: item is project-state news, not a task. Post a one-line comment on the epic; return `EPIC:#NN`. |
+| `--state-news` | no | Flag: item is project-state news, not a task. Post a one-line comment on the epic (return `EPIC:#NN`), or append it to an internal project's `log.md` (return `PROJECT:<slug>`). |
+
+
+### Workspace path (standard §15 — read, never derived)
+
+This skill writes GitHub, not workspaces. If a caller hands it — or it hands a caller — a workspace path, that path is the epic body's `## Workspace` field resolved through the standard's §15 resolver (`canon:projects/<slug>/` → through the x-canon clone; anything else → repo-relative; missing → no workspace), **never `project_files/<slug>/` derived from the slug**. A shared project (ruling R21) sits in the canon and is otherwise identical: same epic, same task anatomy, same intake path.
 
 ## State dependencies
 
@@ -58,7 +65,7 @@ Read `PROJECT_STANDARD.md`. **If it is missing, stop and run `/project-init` fir
 Parse all `--key=value` and flag arguments from `$ARGUMENTS`.
 
 Validate:
-- `--project` present → look up the epic:
+- `--project` present → **resolve the mode first** (standard §16 finder): if `charter_for "$PROJECT_SLUG"` returns a charter whose `mode_of` is **internal**, the project is internal — its workspace is that charter's folder, and Steps 3–7 take their **Internal** branches below; never call `gh`. Otherwise look up the epic:
   ```bash
   gh issue list --repo "$REGISTRY" --label "project:$PROJECT_SLUG" --label project --state open \
     --json number,title,labels,body -q '.[0]'
@@ -67,7 +74,7 @@ Validate:
 - `--title` present. If missing: exit with `ERROR: --title is required`
 - `--source` present. If missing: exit with `ERROR: --source is required`
 
-Resolve defaults from the epic:
+Resolve defaults from the epic (internal: from the charter — `owner:` for OWNER when no `## Owners` entry is clearer, `priority:` for PRIORITY):
 - `OWNER`: if not provided, extract from epic's `owner:*` labels (first match).
 - `PRIORITY`: if not provided, read from epic's `priority:*` label.
 - `OBJECTIVE`: if not provided, use the title.
@@ -85,6 +92,11 @@ gh issue comment $EPIC_NUMBER --repo "$REGISTRY" \
 
 Output exactly: `EPIC:$EPIC_NUMBER`
 
+**Internal:** append one line to the project's log instead, then commit it (canon: `/canon-publish`) and output `PROJECT:$PROJECT_SLUG`:
+```bash
+printf '\n**State update** (%s): %s — source: %s\n' "$(date -u +%Y-%m-%d)" "$TITLE" "$SOURCE" >> "$WS/log.md"
+```
+
 Exit.
 
 ### Step 4: Deduplicate by meaning
@@ -101,9 +113,19 @@ For each existing issue title, check if the incoming title means the same thing:
 1. **Exact title match** (case-insensitive) → definite duplicate.
 2. **Semantic overlap**: tokenize both titles, strip common stop words (a, an, the, and, or, for, to, of, in, on, at, by, with, from, into), compare the core verb+noun tokens. If ≥ 70% of the incoming tokens appear in an existing title (or vice versa), treat as duplicate.
 
-On duplicate detected: output `DUPLICATE:#$EXISTING_NUMBER` and exit.
+**Internal:** the candidates are the `title:` values of the project's task files whose `status:` is not `done`:
+```bash
+for f in "$WS"/tasks/T-*.md; do awk -v f="$(basename "$f" .md)" 'NR==1&&/^---/{m=1;next} m&&/^---/{exit} m&&/^status:/{st=$2} m&&/^title:/{sub(/^title: */,"");t=$0} END{if(st!="done")print f"\t"t}' "$f"; done
+```
+Same two tests.
+
+On duplicate detected: output `DUPLICATE:#$EXISTING_NUMBER` (internal: `DUPLICATE:$PROJECT_SLUG/T-NNN`) and exit.
 
 If no duplicate, proceed.
+
+### Internal: create the task file
+
+For an internal project, Steps 5–7 are replaced by the **Internal path** of `/project-task` (standard §16): allocate the next id, write `tasks/T-NNN.md` with the body built below (Objective / Definition of Done / Context with `Source: $SOURCE` / Validation, then an empty `## Log`), put `--agent` and `--waiting-on` in the front matter (and a `### Waiting on` Log entry for the latter), list it in project.md's `## Tasks`, and commit (canon: `/canon-publish`). Then output `$PROJECT_SLUG/T-NNN` (Step 8).
 
 ### Step 5: Ensure owner label exists
 
@@ -179,5 +201,6 @@ gh issue edit $EPIC_NUMBER --repo "$REGISTRY" --body-file /tmp/intake-epic.md
 
 Print exactly one line and exit:
 ```
-#$TASK_NUMBER
+#$TASK_NUMBER             (external)
+$PROJECT_SLUG/T-NNN       (internal)
 ```

@@ -6,23 +6,23 @@
 > and `/project-reconcile` syncs projections against the registry.
 > **{{AGENT_NAME}}** is the managing agent; **{{OPERATOR}}** is the operator (the human this standard escalates to).
 >
-> Version: 1.1 ({{DATE}})
+> Version: 1.2 ({{DATE}})
 
 ## 1. Registry
 
 | Thing | Location | Notes |
 |---|---|---|
-| Registry (single source of truth) | GitHub issues in `{{REGISTRY}}` | One **epic issue** per project (`project` label); one task issue per task (`task` + `project:<slug>`) |
-| Workspace (files, drafts, outputs) | `project_files/<slug>/` in the managing agent's repo | Free-form except `project.md` (charter). Path recorded in the epic body. **Visibility is deployment config**: if git-synced to the agent's container, the steward reads workspaces directly; if local-only / gitignored, Trinity runs use the epic body as authoritative context. The quarantine pass is idempotent wherever workspaces are visible. |
+| Registry (single source of truth) | **Per project, declared in its charter's `tracking:` (§16).** *External:* GitHub issues in `{{REGISTRY}}` — one **epic issue** per project (`project` label), one task issue per task (`task` + `project:<slug>`). *Internal:* the project's own workspace — `project.md` stands in for the epic, `tasks/<id>.md` for each task issue, `log.md` for the epic's comment thread | A registry of `none` (set when this standard was materialized) means every project is internal and no GitHub access is needed |
+| Workspace (files, drafts, outputs) | **Agent level:** `project_files/<slug>/` in the managing agent's repo. **Canon level (shared project, §15):** `agents/{{AGENT_NAME}}/projects/<slug>/` in the fleet's canon repo, read through the agent's clone (`x-canon.clone_path`, default `canon/`) | Free-form except `project.md` (charter — the linted envelope of the canon convention § Projects, at both levels) and the optional append-only `decisions.md` ledger. **The path is recorded in the epic body's `## Workspace` field and is always read from there — never derived from the slug** (§15). **Visibility is deployment config**: if git-synced to the agent's container, the steward reads workspaces directly; if local-only / gitignored, Trinity runs use the epic body as authoritative context. The quarantine pass is idempotent wherever `project_files/` is visible and never scans the canon. |
 | Steward state, digests, run log | `project-steward/` in the managing agent's repo | Written only by `/project-steward`; tracked in git after each material run |
 
-**Invariant 1 — One registry, write-authoritative.** The registry (GitHub Issues) is the sole authoritative record for portfolio state: scope, status, and priority. No other system writes state back. Projections are read-only views; they do not own state.
+**Invariant 1 — One registry per project, write-authoritative.** Each project's registry — its GitHub epic and task issues (external) or its own workspace files (internal, §16) — is the sole authoritative record for that project's state: scope, status, and priority. A project has exactly one registry; nothing mirrors it into the other mode, and no other system writes state back. Projections are read-only views; they do not own state.
 
 ## 2. Roles
 
-- **{{AGENT_NAME}}** — managing agent. Sole writer of GitHub issues (labels, comments, status). Runs the steward, creates tasks via `/project-task`, relays agent reports to the issue log. Self-owned tasks may be executed inline by the steward.
+- **{{AGENT_NAME}}** — managing agent. Sole writer of the registry — GitHub issues (labels, comments, status) for external projects, the task files and `log.md` for internal ones (§16). Runs the steward, creates tasks via `/project-task`, relays agent reports to the task's log. Self-owned tasks may be executed inline by the steward.
 - **{{OPERATOR}}** — the human decision-maker. Owns all priority changes (Invariant 2). Endorses project completion. Resolves `status:needs-decision`. Reopens closed tasks (done is absorbing; only a human can reopen).
-- **Other agents / humans** — execute dispatched tasks; report results via chat; do not write to the registry directly.
+- **Other agents / humans** — execute dispatched tasks; report results via chat; do not write to the registry directly (in either mode — a person editing a task file by hand is the internal-mode equivalent of editing an issue: allowed for the operator, and the steward reads it as-is).
 
 ## 3. Label taxonomy
 
@@ -64,7 +64,8 @@ One paragraph: what done looks like and why it matters.
 - [ ] Measurable outcome 2
 
 ## Workspace
-`project_files/<slug>/`
+`project_files/<slug>/`                              ← agent level, or
+`canon:projects/<slug>/`                             ← canon level (shared project, §15)
 
 ## Owners
 - <actor-name> — <what they own in this project>
@@ -191,7 +192,7 @@ Closes when: <the observable answer or artifact that ends the wait>
 
 ## 9. Workspace discovery and quarantine (Invariant 6)
 
-The steward auto-stubs any `project_files/<slug>/` folder with no corresponding epic into a quarantine epic (`status:unclassified`). The quarantine pass runs wherever `project_files/` is visible — it is idempotent and safe on any deployment config (local-only, git-synced container, or absent entirely when workspaces live elsewhere). Unclassified projects are:
+The steward auto-stubs any `project_files/<slug>/` folder that is not a registered project into quarantine. A folder is registered when it has an epic (external) **or** a `project.md` whose mode resolves to internal (§16) — an internal project is registered by its own charter. Quarantine is a stub epic (`status:unclassified`) when the registry is a GitHub repo, and a stub charter (`tracking: internal`, `status: paused`, `tldr: "(unclassified) …"`) when it is `none`. The quarantine pass runs wherever `project_files/` is visible — it is idempotent and safe on any deployment config (local-only, git-synced container, or absent entirely when workspaces live elsewhere). **It never scans the canon clone**: a canon-placed project (§15) is registered by its epic, never discovered from a folder — a `projects/<slug>/` folder in canon without an epic is the canon linter's `project-envelope` finding, not a quarantine case. Unclassified projects are:
 - Excluded from all projections
 - Excluded from priority tracking (no priority label)
 - Classified lazily: one batch line in the weekly digest ("N unclassified folders: <names>"), never per-item interrupts
@@ -205,12 +206,12 @@ The steward auto-stubs any `project_files/<slug>/` folder with no corresponding 
 4. **Standard dispatch brief:**
 ```
 [PROJECT DISPATCH] <project name> — <task title>
-Issue: <task issue URL>
+Issue: <task issue URL>   (internal: Task: <slug>/T-NNN — <workspace>/tasks/T-NNN.md)
 Objective: <from task body>
 Definition of done: <from task body>
 Context: <key links/paths>
 Deliverable: reply in this chat with a done claim (format: "### Done claim YYYY-MM-DD / summary / DoD check with evidence").
-{{AGENT_NAME}} relays your reply to the issue log — do not attempt to write GitHub issues.
+{{AGENT_NAME}} relays your reply to the task's log — do not write GitHub issues or task files yourself.
 ```
 5. **Self-dispatch rule.** Tasks labeled `agent:{{AGENT_NAME}}` are NEVER dispatched via Trinity (would loop). Execute inline if they fit the run budget; otherwise list in digest as manager to-dos.
 6. **Trinity is optional.** When Trinity MCP is unavailable, the steward runs in triage-only mode: GitHub operations (labels, comments, verification) continue; dispatch is skipped and noted in the digest. No state is lost — next healthy run resumes.
@@ -248,14 +249,14 @@ Deployers: edit this number to match your team's review SLA.
 
 ## 13. Intake contract
 
-Intake skills and domain skills may write workspace content freely (`project_files/<slug>/`). Work items enter the registry ONLY through `/project-intake`. Material state changes (decisions, status shifts, blockers) land as a one-line comment on the relevant epic. Intake skills NEVER write projection surfaces directly — only `/project-reconcile` touches projections.
+Intake skills and domain skills may write workspace content freely (`project_files/<slug>/`) — except the registry files of an internal project (`project.md`, `log.md`, `tasks/`), which are the registry itself (§16). Work items enter the registry ONLY through `/project-intake`, in either mode. Material state changes (decisions, status shifts, blockers) land as a one-line comment on the relevant epic. Intake skills NEVER write projection surfaces directly — only `/project-reconcile` touches projections.
 
 | Writer | May write | Must not write |
 |---|---|---|
-| Intake / domain skills | `project_files/<slug>/` | GitHub task issues directly (use `/project-intake`) |
-| `/project-intake` | GitHub task issues, epic one-line state-news comments | Projection surfaces |
-| `/project-reconcile` | Projection surfaces, reconcile log | Registry task issues (read-only; gesture processing is the one exception) |
-| `/project-steward` | GitHub issue labels, comments, steward state | Projection surfaces |
+| Intake / domain skills | `project_files/<slug>/` (not an internal project's registry files) | Task issues or task files directly (use `/project-intake`) |
+| `/project-intake` | Task issues or task files, one-line state news (epic comment / `log.md`) | Projection surfaces |
+| `/project-reconcile` | Projection surfaces, reconcile log | Registry tasks (read-only; gesture processing is the one exception) |
+| `/project-steward` | Issue labels and comments, or task files and `log.md`; steward state | Projection surfaces |
 
 ## 14. Loop closure (Invariant 7)
 
@@ -285,3 +286,131 @@ Work regularly parks on someone this system cannot dispatch to: a client, a lawy
 **Closing is a write.** When a loop resolves — answered, dropped, or routed around — post `### Loop closed` (§7), remove the `waiting-on:*` label, and note it in the next digest. An unrecorded close is indistinguishable from a forgotten one.
 
 *Deployers: the 3-day nudge / 7-day re-nudge / 14-day decision ladder is the default. Edit these numbers to match how your counterparties actually respond.*
+
+## 15. Visibility — one standard, two placements (operator rulings R21, 2026-09-10, and 2026-09-22)
+
+A project is managed **the same way** whether it lives at agent level or at canon level:
+
+| | Agent-level project | Shared (company) project |
+|---|---|---|
+| Workspace | `project_files/<slug>/` in the managing agent's repo | `projects/<slug>/` at the root of the fleet's canon repo — the shared zone every agent and human writes directly; pushed with `/canon-publish` |
+| Charter | `project.md` | `project.md` — the **same** file, same envelope |
+| Registry | the epic in `{{REGISTRY}}` (external) or the workspace itself (internal, §16) | the epic in `{{REGISTRY}}` (external) or the workspace itself (internal, §16) |
+| Steward | `/project-steward` | `/project-steward` |
+| Intake | `/project-intake` | `/project-intake` |
+| Decision ledger | `decisions.md` (append-only) | `decisions.md` (append-only) |
+| Who can read the definition | this agent + its operator | every agent and human on the canon |
+| Who can write it | this agent | every agent and human on the canon — the charter's `owner:` stays the steward |
+
+**Placement decides only who can read the definition and rely on it.** Company projects are shared projects by design and live in canon. Moving a project from agent level to canon changes its readers and nothing else — same epic, same steward, same intake, same ledger. Many contributors, one steward: in canon anyone may edit the workspace and append to the ledger, but the charter's `owner:` names the one agent that stewards the project, and git history records who changed what. Tandem (`projects/tandem/` in the Ability canon) is the first shared project and the reference instance. A project created before 2026-09-22 may still sit at the earlier placement, `agents/<owner>/projects/<slug>/`; the canon linter warns (`project-placement`) until its steward moves it (`/project-init adopt --canon <slug>` does the move).
+
+**Charter envelope** (both levels; linted in canon by `project-envelope`, see the canon convention § Projects):
+
+```yaml
+---
+owner: {{AGENT_NAME}}                # the steward — the one managing agent (in canon: must name an agents/<name>/ folder)
+status: active                      # active | blocked | needs-decision | paused | pending-verification | done — mirrors the epic's status:* label (external); IS the project status (internal)
+tracking: external                  # external | internal (§16). Omitted → external when `epic:` names a real epic (#N, N > 0), else internal
+epic: {{REGISTRY}}#<N>              # external: the registry epic this charter mirrors — the epic is the authoritative record. Internal: omit, or `none`
+priority: p2                        # internal only — the project's priority (external keeps it on the epic's priority:* label)
+updated: YYYY-MM-DD
+review_by: YYYY-MM-DD               # /canon-reconcile re-verifies the charter — against the epic (external) or its own tasks/ (internal)
+tldr: "One line — what this project is for"
+---
+```
+
+**Workspace resolution (every project skill uses this, nothing derives a path from the slug):**
+
+1. Read the epic body's `## Workspace` field — the **first backticked path** in the section (prose around it is fine: `` `canon/projects/tandem/` in the fleet canon repo`` resolves), else the first non-empty line.
+2. `canon:<path>` → the workspace is `<clone_path>/<path>` where `clone_path` is `template.yaml → x-canon.clone_path` (default `canon/`); `git -C <clone_path> pull --ff-only` before reading (never force; on failure read the local copy and say so). A missing clone is self-healed the way the canon skills do it (`x-canon.repo`); no `x-canon:` block at all means this agent is not enrolled in the canon and the epic body is the authoritative context.
+3. Any other value → a path relative to the managing agent's repo (`project_files/<slug>/` is the convention, but the field wins — a hand-written `canon/projects/<slug>/` is simply the clone-relative form and resolves through the same clone; an earlier-placement `canon:agents/<owner>/projects/<slug>/` resolves the same way until the project moves).
+4. Field missing (an epic predating this section) → no workspace; the epic body is the authoritative context. Do **not** guess `project_files/<slug>/`.
+
+`/project-init --canon` creates a shared project (writes the charter + ledger into the canon clone, records the canon path in the epic); `/project-init adopt --canon <slug>` adopts an existing canon project (moving it to the root if it is this agent's at the earlier placement). Reading a shared project is `/canon-consume projects [slug]`.
+
+## 16. Tracking modes — external tracker or internal task files (operator ruling 2026-09-22)
+
+A project tracks its tasks in **one** of two places, declared in the charter's `tracking:` key. Everything else in this standard — roles, the completion lattice, verification, staleness, dispatch, loop closure, placement (§15) — is the same in both modes; only where the registry lives changes.
+
+**Resolving the mode** (every project skill uses this rule, nothing else):
+
+1. `tracking: external` or `tracking: internal` in `project.md` → that mode.
+2. No `tracking:` key → **external** if `epic:` names a real epic (`owner/repo#N`, N > 0), otherwise **internal**. Every charter written before this section has a real epic, so every existing project stays external untouched.
+3. The registry configured in §1 is `none` → every project is internal; an external charter there is an error to report, never a reason to call GitHub.
+
+**Finding projects** (every project skill uses this, never a path of its own):
+
+```bash
+CANON=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/clone_path:/{print $2}' template.yaml 2>/dev/null); CANON=${CANON:-canon}
+SELF=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/folder:/{print $2}' template.yaml 2>/dev/null | sed 's#^agents/##; s#/$##'); SELF=${SELF:-{{AGENT_NAME}}}
+# every charter this agent can see: agent level, the canon root zone, then its own earlier-placement canon folder (internal projects are registered by these files)
+charters() { for f in project_files/*/project.md "$CANON"/projects/*/project.md "$CANON"/agents/"$SELF"/projects/*/project.md; do [ -f "$f" ] && echo "$f"; done; }
+# the one charter for a slug — the first placement that has it, in the order above (a slug in two placements is a mistake to report)
+charter_for() { charters | awk -v s="/$1/project.md" 'index($0,s)==length($0)-length(s)+1{print;exit}'; }
+# a charter's mode, by the rule above
+mode_of() { awk 'NR==1&&/^---/{f=1;next} f&&/^---/{exit} f&&/^tracking:/{t=$2} f&&/^epic:/{e=$2} END{ if(t) print t; else if(e ~ /#[1-9][0-9]*$/) print "external"; else print "internal" }' "$1"; }
+```
+
+Under `$CANON/projects/` (the top-level shared zone) only charters whose `owner:` is `$SELF` are this agent's to manage; the rest are read-only to it. An external project is still found the way it always was — by its epic's `project:<slug>` label — and its charter (if any) through the epic's `## Workspace` field (§15).
+
+**Where each thing lives:**
+
+| Concept | External (GitHub) | Internal (the workspace) |
+|---|---|---|
+| Project record | epic issue (`[Project] <Name>`) | `project.md` — the envelope plus the epic's body sections: Goal, Success criteria, Owners, Cadence, Current status, Tasks |
+| Project status / priority | `status:*` / `priority:*` labels on the epic | `status:` / `priority:` in the charter envelope |
+| Task | task issue `#NN` | `tasks/T-NNN.md` (below) |
+| Task labels | `task`, `project:<slug>`, `owner:*`, `agent:*`, `priority:*`, `status:*`, `waiting-on:*` | the task file's front matter |
+| Task comment thread (done claims, verification, dispatch receipts, relays, waiting-on, loop closed — §7) | issue comments | the task file's `## Log` section, same headings, **append-only**, newest last |
+| Epic comment thread (steward updates, state news) | epic comments | `log.md` in the workspace, append-only, newest last |
+| Closing a task | close the issue | `status: done` — the file stays |
+| Reference | `#NN` | `<slug>/T-NNN` |
+| Projection key (§11) | `[#NN]` | `[<slug>/T-NNN]` |
+
+**Workspace layout (internal):**
+
+```
+<workspace>/            # project_files/<slug>/ or the canon folder (§15)
+  project.md            # charter + the project record
+  decisions.md          # append-only decision ledger (unchanged)
+  log.md                # the project's comment thread
+  tasks/
+    T-001.md
+    T-002.md
+```
+
+**Task file** — one per task, so two writers adding tasks to a shared project never touch the same file:
+
+```markdown
+---
+id: T-001                  # = the file name; next id = highest existing + 1, zero-padded to 3
+title: Draft the launch brief
+status: active             # active | blocked | needs-decision | paused | pending-verification | done
+owner: <actor>             # accountable (owner:* label)
+agent: <name>              # executing agent, optional (agent:* label)
+priority: p2               # p1 | p2 | p3
+waiting_on: <actor>        # optional (waiting-on:* label, §14b)
+created: YYYY-MM-DD
+updated: YYYY-MM-DD        # moves on every write to this file
+pending_since: YYYY-MM-DDTHH:MMZ   # set when status becomes pending-verification (the §12 clock); cleared when it leaves
+---
+
+## Objective
+## Definition of Done
+- [ ] ...
+## Context
+## Validation
+- [ ] {{AGENT_NAME}} — verify all Definition of Done items against the done claim
+## Log
+### Done claim YYYY-MM-DD
+...
+```
+
+The completion lattice is the task's `status:` read as a lattice: **open** is any value except `pending-verification` and `done`; `done` is absorbing exactly as in §5 — only a human sets a done task back to `active`, and says so in the Log.
+
+**Rules that keep the file a registry:**
+- **One writer path.** Tasks are created only by `/project-task` or `/project-intake` in both modes; the managing agent is the only automated writer of task files and `log.md`. Logs are append-only — never edit or delete a past entry.
+- **Ids are never reused.** A task that is dropped is `done` with a `### Loop closed` entry, not deleted. In the canon, pull before allocating an id; if the publish is refused because another writer took the same id, take the next free id, rename the file, and publish again.
+- **Absence is not deletion.** A missing task file is an error the steward reports, never a task it treats as closed.
+- **Placement is unchanged (§15).** An internal project in the canon keeps its task files in its slug folder, `projects/<slug>/`; the steward (the charter's `owner:`) is the managing agent that writes them and pushes with `/canon-publish`, like the charter. Anyone may edit the folder by hand — the zone is shared — but only the steward's skills write tasks and `log.md`.
+- **Switching modes is a deliberate act**, recorded as a decision in `decisions.md`: create the tasks in the new mode, close the old ones with a `### Loop closed` pointing at their new home, then change `tracking:`. Nothing converts automatically.

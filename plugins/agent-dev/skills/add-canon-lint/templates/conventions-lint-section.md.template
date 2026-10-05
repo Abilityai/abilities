@@ -52,6 +52,68 @@ tldr: "One line — what this doc establishes"
   be linked from `profile.md`.
 - `superseded` — kept for history; exempt from staleness and the one-home rule.
 
+### Projects — `projects/<slug>/` at the canon root (shared projects, rulings R21 + 2026-09-22)
+
+**One project-management standard, two visibility levels.** A project is managed the same
+way whether it lives at agent level (`project_files/<slug>/` in the managing agent's own repo)
+or at canon level (`projects/<slug>/` here): same `project.md` charter, same registry epic, same
+steward, same intake path, same append-only decision ledger. Canon placement decides
+**visibility only** — who can read the definition and rely on it. Company projects are shared
+projects by design and live in canon.
+
+**The zone sits at the canon root, not inside any agent's folder, and everyone writes there
+directly** (ruling 2026-09-22) — the one carve-out from the own-folder rule (§ Ownership).
+Many contributors, one steward: provenance comes from git history and the charter's `owner`,
+not from folder ownership, and CODEOWNERS routes no review for the zone.
+
+```
+projects/<slug>/
+  project.md      REQUIRED — the charter; front-matter envelope linted, body never read
+  decisions.md    optional — append-only decision ledger; envelope linted, never re-stamped
+  <anything else> the project's workspace — free-form and unlinted, exactly like project_files/<slug>/
+```
+
+Charter envelope — `project.md`:
+
+```yaml
+---
+owner: <agent-name>                 # the steward — must name an agents/<name>/ folder in this canon
+status: active                      # active | blocked | needs-decision | paused | pending-verification | done
+tracking: external                  # external | internal — where the tasks live. Omitted = external when epic: is #N (N > 0), else internal
+epic: <owner>/<repo>#<N>            # external: the registry epic this charter mirrors (the epic is the authoritative record); #0 = not yet registered. Internal: omit
+priority: p2                        # internal only — p1 | p2 | p3 (external keeps priority on the epic)
+updated: YYYY-MM-DD                 # last charter change
+review_by: YYYY-MM-DD               # verification due date — past due (unless paused/done) = stale
+tldr: "One line — what this project is for"
+---
+```
+
+`status` mirrors the epic's `status:*` label (the PM standard's vocabulary, not the doc conviction
+levels); for an internal project it *is* the project's status. `paused` and `done` charters are
+exempt from staleness; everything else past `review_by` is a stale charter — the steward's
+`/canon-reconcile` verifies it against the epic (external: open/closed, status) or its own `tasks/` and `log.md`
+(internal: recent activity) and re-stamps it.
+
+**Internal tracking** (PM standard §16): the project's tasks live in the slug folder as
+`tasks/T-NNN.md`, one file per task, with its thread in `log.md` beside the charter. The linter reads
+each task file's front matter only — `id` (= file name) · `title` · `status` (the vocabulary above)
+· `owner` · `priority` · `updated` — never its body. Task files are written by the managing agent
+(own-folder write, like the charter).
+
+Ledger envelope — `decisions.md`: `owner` (an agent in this canon — usually the steward) ·
+`status` (`canonical | draft | superseded`) · `updated` (last append) · `tldr`. **Append-only.**
+Nothing re-stamps a ledger — `updated:` moves only when a decision is appended, and it carries no
+`review_by`; the charter's review covers it.
+
+**Earlier placement.** Shared projects created before 2026-09-22 sit at
+`agents/<owner>/projects/<slug>/`. They are still linted (same envelope, owner = folder) and each
+raises a `project-placement` warning until it moves: `git mv agents/<owner>/projects/<slug>
+projects/<slug>` in one commit, then point the epic's `## Workspace` field at the new path.
+
+Read a shared project with `/canon-consume projects [slug]` (or `<agent> projects` for the ones an
+agent stewards); create one with `/project-init --canon` (records the canon path in the epic body).
+Tandem — `projects/tandem/` — is the first shared project and the reference instance.
+
 ### Restricted grammar (why these files stay boring)
 
 The lintable zone is a deliberate YAML subset so a zero-dependency linter can parse it exactly:
@@ -70,7 +132,10 @@ Everything remains valid YAML for ordinary tools. Richer structure belongs in pr
 | `staleness` | anything `canonical` past its `review_by` |
 | `source-resolution` | a fact `source:` pointing at a local path that doesn't exist |
 | `reachability` | canonical doc missing from `profile.md`'s index; draft linked; orphan in `files/` |
-| `layout` (warn) | top-level entries outside the folder schema |
+| `project-envelope` | `projects/<slug>/` without `project.md`; charter missing keys (`epic` only when external), bad `epic` shape (`owner/repo#N`), `tracking` outside `external`/`internal`, bad dates, status outside the epic vocabulary; `decisions.md` ledger envelope incomplete; an internal project's `tasks/T-NNN.md` with a missing key, an `id` that is not its file name, or a status/priority outside the vocabulary |
+| `ownership` (projects) | a charter or ledger `owner` that is not an agent folder in this canon |
+| `project-placement` (warn) | a shared project still under `agents/<name>/projects/<slug>/` — move it to the root `projects/<slug>/` |
+| `layout` (warn) | top-level entries outside the folder schema; a file directly under `projects/` |
 
 **Migration note:** folders predating this section carry the v1 front matter
 (`verified:`/`source:`, no `status:`/`review_by:`/`tldr:`). Port: `status: canonical`,

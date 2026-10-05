@@ -8,3 +8,6 @@
 # /agents/<name>/   @github-handle
 # /protocols/       @github-handle-of-fleet-operator
 # /CONVENTIONS.md   @github-handle-of-fleet-operator
+#
+# projects/ has deliberately NO line: shared projects are the one zone every agent and
+# human writes directly (CONVENTIONS.md § Projects, ruling 2026-09-22).

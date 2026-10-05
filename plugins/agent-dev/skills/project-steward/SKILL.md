@@ -1,16 +1,18 @@
 ---
 name: project-steward
-description: Autonomous sweep of all managed projects per PROJECT_STANDARD.md. Verifies pending-verification claims against Definition of Done, dispatches next work to explicitly-labeled owner agents (Trinity when available; triage-only when not), escalates stalls per the staleness policy, sweeps open loops (ages every waiting-on item and drafts the operator's follow-ups), runs the quarantine classification pass, and writes a digest that closes the loop with the operator. Never asks a human anything mid-run.
+description: Autonomous sweep of all managed projects per PROJECT_STANDARD.md — external projects tracked in GitHub Issues and internal projects tracked in their own workspace files (standard §16), with the same policy for both. Verifies pending-verification claims against Definition of Done, dispatches next work to explicitly-labeled owner agents (Trinity when available; triage-only when not), escalates stalls per the staleness policy, sweeps open loops (ages every waiting-on item and drafts the operator's follow-ups), runs the quarantine classification pass, and writes a digest that closes the loop with the operator. Never asks a human anything mid-run.
 automation: autonomous
 schedule: "0 7-19/2 * * 1-5"   # default: every 2h, weekdays UTC — adjust, or delete this line for manual-only (the installer substitutes your choice)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 effort: high
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.5"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.5: Internal tracking (ent#673): internal projects (charter `tracking: internal`, standard §16) are found by their charters — project_files/*/ and the canon projects this agent stewards (projects/<slug>/ with owner: <self>, or its earlier-placement folder) — and swept by the same steps with file operations instead of gh: task status in front matter (pending_since as the verification clock), comments as append-only `## Log` entries, the epic's comment thread as log.md, the epic's Current status/Tasks as project.md sections, a done task stays as a file with status: done. One staleness ladder, one digest, one run budget across both modes. The steward now writes into the canon only for internal projects it stewards (task files, log.md, charter status/Current status/Tasks) and publishes them with /canon-publish at the end of the run. A registry of `none` runs with no GitHub at all. Quarantine treats a folder with an internal charter as registered"
+    - "1.4: Shared projects (operator ruling R21, 2026-09-10 — one PM standard, two visibility levels; ent#588): the project's workspace is resolved from the epic body's `## Workspace` field through the standard's §15 resolver — `canon:projects/<slug>/` (the canon root's shared zone, ruling 2026-09-22) reads through the x-canon clone (pull --ff-only, never force), any other value is a repo-relative path, a missing field means the epic body is the context — and never derived from the slug; the charter (project.md) and the append-only decisions.md ledger are read from wherever the epic points and treated identically at both levels (staleness ladder, escalation, dispatch unchanged; the charter's status: is expected to mirror the epic label, a disagreement is noted in the digest, never fixed here — the canon's /canon-reconcile owns the charter stamps). The quarantine pass stays on project_files/ and never scans the canon: a canon-placed project is registered by its epic, never discovered from a folder. The steward writes nothing into the canon"
     - "1.3: GH_TOKEN now resolves through git's credential helper (`git credential fill`) — Trinity v0.9.5 (ent#615) made agent remotes credential-less, so the old sed over `git remote get-url origin` returned an empty token and the run fell back to a possibly stale hosts.yml (the 403 class this block exists to prevent); the remote-URL parse stays as a fallback for pre-0.9.5 instances"
     - "1.2: Read-the-standard guard (missing PROJECT_STANDARD.md → exit with \"run /project-init first\", headless-safe); default `schedule:` in frontmatter replaces the installer-substituted placeholder; skill is now authored standalone (installer copies from here)"
     - "1.1: Loop closure (Invariant 7) — Step 3c open-loop pass ages every waiting-on:* task on the 3d/7d/14d ladder and drafts sendable nudges (never sends them), detects and records closes; digest opens with a closing statement and carries Your open loops + Loops closed; unanswered needs-decision asks get louder with age instead of aging out; operator-initiated results notify the operator directly; state.json gains open_loops (rebuildable from labels)"
@@ -36,17 +38,35 @@ Keep every managed project moving without the operator having to push it. Each r
 
 **Deliberate non-composition:** this skill dispatches only to owners explicitly named by `agent:*` labels — no routing judgment. The interactive disambiguation that `/orchestrate` provides would hang an unattended run.
 
-**Trinity is optional.** When Trinity MCP is unavailable, the skill runs in triage-only mode: all GitHub operations continue; dispatch is skipped and noted in the digest. Nothing is lost.
+**Trinity is optional.** When Trinity MCP is unavailable, the skill runs in triage-only mode: all registry operations continue; dispatch is skipped and noted in the digest. Nothing is lost.
+
+**Two tracking modes, one steward.** A project's registry is its GitHub epic (external) or its own workspace files (internal, standard §16). Every step below is written for GitHub; for an internal project apply the same step through **Internal projects** (below) — same order, same thresholds, same run budget, same digest. A run may mix both.
 
 ## Runtime resolution (do this first, once per run)
 
 Read `PROJECT_STANDARD.md`. **If it is missing, exit (headless-safe, no prompt) and report: run `/project-init` first** — it materializes the standard from its shipped template; every project skill reads that file as its configuration. Resolve:
-- `$REGISTRY` = the registry repo (§1)
+- `$REGISTRY` = the registry repo (§1) — `none` means every project is internal: skip the gh prerequisites below entirely
 - `$AGENT_NAME` = this agent's name (§2) — tasks labeled `agent:$AGENT_NAME` are inline-class, never dispatched
 - `$OPERATOR` = the operator (§2)
 - `$PV_MAX_AGE` = pending-verification max age in hours (§12)
+- **Workspace resolver (§15)** — per project, from the epic body, never from the slug:
+  ```bash
+  WS_SECTION=$(printf '%s' "$EPIC_BODY" | awk '/^## Workspace/{f=1;next} f&&/^## /{exit} f{print}')
+  WS_FIELD=$(printf '%s' "$WS_SECTION" | grep -o '`[^`]*`' | head -1 | tr -d '`')          # first backticked path wins …
+  [ -n "$WS_FIELD" ] || WS_FIELD=$(printf '%s' "$WS_SECTION" | awk 'NF{print;exit}' | xargs)  # … else the first non-empty line
+  case "$WS_FIELD" in
+    canon:*) CANON=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/clone_path:/{print $2}' template.yaml 2>/dev/null); CANON=${CANON:-canon}
+             WS="$CANON/${WS_FIELD#canon:}"; git -C "$CANON" pull --ff-only >/dev/null 2>&1 || echo "canon clone stale/diverged — reading local copy" ;;
+    "")      WS="" ;;                       # pre-§15 epic: no workspace, the epic body is the context
+    *)       WS="$WS_FIELD" ;;              # repo-relative (project_files/<slug>/ by convention — the field wins)
+  esac
+  [ -n "$WS" ] && [ ! -d "$WS" ] && { echo "workspace $WS not visible here"; WS=""; }
+  ```
+  A `canon:` workspace with no `x-canon:` block or no clone means this instance is not enrolled — `WS=""`, note it once in the digest (`/canon-doctor` on this agent), and carry on from the epic body. For an external project the clone is read-only for this skill (charter stamps belong to `/canon-reconcile`, decisions to the owner in conversation). **The one exception is an internal project this agent stewards in the canon** (standard §16 — `projects/<slug>/` with `owner: $SELF`, or its own earlier-placement folder): there the workspace *is* the registry, so the steward writes its task files, `log.md` and the charter's `status:` / `## Current status` / `## Tasks` — in that project's folder only — and publishes them once at the end of the run (Step 7). Never another agent's folder; under the top-level `projects/` zone only charters whose `owner:` is this agent.
 
 ## Prerequisites
+
+Only when at least one project is external (`$REGISTRY` is not `none`). An internal-only deployment needs no `gh`, no token and no pre-flight.
 
 **Bootstrap gh CLI** (idempotent):
 ```bash
@@ -106,12 +126,34 @@ Most runs will find nothing to do. Before writing anything, compute whether ANY 
 1. Sync: `git pull --rebase --autostash origin main` (continue on failure; note it in the digest).
 2. Read `PROJECT_STANDARD.md` (resolving runtime variables as above).
 3. Read `project-steward/state.json` (create with empty defaults if missing: `{"last_run": null, "carry_over": [], "open_dispatches": [], "open_loops": []}`). Each `open_loops` entry is `{issue, actor, asked_at, last_nudge, digests_carried}` — bookkeeping only; the `waiting-on:*` labels on GitHub are the truth, so a lost state file costs nudge timing, never a loop.
-4. Pull the registry:
+4. Pull the registry — both modes:
    ```bash
-   gh issue list --repo "$REGISTRY" --label project --state open \
+   [ "$REGISTRY" != none ] && gh issue list --repo "$REGISTRY" --label project --state open \
      --json number,title,labels,updatedAt,body --limit 50
    ```
+   Internal projects are the charters the standard's §16 finder returns (`charters`) whose `mode_of` is internal and whose `status:` is not `done` — under the top-level canon `projects/` zone, only those whose `owner:` is this agent. For canon-placed ones, `git -C "$CANON" pull --ff-only` first (on failure, read the local copy and say so in the digest).
 5. Check Trinity MCP availability.
+
+### Internal projects — the same steps, file operations instead of `gh`
+
+For an internal project, `$WS` is the charter's folder and every step above and below applies with this translation (standard §16). Edit files with Read/Edit — never regenerate a task file from scratch, never rewrite a past Log entry.
+
+| In a step below (GitHub) | For an internal project |
+|---|---|
+| Read the epic body + comments since the last steward update | Read `project.md`, and the entries in `log.md` after the last `### Steward update` |
+| Read open `project:<slug>` task issues with labels and bodies | Read `tasks/T-*.md` whose `status:` is not `done` — front matter for the labels, body for the sections |
+| The epic's `status:*` / `priority:*` label | The charter's `status:` / `priority:` |
+| Set a task's `status:*` label | Set the task's `status:` and `updated:` in front matter; entering `pending-verification` sets `pending_since: <now UTC>`, leaving it removes the key |
+| Age of `pending-verification` (label-change event) | `now − pending_since` |
+| Post a comment on a task (dispatch receipt, relay, `[Verified]`, `[Verification failed]`, waiting-on, loop closed) | Append the same heading and text under the task's `## Log`, newest last |
+| Close the task as done, check it off in the epic | `status: done` (the file stays), and `- [x] T-NNN …` in project.md's `## Tasks` |
+| `waiting-on:*` label / its age | `waiting_on:` in front matter / the date on its `### Waiting on` Log entry |
+| Post a steward update on the epic | Append it to `log.md` and replace the body of project.md's `## Current status` with its lines; set the charter's `status:` and `updated:` if they changed |
+| Days since last activity | The newest of: the charter's `updated:`, any task's `updated:`, the last `log.md` entry date |
+| Dispatch brief `Issue: <url>` | `Task: <slug>/T-NNN — <workspace>/tasks/T-NNN.md` |
+| Task reference in the digest | `<slug>/T-NNN` |
+
+A task file the charter lists but that no longer exists is an error for the digest (`<slug>/T-NNN missing`), never a closed task — absence is not deletion. A task file whose front matter will not parse is `needs-decision` in the digest with the file named; the steward does not repair it.
 
 ### Step 2: Reconcile outstanding dispatches
 
@@ -127,7 +169,7 @@ For each entry in `open_dispatches` (skip in triage-only mode):
 
 Build the review list: `carry_over` first, then `priority:p1`, then least-recently-updated. Skip `status:paused` epics entirely. For each project:
 
-1. Read the epic body + comments since the last steward update.
+1. Read the epic body + comments since the last steward update. Resolve `$WS` (runtime resolution above); when it resolves, read the charter `$WS/project.md` and, if present, the ledger `$WS/decisions.md` — the same two files whether the project sits in `project_files/` or in the canon (standard §15; Tandem is `canon:projects/tandem/`, stewarded by corbin). If the charter's `status:` disagrees with the epic's `status:*` label, the epic wins and the disagreement goes in the digest — do not edit the charter (at canon level that is `/canon-reconcile`'s job; at agent level the owner's).
 2. Read open `project:<slug>` task issues with their labels and bodies.
 3. Compute: days since last activity, open/done/pending-verification task counts, current `status:*` label, whether an open dispatch exists.
 4. Apply the staleness policy (§8 of the standard).
@@ -207,18 +249,20 @@ Post at most **one** steward update comment per project per run, and only if som
 
 ### Step 5: Quarantine pass (Invariant 6)
 
-List workspace folders and check each against the registry:
+List workspace folders and check each against the registry — **`project_files/` only, never the canon clone** (standard §9/§15: a canon-placed project is registered by its epic, never discovered from a folder; a `projects/<slug>/` in canon without a charter is the canon linter's `project-envelope` finding, not a quarantine case):
 ```bash
 ls -d project_files/*/ 2>/dev/null | sed 's|project_files/||;s|/||'
 ```
 
-For each folder `<slug>` with no corresponding `project:<slug>` epic in the registry: create a quarantine epic:
+A folder is registered when it has a `project:<slug>` epic **or** a `project.md` whose mode resolves to internal (standard §16) — skip those. For each remaining folder `<slug>`, create a quarantine epic (with `$REGISTRY` set):
 ```bash
 gh issue create --repo "$REGISTRY" \
   --title "[Project] $SLUG (unclassified)" \
   --label "project,project:$SLUG,status:unclassified" \
   --body "## Goal\nAuto-stubbed from unregistered workspace folder `project_files/$SLUG/`. Classify this project or close this epic.\n\n## Current status\n(maintained by /project-steward)"
 ```
+
+With `$REGISTRY` = `none`, quarantine is a stub charter instead — `tracking: internal`, `status: paused`, `tldr: "(unclassified) project_files/$SLUG/ — classify or remove"`, `owner:` this agent — which keeps it out of every sweep until someone classifies it.
 
 Batch these into one digest line: "N unclassified folder(s) auto-stubbed: <names>". Never create per-item notifications.
 
@@ -241,7 +285,7 @@ Then the sections:
 - **Worked inline**: tasks executed inline, result links
 - **Quarantine**: N folders stubbed
 - **Healthy/quiet**: one line each
-- **Carry-over + mode**: projects not reviewed; note if triage-only
+- **Carry-over + mode**: projects not reviewed; note if triage-only; one line per canon-placed project whose clone could not be read (`/canon-doctor`) or whose charter `status:` disagrees with the epic label
 
 If (and only if) there are needs-decision items, blockers, past-max-age pending-verification, a loop crossing a nudge threshold, or errors: send a short summary via `mcp__trinity__send_notification` (when Trinity available) linking the digest path. Standing open loops that crossed no threshold this run stay in the digest without a notification — the list is always visible, the interruption is not.
 
@@ -252,12 +296,14 @@ If (and only if) there are needs-decision items, blockers, past-max-age pending-
 1. Update `project-steward/state.json`: `last_run`, `carry_over`, `open_dispatches`, `open_loops`.
 2. Prepend one summary line to `project-steward/run_log.txt`:
    `YYYY-MM-DD HH:MM UTC | reviewed N | dispatched N | verified N | inline N | needs-decision N | loops N (nudged N, closed N) | quarantine N | mode`
-3. Push steward state (scoped — never add any other path):
+3. Push steward state (scoped — never add any other path). The registry files of **agent-level internal projects this run changed** are part of the commit too — they are the registry, not scratch — added by exact path:
    ```bash
-   git add project-steward && \
+   git add project-steward $INTERNAL_WS_TOUCHED && \
    git commit -m "steward: run $(date -u +%Y-%m-%d)" && \
    (git push origin main || (git pull --rebase --autostash origin main && git push origin main))
    ```
+   `$INTERNAL_WS_TOUCHED` = each `project_files/<slug>/` whose task files, `log.md` or charter this run wrote (empty when none).
+4. **Canon-placed internal projects this run changed:** publish them once with `/canon-publish` (the shared `projects/` zone, lint-gated). If the publish is refused, leave the local changes, name the project in the digest, and let the next run retry — never force.
    If push fails, log it and stop — state is preserved locally; the next run's pull will carry it.
 
 ## Error recovery

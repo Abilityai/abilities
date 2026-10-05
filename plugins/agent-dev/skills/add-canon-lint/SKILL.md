@@ -4,10 +4,12 @@ description: Install deterministic consistency linting into a fleet's shared can
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.2"
   created: 2026-07-29
   author: Ability.ai
   changelog:
+    - "1.2: Internal tracking (ent#673, PM standard §16): project-envelope learns `tracking:` — `external | internal`, anything else fails; `epic:` is required only when the project is external (explicit, or no tracking: and a real epic #N); an internal charter's `priority:` must be p1|p2|p3; and an internal project's tasks/T-NNN.md are linted by front matter alone — id equals the file name, id/title/status/owner/priority/updated present, status and priority in the standard's vocabulary, created/updated valid dates; anything else under tasks/ is a layout warning. A pre-#673 charter (epic, no tracking:) lints exactly as before. No new rule key, so no rules.yaml change — the upgrade is the linter file alone"
+    - "1.1: projects/ zone (operator rulings R21, 2026-09-10 — one PM standard, two visibility levels — and 2026-09-22 — shared projects at the canon ROOT, written directly by everyone; ent#585) — the linter learns the root projects/<slug>/ zone and gains two rules. project-envelope: every slug folder needs a project.md charter (owner = the steward, which must name an agents/<name>/ folder in the canon — the ownership rule checks it; status in the registry epic's vocabulary active|blocked|needs-decision|paused|pending-verification|done; epic as owner/repo#N — #0 = not yet registered, legal for a scaffold, flagged by reconcile —; valid updated/review_by; tldr) and an optional append-only decisions.md ledger (owner/status/updated/tldr — no review_by, never stale); the charter joins the staleness rule (paused/done exempt); a file dropped directly under projects/ is a layout warning; everything else in a slug folder is unlinted workspace (two-zone rule holds — the linter still never reads past front matter). project-placement (warn): the earlier placement, agents/<name>/projects/<slug>/, is still linted (owner = folder) and each such project warns, pointing at the move. rules.yaml gains project-envelope + project-placement rows; the CONVENTIONS section gains § Projects and the projects/ carve-out. Upgrade path for a live canon (Step 3b): ship the linter and the rules.yaml rows in ONE commit — the old linter rejects an unknown rule key (exit 2). Also: the linter gains `--baseline <report.json>` (the ratchet — exit 1 only on failures absent from a previous JSON report, keyed by rule+path+message, line numbers excluded; pre-existing findings still print, tagged `(baseline)`), and the seeded workflow uses it: `pull_request` = no NEW failures vs the PR base (the base is linted with the PR's own linter + rules), `push` to main = the full report — so a fleet whose canon is already red can gate every PR on not making it redder instead of switching the check off"
     - "1.0: Initial version — deterministic canon linter (9 rules: envelope, fact-schema, key-grammar, one-home-per-key, ownership, staleness, source-resolution, reachability, layout warn) seeded into the canon repo as tools/canon-lint/canon_lint.py + lint/rules.yaml + .github/workflows/canon-lint.yml + CONVENTIONS.md two-zone schema section; strict vs migration (report-only) presets; first-run report; sanctioned migration seeding for pre-schema folders; optional required-status-check branch protection; delivery via direct push or PR"
 ---
 
@@ -96,6 +98,16 @@ grep -q '^## Lintable structure' CONVENTIONS.md 2>/dev/null || \
 
 If an artifact already exists but differs from the template (e.g. an older linter), show the diff and ask: update / keep. An update to `canon_lint.py` is safe — behavior is config-driven; `lint/rules.yaml` is **live fleet configuration** and is never overwritten.
 
+### Step 3b: Upgrading a live canon to a newer linter (rule additions)
+
+A newer linter can carry a rule the fleet's `lint/rules.yaml` does not know yet (1.1 added `project-envelope` and `project-placement`). Because `rules.yaml` is never overwritten, do this by hand, and land **both halves in one commit/PR**:
+
+1. Update `tools/canon-lint/canon_lint.py` (Step 3's diff-and-ask) — **preserving any fleet-local edits** the live copy carries (an extra `ALLOWED_TOP` entry, a fleet-specific message); apply the template's delta, don't clobber.
+2. Add the new rules' rows to `lint/rules.yaml` under `rules:` (same severity as their siblings — `project-placement` stays `warn`; `warn` first for any rule if the fleet wants a report-only window).
+3. Append the new CONVENTIONS subsection (`§ Projects` for 1.1) under `## Lintable structure` when the section is already present — the grep guard in Step 3 only seeds the whole section once, it does not patch it.
+
+Ordering matters: the **old** linter exits 2 on an unknown rule key, and the **new** linter defaults a missing row to `fail` — so a rules.yaml row without its linter breaks CI, and a linter without its row silently enforces at `fail`. One commit, both halves. Then Step 4's first lint shows exactly what the new rule finds; any `projects/<slug>/` folder that predates the rule needs its charter (`project.md`) written by its steward (`/project-init --canon adopt`), and any project still under `agents/<name>/projects/` shows as a `project-placement` warning until it is moved to the root — the linter never scaffolds or moves content.
+
 ### Step 4: First lint — the state of the canon, measured
 
 ```bash
@@ -140,7 +152,7 @@ JSON
 ## Canon linting installed → <repo ref> (<strict | migration> preset)
 
 ### Seeded
-- tools/canon-lint/canon_lint.py        (deterministic, stdlib-only — 9 rules)
+- tools/canon-lint/canon_lint.py        (deterministic, stdlib-only — 11 rules)
 - lint/rules.yaml                       (severities — live config, change via PR)
 - .github/workflows/canon-lint.yml      (lints every push + PR)
 - CONVENTIONS.md § Lintable structure   (two-zone schema + restricted grammar + rule table)
@@ -174,6 +186,7 @@ migration seeding: <n folders scaffolded | none needed | declined>
 | `python3` missing | Stop — the linter and the publish gate both need it |
 | `pull --ff-only` fails (diverged clone) | Stop, show status — never force; same rule as every canon skill |
 | Artifact exists but differs from template | Show diff, ask update/keep; `lint/rules.yaml` is never overwritten |
+| Newer linter carries a rule `rules.yaml` lacks | Step 3b — linter + rules row in one commit; CONVENTIONS subsection appended by hand |
 | First lint finds cross-folder conflicts | Report as the product working, not an install failure; owners resolve via PR |
 | Migration seeding on a folder with unparseable files | Skip that folder, name it in the report — never guess a port |
 | Push/PR fails (auth) | Context-aware fix (workstation `gh auth login` · deployed `GH_TOKEN` per add-canon Step 6b); commit stays local, say so |
