@@ -29,7 +29,7 @@ Set up, connect, deploy, and sync Claude Code agents to the Trinity Deep Agent O
 | **connect** | Authenticate with Trinity instance, configure MCP server connection |
 | **onboard** | Full onboarding flow — compatibility check, file creation, deploy to remote |
 | **sync** | Synchronize local/remote changes, supports multiple remotes |
-| **create-dashboard** | Generate an `/update-dashboard` skill for existing agents |
+| **create-dashboard** | Generate an `/update-dashboard` skill for existing agents — declares the agent's KPIs in `template.yaml metrics:`, and the generated playbook writes `dashboard.yaml` **and** records the same numbers as points via `record_metrics` (declare → record → the Dashboard tab's button) |
 | **loop** | Run a remote agent task sequentially — fixed N iterations or until a stop signal, with optional response chaining. The remote counterpart to Claude Code's local `/loop` |
 
 ## User Flow
@@ -77,7 +77,7 @@ Run `/trinity:sync` to keep local and remote in sync:
 | | **From the GitHub repo** (default) | **From local files** (fallback) |
 |---|---|---|
 | Tool | `mcp__trinity__create_agent(template: "github:owner/repo[@branch]")` | `mcp__trinity__deploy_local_agent(archive)` |
-| Workspace | A **clone**, tracking the branch (source mode, pull-only) | An unpacked snapshot of your directory |
+| Workspace | A **clone** — your own repo + your own write token: a working branch with auto-sync (`kind: "agent"`, the default); otherwise pull-only on the tracked branch (trinity-enterprise#705) | An unpacked snapshot of your directory |
 | Updates | `git push` → `mcp__trinity__git_pull` (or `/trinity:sync`) | Re-archive and re-deploy everything |
 | Declared `schedules:` | Read from the repo and **materialized at creation** | Created afterwards by `/trinity:onboard` |
 | Reproducible | Yes — deployed state is a named commit | No |
@@ -115,7 +115,7 @@ Once connected, Trinity MCP tools are available directly:
 
 Don't hand-create schedules ad hoc. Declare an agent's recommended schedules in a `schedules:` block in `template.yaml` (the design source of truth). When an agent is deployed **from its GitHub repo**, Trinity reads that block out of the repo and materializes the schedules at creation — one more reason the repository path is the default. `/trinity:onboard` and `/trinity:sync` **reconcile** the block onto the instance — creating missing schedules, updating drifted ones, and flagging live schedules that aren't declared. The per-schedule `enabled` flag is the recommended default; turning a schedule on or off on a live agent is the operator's call via `toggle_agent_schedule`.
 
-**Two gates decide whether a schedule actually fires.** A declared entry arms only on a literal YAML `enabled: true` (anything else lands disabled, max 20 entries per template, never re-applied on recreate). And the agent's **autonomy gate is OFF for every newly created agent** — while it is off the scheduler skips every cron trigger and writes no execution row — the run history stays empty; since v0.9.0 the agent's Schedules tab shows an amber *Autonomy is off — N schedules will not fire* banner with an Enable button (trinity#1796). There is still no MCP tool for it; turn autonomy on for the agent in the Trinity UI after deploying. Cron times are interpreted in each entry's `timezone:` (default `UTC`, which is also the container clock); use canonical IANA zones only — legacy aliases like `Europe/Kiev` no longer resolve and 500 on schedule create.
+**Two gates decide whether a schedule actually fires.** A declared entry arms only on a literal YAML `enabled: true` (anything else lands disabled, max 20 entries per template, never re-applied on recreate). And the agent's **autonomy gate is OFF for every newly created agent** — while it is off the scheduler skips every cron trigger and writes no execution row — the run history stays empty; since v0.9.0 the agent's Schedules tab shows an amber *Autonomy is off — N schedules will not fire* banner with an Enable button (trinity#1796). There is still no MCP tool for it, and the route is person-only (#2996 — an agent key gets 403); the owner turns autonomy on in the Trinity UI after deploying. Cron times are interpreted in each entry's `timezone:` (default `UTC`, which is also the container clock); use canonical IANA zones only — legacy aliases like `Europe/Kiev` no longer resolve and 500 on schedule create.
 
 **Best practice: a schedule should call one playbook and nothing else** — keep the cron prompt to a bare skill invocation (e.g. `/daily-briefing`), with no inline instructions, arguments, or business logic. That logic belongs in the playbook the schedule triggers, so changing what a scheduled run does is always an edit to the playbook, never to the schedule.
 
@@ -130,8 +130,11 @@ A deployed agent publishes results by calling one MCP tool: **`mcp__trinity__rep
 | `payload` | ✅ | A JSON **object**, ≤ **5 MiB** serialized (`REPORT_PAYLOAD_MAX_BYTES` — a code constant, raised from 256 KB by trinity#1537/#1838; oversize is a hard 413) |
 | `display_hint` | optional | `table` (`{columns, rows}`) · `kpi` (`{tiles:[{label,value,unit?}]}`) · `markdown` (`{markdown}`) · `timeline` (`{events:[{ts,label,detail}]}`) · `json` (raw) · omit → Trinity infers from the `report_type` prefix, then falls back to the JSON viewer. Set it deliberately: the customer-facing Workspace Reports tab renders through these same renderers (trinity#2162/#2173), so a wrong hint is visible to the agent's users, not just its operator |
 | `period_start` / `period_end` | optional | ISO-8601, for reports covering a window |
+| `to` | optional | The role the report is for — `primary` / `approver` / `viewer` / `operator`; the platform resolves the person. Omit for operator-only. `audience_email` is deprecated (trinity-enterprise#606) |
 
-**Reports complement `dashboard.yaml`:** the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only history* of what the agent accomplished (rolling — pruned past `agent_reports_retention_days`, default 90 days). The convention `/create-agent` bakes into every generated agent is: **result-producing and scheduled skills end with a guarded `report` call** — guarded so it's skipped silently when the tool is absent (running locally, off Trinity) or refuses with `The report tool requires an agent-scoped API key` (a user/admin-key session) — never retried. Reporting is an upgrade, never a requirement.
+**Business metrics — declare, record, read (trinity-enterprise#476):** an agent declares its KPIs once in `template.yaml metrics:` (name, type, `cadence`, optional `direction` / `aggregation` / `dimensions`; Trinity reads the block into a per-agent registry), its `/update-dashboard` playbook records the numbers it writes to `dashboard.yaml` as points via the `record_metrics` MCP tool (the only write path — validated against the declaration, idempotent, all-or-nothing), and the platform reads them back with one stale rule (no point within 2× cadence) on the agent's tiles, `get_metrics`, and any dashboard widget bound with `metric: <name>`. `/create-agent` and `/trinity:create-dashboard` scaffold all three halves; the Dashboard tab's *Update Dashboard* button calls the playbook by that exact name.
+
+**Reports complement `dashboard.yaml`:** the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only history* of what the agent accomplished (rolling — pruned past `agent_reports_retention_days`, default 90 days). The convention `/create-agent` bakes into every generated agent is: **result-producing and scheduled skills end with a guarded `report` call** — guarded so it's skipped silently when the tool is absent (running locally, off Trinity) or refuses because the key `requires a key that carries an agent identity` (a user/admin-key session, #2975) — never retried. Reporting is an upgrade, never a requirement.
 
 ### Three execution patterns
 
@@ -142,6 +145,8 @@ Trinity exposes three ways to drive a remote agent:
 | Single turn | `mcp__trinity__chat_with_agent` | One request, one response |
 | Parallel batch | `mcp__trinity__fan_out` (+ `get_fan_out_result` after a `fan_out_timeout` receipt, trinity#2670) | The same task across many inputs at once — N tasks to one agent |
 | **Sequential loop** | **`/trinity:loop`** / `run_agent_loop` | N ordered iterations, optionally chained (`{{previous_response}}`), exits on a cap or a `[[DONE]]` stop signal |
+
+Every agent-to-agent hop counts toward the instance's chain-depth limit (`inter_agent_max_chain_depth`, default 8): a call past it returns `inter_agent_depth_exceeded` with `retryable: false` — never retry it (#2806).
 
 `/trinity:loop` is the **remote** counterpart to Claude Code's built-in `/loop`: same two modes (fixed count vs run-until-a-signal), but the loop body runs server-side, so you fire once and disconnect.
 

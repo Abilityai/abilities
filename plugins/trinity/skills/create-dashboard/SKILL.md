@@ -5,10 +5,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Glob, Bash, AskUserQuestion
 metadata:
-  version: "1.2"
+  version: "1.3.1"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.3.1: Platform-truth refresh (Trinity dev 1a1deb2b, the ent#476 metrics merge, 2026-09-22) — Phase 4.1 now says what actually happens on a deployed agent: an in-container edit to template.yaml metrics: is invisible to the backend until refresh_metric_definitions (or a restart), because auto-sync pushes and never pulls; malformed entries are dropped and reported as D-009. The generated /update-dashboard drops its kpi_snapshot report step — the metric store is the history, a KPI report was a second store for the same number (operator ruling 2026-09-21). Generated-skill block moved to a four-backtick outer fence (Gate 1 B4)"
+    - "1.3: Declared business metrics (trinity-enterprise#482; contract ent#477/#478/#479) — Phase 3 also proposes which of the approved numbers become DECLARED metrics, Phase 4 writes or extends `template.yaml metrics:` (name, type, label, cadence = the schedule, status values) and the generated /update-dashboard gains STEP 4: record the same numbers as points via `record_metrics` (guarded, silent off Trinity; `metric_undeclared` → `refresh_metric_definitions`); widget templates gain the `metric:` binding (a bound widget reads the recorded series — no hand-typed value)"
     - "1.2: Chart widget templates removed — `type: chart` never existed in Trinity (the agent-server validator strips it, the frontend has no renderer); trend lines come from the platform's Dynamic Dashboards enrichment instead: metric/progress widgets get auto-captured history + sparklines, keyed by a stable `id:` field (now taught). Added markdown widget template and a no-YAML-anchors caution (hardened loader rejects aliases, trinity#1965)"
     - "1.1.3: Report guard also swallows the `requires an agent-scoped API key` refusal (Trinity mcp-server reports.ts, in v0.9.0) — a user/admin-key session sees mcp__trinity__report but cannot publish; skip silently, never retry"
     - "1.1.2: The generated /update-dashboard is built to run on cron, so it ships disable-model-invocation: false — true made it unreachable to the scheduler. Scheduling instructions replaced: /trinity-schedules is retired, so declare the cron in template.yaml schedules: and reconcile, with the ent#89 literal-true rule and the autonomy gate both called out"
@@ -123,6 +125,11 @@ Based on my analysis of this agent, I recommend:
 
 ---
 
+**Declared metrics (recorded as time series, not just displayed):**
+- `{snake_case_name}` — {type} — cadence {schedule interval} — from {source}
+- `{agent}_state` — status — values {healthy|degraded|error}
+(These go into `template.yaml metrics:`; the platform validates every recorded point against them.)
+
 **Data Sources I'll Use:**
 - {file1}: for {metric}
 - {file2}: for {metric}
@@ -140,11 +147,32 @@ If user wants changes, iterate and re-present.
 
 ---
 
-## PHASE 4: Generate the Skill
+## PHASE 4: Declare the Metrics, then Generate the Skill
+
+### 4.1 Write or extend `template.yaml metrics:`
+
+For each approved *declared* metric add an entry (create the block if absent; never remove an existing entry — the platform keeps its history and marks a dropped declaration `retired`):
+
+```yaml
+metrics:
+  - name: {snake_case_name}          # unique, snake_case
+    type: {counter|gauge|percentage|status|duration|bytes}
+    label: "{Display label}"
+    description: "{what it measures}"
+    cadence: {6h}                    # = the /update-dashboard schedule; a point later than 2× this shows as STALE
+    direction: {up_good|down_good|neutral}
+    aggregation: {last|sum|avg}
+    values:                          # status type only
+      - {value: healthy, color: green, label: Healthy}
+```
+
+Trinity reads this block at create / git pull / container start (trinity-enterprise#477). If the agent is already deployed, **nothing on the backend sees an edit the agent makes to its own `template.yaml`** — the in-container auto-sync pushes, it never pulls — so call `refresh_metric_definitions` right after writing the block (idempotent; the agent must be running, 409 otherwise), or restart the agent. A malformed entry is dropped from the registry and reported as compatibility finding D-009; its points then come back `metric_undeclared`.
+
+### 4.2 Generate the skill
 
 Create `.claude/skills/update-dashboard/SKILL.md`:
 
-```markdown
+````markdown
 ---
 name: update-dashboard
 description: Update dashboard.yaml with current agent metrics and status
@@ -216,15 +244,18 @@ Write to `/home/developer/dashboard.yaml`
 
 ---
 
-## STEP 4: Publish a KPI snapshot report (Trinity)
+## STEP 4: Record declared metrics (Trinity)
 
-If the `mcp__trinity__report` tool is available (i.e. running on Trinity), also publish the same headline numbers as a report so they accumulate as an **append-only history** alongside the live dashboard snapshot (the dashboard is overwritten each refresh; reports are not — though they are pruned past `agent_reports_retention_days`, default 90 days):
+If the `mcp__trinity__record_metrics` tool is available (running on Trinity), post the same numbers as **points** against the metrics declared in `template.yaml metrics:` — the only way a number enters Trinity as data (time series, freshness, canvas charts read it; `dashboard.yaml` is only the live snapshot):
 
-- `report_type`: `{agent-name}.kpi_snapshot`
-- `display_hint`: `kpi`
-- `payload`: `{ "tiles": [ {"label": "...", "value": "...", "unit": "..."} ] }`, built from the same values you just wrote to the dashboard.
+```
+record_metrics(points=[
+  {"metric": "{name}", "value": {number}},
+  {"metric": "{agent}_state", "value": "healthy"}
+], execution_id="{from the Execution Context block, when present}")
+```
 
-Skip this step **silently** if the tool isn't available — or if it refuses with `The report tool requires an agent-scoped API key` (a session connected with a user/admin key sees the tool but cannot report; never retry) — the dashboard refresh above still succeeds. Reporting is an upgrade, not a requirement.
+Only declared metrics (`metric_undeclared` → declare it in `template.yaml`, call `refresh_metric_definitions`, retry once); one point per metric per run (identity is metric + ts + dims — re-sends are deduplicated, a correction is a new `ts`); a `status` value must be one of its declared `values`. Skip **silently** when the tool is absent or refuses with an agent-scoped-key error — the dashboard write still succeeds. Trinity is the upgrade, never the gate.
 
 ---
 
@@ -233,8 +264,9 @@ Skip this step **silently** if the tool isn't available — or if it refuses wit
 Report:
 - Dashboard updated at {timestamp}
 - Metrics refreshed with current values
+- Points recorded: {n} recorded, {m} deduplicated (Trinity only)
 - Next scheduled update: {if scheduled}
-```
+````
 
 ---
 
@@ -250,6 +282,15 @@ When generating the skill, use these widget templates:
   value: {extracted_value}
   trend: up|down
   unit: "{unit}"
+```
+
+**Bound to a declared metric (preferred when one exists):**
+```yaml
+- type: metric
+  id: {stable_snake_case_id}
+  metric: {declared_metric_name}   # reads the recorded series: value, point time, stale flag, sparkline
+  label: "{label}"
+  # value / unit / trend are optional on a bound widget — the platform fills them
 ```
 
 ### status

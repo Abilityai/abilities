@@ -2,12 +2,15 @@
 name: pipeline-recover
 description: Manually recover a stuck pipeline instance — clears open escalations, resets stage attempt counter, optionally rewinds to an earlier stage, then triggers the next heartbeat.
 argument-hint: "<pipeline-slug> <instance-slug> [--from-stage <stage-id>]"
-allowed-tools: Bash, Read, Write, Edit, AskUserQuestion, Skill
+allowed-tools: Bash, Read, Write, Edit, AskUserQuestion, Skill, mcp__trinity__get_my_ask
 user-invocable: true
 metadata:
-  version: "1.0"
+  version: "1.1"
   author: agent-dev
   source: agent-dev:add-pipeline
+  changelog:
+    - "1.1: Escalations are not self-resolved — only a person ends an ask (Trinity ent#611: respond_to_operator_queue refuses agent keys with 403 person_required). Recovery reads each one with get_my_ask, records its disposition, and hands a still-pending one to the operator."
+    - "1.0: Initial version — clear escalations, reset attempts, optional rewind, trigger the next heartbeat"
 ---
 
 # Pipeline Recover
@@ -45,11 +48,7 @@ If `--from-stage` was passed, default to "Rewind". Otherwise default to "Retry c
 
 For each entry in `state.open_escalations[]`:
 
-```bash
-REQUEST_ID=<request_id>
-# Resolve via Trinity MCP respond_to_operator_queue if available (find the item
-# with list_operator_queue and match request_id), else just clear locally
-```
+Read it with `mcp__trinity__get_my_ask(request_id)` when the tool is available and record the disposition (`answered` / `cancelled` / `expired`) in the recovery note. An ask still `pending` is the operator's to close: tell them to answer or cancel it in the Operating Room. Never call `respond_to_operator_queue` — only a person ends an ask, and an agent key gets `403 person_required`. Without Trinity, just clear locally.
 
 Clear the array: `state.open_escalations = []`.
 

@@ -6,11 +6,13 @@ user-invocable: true
 argument-hint: "[skill-name]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "2.17"
+  version: "2.19"
   created: 2025-02-10
-  updated: 2026-09-14
+  updated: 2026-09-30
   author: Ability.ai
   changelog:
+    - "2.19: Controlled self-improvement replaces the free-edit checklist — opting in now asks for the counterweight (a mission written as a tension), the locked constraints, and 3–5 fixed scenarios; the generated contract is propose-only (a run logs standing metrics incl. the counterweight, writes hypotheses with a check-back, and never applies its own proposal), a later run or /adjust-playbook --review-proposals applies under rate limits after a conflict check + scenario replay, and edits whose metric did not move are reverted. Locks go by kind of rule (purpose, stop rules, write scope), not by list. Autonomous checklist gains the propose-only line (principles from Cornelius on the incubation-loop drift, 2026-09-30)"
+    - "2.18: Platform-truth refresh (Trinity dev 863240f3) — human gates go through the native ask: raise with `ask_operator`, read the outcome with `get_my_ask`; only a person ends an ask (ent#611, ent#715 — `respond_to_operator_queue` refuses agent keys, so the playbook-gap flag is no longer self-resolved). Reporting Rule: `to` role addressing (ent#606 — omit for operator-only, `audience_email` deprecated). Report guard matches the new refusal `requires a key that carries an agent identity` (#2975). Chain-depth refusals are terminal (#2806)."
     - "2.17: Platform-truth refresh (Trinity dev 9ac2ceae, 0.9.5-rc2) — Long-Running-Task Rule: the in-turn monitor path does not exist inside a deployed agent (Monitor/TaskOutput/ScheduleWakeup/Cron*/Workflow/SendMessage/ListAgents/PushNotification/RemoteTrigger are platform-denied, #2468/#2454); a success row prefixed `> ⚠️ Background work lost` is a defect (#2467 turn_integrity); a cut-off run now records `Task execution aborted after …` (code NETWORK), not `timed out` (#2752). autonomous-template display_hint list gains json"
     - "2.16: Platform-truth refresh (Trinity v0.9.0, tag 93d7ce7c) — Long-Running-Task Rule: turn-end kills background BASH jobs/monitors, but since trinity#2127 a headless run waits for background subagents/forks (bounded by the execution timeout + 300s idle-finalize, rebuilt base image); Foreground-Fork Rule keeps `background: false` as the contract for the right reason (deterministic on every image, mandatory pre-0.9). Reporting Rule guard now also swallows the `requires an agent-scoped API key` refusal — a user/admin-key session sees the tool but cannot report (mcp-server reports.ts)"
     - "2.15: Add the Playbook-Call Rule to Design Constraints + a validation-checklist line — a playbook is the unit of inter-agent work (fleet convention protocols/playbook-call.md, operator direction 2026-08-16): anything another agent, schedule, orchestrator, or pipeline stage may call must run from a single `/name [args]` line, declare its inputs in argument-hint (`--run <id>` when part of a larger run), and when called by another agent run only itself and change state only through its own writes and gates. The SKILL.md is the contract — no I/O schema"
@@ -114,11 +116,16 @@ Ask the user:
 
 > **Should this skill be self-improving?**
 >
-> Self-improving skills include a checklist at the end to consider tactical improvements after each run—things like clearer steps, better error handling, or more efficient flow. The skill's core purpose stays the same; only execution can improve.
->
-> If in a git repo, improvements are committed for version control.
+> A self-improving skill watches its own runs and refines *how* it works. It never changes *what it is for* or *when it must stop*. It doesn't edit itself freely: runs write **proposals**, and a later run (or `/adjust-playbook --review-proposals`) applies them under rate limits, after a conflict check and a replay of fixed scenarios.
 
-If user confirms YES, include the Self-Improvement Checklist (see below) at the end of the generated skill.
+If NO: proceed. If YES, gather the contract. **Every answer lands in the generated skill**; none of these questions is optional:
+
+1. **Counterweight (the mission as a tension).** "What does this skill optimize for, and what must it *also* achieve, by when, measurably?" Push for a number, for example "rigorous AND reaches a verdict within 6 runs". A skill that improves itself against one value drifts to that value's extreme. Without a counterweight, "more careful" always reads as "better". → `## Mission 🔒`
+2. **Constraints.** "When must it stop or conclude? What may it write, and what must it never touch?" → `## Constraints 🔒`
+3. **Scenarios.** Draft 3–5 *given → expect* cases from answers 1–2 and confirm them with the user. Include at least one case that tests the counterweight (e.g. "no signal by run 6 → calls it noise") and one that tests a stop rule. → `## Scenarios 🔒`
+4. **Pace (offer the defaults).** At least **3 runs** of evidence between edits to the same step, at most **2 applied edits per week**, and a check-back **3 runs** after an edit is applied.
+
+Then append the Controlled Self-Improvement contract (Appendix) to the generated skill and seed the `self-improvement.md` ledger next to it.
 
 ### Step 4d: Deep Reasoning
 
@@ -175,7 +182,7 @@ Present summary before creating:
 **Tier**: [1/2/3] ([Simple/Stateful/Full Playbook])
 **Automation**: [autonomous/gated/manual/n/a]
 **Location**: [path]
-**Self-Improving**: [yes/no]
+**Self-Improving**: [no / yes — mission: <primary> AND <counterweight>; [N] scenarios]
 **Library-Grade**: [yes/no]
 
 **State Dependencies**: [list or "none"]
@@ -204,7 +211,7 @@ If the agent's CLAUDE.md lists capabilities, register the new skill so it's disc
 
 1. Add a row to `## Core Capabilities` (skill + purpose).
 2. If a `## Request Dispatch` table exists, add a row phrased as the *incoming request* that should route to this skill — what gets asked, not the skill name restated.
-3. If this skill was created to close a flagged **playbook gap**, resolve the flag: on Trinity, find the `playbook-gap-*` operator-queue item (`mcp__trinity__list_operator_queue`) and resolve it via `mcp__trinity__respond_to_operator_queue`, noting the new skill's name.
+3. If this skill was created to close a flagged **playbook gap**, close the loop: on Trinity, read the gap ask back with `mcp__trinity__get_my_ask(request_id)` and tell the operator the new skill's name so they can answer or cancel it in the Operating Room. Only a person ends an ask — `respond_to_operator_queue` refuses an agent's key with `403 person_required` (ent#611).
 
 Skip silently when CLAUDE.md has no such sections, or for internal helper skills not meant for direct dispatch.
 
@@ -316,24 +323,65 @@ When generating Tier 3 playbooks, keep the platform fields (the rest of the plug
 
 ---
 
-## Self-Improvement Checklist (Appendix)
+## Controlled Self-Improvement (Appendix)
 
-When user opts into self-improving skills, append this section to the generated skill:
+When the user opts in (Step 4c), the generated skill gets the locked sections below. Mission, Constraints and Scenarios go after `## Purpose`, and `## Self-Improvement` goes at the end of the file. Its existing `## Process` becomes the **Strategy zone**, the only part a self-edit may change. A `self-improvement.md` ledger is seeded in the skill directory.
 
 ```markdown
-## Self-Improvement
+## Mission 🔒
 
-After completing this skill's primary task, consider tactical improvements:
+[Primary value] **and** [counterweight: measurable, with a bound, e.g. "reaches a verdict within N runs"]. Missing either one is a failure. A change that improves one side by giving up the other is not an improvement.
 
-- [ ] **Review execution**: Were there friction points, unclear steps, or inefficiencies?
-- [ ] **Identify improvements**: Could error handling, step ordering, or instructions be clearer?
-- [ ] **Scope check**: Only tactical/execution changes—NOT changes to core purpose or goals
-- [ ] **Apply improvement** (if identified):
-  - [ ] Edit this SKILL.md with the specific improvement
-  - [ ] Keep changes minimal and focused
-- [ ] **Version control** (if in a git repository):
-  - [ ] Stage: `git add <skill-path>/SKILL.md`
-  - [ ] Commit: `git commit -m "refactor(<skill-name>): <brief improvement description>"`
+## Constraints 🔒
+
+- **Stop rules:** [when the skill must stop or conclude]
+- **Write scope:** [what it may write; everything else is read-only]
+- [Rules a human adds later go here and are locked on arrival]
+
+## Scenarios 🔒
+
+Fixed behavior tests. Replay each one against the current rules after every edit. If an answer changes, the edit changed the skill's character, whatever its changelog line says.
+
+1. Given [evidence pattern] → expect [behavior, e.g. "concludes by run 6"]
+2. Given [no evidence by the deadline] → expect [e.g. "calls it noise and stops"]
+3. Given [...] → expect [...]
+
+## Self-Improvement 🔒
+
+This skill improves its **Strategy zone** (`## Process` and any section not marked 🔒) through `self-improvement.md` in this directory. A run never applies its own proposal: noticing a problem and fixing it always happen in different runs.
+
+**Locked by kind, not by list.** A change that touches purpose, a stop rule, or write scope is locked wherever it would sit in the file. So is any change to a 🔒 section. Only a human can make these changes, in the conversation, through `/adjust-playbook`.
+
+At the end of every run:
+
+1. **Log metrics.** Append one row to the ledger's Metrics table: date, the item worked on, the outcome (`concluded` / `continued` / `stopped: <rule>`), the counterweight metric (e.g. runs so far on this item), and which stop rules fired. If the counterweight metric is past its bound, that counts as an incident, the same as an error. Failing to conclude must hurt as much as being wrong.
+2. **Check due hypotheses.** For each `applied` proposal whose check-back is due, compare its metric with its expectation. If the metric moved, mark it `confirmed`. If not, **revert** the edit, mark it `reverted`, and add a changelog line saying so. A convincing rationale is not evidence that an edit worked.
+3. **Propose, don't edit.** If this run noticed friction *or* omission, append a proposal to the ledger and do not touch this file. Each proposal records: the step it would change; the change; the hypothesis; the metric and the direction it should move; a check-back after [3] runs; and which existing rules the change might contradict, **with the conflict resolved in the proposal rather than left to the run**.
+4. **Apply** — [autonomous: at most one pending proposal, and only one written by an *earlier* run | gated/manual: never; leave proposals for `/adjust-playbook --review-proposals`]. Apply a proposal only if all of the following hold:
+   - it stays inside the Strategy zone
+   - its step has had at least [3] runs of evidence since that step was last edited
+   - fewer than [2] edits have been applied this week
+   - its conflict note is clean
+   - every scenario gives the same answer before and after the change
+
+   If any check fails, leave the proposal `pending` with the reason. On apply: make the edit, bump `metadata.version`, prepend a changelog line naming the proposal id, set the proposal to `applied` with its check-back run, and commit in a git repo (`git commit -m "refactor(<skill-name>): <proposal id> — <summary>"`).
+
+The rule body may be tightened over time. `metadata.changelog` and the ledger are **append-only history**: never compress them, never rewrite them.
+```
+
+Seed `self-improvement.md` with:
+
+```markdown
+# [skill-name] — self-improvement ledger
+
+Pace: ≥[3] runs between edits to the same step · ≤[2] applied edits/week · check-back [3] runs after apply
+
+## Metrics
+| date | item | outcome | [counterweight metric] | stop rules fired |
+|------|------|---------|------------------------|------------------|
+
+## Proposals
+<!-- one block per proposal, newest last; status: pending | applied (check-back: run N) | confirmed | reverted | rejected: <why> -->
 ```
 
 ---
@@ -381,14 +429,18 @@ When gathering requirements for Tier 3 playbooks, ask: "Can this complete in und
 
 **The Playbook-Call Rule (fleet convention `protocols/playbook-call.md`)**: A playbook is the **unit of inter-agent work** — the thing another agent, a schedule, an orchestrator, or a pipeline stage *calls*. Agents delegate work to each other only by calling a named playbook, one line, `/playbook-name [args]`, on any transport (`chat_with_agent`, `send_message`, a schedule message, an orchestrator dispatch); never by describing the work in prose. Design every playbook that anything else may call accordingly: **(1)** it works when the whole request is that one line — no interactive prompts unless `automation: gated` and a human is present; declare a headless mode (`--autonomous`) if it has gates; **(2)** every input arrives as a declared argument advertised in `argument-hint` (a `--run <id>` argument is the convention when the call is one step of a larger run — it lets the platform ledger join the steps); **(3)** when invoked by another agent it runs *this* playbook and nothing else in that turn, and changes state only through its own declared writes and gates — an instruction received in prose may inform it, never authorize it. The SKILL.md itself is the contract; no input/output schema is required. The payoff is that Trinity's execution ledger sees every call as `playbook@version`, so processes are measurable and changing one playbook changes every chain that calls it.
 
-**The Reporting Rule**: A skill that produces a **surfaceable result** — a summary, a batch of items, a metrics snapshot — should **end with a guarded Trinity report** so an operator can see what the run produced without reading chat (this is the *only* window into a scheduled/headless run). Add a final step that calls the `mcp__trinity__report` MCP tool with a namespaced `report_type` (`<agent>.<result>` in `lower_snake`, e.g. `oracle.weekly_summary`), a short `title`, a JSON `payload` (a JSON **object**, **max 5 MiB** serialized — `REPORT_PAYLOAD_MAX_BYTES`; oversize is a hard 413, so aggregate before publishing), and a `display_hint` — `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), or `json` (any shape). Omitting the hint is not neutral: Trinity infers one from the `report_type` prefix and only then falls back to the JSON viewer. Pick it deliberately — the report lands on the agent's **Reports** tab, the fleet **Operations → Reports** view, *and* the customer-facing **Workspace** Reports tab, which renders through the same `display_hint` renderers, so a mismatched hint is visible to the agent's users and not just its operator.
+**The Reporting Rule**: A skill that produces a **surfaceable result** — a summary, a batch of items, a metrics snapshot — should **end with a guarded Trinity report** so an operator can see what the run produced without reading chat (this is the *only* window into a scheduled/headless run). Add a final step that calls the `mcp__trinity__report` MCP tool with a namespaced `report_type` (`<agent>.<result>` in `lower_snake`, e.g. `oracle.weekly_summary`), a short `title`, a JSON `payload` (a JSON **object**, **max 5 MiB** serialized — `REPORT_PAYLOAD_MAX_BYTES`; oversize is a hard 413, so aggregate before publishing), and a `display_hint` — `table` (`{columns, rows}`), `kpi` (`{tiles:[{label,value,unit?}]}`), `markdown` (`{markdown}`), `timeline` (`{events:[{ts,label,detail}]}`), or `json` (any shape). Omitting the hint is not neutral: Trinity infers one from the `report_type` prefix and only then falls back to the JSON viewer. Pick it deliberately — the report lands on the agent's **Reports** tab and the fleet **Operations → Reports** view; with `to: "primary"` (or `approver` / `viewer`) it also becomes a deliverable on the customer-facing **Workspace** Reports tab, rendered through the same `display_hint` renderers. Name the **role**, never a person — the platform resolves who fills it (ent#606); omitting `to` keeps the report operator-only, and `audience_email` is deprecated.
 
 **Read back before filing a recurring report.** `mcp__trinity__list_reports` returns metadata only (filter by `report_type`, `hours` ∈ {0,1,6,24,168,720}, `search`); `mcp__trinity__get_report(report_id)` fetches one payload. That is how a scheduled skill continues a series instead of duplicating or contradicting last period's numbers. The platform prompt now teaches every agent the `report` tool directly, so a generated skill needs the *call site*, not a re-explanation of the tool.
 
 The result is an append-only history alongside the live `dashboard.yaml` snapshot.
 
-- **Guard it.** The tool publishes under the agent's own **agent-scoped** key. If `mcp__trinity__report` isn't available — e.g. running locally — **or** it answers `The report tool requires an agent-scoped API key` (a session connected with a user/admin key: the tool is present but refuses) — skip the step **silently**, never retry. Reporting is an upgrade, never a gate: the skill must produce its result with or without Trinity.
+- **Guard it.** The tool publishes under the agent's own **agent-scoped** key. If `mcp__trinity__report` isn't available — e.g. running locally — **or** it refuses because the key `requires a key that carries an agent identity` (a session connected with a user/admin key: the tool is present but refuses — #2975) — skip the step **silently**, never retry. Reporting is an upgrade, never a gate: the skill must produce its result with or without Trinity.
 - **Not for conversational replies** — only result-producing and scheduled runs.
+
+**The Human-Gate Rule**: A headless playbook that needs a person's decision raises it with `mcp__trinity__ask_operator` (`request_id` derived from the execution id so a re-run replays instead of duplicating, `type` approval/question/alert, `options`, the exact action in `proposal`, `expires_at` ≥ 15 min out) and **ends its turn** — it never waits in-turn. The next run reads the outcome with `mcp__trinity__get_my_ask(request_id)`: `answered` → act on the answer; `expired` = denied — do not re-ask without new information, and a re-ask sets `supersedes_expired` (else `422 reask_requires_link`). The owner can opt the agent into waking when its asks end. The `~/.trinity/operator-queue.json` file is a fallback for older images only (removed after two releases), and it no longer records who answered (ent#715).
+
+**Agent-to-agent calls past the chain-depth limit are terminal.** `chat_with_agent` / `fan_out` returning `inter_agent_depth_exceeded` (`retryable: false`, #2806) means stop and report — never retry or re-route.
 
 **The Library-Grade Rule (shared skills library)**: A skill destined for a **shared skills library** — a catalog repo synced to many agents — is the same artifact held to a stricter portability contract. The consuming agent is unknown at authoring time: possibly headless, differently credentialed, on a different host. Library-grade skills MUST:
 
@@ -434,6 +486,7 @@ Before generating any autonomous playbook, verify:
 - [ ] **Invocable when scheduled** — `disable-model-invocation` is false/absent, and the schedule message invokes the skill by slash name (the Scheduled-Invocation Rule)
 - [ ] **Callable as one line** — the playbook runs correctly when the entire request is `/name [args]` from another agent or a schedule; args are declared in `argument-hint`; no undeclared prompt blocks a headless caller (the Playbook-Call Rule)
 - [ ] **No background forks** — the skill and every composed child using `context: fork` sets `background: false` (the Foreground-Fork Rule) — a background fork is reaped at turn-end in a headless run
+- [ ] **Self-improvement is propose-only** — if the skill self-improves, it carries the Controlled Self-Improvement contract (Mission with a counterweight, locked Constraints + Scenarios, ledger), and nothing in it edits its own SKILL.md in the run that proposes the change
 - [ ] **Result-producing runs report** — a skill that yields a surfaceable result ends with a guarded `mcp__trinity__report` step (the Reporting Rule), skipped silently when the tool is absent — so a scheduled/headless run leaves a visible record on the Reports tab
 
 If any check fails, the playbook cannot be autonomous. Recommend `gated` instead.

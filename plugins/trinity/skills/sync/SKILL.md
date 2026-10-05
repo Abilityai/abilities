@@ -6,10 +6,11 @@ disable-model-invocation: true
 user-invocable: true
 allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__list_operator_queue, mcp__trinity__get_operator_queue_item, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule, mcp__trinity__git_pull, mcp__trinity__get_git_status, mcp__trinity__get_git_log, mcp__trinity__get_git_sync_state
 metadata:
-  version: "2.7.1"
+  version: "2.7.2"
   created: 2025-02-05
   author: eugene
   changelog:
+    - "2.7.2: The pull-path note names the ent#708 settings.json content guard — .claude/settings.json is no longer ignored, only container-hook or credential-bearing copies are kept out of a commit (replaces the trinity#2036 untracking claim)"
     - "2.7.1: Phase 7b reads plugin state from get_agent_compatibility_report I-006 (~/.trinity/plugins-state.json, ent#411) before falling back to the in-container CLI; git_pull note covers the trinity#2529 gitignore rebuild + gitignore_untracked operator-queue item (expected on the first sync after an upgrade)"
     - "2.7.0: Plugin reconciliation (Phase 7b, trinity#1704 / ent#411) — `template.yaml plugins:` is the declared plugin set and Trinity re-installs it headlessly on every container boot; sync now checks it the way it checks schedules: `status` reports declared-vs-installed drift on the remote (via `claude plugin list --json` inside the agent, run through chat_with_agent), push/pull/deploy re-check after the code lands, and the new `plugins` subcommand reconciles on demand — install what is declared and missing (same two CLI calls the boot hook makes), never uninstall (additive; a live-only plugin is reported as drift for the operator, mirroring the schedule rule). Also flags a template.yaml with no plugins: block at all as SOFT drift with the one-line fix"
     - "2.6.0: Schedule reconcile matches on the literal `name`, not a `[id]` prefix — ent#89 materializes declared schedules verbatim and dedups on name, so the prefixed name never collided and Path-A agents ended up with two schedules firing the same cron. Remote pull now goes through mcp__trinity__git_pull instead of a chat_with_agent shell command (the platform path runs the .gitignore reconcile + trinity#2036 untracking, and a raw checkout desyncs a source-mode clone from the branch the DB records, trinity#1913); git MCP tools added to allowed-tools"
@@ -389,7 +390,7 @@ Based on analysis, command, and target remote:
    ```
    mcp__trinity__git_pull(agent_name: <remote.agent>)
    ```
-   Use this rather than a `chat_with_agent` shell command. The platform pull path is what runs the fleet-wide `.gitignore` reconcile and the trinity#2036 untracking that heals a leaked `.claude/settings.json` (since trinity#2529 that reconcile reports removed/unignored paths and files a `gitignore_untracked` operator-queue item, which Phase 6 will surface — treat one as expected on the first sync after an upgrade, not as an incident); a raw `git checkout` also moves a source-mode clone off the branch the DB records, which trinity#1913 re-derives and reverts on the next config-drift recreate.
+   Use this rather than a `chat_with_agent` shell command. The platform pull path is what runs the fleet-wide `.gitignore` reconcile and the ent#708 content guard that keeps a container-hook or credential-bearing `.claude/settings.json` out of the commit (the file itself is no longer ignored) (since trinity#2529 that reconcile reports removed/unignored paths and files a `gitignore_untracked` operator-queue item, which Phase 6 will surface — treat one as expected on the first sync after an upgrade, not as an incident); a raw `git checkout` also moves a source-mode clone off the branch the DB records, which trinity#1913 re-derives and reverts on the next config-drift recreate.
 6. Verify both at same HEAD: `mcp__trinity__get_git_sync_state(agent_name: <remote.agent>)` (or `get_git_status` / `get_git_log` for detail)
 
 **If `/trinity-sync push @remote <branch>`:**

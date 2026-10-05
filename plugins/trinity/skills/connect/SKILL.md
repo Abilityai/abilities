@@ -5,10 +5,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, AskUserQuestion
 metadata:
-  version: "1.6"
+  version: "1.7"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.7: Key provisioning notes that /api/mcp/keys and ensure-default take a signed-in (JWT) session only — any key-authenticated caller gets 403 since #2996; the OTP flow already uses the JWT, so the flow itself is unchanged"
     - "1.6: No managed hosting — Trinity is self-hosted only. The no-instance fallback now hands off to /trinity:deploy-new-instance (DigitalOcean guided installer, SSH server, or local Docker) instead of ending the flow at a request-access email; example URLs are self-hosted forms, no *.abilityai.dev tenants"
     - "1.5: UI label — MCP keys live under Settings → MCP Keys (the tab was never called API Keys); verified against Settings.vue at v0.9.5"
     - "1.4: Auth flow aligned with the live API — email request answers 200 {success,message} (403 for email-auth-disabled / setup_required, never 404); a 2FA-enrolled account gets a 200 challenge with no access_token (stop, mint the key in the UI); ensure-default returns null when a user-scoped key already exists (mint via POST /api/mcp/keys); ops-scope keys are not usable here; .mcp.json uses type http and prefers {INSTANCE_URL}/mcp (nginx route #2475) over :8080; no CLI fallback"
@@ -154,7 +155,7 @@ curl -s -X POST "{INSTANCE_URL}/api/mcp/keys" \
   -d '{"name": "trinity-connect {HOSTNAME}", "description": "Provisioned by /trinity:connect"}'
 ```
 
-and use its `api_key`. Omit `scope` — `ensure-default` and this call mint a plain user-scope key, the only scope that exposes the full operator tool set; an `ops`-scope key (trinity#2389, GET-only, admin-JWT-minted) will connect but is not usable for deploy/sync.
+and use its `api_key`. Both routes take a **signed-in session** — the JWT from Phase 3 — and refuse any key-authenticated caller with 403 (#2996): you can't mint a key with a key. Omit `scope` — `ensure-default` and this call mint a plain user-scope key, the only scope that exposes the full operator tool set; an `ops`-scope key (trinity#2389, GET-only, admin-JWT-minted) will connect but is not usable for deploy/sync.
 
 Store: `MCP_API_KEY`
 
