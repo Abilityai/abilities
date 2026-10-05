@@ -65,7 +65,7 @@
     {
       "name": "trinity",
       "source": "./plugins/trinity",
-      "description": "Connect, deploy, and sync agents to Trinity platform — the deep agent orchestration system",
+      "description": "Connect, deploy, and sync agents to Trinity — the operating system for the AI-native company: open source, self-hosted, that you own",
       "category": "deployment",
       "tags": ["trinity", "deploy", "sync", "orchestration", "mcp", "remote", "cloud", "scheduling", "start-here", "getting-started", "onboarding", "tour"],
       "skills": [

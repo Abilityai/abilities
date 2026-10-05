@@ -1,6 +1,6 @@
 # trinity
 
-Set up, connect, deploy, and sync Claude Code agents to the Trinity Deep Agent Orchestration Platform.
+Set up, connect, deploy, and sync Claude Code agents to Trinity — the operating system for the AI-native company: open source, self-hosted, that you own.
 
 ## Installation
 

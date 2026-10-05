@@ -271,7 +271,7 @@ Simplified deployment to the [Trinity](https://github.com/abilityai/trinity) pla
 /trinity:sync                           # Ship changes: push locally, remote pulls
 ```
 
-**What is Trinity?** Sovereign infrastructure for autonomous AI agents:
+**What is Trinity?** The operating system for the AI-native company — open source, self-hosted, that you own:
 - **Autonomous operation** — Agents run 24/7 with cron-based scheduling
 - **Multi-agent orchestration** — Coordinate teams of specialized agents
 - **Human-in-the-loop** — Approval gates where decisions matter
@@ -369,5 +369,5 @@ To add a new agent creation wizard:
 ---
 
 <div align="center">
-  <sub>Built by <a href="https://ability.ai">Ability.ai</a> — Sovereign AI infrastructure for the autonomous enterprise</sub>
+  <sub>Built by <a href="https://ability.ai">Ability.ai</a> — the lab for AI-native companies. Compounding intelligence your company owns.</sub>
 </div>
