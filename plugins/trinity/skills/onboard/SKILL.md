@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__create_agent, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__get_agent_github_pat_status, mcp__trinity__set_agent_github_pat, mcp__trinity__initialize_github_sync, mcp__trinity__git_pull, mcp__trinity__get_git_sync_state, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule, mcp__trinity__get_agent_compatibility_report, mcp__trinity__git_sync
 metadata:
-  version: "6.4"
+  version: "6.5"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "6.5: Positioning (ADR-0011, ent#803) — the intro line now names Trinity as the operating system for the AI-native company (open source, self-hosted, that you own) replacing the retired pre-ADR-0011 tagline; no procedural change"
     - "6.4: Trinity dev 863240f3 truth sync — .gitignore scaffold stops ignoring .claude/settings.json and the negation escape hatch is gone (ent#708 content guard); create_agent documents `kind` agent|deployment and reports git_mode (ent#705 working-branch default, own-token write PAT); autonomy toggle is person-only (#2996); claude-opus-5-5 with its CLI floor (#2987/#3012); report guard matches the #2975 refusal + `to` role (ent#606); native asks ask_operator/get_my_ask (ent#611); chain-depth refusal never retried (#2806)"
     - "6.3: No managed hosting — the 'Managed by Ability AI' option is gone (Trinity is self-hosted only). The instance-access preamble now hands off to /trinity:deploy-new-instance (DigitalOcean guided installer, SSH server, or local Docker) instead of a request-access email"
     - "6.2: Platform-truth refresh (Trinity 0.9.5-rc, dev 9ac2ceae) — ent#411 shipped: trinity@abilityai is pre-installed in the agent base image and the boot hook is default-ON (opt-out TRINITY_PLATFORM_PLUGINS=0, state in ~/.trinity/plugins-state.json read by compat check I-006), so Path C needs no CLI bootstrap; deployed agents deny the promise-a-second-turn tool family (ScheduleWakeup/Monitor/TaskOutput/Cron*/… — 11 names, trinity#2468) and stamp turn_integrity (a success row prefixed 'Background work lost' is a defect, #2467) — polling automation now says schedule/set_reminder, never CronCreate; execution tools gain get_fan_out_result (fan_out_timeout receipt, #2670; parallel chat gets the queued_timeout receipt, #2661); model example moved off the now-legacy claude-opus-4-8; #2529 gitignore rebuild + gitignore_untracked queue item; report guard also swallows the agent-scoped-key refusal; Telegram setup is the per-agent binding, not ANNOUNCE_* vars"
@@ -44,7 +45,7 @@ metadata:
 
 > ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `onboard vX.Y — recent: <summary>`. Then proceed.
 
-Onboard any Claude Code agent to the Trinity Deep Agent Orchestration Platform. This skill guides you through the complete setup process.
+Onboard any Claude Code agent to Trinity — the operating system for the AI-native company: open source, self-hosted, that you own. This skill guides you through the complete setup process.
 
 ## Prerequisites: Getting a Trinity Instance
 

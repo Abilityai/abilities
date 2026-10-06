@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.6"
+  version: "1.7"
   created: 2026-04-30
   author: Ability.ai
   changelog:
+    - "1.7: Positioning (ADR-0011, ent#803) — the 'what you'll get' line names Trinity as your own self-hosted operating system for the AI-native company replacing the retired pre-ADR-0011 wording; no procedural change"
     - "1.6: Aligned with Trinity v0.9.5 (released 2026-09-17) — the Cloud (ability.ai) path is gone (Trinity is self-hosted; there is no managed hosting offering) and PATH A is now the DigitalOcean guided installer (scripts/deploy/trinity-do-create.sh — run in the user's own terminal, secrets never pass through this session), continuing into the ops-agent scaffold with the Droplet values (root, /opt/trinity, hosted compose, FRONTEND_PORT 8081); first-run wording corrected — after login the Dashboard opens first-run setup (Connect Claude is the one required step; the GitHub token goes in Other keys, later Settings → Integrations); the MCP key lives under Settings → MCP Keys (the tab was never called API Keys); hosted fast path pins TRINITY_IMAGE_TAG=v0.9.5 and the ops agent gets COMPOSE_FILE=docker-compose.hosted.yml so /update pulls instead of building"
     - "1.5: Aligned with Trinity 0.9.5 — no first-run setup screen when ADMIN_PASSWORD is seeded (#2381/#2385: admin exists at first boot, setup endpoint 403s), ADMIN_USERNAME live in prod, start.sh auto-generates CREDENTIAL_ENCRYPTION_KEY/SECRET_KEY/INTERNAL_API_SECRET/AGENT_AUTH_SECRET (ent#435 boot gate), optional prebuilt-image path (start.sh --hosted + TRINITY_IMAGE_TAG, #2280/#2390), MCP reachable at /mcp via nginx (#2475) so only the frontend port needs opening, docker-firewall.sh for public VPS hardening, three published ports (8001 is internal), the non-matching frontend port sed dropped, Path C healthcheck patch removed (same corruption 1.4 removed from Path B), SSH tunnel replaces the never-existing scripts/tunnel.sh, Settings → API Keys naming, 13 ops-agent skills"
     - "1.4: Removed the Step 2b healthcheck patch — trinity#443 fixed the /mcp probe upstream, and the old blanket `sed s|/mcp|/health|g` over every Dockerfile now CORRUPTS a fresh install by renaming the base image's /home/developer/mcp-servers to /home/developer/health-servers. Replaced with a read-only diagnostic"
@@ -27,7 +28,7 @@ metadata:
 Set up a Trinity instance and create a complete operations agent to manage it.
 
 **What you'll get:**
-- A running Trinity instance (if fresh install) — your private AI agent orchestration platform
+- A running Trinity instance (if fresh install) — your own self-hosted operating system for the AI-native company
 - A fully configured ops agent cloned from [trinity-ops-public](https://github.com/abilityai/trinity-ops-public)
 - 13 built-in skills: `/status`, `/restart`, `/update`, `/logs`, `/agents`, `/cleanup`, `/diagnose`, `/rebuild-agent`, `/rollback`, `/telemetry`, `/provision`, `/migrate-to-postgres`, `/sync-ops-knowledge`
 
