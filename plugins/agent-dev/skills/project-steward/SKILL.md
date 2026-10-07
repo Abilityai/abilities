@@ -7,10 +7,11 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__list_agents, m
 effort: high
 user-invocable: true
 metadata:
-  version: "1.6"
+  version: "1.7"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.7: Fix — the 1.6 resolver's default label values were self-references ($L_ACTIVE etc.) instead of the colon vocabulary, so a standard without a §0 block resolved every label role to an empty string (quarantine and verification silently off, needs-operator writes failing). Defaults restored: status:active / status:blocked / status:needs-decision / status:paused / status:pending-verification / status:done / status:unclassified. Found 2026-10-07 reviewing the library copy before the first fleet run"
     - "1.6: One lineage (ent#789) — this skill absorbs the orchestrator-side project-steward (add-orchestrator template 1.3 / the production orchestrator's 1.5) so one steward runs everywhere. The standard is resolved at the repo root OR at fleet/project-standard.md and its §0 Configuration drives what the two lineages had hard-coded differently: label vocabulary by role ($L_NEEDS_OPERATOR, $L_BLOCKED, $L_PAUSED, the $L_LIVE set, the $L_PRIORITY prefix — a tracker-native hyphen vocabulary is now a config value), owner-label prefix, state directory ($STATE_DIR — fleet-placed on an orchestrator, project-steward by default), verification hold on/off (empty pending label = done claims verified in the same run), quarantine on/off. Fleet hooks when §0 names them: owners resolve to their deployed_name through the fleet map, a dispatch needs a sanctioned manager→owner edge in the narrative's §5, the §3b ownership matrix adds consulted agents to the brief and informed agents to the digest. Ported from the orchestrator copy: inline output for workspaces the run cannot see goes to $STATE_DIR/outputs/<slug>/; the waiting-on sweep lists with --limit 1000 (gh sorts by recent activity and silently truncates — the oldest loops were exactly what a low cap dropped, seen live 2026-10-06); Trinity MCP tools declared in allowed-tools"
     - "1.5: Internal tracking (ent#673): internal projects (charter `tracking: internal`, standard §16) are found by their charters — project_files/*/ and the canon projects this agent stewards (projects/<slug>/ with owner: <self>, or its earlier-placement folder) — and swept by the same steps with file operations instead of gh: task status in front matter (pending_since as the verification clock), comments as append-only `## Log` entries, the epic's comment thread as log.md, the epic's Current status/Tasks as project.md sections, a done task stays as a file with status: done. One staleness ladder, one digest, one run budget across both modes. The steward now writes into the canon only for internal projects it stewards (task files, log.md, charter status/Current status/Tasks) and publishes them with /canon-publish at the end of the run. A registry of `none` runs with no GitHub at all. Quarantine treats a folder with an internal charter as registered"
     - "1.4: Shared projects (operator ruling R21, 2026-09-10 — one PM standard, two visibility levels; ent#588): the project's workspace is resolved from the epic body's `## Workspace` field through the standard's §15 resolver — `canon:projects/<slug>/` (the canon root's shared zone, ruling 2026-09-22) reads through the x-canon clone (pull --ff-only, never force), any other value is a repo-relative path, a missing field means the epic body is the context — and never derived from the slug; the charter (project.md) and the append-only decisions.md ledger are read from wherever the epic points and treated identically at both levels (staleness ladder, escalation, dispatch unchanged; the charter's status: is expected to mirror the epic label, a disagreement is noted in the digest, never fixed here — the canon's /canon-reconcile owns the charter stamps). The quarantine pass stays on project_files/ and never scans the canon: a canon-placed project is registered by its epic, never discovered from a folder. The steward writes nothing into the canon"
@@ -53,10 +54,10 @@ cfg() { awk -v k="$1" -v d="$2" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;ne
 REGISTRY=$(cfg registry ""); AGENT_NAME=$(cfg agent ""); OPERATOR=$(cfg operator "")      # empty → take them from the §1/§2 prose (pre-1.3 standard)
 STATE_DIR=$(cfg state_dir project-steward); PV_MAX_AGE=$(cfg pv_max_age_hours 48); QUARANTINE=$(cfg quarantine on); MEMBER_REPOS=$(cfg member_repos "")
 L_OWNER=$(cfg labels.owner_prefix "owner:"); L_PRIORITY=$(cfg labels.priority_prefix "priority:")
-L_LIVE=$(cfg labels.live "$L_ACTIVE"); L_ACTIVE=$(cfg labels.active "$L_ACTIVE")
-L_BLOCKED=$(cfg labels.blocked "$L_BLOCKED"); L_NEEDS_OPERATOR=$(cfg labels.needs_operator "$L_NEEDS_OPERATOR")
-L_PAUSED=$(cfg labels.paused "$L_PAUSED"); L_PENDING=$(cfg labels.pending_verification "$L_PENDING")
-L_DONE=$(cfg labels.done "$L_DONE"); L_UNCLASSIFIED=$(cfg labels.unclassified "$L_UNCLASSIFIED")
+L_LIVE=$(cfg labels.live "status:active"); L_ACTIVE=$(cfg labels.active "status:active")
+L_BLOCKED=$(cfg labels.blocked "status:blocked"); L_NEEDS_OPERATOR=$(cfg labels.needs_operator "status:needs-decision")
+L_PAUSED=$(cfg labels.paused "status:paused"); L_PENDING=$(cfg labels.pending_verification "status:pending-verification")
+L_DONE=$(cfg labels.done "status:done"); L_UNCLASSIFIED=$(cfg labels.unclassified "status:unclassified")
 L_EPIC_EXTRA=$(cfg labels.epic_extra ""); FLEET_MAP=$(cfg fleet.system_map ""); FLEET_NARRATIVE=$(cfg fleet.orchestration "")
 ```
 
