@@ -1,14 +1,15 @@
 ---
 name: project-init
-description: Create or adopt a long-term managed project per PROJECT_STANDARD.md — GitHub epic issue with idempotent label creation and a workspace carrying the project.md charter, at agent level (project_files/<slug>/) or, with --canon, as a shared project in the fleet's canon repo (projects/<slug>/ at the canon root — same charter, same epic, same steward; canon placement only decides who can read it). Use when starting a new multi-session project or bringing an existing project folder under management.
-argument-hint: "[project name | adopt <existing-folder>] [--canon] [--internal] [--dry-run]"
+description: Create or adopt a long-term managed project per PROJECT_STANDARD.md — on Trinity, a platform project created through the project MCP tools (standard §17); offline, a GitHub epic issue with idempotent label creation and a workspace carrying the project.md charter, at agent level (project_files/<slug>/) or, with --canon, as a shared project in the fleet's canon repo (projects/<slug>/ at the canon root — same charter, same epic, same steward; canon placement only decides who can read it). Use when starting a new multi-session project or bringing an existing project folder under management.
+argument-hint: "[project name | adopt <existing-folder>] [--canon] [--internal] [--offline] [--dry-run]"
 allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.4: On Trinity the platform is the home (ruling 2026-09-29, ent#661; ent#588): when the project MCP tools answer, a new project is created with `create_project` — the agent's owner becomes creator and first member, this agent its steward, members-only — and `adopt` brings an existing folder (`project_files/<slug>` or `<canon>/projects/<slug>`) onto the platform once with `import_project`. No epic, no labels, no folder. Without the Start projects permission the skill says so and names the two ways forward (an admin grants it in the agent's Settings, or the person creates the project in the Workspace) instead of falling back silently. Off Trinity — or with `--offline` — everything below Step 1 is unchanged (§15/§16)"
     - "1.3: Internal tracking (ent#673, operator ruling 2026-09-22): `--internal` creates a project whose registry is its own workspace — project.md carries the epic's sections (Goal, Success criteria, Owners, Cadence, Current status, Tasks) and `tracking: internal` + `priority:` in the envelope, plus an empty tasks/ and an append-only log.md; no GitHub access, no labels, no epic. Forced when the standard's registry is `none`. Works at both placements (`--canon --internal` = a shared project with its tasks in the canon). External stays the default and writes `tracking: external` explicitly"
     - "1.2: Shared projects (operator rulings R21, 2026-09-10 — one PM standard, two visibility levels — and 2026-09-22 — shared projects at the canon root; ent#588): `--canon` creates the workspace in the fleet's canon repo at projects/<slug>/ — the top-level zone every agent writes directly, not inside any agent's folder — through the x-canon clone, pushed with /canon-publish, instead of project_files/<slug>/, and records `canon:projects/<slug>/` in the epic's Workspace field; this agent becomes the charter's owner: (the steward). A slug already taken in canon — by any steward — is a collision. `adopt --canon <slug>` adopts an existing canon project: one at the root keeps its steward unless it is this agent's (a project stewarded by another agent is refused — ask that agent); one still at the earlier agents/<self>/projects/<slug>/ placement is moved to projects/<slug>/ in the same publish (another agent's earlier-placement project is theirs to move). The charter is the same file at both levels and now carries the linted envelope the canon convention § Projects defines (owner = steward, status mirrors the epic label, epic as owner/repo#N, updated, review_by, tldr) plus an append-only decisions.md ledger with its own envelope; agent-level project.md gains the same envelope so moving a project changes readers and nothing else. `--dry-run` writes the workspace and prints the epic body without touching GitHub (so a scaffold can be linted before it exists). Default placement is unchanged (agent level)"
     - "1.1: Self-heal — when PROJECT_STANDARD.md is missing, materialize it from PROJECT_STANDARD.template.md shipped in this skill directory (resolving registry/operator/agent/max-age with sensible defaults). Makes the skill usable when assigned from the skills library without running the installer; the installer now copies from this directory instead of carrying its own copy"
@@ -34,6 +35,13 @@ Bring a long-term project under standardized management: create its registry and
 | Canon declaration | `template.yaml → x-canon:` (`repo`, `clone_path`, `folder`) | Yes (`--canon` only) | No |
 
 ## Process
+
+### Step 0: Where does the project live? (standard §17 — first, once)
+
+Unless the run was given `--offline`, call the `list_projects` MCP tool:
+
+- **`success: true` → on Trinity: the platform is the home.** Skip the rest of this Process and follow **Platform path** below. `--canon`, `--internal` and `--dry-run` describe folders and do not apply there; say so if they were given.
+- **"Projects are not available on this platform"** or **"not licensed"** (or no such tool) → **offline**: continue with Step 1 unchanged, and say once that the project is a folder because this platform has no projects.
 
 ### Step 1: Read the standard
 
@@ -277,6 +285,34 @@ At agent level, commit the new workspace (`git add "$WS" && git commit -m "proje
 ```
 
 A `project-envelope` / `ownership` FAIL here is fixed before anything is pushed (the charter is the linter's contract). Then push through the canon's own gate — `/canon-publish` (the `projects/` zone is a direct commit for any agent; it re-runs the lint and refuses a red project). Never `git push` the canon clone by hand from this skill, and never with `--dry-run`.
+
+### Platform path (standard §17 — on Trinity)
+
+**New project:**
+
+1. Gather **Name** and **Goal** (a sentence or two — what done looks like) with AskUserQuestion when they are not in the argument. Ask for a tracker link only if the person already runs this work in one; otherwise none. Success criteria, owners and cadence are not fields on the platform record — record them as the project's first log entry (step 3) rather than dropping them.
+2. Check for a collision: `list_projects` — a project with the same or a near-identical name is shown to the person, with the offer to work on that one instead.
+3. Call **`create_project`** with `name`, `goal` and (optional) `tracker_url`. On success, add one `add_project_log_entry` (`kind: decision`) carrying the success criteria, owners and cadence gathered above, so the charter's content is on the record where every agent on the project reads it first.
+4. **Refused with `project_management_not_permitted`:** stop, create nothing elsewhere, and tell the person exactly this — *this agent does not hold the Start projects permission. An instance admin can grant it in the agent's Settings → Permissions to change itself; or create the project yourself in the Workspace (Projects, or "Make this a project" on this chat) and add this agent to it — then I'll work on it.* Never fall back to a folder or an epic to get around the refusal.
+5. **`owner_unreachable`:** the agent has no owner who can hold a project (a system agent, or an owner without an email) — say so; nothing was created.
+
+**`adopt <folder>`** — bring an existing folder project onto the platform, once:
+
+1. Resolve the folder in this agent's own files: `project_files/<slug>` (agent level) or `<canon>/projects/<slug>` (the canon clone, `x-canon.clone_path`, default `canon`). It must hold a `project.md`.
+2. Call **`import_project`** with that path. The charter, task files (§16), `log.md` and `decisions.md` become the project's record and tasks; after this the **platform is its home** — tell the person the folder is no longer the place to edit, and nothing syncs back.
+3. `already_imported` → it is on the platform already; find it with `list_projects` and work on it there. `project_management_not_permitted` → as for a new project (step 4 above): the person can import it themselves from the Workspace (Projects → Import).
+
+**Summary (platform):**
+
+```
+## Project started: $NAME   (on the platform — $PROJECT_ID)
+
+Steward:   this agent · Members: your owner (add people in the Workspace)
+Visibility: members only (change it in the Workspace)
+Next:
+  /project-task — create the first task
+  /project-steward — run a sweep (or let the schedule do it)
+```
 
 ### Step 8: Summary
 

@@ -414,3 +414,32 @@ The completion lattice is the task's `status:` read as a lattice: **open** is an
 - **Absence is not deletion.** A missing task file is an error the steward reports, never a task it treats as closed.
 - **Placement is unchanged (§15).** An internal project in the canon keeps its task files in its slug folder, `projects/<slug>/`; the steward (the charter's `owner:`) is the managing agent that writes them and pushes with `/canon-publish`, like the charter. Anyone may edit the folder by hand — the zone is shared — but only the steward's skills write tasks and `log.md`.
 - **Switching modes is a deliberate act**, recorded as a decision in `decisions.md`: create the tasks in the new mode, close the old ones with a `### Loop closed` pointing at their new home, then change `tracking:`. Nothing converts automatically.
+
+## 17. Platform projects — on Trinity the platform is the home (operator ruling 2026-09-29, ent#661 / ent#588 / ent#673)
+
+On Trinity a project is a **platform record** (ent#661): its members, visibility, chats, tasks and log live on the platform, and every agent on the project works on it through MCP tools. The project skills stay the *process*; on Trinity they call the platform instead of writing a folder or an epic. Off Trinity, §15 and §16 are unchanged — the folder / canon / GitHub modes are the offline mode of the same process.
+
+**Am I on Trinity?** (every project skill uses this rule, once per run):
+
+1. The `list_projects` MCP tool exists **and** answers `success: true` → **platform**. Every project the agent works on is one of those it lists.
+2. It answers "Projects are not available on this platform" (an OSS build) or "not licensed" → **offline** (§15/§16), and say so once.
+3. The run was given `--offline` → offline, on purpose (e.g. a folder project kept outside the platform).
+
+**Where each thing lives on the platform** — same concepts as §16, one home:
+
+| Concept | Offline (§16 internal) | Platform (MCP) |
+|---|---|---|
+| Project record | `project.md` | the project (`get_project` — id `prj_…`, name, goal, status, steward, members, tracker) |
+| Create | `/project-init` writes the folder | `create_project` — needs the **Start projects** permission (`projects.manage`); the agent's owner becomes creator and first member, the agent its steward, members-only |
+| Bring an existing folder | — | `import_project <path>` — once; afterwards the platform is its home and nothing syncs back |
+| Task | `tasks/T-NNN.md` | `create_project_task` / `update_project_task` (`T-NNN` per project) |
+| Task fields | front matter `title`, `status`, `owner`, `agent`, `waiting_on`, sections Objective / Definition of Done / Context / Validation | `title`, `status`, `owner`, `assignee`, `waiting_on`, `objective`, `done_definition`, `context` (the Validation rows go at the end of `context`) |
+| Task log (done claims, verification, waiting-on — §7) | the task file's `## Log` | `add_project_task_note`, or `update_project_task … note` with a state change |
+| Project log (steward updates, state news) | `log.md` | `add_project_log_entry` — one entry per meaningful outcome (a decision, a deliverable, a task changing state, a blocker, a hand-off), never one per turn |
+| Current status | the charter's `## Current status` | `set_project_health` (on-track / at-risk / off-track + one line) — at least every two weeks |
+| Steward sweep input | the folder + `charters` | `get_steward_digest` |
+| Reference | `<slug>/T-NNN` | `<project id>/T-NNN` |
+
+**What the platform never lets an agent do**, so the skills never try: add or remove people, change who can see a project, or act on a project it is not active on (a uniform "no project with this id"). Members and visibility are the person's, in the Workspace.
+
+**Without the Start projects permission** `create_project` / `import_project` answer `project_management_not_permitted`. That is not a failure to work around: say what happened and the two ways forward — an instance admin grants *Start projects* in the agent's **Settings → Permissions to change itself**, or the person creates the project in the Workspace (**Projects**, or **Make this a project** on the chat) and adds this agent; the skill then works on it as usual.
