@@ -1,16 +1,17 @@
 ---
 name: project-steward
-description: Autonomous sweep of all managed projects per PROJECT_STANDARD.md — external projects tracked in GitHub Issues and internal projects tracked in their own workspace files (standard §16), with the same policy for both. Verifies pending-verification claims against Definition of Done, dispatches next work to explicitly-labeled owner agents (Trinity when available; triage-only when not), escalates stalls per the staleness policy, sweeps open loops (ages every waiting-on item and drafts the operator's follow-ups), runs the quarantine classification pass, and writes a digest that closes the loop with the operator. Never asks a human anything mid-run.
+description: Autonomous sweep of all managed projects per PROJECT_STANDARD.md — on Trinity the platform projects this agent stewards (standard §17), plus external projects tracked in GitHub Issues and internal projects tracked in their own workspace files (standard §16), with the same policy for both. Verifies pending-verification claims against Definition of Done, dispatches next work to explicitly-labeled owner agents (Trinity when available; triage-only when not), escalates stalls per the staleness policy, sweeps open loops (ages every waiting-on item and drafts the operator's follow-ups), runs the quarantine classification pass, and writes a digest that closes the loop with the operator. Never asks a human anything mid-run.
 automation: autonomous
 schedule: "0 7-19/2 * * 1-5"   # default: every 2h, weekdays UTC — adjust, or delete this line for manual-only (the installer substitutes your choice)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 effort: high
 user-invocable: true
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.6: On Trinity the platform is the home (ent#673 re-scope; standard §17): the projects this agent stewards on the platform come from `get_steward_digest` and every step applies with MCP calls instead of `gh` or files — tasks via `list_project_tasks` / `update_project_task` / `add_project_task_note`, steward updates via `add_project_log_entry`, current status via `set_project_health` (at least every two weeks). Platform projects need no quarantine pass and no publish. Off Trinity, unchanged"
     - "1.5: Internal tracking (ent#673): internal projects (charter `tracking: internal`, standard §16) are found by their charters — project_files/*/ and the canon projects this agent stewards (projects/<slug>/ with owner: <self>, or its earlier-placement folder) — and swept by the same steps with file operations instead of gh: task status in front matter (pending_since as the verification clock), comments as append-only `## Log` entries, the epic's comment thread as log.md, the epic's Current status/Tasks as project.md sections, a done task stays as a file with status: done. One staleness ladder, one digest, one run budget across both modes. The steward now writes into the canon only for internal projects it stewards (task files, log.md, charter status/Current status/Tasks) and publishes them with /canon-publish at the end of the run. A registry of `none` runs with no GitHub at all. Quarantine treats a folder with an internal charter as registered"
     - "1.4: Shared projects (operator ruling R21, 2026-09-10 — one PM standard, two visibility levels; ent#588): the project's workspace is resolved from the epic body's `## Workspace` field through the standard's §15 resolver — `canon:projects/<slug>/` (the canon root's shared zone, ruling 2026-09-22) reads through the x-canon clone (pull --ff-only, never force), any other value is a repo-relative path, a missing field means the epic body is the context — and never derived from the slug; the charter (project.md) and the append-only decisions.md ledger are read from wherever the epic points and treated identically at both levels (staleness ladder, escalation, dispatch unchanged; the charter's status: is expected to mirror the epic label, a disagreement is noted in the digest, never fixed here — the canon's /canon-reconcile owns the charter stamps). The quarantine pass stays on project_files/ and never scans the canon: a canon-placed project is registered by its epic, never discovered from a folder. The steward writes nothing into the canon"
     - "1.3: GH_TOKEN now resolves through git's credential helper (`git credential fill`) — Trinity v0.9.5 (ent#615) made agent remotes credential-less, so the old sed over `git remote get-url origin` returned an empty token and the run fell back to a possibly stale hosts.yml (the 403 class this block exists to prevent); the remote-URL parse stays as a fallback for pre-0.9.5 instances"
@@ -133,6 +134,26 @@ Most runs will find nothing to do. Before writing anything, compute whether ANY 
    ```
    Internal projects are the charters the standard's §16 finder returns (`charters`) whose `mode_of` is internal and whose `status:` is not `done` — under the top-level canon `projects/` zone, only those whose `owner:` is this agent. For canon-placed ones, `git -C "$CANON" pull --ff-only` first (on failure, read the local copy and say so in the digest).
 5. Check Trinity MCP availability.
+
+### Platform projects — the same steps, MCP calls instead of `gh` or files (standard §17)
+
+On Trinity (unless `--offline`), `get_steward_digest` returns every project this agent stewards on the platform, each with its health, whether an update is due, tasks awaiting verification, blocked or waiting tasks, tasks untouched for a week, open asks and whether it has gone quiet. Sweep those **in addition to** any external or internal projects the steps above find; every step below applies with this translation:
+
+| In a step below (GitHub) | For a platform project |
+|---|---|
+| Read the epic body + comments since the last steward update | `get_project`, then `get_project_log` (newest first) back to the last steward update |
+| Read open `project:<slug>` task issues with labels and bodies | `list_project_tasks` (default `open`) |
+| Set a task's `status:*` label | `update_project_task … status` (with `note` for the reason) |
+| Age of `pending-verification` | the digest's awaiting-verification entries carry it |
+| Post a comment on a task (dispatch receipt, relay, `[Verified]`, `[Verification failed]`, waiting-on, loop closed) | `add_project_task_note` with the same heading and text |
+| Close the task as done | `update_project_task … status: done` after verification — never before (§12) |
+| `waiting-on:*` label / its age | the task's `waiting_on` / the digest's waiting entries |
+| Post a steward update on the epic | `add_project_log_entry` (`kind: note`, or `decision` / `blocker` / `handoff` when that is what it is) **and** `set_project_health` with its one-line state — at least every two weeks, and whenever it changes |
+| Days since last activity | the digest's "gone quiet" and the newest log entry |
+| Dispatch brief `Issue: <url>` | `Task: <project id>/T-NNN` |
+| Task reference in the digest | `<project id>/T-NNN` |
+
+Platform projects are registered by the platform, so the **quarantine pass (Step 5) does not apply** to them, and nothing is published at Step 7. Never add people, change visibility, or act on a project the digest did not list (§17).
 
 ### Internal projects — the same steps, file operations instead of `gh`
 

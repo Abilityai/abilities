@@ -1,14 +1,15 @@
 ---
 name: project-intake
-description: Headless intake primitive — routes actionable items from any source (meetings, email, Slack, issue trackers) into the project's registry — GitHub Issues for an external project, the project's own tasks/ folder for an internal one (standard §16). Dedupes by meaning (not exact title), creates tasks with full anatomy (Objective / Definition of Done / Context / Validation), or records one-line state news (epic comment / log.md). Returns the task reference. Never interactive — called by other skills and crons.
+description: Headless intake primitive — routes actionable items from any source (meetings, email, Slack, issue trackers) into the project's registry — on Trinity the platform project's tasks (standard §17); offline, GitHub Issues for an external project or the project's own tasks/ folder for an internal one (standard §16). Dedupes by meaning (not exact title), creates tasks with full anatomy (Objective / Definition of Done / Context / Validation), or records one-line state news (epic comment / log.md). Returns the task reference. Never interactive — called by other skills and crons.
 argument-hint: "--project=<slug> --title=\"...\" --source=\"<url-or-note>\" [--owner=<actor>] [--priority=p2] [--agent=<name>] [--waiting-on=<actor>] [--dod=\"item1|item2\"] [--objective=\"...\"] [--context=\"...\"] [--state-news]"
 allowed-tools: Bash, Read, Grep
 user-invocable: false
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.5: On Trinity the platform is the home (ent#673 re-scope; standard §17): for a platform project the dedupe reads `list_project_tasks` (open tasks), a new task is created through `/project-task`'s Platform path (`create_project_task`), and state news is one `add_project_log_entry` — output `<project id>/T-NNN`, `DUPLICATE:<project id>/T-NNN` or `PROJECT:<project id>`. `--project=` takes the project id or its name. Off Trinity, unchanged"
     - "1.4: Internal tracking (ent#673): a project whose charter resolves to `tracking: internal` (standard §16) takes intake as a task file — dedupe by meaning over the titles of its open tasks/*.md, create through the same internal path as /project-task (id allocation, front matter, Tasks list, commit / canon-publish), waiting-on as `waiting_on:` + a Log entry — and state news as one appended line in the project's log.md. Outputs `<slug>/T-NNN`, `DUPLICATE:<slug>/T-NNN`, `PROJECT:<slug>`. No GitHub access for internal projects. External: unchanged"
     - "1.3: Shared projects (ruling R21, ent#588) — no behaviour change: intake targets the epic by `project:<slug>` label exactly as before, at both visibility levels; the one rule added is that a workspace path, when one is passed through, is the epic body's Workspace field resolved per PROJECT_STANDARD §15 (canon: paths through the x-canon clone), never project_files/<slug>/ derived from the slug"
     - "1.2: Read-the-standard guard (missing PROJECT_STANDARD.md → run /project-init first); skill is now authored standalone (installer copies from here)"
@@ -65,7 +66,7 @@ Read `PROJECT_STANDARD.md`. **If it is missing, stop and run `/project-init` fir
 Parse all `--key=value` and flag arguments from `$ARGUMENTS`.
 
 Validate:
-- `--project` present → **resolve the mode first** (standard §16 finder): if `charter_for "$PROJECT_SLUG"` returns a charter whose `mode_of` is **internal**, the project is internal — its workspace is that charter's folder, and Steps 3–7 take their **Internal** branches below; never call `gh`. Otherwise look up the epic:
+- `--project` present → **on Trinity first (standard §17)**: unless `--offline`, call `list_projects`; on `success: true` resolve `--project` against it (the project id, or exactly one project name, case-insensitive — none or several: `ERROR: No project $PROJECT`) and take the **Platform** branches of Steps 3–4 below; defaults come from the project (`get_project`: steward for OWNER). Never call `gh` and never write files for a platform project. Otherwise **resolve the mode** (standard §16 finder): if `charter_for "$PROJECT_SLUG"` returns a charter whose `mode_of` is **internal**, the project is internal — its workspace is that charter's folder, and Steps 3–7 take their **Internal** branches below; never call `gh`. Otherwise look up the epic:
   ```bash
   gh issue list --repo "$REGISTRY" --label "project:$PROJECT_SLUG" --label project --state open \
     --json number,title,labels,body -q '.[0]'
@@ -97,6 +98,8 @@ Output exactly: `EPIC:$EPIC_NUMBER`
 printf '\n**State update** (%s): %s — source: %s\n' "$(date -u +%Y-%m-%d)" "$TITLE" "$SOURCE" >> "$WS/log.md"
 ```
 
+**Platform:** one `add_project_log_entry` with `kind: note` and the same line as the body; output `PROJECT:$PROJECT_ID`.
+
 Exit.
 
 ### Step 4: Deduplicate by meaning
@@ -119,13 +122,19 @@ for f in "$WS"/tasks/T-*.md; do awk -v f="$(basename "$f" .md)" 'NR==1&&/^---/{m
 ```
 Same two tests.
 
-On duplicate detected: output `DUPLICATE:#$EXISTING_NUMBER` (internal: `DUPLICATE:$PROJECT_SLUG/T-NNN`) and exit.
+**Platform:** the candidates are the titles from `list_project_tasks` (default `open`). Same two tests.
+
+On duplicate detected: output `DUPLICATE:#$EXISTING_NUMBER` (internal: `DUPLICATE:$PROJECT_SLUG/T-NNN`; platform: `DUPLICATE:$PROJECT_ID/T-NNN`) and exit.
 
 If no duplicate, proceed.
 
 ### Internal: create the task file
 
 For an internal project, Steps 5–7 are replaced by the **Internal path** of `/project-task` (standard §16): allocate the next id, write `tasks/T-NNN.md` with the body built below (Objective / Definition of Done / Context with `Source: $SOURCE` / Validation, then an empty `## Log`), put `--agent` and `--waiting-on` in the front matter (and a `### Waiting on` Log entry for the latter), list it in project.md's `## Tasks`, and commit (canon: `/canon-publish`). Then output `$PROJECT_SLUG/T-NNN` (Step 8).
+
+### Platform: create the task
+
+For a platform project, Steps 5–7 are replaced by the **Platform path** of `/project-task` (standard §17): one `create_project_task` with the body built below (Objective / Definition of Done / Context with `Source: $SOURCE` and the Validation rows), `assignee` for `--agent` and `waiting_on` for `--waiting-on`. Then output `$PROJECT_ID/T-NNN` (Step 8).
 
 ### Step 5: Ensure owner label exists
 

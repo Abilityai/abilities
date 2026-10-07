@@ -1,14 +1,15 @@
 ---
 name: project-reconcile
-description: Sync projection adapters against the registry per PROJECT_STANDARD.md — GitHub Issues for external projects, task files for internal ones (standard §16). Processes projection gestures (check/date-push/delete) back into the registry with correct reversibility typing. Ships with Google Tasks adapter v1 (notes-field [#NN] key). Other adapters are per-deployment extensions. Reconciler is idempotent; refuses unkeyed items with a sync-gap alert.
+description: Sync projection adapters against the registry per PROJECT_STANDARD.md — the platform's project tasks on Trinity (standard §17), GitHub Issues for external projects, task files for internal ones (standard §16). Processes projection gestures (check/date-push/delete) back into the registry with correct reversibility typing. Ships with Google Tasks adapter v1 (notes-field [#NN] key). Other adapters are per-deployment extensions. Reconciler is idempotent; refuses unkeyed items with a sync-gap alert.
 argument-hint: "[adapter] — default: google-tasks"
 allowed-tools: Bash, Read, Write, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.3: On Trinity (ent#673 re-scope; standard §17): platform projects join the registry map — `list_project_tasks` with `status: all` per project from `list_projects`, keyed `<project id>/T-NNN` — and a gesture from the projection applies through `update_project_task` / `add_project_task_note` instead of `gh` or a task file. Off Trinity, unchanged"
     - "1.2: Internal tracking (ent#673): internal projects' task files join the registry map under the key `[<slug>/T-NNN]` (external keeps `[#NN]`); a check gesture on one writes the task's front matter and an appended Log entry instead of labels and a comment (human owner → status: done; agent owner → pending-verification + pending_since), and the projection item's note carries the task file path. Everything else — gesture typing, absence never authoritative, unkeyed items personal — is unchanged"
     - "1.1: Read-the-standard guard (missing PROJECT_STANDARD.md → run /project-init first); skill is now authored standalone (installer copies from here)"
     - "1.0: Initial version — generic adapter contract, Google Tasks adapter v1 with gesture typing, idempotent reconciler, sync-gap alerts for unkeyed items"
@@ -48,7 +49,7 @@ Otherwise ask:
 
 ### Step 3: Load registry state
 
-Both modes feed one registry map. **Internal projects** (standard §16 — charters whose mode is internal): every `tasks/T-*.md` becomes an entry keyed `<slug>/T-NNN`, from its front matter (`title`, `status`, `priority`, `owner`) with the file path standing in for the URL, `is_closed` = `status: done`. **External** (skip when `$REGISTRY` is `none`) — fetch all open task issues from the registry:
+Both modes feed one registry map — three on Trinity. **Platform projects** (standard §17 — when `list_projects` answers): for each project it lists, `list_project_tasks` with `status: all` becomes entries keyed `<project id>/T-NNN` (`title`, `status`, `owner`; `is_closed` = `status: done`), and Step 6 applies a gesture to one with `update_project_task` (status, with the gesture as `note`) or `add_project_task_note` — never `gh`, never a file. **Internal projects** (standard §16 — charters whose mode is internal): every `tasks/T-*.md` becomes an entry keyed `<slug>/T-NNN`, from its front matter (`title`, `status`, `priority`, `owner`) with the file path standing in for the URL, `is_closed` = `status: done`. **External** (skip when `$REGISTRY` is `none`) — fetch all open task issues from the registry:
 ```bash
 gh issue list --repo "$REGISTRY" --label task --state open \
   --json number,title,labels,body,url --limit 200

@@ -1,14 +1,15 @@
 ---
 name: project-task
-description: Create a task in the uniform format per PROJECT_STANDARD.md — the ONLY sanctioned task-creation path. A GitHub task issue for an external project, a tasks/T-NNN.md file for an internal one (standard §16). Enforces full anatomy (Objective / Definition of Done / Context / Validation) and adds the task to the project's Tasks checklist. Approval-ready from day one. Supports --headless for cron/compose use.
+description: Create a task in the uniform format per PROJECT_STANDARD.md — the ONLY sanctioned task-creation path. On Trinity a task on the platform project (standard §17); offline, a GitHub task issue for an external project or a tasks/T-NNN.md file for an internal one (standard §16). Enforces full anatomy (Objective / Definition of Done / Context / Validation) and adds the task to the project's Tasks checklist. Approval-ready from day one. Supports --headless for cron/compose use.
 argument-hint: "[project-slug | --headless --project=<slug> --title=\"...\" --objective=\"...\" --dod=\"item1|item2\" --owner=<actor> [--priority=p2] [--agent=<name>] [--waiting-on=<actor>] [--context=\"...\"]]"
 allowed-tools: Bash, Read, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.6: On Trinity the platform is the home (ent#673 re-scope, ruling 2026-09-29; standard §17): when the project MCP tools answer, the task is created on the platform project with `create_project_task` — same anatomy (Objective / Definition of Done / Context, the Validation rows at the end of Context), owner, assignee, waiting-on — and the reference is `<project id>/T-NNN`. The project is chosen from `list_projects` (headless: `--project=` takes the project id or its name). No GitHub, no task file. Off Trinity, unchanged"
     - "1.5: Internal tracking (ent#673): for a project whose charter resolves to `tracking: internal` (standard §16) the task is written as `<workspace>/tasks/T-NNN.md` — front matter for what labels hold, the same four body sections plus an append-only `## Log` for what comments hold — and listed in project.md's `## Tasks`; a waiting-on actor becomes `waiting_on:` + a `### Waiting on` Log entry. No GitHub access. Headless output is `<slug>/T-NNN`. Canon-placed internal projects publish through /canon-publish; an id collision on publish takes the next free id. External projects: unchanged"
     - "1.4: Shared projects (ruling R21, ent#588) — no behaviour change: a task belongs to an epic found by `project:<slug>` label whether the project lives in project_files/ or in the canon; the one rule added is that a workspace path, when one is passed through, is the epic body's Workspace field resolved per PROJECT_STANDARD §15, never derived from the slug"
     - "1.3: Read-the-standard guard — a missing PROJECT_STANDARD.md now stops with a run-/project-init-first message instead of failing on an unresolved registry; skill is now authored standalone (installer copies from here)"
@@ -68,6 +69,8 @@ In headless mode, if any required argument is missing, exit immediately with: `E
 Read `PROJECT_STANDARD.md`. **If it is missing, stop and run `/project-init` first** — it materializes the standard from its shipped template; every project skill reads that file as its configuration. Resolve `$REGISTRY` and `$AGENT_NAME` from §1 and §2.
 
 ### Step 2: Select parent project and its mode
+
+**On Trinity first (standard §17):** unless `--offline`, call `list_projects`. If it answers `success: true`, the project is a platform project — choose it from that list (headless: `--project=` matches the project id, or exactly one project name, case-insensitive; none or several → `ERROR: No project $PROJECT`), then do Step 3 and Step 4 and follow **Platform path** below instead of Steps 5 and 6. Never call `gh` and never write a task file for a platform project.
 
 Resolve the mode first, with the standard's §16 finder (`charter_for`, `mode_of`): if `charter_for "$PROJECT_SLUG"` returns a charter whose mode is **internal**, this is an internal project — its workspace is that charter's folder; skip to **Internal path** below and never call `gh`. Otherwise it is external — continue here. If `$REGISTRY` is `none` and no internal charter matches, exit with `ERROR: No project $PROJECT_SLUG`.
 
@@ -213,12 +216,21 @@ Steps 3 and 4 are the same in both modes — gather the inputs and build the Val
 
 The reference for this task everywhere (dispatch, digest, projections) is `$SLUG/$ID`.
 
+### Platform path (standard §17)
+
+Steps 3 and 4 are the same — gather the inputs and build the Validation rows. Then, instead of Steps 5 and 6, one call:
+
+`create_project_task` with `project_id`, `title`, `objective`, `done_definition` (the DoD as a `- [ ] …` checklist), `context` (the context, then a `Validation:` block with the Validation rows), `owner`, `assignee` (the executing agent, when assignable now), and `waiting_on` (the open loop's actor, §14b). The platform allocates the `T-NNN` id and lists the task on the project; the task log starts with its creation. A refusal comes back as a structured result — report its message verbatim; "No project with this id that you are working on" means this agent is not active on that project (ask its owner to add it in the Workspace).
+
+The reference for this task everywhere (dispatch, digest, projections) is `<project id>/T-NNN`.
+
 ### Step 7: Output
 
 **Headless mode**: print exactly one line — the task reference — and exit:
 ```
 #$TASK_NUMBER            (external)
 $SLUG/$ID                (internal)
+$PROJECT_ID/$ID          (platform)
 ```
 
 **Interactive mode**: print the full summary, ending with the closing statement required by standard §14a — what is now true, what is waiting on the human, and what happens next without them:
