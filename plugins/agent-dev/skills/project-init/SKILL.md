@@ -1,14 +1,15 @@
 ---
 name: project-init
-description: Create or adopt a long-term managed project per PROJECT_STANDARD.md — GitHub epic issue with idempotent label creation and a workspace carrying the project.md charter, at agent level (project_files/<slug>/) or, with --canon, as a shared project in the fleet's canon repo (projects/<slug>/ at the canon root — same charter, same epic, same steward; canon placement only decides who can read it). Use when starting a new multi-session project or bringing an existing project folder under management.
+description: Create or adopt a long-term managed project per the project standard (PROJECT_STANDARD.md at the repo root, or fleet/project-standard.md on an orchestrator — its §0 block configures registry, label vocabulary and fleet hooks) — GitHub epic issue with idempotent label creation and a workspace carrying the project.md charter, at agent level (project_files/<slug>/) or, with --canon, as a shared project in the fleet's canon repo (projects/<slug>/ at the canon root — same charter, same epic, same steward; canon placement only decides who can read it). Use when starting a new multi-session project or bringing an existing project folder under management.
 argument-hint: "[project name | adopt <existing-folder>] [--canon] [--internal] [--dry-run]"
 allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.4: One lineage (ent#789): the standard is resolved at the repo root OR at fleet/project-standard.md (an orchestrator's placement) and its new §0 Configuration block drives everything that used to be hard-coded — label vocabulary by role ($L_ACTIVE, $L_NEEDS_OPERATOR, $L_PRIORITY, …; a tracker-native hyphen vocabulary is now a config value), the owner-label prefix (owner: or agent:), extra epic labels (type-epic), state directory and fleet hooks. Label creation iterates the configured names. With fleet.orchestration set, its §3b ownership matrix supplies the default owner (informational). A missing standard materializes at fleet/project-standard.md when a fleet/ layer exists, else at the root. Absorbs the add-orchestrator template project-init 1.2 — that copy is retired"
     - "1.3: Internal tracking (ent#673, operator ruling 2026-09-22): `--internal` creates a project whose registry is its own workspace — project.md carries the epic's sections (Goal, Success criteria, Owners, Cadence, Current status, Tasks) and `tracking: internal` + `priority:` in the envelope, plus an empty tasks/ and an append-only log.md; no GitHub access, no labels, no epic. Forced when the standard's registry is `none`. Works at both placements (`--canon --internal` = a shared project with its tasks in the canon). External stays the default and writes `tracking: external` explicitly"
     - "1.2: Shared projects (operator rulings R21, 2026-09-10 — one PM standard, two visibility levels — and 2026-09-22 — shared projects at the canon root; ent#588): `--canon` creates the workspace in the fleet's canon repo at projects/<slug>/ — the top-level zone every agent writes directly, not inside any agent's folder — through the x-canon clone, pushed with /canon-publish, instead of project_files/<slug>/, and records `canon:projects/<slug>/` in the epic's Workspace field; this agent becomes the charter's owner: (the steward). A slug already taken in canon — by any steward — is a collision. `adopt --canon <slug>` adopts an existing canon project: one at the root keeps its steward unless it is this agent's (a project stewarded by another agent is refused — ask that agent); one still at the earlier agents/<self>/projects/<slug>/ placement is moved to projects/<slug>/ in the same publish (another agent's earlier-placement project is theirs to move). The charter is the same file at both levels and now carries the linted envelope the canon convention § Projects defines (owner = steward, status mirrors the epic label, epic as owner/repo#N, updated, review_by, tldr) plus an append-only decisions.md ledger with its own envelope; agent-level project.md gains the same envelope so moving a project changes readers and nothing else. `--dry-run` writes the workspace and prints the epic body without touching GitHub (so a scaffold can be linted before it exists). Default placement is unchanged (agent level)"
     - "1.1: Self-heal — when PROJECT_STANDARD.md is missing, materialize it from PROJECT_STANDARD.template.md shipped in this skill directory (resolving registry/operator/agent/max-age with sensible defaults). Makes the skill usable when assigned from the skills library without running the installer; the installer now copies from this directory instead of carrying its own copy"
@@ -27,7 +28,8 @@ Bring a long-term project under standardized management: create its registry and
 
 | Source | Location | Read | Write |
 |---|---|---|---|
-| Convention doc | `PROJECT_STANDARD.md` (repo root) | Yes | No |
+| Convention doc | `PROJECT_STANDARD.md` (repo root) or `fleet/project-standard.md` (orchestrator) — §0 is the configuration | Yes | No |
+| Fleet map / narrative (optional, §0 `fleet.*`) | `fleet/system-map.yaml` (valid owner names), `fleet/orchestration.md` §3b (default owner) | Yes | No |
 | GitHub issues + labels | the `$REGISTRY` repo via `gh` | Yes | Yes |
 | Project workspace (agent level) | `project_files/<slug>/` | Yes | Yes |
 | Project workspace (`--canon`) | `<x-canon.clone_path>/projects/<slug>/` — the canon's shared projects zone | Yes | Yes (the shared zone every agent writes directly; push = `/canon-publish`) |
@@ -37,22 +39,49 @@ Bring a long-term project under standardized management: create its registry and
 
 ### Step 1: Read the standard
 
-Read `PROJECT_STANDARD.md` from the repo root. **If it is missing, materialize it first** — the standard's template ships next to this skill (`PROJECT_STANDARD.template.md` in this skill's directory: `.claude/skills/project-init/` when injected or installed, `${CLAUDE_PLUGIN_ROOT}/skills/project-init/` when run as a plugin command):
+Read the standard — `PROJECT_STANDARD.md` at the repo root, or `fleet/project-standard.md` on an orchestrator. **If neither exists, materialize it first** — the standard's template ships next to this skill (`PROJECT_STANDARD.template.md` in this skill's directory: `.claude/skills/project-init/` when injected or installed, `${CLAUDE_PLUGIN_ROOT}/skills/project-init/` when run as a plugin command):
 
 ```bash
-[ -f PROJECT_STANDARD.md ] && echo "standard: present" || echo "standard: MISSING — materializing from template"
+STANDARD=$(ls PROJECT_STANDARD.md fleet/project-standard.md 2>/dev/null | head -1)
+[ -n "$STANDARD" ] && echo "standard: $STANDARD" || echo "standard: MISSING — materializing from template"
 ```
 
 When missing, resolve the four config values (ask only where nothing sensible resolves): registry repo (`gh repo view --json nameWithOwner -q .nameWithOwner`, default = this repo; `none` when the deployment has no GitHub registry — every project is then internal, standard §16), operator (the human this deployment escalates to — ask), agent name (`grep '^name:' template.yaml | head -1 | awk '{print $2}'`, else the folder name), pending-verification max age (default `48` hours). Then:
 
 ```bash
+TARGET=PROJECT_STANDARD.md; [ -d fleet ] && TARGET=fleet/project-standard.md
 TEMPLATE="$(ls .claude/skills/project-init/PROJECT_STANDARD.template.md "${CLAUDE_PLUGIN_ROOT:-/nonexistent}/skills/project-init/PROJECT_STANDARD.template.md" 2>/dev/null | head -1)"
 sed -e "s|{{REGISTRY}}|$REGISTRY|g" -e "s|{{OPERATOR}}|$OPERATOR|g" -e "s|{{AGENT_NAME}}|$AGENT_NAME|g" \
-    -e "s|{{PV_MAX_AGE}}|$PV_MAX_AGE|g" -e "s|{{DATE}}|$(date -u +%Y-%m-%d)|g" "$TEMPLATE" > PROJECT_STANDARD.md
-git add PROJECT_STANDARD.md && git commit -m "chore: materialize PROJECT_STANDARD.md from the project-init template" 2>/dev/null || true
+    -e "s|{{PV_MAX_AGE}}|$PV_MAX_AGE|g" -e "s|{{DATE}}|$(date -u +%Y-%m-%d)|g" "$TEMPLATE" > "$TARGET"
+if [ "$TARGET" = fleet/project-standard.md ]; then   # orchestrator placement: state beside the fleet layer, fleet hooks on
+  sed -i.bak -e 's|^\(state_dir:\) [^#]*|\1 fleet/project-steward  |' \
+             -e 's|^\(fleet.system_map:\) *[^#]*|\1 fleet/system-map.yaml  |' \
+             -e 's|^\(fleet.orchestration:\) *[^#]*|\1 fleet/orchestration.md  |' "$TARGET" && rm -f "$TARGET.bak"
+  mkdir -p fleet/project-steward/digests fleet/project-steward/outputs
+fi
+git add "$TARGET" && git commit -m "chore: materialize $TARGET from the project-init template" 2>/dev/null || true
 ```
 
-The standard is the deployer's live configuration — edit that file to change behavior, never this skill. Then resolve `$REGISTRY`, `$AGENT_NAME`, and `$OPERATOR` from §1 and §2. These override any remembered values.
+`TARGET` is `fleet/project-standard.md` when a `fleet/` layer exists (this agent is an orchestrator — `/add-orchestrator` installed it), else `PROJECT_STANDARD.md`. The standard is the deployer's live configuration — edit that file to change behavior, never this skill.
+
+Resolve the standard — repo root first, then an orchestrator's `fleet/` placement — and read its **§0 Configuration**. A standard without a §0 block (written before template 1.3) resolves to the defaults below, which are exactly the pre-1.3 behaviour (colon vocabulary, `project-steward/` state, no fleet hooks):
+
+```bash
+STANDARD=$(ls PROJECT_STANDARD.md fleet/project-standard.md 2>/dev/null | head -1)
+cfg() { awk -v k="$1" -v d="$2" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$0~p{v=$0;sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
+REGISTRY=$(cfg registry ""); AGENT_NAME=$(cfg agent ""); OPERATOR=$(cfg operator "")      # empty → take them from the §1/§2 prose (pre-1.3 standard)
+STATE_DIR=$(cfg state_dir project-steward); PV_MAX_AGE=$(cfg pv_max_age_hours 48); QUARANTINE=$(cfg quarantine on); MEMBER_REPOS=$(cfg member_repos "")
+L_OWNER=$(cfg labels.owner_prefix "owner:"); L_PRIORITY=$(cfg labels.priority_prefix "priority:")
+L_LIVE=$(cfg labels.live "status:active"); L_ACTIVE=$(cfg labels.active "status:active")
+L_BLOCKED=$(cfg labels.blocked "status:blocked"); L_NEEDS_OPERATOR=$(cfg labels.needs_operator "status:needs-decision")
+L_PAUSED=$(cfg labels.paused "status:paused"); L_PENDING=$(cfg labels.pending_verification "status:pending-verification")
+L_DONE=$(cfg labels.done "status:done"); L_UNCLASSIFIED=$(cfg labels.unclassified "status:unclassified")
+L_EPIC_EXTRA=$(cfg labels.epic_extra ""); FLEET_MAP=$(cfg fleet.system_map ""); FLEET_NARRATIVE=$(cfg fleet.orchestration "")
+```
+
+Labels are referred to by **role** from here on — `$L_NEEDS_OPERATOR` is the needs-operator label whatever the deployment names it, `$L_LIVE` is the comma-separated set that means "being worked" (split it with `tr ',' ' '`), `status:*` / `priority:*` mean the configured status / priority labels. An empty role turns its feature off (§0).
+
+Pre-1.3 standards: when `$REGISTRY` / `$AGENT_NAME` / `$OPERATOR` come back empty, read them from §1 and §2 as before. These override any remembered values.
 
 ### Step 2: Verify gh access (external only)
 
@@ -90,7 +119,7 @@ Use AskUserQuestion for inputs that cannot be determined from context:
 - **Name** (derive slug as kebab-case; confirm no collision with existing epics)
 - **Goal** (one paragraph)
 - **Success criteria** (2–5 checkable items)
-- **Owner(s)** — who is accountable (human names and/or agent names)
+- **Owner(s)** — who is accountable (human names and/or agent names). With `$FLEET_NARRATIVE` set and its §3b ownership matrix holding a domain row that matches the project's work, offer that domain's **responsible** agent as the default — an informational default the operator can override, never a gate. With `$FLEET_MAP` set, an agent owner must exist in the map (or be this agent).
 - **Priority** — default `p2`
 - **Cadence** — default "as needed"
 
@@ -108,26 +137,25 @@ If an epic already exists for this project, or the folder already holds a `proje
 
 Internal projects skip Steps 5 and 6 entirely — their status, priority and owners live in the charter (Step 7).
 
-Create any missing labels from the standard's taxonomy. All `2>/dev/null || true` so re-runs are safe:
+Create any missing labels **by the names §0 configures** — the standard's own labels plus every status / priority role it names. All `2>/dev/null || true` so re-runs are safe, and a label the tracker already owns (a product tracker's `status-blocked`, `priority-p1`) is simply a no-op:
 
 ```bash
-gh label create "project" --repo "$REGISTRY" --color "0e8a16" --description "Project epic issue" 2>/dev/null || true
-gh label create "task" --repo "$REGISTRY" --color "c2e0c6" --description "Task belonging to a project" 2>/dev/null || true
-gh label create "status:active" --repo "$REGISTRY" --color "1d76db" --description "Being worked" 2>/dev/null || true
-gh label create "status:blocked" --repo "$REGISTRY" --color "d93f0b" --description "External dependency blocking progress" 2>/dev/null || true
-gh label create "status:needs-decision" --repo "$REGISTRY" --color "fbca04" --description "Blocked on owner decision" 2>/dev/null || true
-gh label create "status:paused" --repo "$REGISTRY" --color "cccccc" --description "Deliberately on hold" 2>/dev/null || true
-gh label create "status:pending-verification" --repo "$REGISTRY" --color "e4e669" --description "Agent claimed done; awaiting DoD verification" 2>/dev/null || true
-gh label create "status:done" --repo "$REGISTRY" --color "6e5494" --description "Verified complete (absorbing; only a human reopens)" 2>/dev/null || true
-gh label create "status:unclassified" --repo "$REGISTRY" --color "f9d0c4" --description "Auto-stubbed workspace folder not yet classified" 2>/dev/null || true
-gh label create "priority:p1" --repo "$REGISTRY" --color "b60205" --description "High priority" 2>/dev/null || true
-gh label create "priority:p2" --repo "$REGISTRY" --color "ff9f1c" --description "Normal priority" 2>/dev/null || true
-gh label create "priority:p3" --repo "$REGISTRY" --color "c5def5" --description "Low priority" 2>/dev/null || true
+mk() { [ -n "$1" ] && gh label create "$1" --repo "$REGISTRY" --color "$2" --description "$3" 2>/dev/null || true; }
+mk project 0e8a16 "Project epic issue"
+mk task    c2e0c6 "Task belonging to a project"
+for L in $(printf '%s' "$L_LIVE" | tr ',' ' '); do mk "$L" 1d76db "Being worked"; done
+mk "$L_ACTIVE"       1d76db "Being worked"
+mk "$L_BLOCKED"      d93f0b "External dependency blocking progress"
+mk "$L_NEEDS_OPERATOR" fbca04 "A decision or action only the operator can take"
+mk "$L_PAUSED"       cccccc "Deliberately on hold"
+mk "$L_PENDING"      e4e669 "Agent claimed done; awaiting DoD verification"
+mk "$L_DONE"         6e5494 "Verified complete (absorbing; only a human reopens)"
+mk "$L_UNCLASSIFIED" f9d0c4 "Auto-stubbed workspace folder not yet classified"
+mk "${L_PRIORITY}p1" b60205 "High priority"; mk "${L_PRIORITY}p2" ff9f1c "Normal priority"; mk "${L_PRIORITY}p3" c5def5 "Low priority"
+for L in $(printf '%s' "$L_EPIC_EXTRA" | tr ',' ' '); do mk "$L" 3e4b9e "Epic"; done
 # Project-specific labels
-gh label create "project:$SLUG" --repo "$REGISTRY" --color "5319e7" --description "Membership: project $NAME" 2>/dev/null || true
-for OWNER in $OWNERS; do
-  gh label create "owner:$OWNER" --repo "$REGISTRY" --color "0052cc" --description "Accountable: $OWNER" 2>/dev/null || true
-done
+mk "project:$SLUG" 5319e7 "Membership: project $NAME"
+for OWNER in $OWNERS; do mk "${L_OWNER}$OWNER" 0052cc "Accountable: $OWNER"; done
 ```
 
 ### Step 6: Create the epic issue
@@ -160,16 +188,16 @@ EOF
 
 gh issue create --repo "$REGISTRY" \
   --title "[Project] $NAME" \
-  --label "project,project:$SLUG,status:active,priority:$PRIORITY" \
+  --label "project,project:$SLUG,$L_ACTIVE,${L_PRIORITY}$PRIORITY${L_EPIC_EXTRA:+,$L_EPIC_EXTRA}" \
   --body-file /tmp/epic-body.md
 ```
 
 `$WORKSPACE_FIELD` is the **recorded** workspace path — the field every project skill resolves from (standard §15; nothing derives it from the slug): `` `project_files/$SLUG/` `` at agent level, `` `canon:projects/$SLUG/` `` with `--canon` (adopt: the actual folder after any move). With `--dry-run`, print `/tmp/epic-body.md` instead of creating the issue and skip Step 5 too.
 
-For each owner, add the `owner:<name>` label:
+For each owner, add the `${L_OWNER}<name>` label (`owner:` by default; `agent:` on a fleet whose owners are the executing agents — one label, never a GitHub assignee):
 ```bash
 for OWNER in $OWNERS; do
-  gh issue edit $ISSUE_NUMBER --repo "$REGISTRY" --add-label "owner:$OWNER"
+  gh issue edit $ISSUE_NUMBER --repo "$REGISTRY" --add-label "${L_OWNER}$OWNER"
 done
 ```
 
@@ -286,7 +314,7 @@ Print:
 
 Registry:  $EPIC_URL | this folder (internal — tasks/, log.md)
 Workspace: <project_files/$SLUG/ | canon:projects/$SLUG/ (shared — readable and writable by every agent and human on the canon; steward: $SELF)>
-Labels:    project, project:$SLUG, status:active, priority:$PRIORITY, owner:<...>   (internal: none — status/priority/owners are in project.md)
+Labels:    project, project:$SLUG, $L_ACTIVE, ${L_PRIORITY}$PRIORITY, ${L_OWNER}<...>${L_EPIC_EXTRA:+, $L_EPIC_EXTRA}   (internal: none — status/priority/owners are in project.md)
 
 Next steps:
   /project-task — create the first task

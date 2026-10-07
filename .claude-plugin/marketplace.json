@@ -50,6 +50,7 @@
         "./skills/project-init",
         "./skills/project-intake",
         "./skills/project-reconcile",
+        "./skills/project-status",
         "./skills/project-steward",
         "./skills/project-task",
         "./skills/roadmap",

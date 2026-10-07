@@ -1,14 +1,15 @@
 ---
 name: project-reconcile
-description: Sync projection adapters against the registry per PROJECT_STANDARD.md — GitHub Issues for external projects, task files for internal ones (standard §16). Processes projection gestures (check/date-push/delete) back into the registry with correct reversibility typing. Ships with Google Tasks adapter v1 (notes-field [#NN] key). Other adapters are per-deployment extensions. Reconciler is idempotent; refuses unkeyed items with a sync-gap alert.
+description: Sync projection adapters against the registry per the project standard (PROJECT_STANDARD.md, or fleet/project-standard.md on an orchestrator) — GitHub Issues for external projects, task files for internal ones (standard §16). Processes projection gestures (check/date-push/delete) back into the registry with correct reversibility typing. Ships with Google Tasks adapter v1 (notes-field [#NN] key). Other adapters are per-deployment extensions. Reconciler is idempotent; refuses unkeyed items with a sync-gap alert.
 argument-hint: "[adapter] — default: google-tasks"
 allowed-tools: Bash, Read, Write, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.3: One lineage (ent#789): the standard is resolved at the repo root or at fleet/project-standard.md; its §0 Configuration supplies the label vocabulary by role and the state directory — the reconcile log lives under $STATE_DIR/reconcile-log/ (project-steward/ by default, fleet/project-steward/ on an orchestrator); with the done label unset, closing the issue is the done marker; with the pending-verification label unset, an agent-owned completion gesture is verified against the Definition of Done right away instead of parked"
     - "1.2: Internal tracking (ent#673): internal projects' task files join the registry map under the key `[<slug>/T-NNN]` (external keeps `[#NN]`); a check gesture on one writes the task's front matter and an appended Log entry instead of labels and a comment (human owner → status: done; agent owner → pending-verification + pending_since), and the projection item's note carries the task file path. Everything else — gesture typing, absence never authoritative, unkeyed items personal — is unchanged"
     - "1.1: Read-the-standard guard (missing PROJECT_STANDARD.md → run /project-init first); skill is now authored standalone (installer copies from here)"
     - "1.0: Initial version — generic adapter contract, Google Tasks adapter v1 with gesture typing, idempotent reconciler, sync-gap alerts for unkeyed items"
@@ -36,7 +37,24 @@ This skill ships with the **Google Tasks adapter v1**. Other adapters (Fibery, N
 
 ### Step 1: Read the standard
 
-Read `PROJECT_STANDARD.md`. **If it is missing, stop and run `/project-init` first** — it materializes the standard from its shipped template; every project skill reads that file as its configuration. Resolve `$REGISTRY`, `$AGENT_NAME`, and `$PV_MAX_AGE`.
+Resolve the standard — repo root first, then an orchestrator's `fleet/` placement — and read its **§0 Configuration**. A standard without a §0 block (written before template 1.3) resolves to the defaults below, which are exactly the pre-1.3 behaviour (colon vocabulary, `project-steward/` state, no fleet hooks):
+
+```bash
+STANDARD=$(ls PROJECT_STANDARD.md fleet/project-standard.md 2>/dev/null | head -1)
+cfg() { awk -v k="$1" -v d="$2" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$0~p{v=$0;sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
+REGISTRY=$(cfg registry ""); AGENT_NAME=$(cfg agent ""); OPERATOR=$(cfg operator "")      # empty → take them from the §1/§2 prose (pre-1.3 standard)
+STATE_DIR=$(cfg state_dir project-steward); PV_MAX_AGE=$(cfg pv_max_age_hours 48); QUARANTINE=$(cfg quarantine on); MEMBER_REPOS=$(cfg member_repos "")
+L_OWNER=$(cfg labels.owner_prefix "owner:"); L_PRIORITY=$(cfg labels.priority_prefix "priority:")
+L_LIVE=$(cfg labels.live "status:active"); L_ACTIVE=$(cfg labels.active "status:active")
+L_BLOCKED=$(cfg labels.blocked "status:blocked"); L_NEEDS_OPERATOR=$(cfg labels.needs_operator "status:needs-decision")
+L_PAUSED=$(cfg labels.paused "status:paused"); L_PENDING=$(cfg labels.pending_verification "status:pending-verification")
+L_DONE=$(cfg labels.done "status:done"); L_UNCLASSIFIED=$(cfg labels.unclassified "status:unclassified")
+L_EPIC_EXTRA=$(cfg labels.epic_extra ""); FLEET_MAP=$(cfg fleet.system_map ""); FLEET_NARRATIVE=$(cfg fleet.orchestration "")
+```
+
+Labels are referred to by **role** from here on — `$L_NEEDS_OPERATOR` is the needs-operator label whatever the deployment names it, `$L_LIVE` is the comma-separated set that means "being worked" (split it with `tr ',' ' '`), `status:*` / `priority:*` mean the configured status / priority labels. An empty role turns its feature off (§0).
+
+**If no standard exists, stop and run `/project-init` first** — it materializes the standard from its shipped template; every project skill reads that file as its configuration. Pre-1.3 standards: resolve `$REGISTRY`, `$AGENT_NAME` and `$PV_MAX_AGE` from §1, §2 and §12 when the block returns them empty.
 
 ### Step 2: Select adapter
 
@@ -129,27 +147,27 @@ For each matched pair, detect gestures:
 | Item was in last sync log but is now absent from projection | **delete** — soft-skip proposal |
 | No change | no-op |
 
-Read the last sync log (`project-steward/reconcile-log/google-tasks-YYYY-MM-DD.json` or the most recent) to detect deletions.
+Read the last sync log (`$STATE_DIR/reconcile-log/google-tasks-YYYY-MM-DD.json` or the most recent) to detect deletions.
 
 ### Step 6: Apply registry updates (per gesture type)
 
 **Check (completion endorsement):** — for an internal task (`<slug>/T-NNN`) make the same two decisions with file writes: read `owner:` from the front matter; human owner → append `### Done claim — projection endorsement YYYY-MM-DD` to its `## Log`, set `status: done` and `updated:`, check it off in project.md's `## Tasks`; agent owner → append `### Done claim — projection signal YYYY-MM-DD`, set `status: pending-verification` and `pending_since:`. Commit the file (canon: `/canon-publish`). For an external task:
 ```bash
-OWNER=$(gh issue view $NUMBER --repo "$REGISTRY" --json labels -q '.labels[].name | select(startswith("owner:"))' | head -1 | sed 's/owner://')
+OWNER=$(gh issue view $NUMBER --repo "$REGISTRY" --json labels -q ".labels[].name | select(startswith(\"$L_OWNER\"))" | head -1 | sed "s/^$L_OWNER//")
 ```
 
 - If owner is a human (not in the agent list): this is a human endorsement → close the issue directly:
   ```bash
   gh issue comment $NUMBER --repo "$REGISTRY" \
     --body "### Done claim — projection endorsement $(date -u +%Y-%m-%d)\nMarked complete in Google Tasks by $OWNER. Closing as done per PROJECT_STANDARD.md §11 (human completion = direct done)."
-  gh issue edit $NUMBER --repo "$REGISTRY" --remove-label "status:active" --add-label "status:done"
+  gh issue edit $NUMBER --repo "$REGISTRY" --remove-label "$L_ACTIVE" ${L_DONE:+--add-label "$L_DONE"}   # no done label configured → closing is the marker
   gh issue close $NUMBER --repo "$REGISTRY" --reason completed
   ```
-- If owner is an agent: set pending-verification:
+- If owner is an agent: set pending-verification. **If `$L_PENDING` is empty** (no verification hold configured) there is nothing to park it in: verify the Definition of Done against the projection evidence now, exactly as the steward's verification pass would, and close it or log `[Verification failed]` — never leave it half-done.
   ```bash
   gh issue comment $NUMBER --repo "$REGISTRY" \
     --body "### Done claim — projection signal $(date -u +%Y-%m-%d)\nMarked complete in Google Tasks. Setting pending-verification for steward to verify against Definition of Done."
-  gh issue edit $NUMBER --repo "$REGISTRY" --remove-label "status:active" --add-label "status:pending-verification"
+  gh issue edit $NUMBER --repo "$REGISTRY" --remove-label "$L_ACTIVE" --add-label "$L_PENDING"
   ```
 
 **Date-push (defer signal):**
@@ -194,7 +212,7 @@ curl -sf -X PATCH "https://tasks.googleapis.com/tasks/v1/lists/$LIST_ID/tasks/$T
 
 ### Step 8: Write sync log and report
 
-Write `project-steward/reconcile-log/google-tasks-$(date -u +%Y-%m-%d).json`:
+Write `$STATE_DIR/reconcile-log/google-tasks-$(date -u +%Y-%m-%d).json`:
 ```json
 {
   "adapter": "google-tasks",
@@ -215,7 +233,7 @@ Write `project-steward/reconcile-log/google-tasks-$(date -u +%Y-%m-%d).json`:
 
 Commit and push:
 ```bash
-git add project-steward/reconcile-log && \
+git add "$STATE_DIR/reconcile-log" && \
 git commit -m "reconcile: google-tasks sync $(date -u +%Y-%m-%d)" && \
 (git push origin main || (git pull --rebase --autostash origin main && git push origin main))
 ```
@@ -241,7 +259,7 @@ Sync-gap alerts (keyed items whose [#NN] number does not resolve in registry):
 Soft-skip proposals (awaiting confirmation):
   - #NN <title> — deleted from projection; confirm to close or ignore
 
-Evidence log: project-steward/reconcile-log/google-tasks-YYYY-MM-DD.json
+Evidence log: $STATE_DIR/reconcile-log/google-tasks-YYYY-MM-DD.json
 ```
 
 If there are sync-gap alerts (keyed but unresolvable) or soft-skip proposals, ask the user if they want to take action on them now. Personal items are never surfaced for action.

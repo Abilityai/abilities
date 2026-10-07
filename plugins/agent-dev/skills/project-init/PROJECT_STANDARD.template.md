@@ -2,11 +2,49 @@
 
 > The standardized approach for managing projects in this deployment.
 > Every managed project follows this standard; `/project-init` creates projects that conform to it,
-> `/project-task` creates tasks, `/project-steward` manages them autonomously,
-> and `/project-reconcile` syncs projections against the registry.
+> `/project-task` creates tasks, `/project-intake` routes work in headlessly, `/project-steward` manages
+> them autonomously, `/project-reconcile` syncs projections against the registry, and `/project-status`
+> reports one project's progress and projected finish to the operator.
 > **{{AGENT_NAME}}** is the managing agent; **{{OPERATOR}}** is the operator (the human this standard escalates to).
 >
-> Version: 1.2 ({{DATE}})
+> Version: 1.3 ({{DATE}}) — §0 Configuration: the machine-read block every project skill resolves at run time (where the standard lives, the label vocabulary, the steward's state directory, the fleet hooks); one skill set for stand-alone agents and fleet orchestrators alike
+
+## 0. Configuration
+
+Every project skill reads this block first — it is **the only place the skills take their configuration from**. Edit the values, keep the keys. A standard without this block (written before 1.3) is read with the defaults shown here, so nothing changes until you opt in. Flat keys, one per line, `#` comments allowed after a value; an **empty value turns the matching feature off**.
+
+```yaml
+config_version: 1
+registry: {{REGISTRY}}                        # GitHub owner/repo that holds the project epics, or `none` (every project internal, §16)
+agent: {{AGENT_NAME}}                         # this agent's logical name — tasks labeled agent:<this> are executed inline, never dispatched
+operator: {{OPERATOR}}                        # the human the needs-operator label escalates to
+state_dir: project-steward                    # steward state, digests, run log, reconcile log, outputs for workspaces the run cannot see
+pv_max_age_hours: {{PV_MAX_AGE}}              # pending-verification SLA (§12)
+quarantine: on                                # on | off — the steward auto-stubs unregistered project_files/ folders (§9); off on a repo whose project_files/ holds non-project folders
+member_repos:                                 # extra owner/repo(s), comma-separated, whose `project:<slug>` issues count as project members (status reports); empty = the registry only
+labels.owner_prefix: "owner:"                 # the accountable-party label. `agent:` on a fleet whose owners ARE the executing agents (one label, no GitHub assignee)
+labels.live: status:active                    # comma-separated — any of these on an epic means "being worked"
+labels.active: status:active                  # the live label the skills WRITE (new epic/task, restore after a failed verification)
+labels.blocked: status:blocked
+labels.needs_operator: status:needs-decision  # a decision or action only the operator can take
+labels.paused: status:paused                  # the steward skips it — no staleness escalation
+labels.pending_verification: status:pending-verification   # empty = no verification hold: a done claim is verified in the same run and closes directly
+labels.done: status:done                      # empty = closing the issue is the done marker (no label written)
+labels.unclassified: status:unclassified      # empty = the quarantine pass cannot stub (set quarantine: off)
+labels.priority_prefix: "priority:"           # followed by p1 | p2 | p3
+labels.epic_extra:                            # comma-separated labels added to every epic (e.g. type-epic so a product tracker's roll-ups see it); empty = none
+fleet.system_map:                             # path to a fleet system map (fleet/system-map.yaml on an orchestrator) — owners resolve to their live deployed_name through it; empty = owners are called by their logical name
+fleet.orchestration:                          # path to the orchestration narrative (fleet/orchestration.md) — its §5 edges gate dispatch, its §3b ownership matrix supplies default owners and consulted/informed etiquette; empty = no edge check
+```
+
+**Label roles, not label names.** Every skill refers to a label by its role — *the needs-operator label*, *the blocked label* — and resolves the name from this block (`$L_NEEDS_OPERATOR`, `$L_BLOCKED`, … in their bash). The tables below document the **default** vocabulary; a deployment that rides an existing tracker's vocabulary (e.g. `status-needs-operator`, `priority-p1`) changes the values here and nothing else. `status:*` / `priority:*` in the prose below mean "whichever status / priority labels this block names".
+
+**Resolver (what every skill runs first):**
+
+```bash
+STANDARD=$(ls PROJECT_STANDARD.md fleet/project-standard.md 2>/dev/null | head -1)   # repo root first, then an orchestrator's fleet/ placement
+cfg() { awk -v k="$1" -v d="$2" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$0~p{v=$0;sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
+```
 
 ## 1. Registry
 
@@ -14,7 +52,7 @@
 |---|---|---|
 | Registry (single source of truth) | **Per project, declared in its charter's `tracking:` (§16).** *External:* GitHub issues in `{{REGISTRY}}` — one **epic issue** per project (`project` label), one task issue per task (`task` + `project:<slug>`). *Internal:* the project's own workspace — `project.md` stands in for the epic, `tasks/<id>.md` for each task issue, `log.md` for the epic's comment thread | A registry of `none` (set when this standard was materialized) means every project is internal and no GitHub access is needed |
 | Workspace (files, drafts, outputs) | **Agent level:** `project_files/<slug>/` in the managing agent's repo. **Canon level (shared project, §15):** `agents/{{AGENT_NAME}}/projects/<slug>/` in the fleet's canon repo, read through the agent's clone (`x-canon.clone_path`, default `canon/`) | Free-form except `project.md` (charter — the linted envelope of the canon convention § Projects, at both levels) and the optional append-only `decisions.md` ledger. **The path is recorded in the epic body's `## Workspace` field and is always read from there — never derived from the slug** (§15). **Visibility is deployment config**: if git-synced to the agent's container, the steward reads workspaces directly; if local-only / gitignored, Trinity runs use the epic body as authoritative context. The quarantine pass is idempotent wherever `project_files/` is visible and never scans the canon. |
-| Steward state, digests, run log | `project-steward/` in the managing agent's repo | Written only by `/project-steward`; tracked in git after each material run |
+| Steward state, digests, run log, outputs | `state_dir` from §0 (`project-steward/` by default; `fleet/project-steward/` on an orchestrator) in the managing agent's repo | Written only by `/project-steward` and `/project-reconcile`; tracked in git and pushed after each material run (GitHub carries steward state between local and Trinity runs). When a workspace is not visible to the run (gitignored `project_files/` on a Trinity container), inline-task output lands in `<state_dir>/outputs/<slug>/` and the task comment says so |
 
 **Invariant 1 — One registry per project, write-authoritative.** Each project's registry — its GitHub epic and task issues (external) or its own workspace files (internal, §16) — is the sole authoritative record for that project's state: scope, status, and priority. A project has exactly one registry; nothing mirrors it into the other mode, and no other system writes state back. Projections are read-only views; they do not own state.
 
@@ -25,6 +63,8 @@
 - **Other agents / humans** — execute dispatched tasks; report results via chat; do not write to the registry directly (in either mode — a person editing a task file by hand is the internal-mode equivalent of editing an issue: allowed for the operator, and the steward reads it as-is).
 
 ## 3. Label taxonomy
+
+Default names — the live names are the §0 values (a tracker-native vocabulary such as `status-blocked` / `priority-p1` is configured there, never hard-coded in a skill).
 
 | Label | Meaning |
 |---|---|
@@ -201,6 +241,7 @@ The steward auto-stubs any `project_files/<slug>/` folder that is not a register
 ## 10. Dispatch protocol (Invariant 1 + cross-actor)
 
 1. **Explicit ownership only.** Dispatch only to the agent named by the task's `agent:*` label. Never fuzzy-match at runtime; ambiguity → `status:needs-decision`.
+1b. **Resolve through the fleet map, respect its boundaries** (only when §0 names `fleet.system_map` / `fleet.orchestration`). The `agent:*` label is the *logical* name — resolve it to the live callable name via the map (`deployed_name`, falling back to the last segment of `ref:`); an owner absent from the map → `status:needs-decision`. If the narrative's §5 does not sanction a manager→owner edge, do **not** dispatch — `status:needs-decision` naming the missing edge (an autonomous run never silently violates the permission intent). Its §3b ownership matrix is etiquette, never a gate: name the domain's *consulted* agents in the brief's Context line, mention outcomes to its *informed* agents in the digest.
 2. **Health check first.** `mcp__trinity__get_agent_health` before dispatch when Trinity is available; unhealthy → `status:blocked`, digest.
 3. **One open dispatch per project, max 3 per steward run.**
 4. **Standard dispatch brief:**

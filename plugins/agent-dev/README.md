@@ -115,6 +115,7 @@ Standalone skills — usable directly as `/agent-dev:<name>`, copied into an age
 | **project-intake** | Headless intake primitive — route actionable items from any source into the registry, dedupe by meaning, return the issue number |
 | **project-steward** | Autonomous sweep — verify pending-verification claims, dispatch, escalate stalls, age open loops, write the digest |
 | **project-reconcile** | Projection sync — Google Tasks adapter v1 + the adapter contract for other surfaces |
+| **project-status** | Daily status for one project — what moved, what waits on the operator (Trinity asks), projected finish date from the `plan.md` ledger |
 
 ### Planning
 
@@ -146,8 +147,7 @@ The `/add-memory` skill copies memory skills directly into the agent (no plugin 
 | **profile-fleet** | Interview + introspect the agents, reconcile reality vs declared config, and correct the `orchestration.md` narrative behind a gate |
 | **fleet-reconcile** | Fold already-verified deltas (session fixes, audit corrections) into every doc surface behind one gate — no new evidence |
 | **reconcile-skill-map** | Diff the declared-intent `fleet/skill-map.yaml` against live `get_agent_skills`, apply approved additions via `assign_skill_to_agent`, report drift and never-reviewed agents — never auto-remove (ent#646 governance surface) |
-| **project-init** *(opt-in)* | Create/adopt a managed project (GitHub epic + workspace) per `fleet/project-standard.md` |
-| **project-steward** *(opt-in)* | Autonomous scheduled project driver — sweep, dispatch to labeled owners, escalate, age the operator's open loops, digest |
+| **project-\*** *(opt-in)* | The six standalone project skills above, copied from this plugin (not embedded) and configured for the fleet by `fleet/project-standard.md` §0 — owners resolve through the fleet map, dispatch respects the narrative's §5 edges |
 
 **Nothing ends in silence (standard §12).** The bundle treats an unclosed loop as a defect in both directions. Inbound: `/orchestrate` isn't finished until the person who asked has actually been told the outcome — successes *and* failures — and every report ends with *your open loops / waiting on you / next without you*; the steward's digest opens the same way. Outbound: work parked on somebody the fleet can't dispatch to (a client, a vendor, a colleague, an agent in another fleet) is labeled `waiting-on:<actor>`, aged in every digest, and handed over with a follow-up drafted at 3 days and weekly after — **the agent drafts it, the human sends it.** Nothing in the bundle contacts a third party on the operator's behalf.
 

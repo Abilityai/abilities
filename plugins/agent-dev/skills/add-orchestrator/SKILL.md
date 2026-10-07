@@ -5,10 +5,11 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 argument-hint: "[--check]"
 metadata:
-  version: "1.33"
+  version: "1.34"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.34: The project layer (Q3) no longer embeds its own project-init / project-steward — those two templates and project-standard.md.template are deleted (ent#789: two lineages under one name, ~600 lines apart, fixes landing in one and not the other). Q3 now copies the six standalone agent-dev project skills (project-init / task / intake / steward / reconcile / status) from the plugin's own skills/ directories — the same files the trinity-skills library carries — and seeds fleet/project-standard.md from project-init's PROJECT_STANDARD.template.md with the fleet values set in its §0 Configuration (state_dir: fleet/project-steward, fleet.system_map, fleet.orchestration). Everything the orchestrator pair did — reading the standard at fleet/, resolving owners through the map, §5 edge checks, §3b etiquette, outputs for invisible workspaces — is now behaviour of the one skill set, switched on by that block. --check compares the project set against the plugin's skills/ copies. Existing installs: re-run and overwrite the pair, then add §0 to the existing fleet/project-standard.md (the upgrade path below)"
     - "1.33: Bundled sync-fleet-to-head 1.7 — ahead is a finding, not a footnote (universalized from the production orchestrator's 1.7, field lesson 2026-09-24: 40 commits on 10 agents existed only on container disks, all long listed as 'Left ahead'). Ahead > 0 is a needs-attention line with count + oldest unpushed commit age (get_git_log), confirmed over get_git_status; diverged/ahead lead the report; > 24 h is red. Still pull-only. Re-run /add-orchestrator (or --check) on an installed orchestrator to pick it up"
     - "1.32: Platform-truth refresh (Trinity dev 863240f3) — bundled reconcile-skill-map 1.2 (skill-manager permission enforced, ent#596: 403 skill_management_not_permitted until an admin grants it; skill sets set:<name>, ent#530), orchestrate 1.17 (notify is a role via send_message(to:) or an ask_operator alert, ent#606/ent#611; inter_agent_depth_exceeded is terminal, #2806; start_agent skill-delivery lines, #2991), sync-fleet-to-head 1.6 (null ahead/behind = unknown, #2105)."
     - "1.31: Bundled reconcile-skill-map 1.1 — the delivery ladder handles the `conflict` state Trinity now returns when a library skill would overwrite an agent-authored skill of the same name (trinity#2914, dev 1a1deb2b): never retried, never forced, reported as an unassign-or-rename decision; pre-fix instances still overwrite, so the pre-flight name diff stays. Re-run /add-orchestrator (or --check) on an installed orchestrator to pick it up"
@@ -76,11 +77,14 @@ Maintenance (keep the fleet + its narrative honest over time):
   /reconcile-skill-map  diff fleet/skill-map.yaml (declared intent) vs live get_agent_skills, apply
                         approved additions, never auto-remove drift (ent#646 governance surface)
 
-Drive (opt-in project-management layer — Q3 at install):
+Drive (opt-in project-management layer — Q3 at install; the six standalone agent-dev project skills,
+       configured for the fleet by fleet/project-standard.md §0 — nothing orchestrator-specific is embedded here):
   /project-init         create/adopt a managed project (epic + workspace) per fleet/project-standard.md
-  /project-steward      autonomous sweep: reconcile dispatches, dispatch next work to labeled owners,
-                        escalate stalls, age the operator's open loops, write a daily digest —
-                        never asks mid-run
+  /project-task · /project-intake   create tasks (interactive / headless) in the uniform anatomy
+  /project-steward      autonomous sweep: reconcile dispatches, dispatch next work to labeled owners through the
+                        fleet map, escalate stalls, age the operator's open loops, write a daily digest — never asks mid-run
+  /project-reconcile    sync projection surfaces (Google Tasks adapter) against the registry
+  /project-status       daily per-project status + projected finish date for the operator
 ```
 
 **Loop closure (standard §12) runs through the whole bundle.** Silence is a failure mode, not an outcome, in both directions. Inbound: `/orchestrate` isn't done until the requester has actually been told the outcome — including when the run failed — and the steward's digest opens with what's now true, what's waiting on the operator, and what happens next unprompted. Outbound: work parked on somebody the fleet can't dispatch to — a client, a vendor, a colleague, an agent in another fleet — is labeled `waiting-on:<actor>`, aged in every digest under **Your open loops**, and handed to the operator with a drafted follow-up. **The agent drafts; the human sends** — nothing in this bundle contacts a third party on the operator's behalf.
@@ -102,9 +106,8 @@ Drive (opt-in project-management layer — Q3 at install):
 | `.claude/skills/profile-fleet/SKILL.md` | agent repo | interview + introspect agents; reconcile reality and correct the `orchestration.md` narrative |
 | `.claude/skills/fleet-reconcile/SKILL.md` | agent repo | fold already-verified deltas into the doc surfaces (narrative, dossiers, CLAUDE.md, memory) behind one gate — no new evidence |
 | `.claude/skills/reconcile-skill-map/SKILL.md` | agent repo | diff `fleet/skill-map.yaml` (declared intent) vs live `get_agent_skills`, apply approved additions via `assign_skill_to_agent`, never auto-remove drift |
-| `.claude/skills/project-init/SKILL.md` | agent repo (opt-in, Q3) | create/adopt a managed project per the standard |
-| `.claude/skills/project-steward/SKILL.md` | agent repo (opt-in, Q3) | autonomous project driver — sweep, dispatch, escalate, digest |
-| `fleet/project-standard.md` | agent repo (opt-in, Q3) | project-management conventions both skills read at runtime — registry repo, labels, comment formats, dispatch protocol |
+| `.claude/skills/project-{init,task,intake,steward,reconcile,status}/` | agent repo (opt-in, Q3) | the six standalone agent-dev project skills, copied from the plugin's `skills/` (never embedded here) — the same files the `trinity-skills` library assigns |
+| `fleet/project-standard.md` | agent repo (opt-in, Q3) | project-management conventions every project skill reads at runtime — rendered from `skills/project-init/PROJECT_STANDARD.template.md` with the fleet values in its §0 Configuration (`state_dir: fleet/project-steward`, `fleet.system_map`, `fleet.orchestration`) |
 | steward schedule | `template.yaml` `schedules:` + Trinity MCP (opt-in, Q3) | `project-steward-sweep`, default cron `0 7-19/2 * * 1-5` |
 | `fleet/sources.yaml` | agent repo | the repo list you edit (local paths + `github:Org/repo`) |
 | `fleet/system-map.yaml` | agent repo | descriptive FACTS/nodes registry (written by `/discover-agents`) |
@@ -146,7 +149,7 @@ So every bundled skill that is both `automation: gated` **and** designed to run 
 
 Invoked as `/add-orchestrator --check`: a **read-only** report of how this agent's *installed* runtime skills compare to the *bundled* templates they were copied from. Nothing is written, no files are touched. The same per-skill comparison is called inline by **Step 4**'s overwrite prompt, so the warning reaches the operator *at the moment of the overwrite decision*, not after it (issue #8). When `--check` is the invocation, run this section and stop — skip the install steps.
 
-**Scope is deliberate and stateless.** This compares only the skills add-orchestrator itself installs (`discover-agents`, `compose-system`, `orchestrate`, `sync-fleet-to-head`, `profile-fleet`, `fleet-reconcile`, `reconcile-skill-map`, and the Q3 pair `project-init` / `project-steward`) against *this bundle's* `templates/`. It is **not** a general skill-registry inventory and keeps **no state on disk** — the bundle is the reference, the installed copy is the subject. The plugin-framework-wide version (every plugin that copies skills into agent repos) is a separate, larger call filed as a follow-up.
+**Scope is deliberate and stateless.** This compares only the skills add-orchestrator itself installs (`discover-agents`, `compose-system`, `orchestrate`, `sync-fleet-to-head`, `profile-fleet`, `fleet-reconcile`, `reconcile-skill-map`) against *this bundle's* `templates/`, and the Q3 project set (`project-init` / `project-task` / `project-intake` / `project-steward` / `project-reconcile` / `project-status`) against the plugin's own `skills/<skill>/SKILL.md` — the project skills are not templates of this bundle. It is **not** a general skill-registry inventory and keeps **no state on disk** — the bundle is the reference, the installed copy is the subject. The plugin-framework-wide version (every plugin that copies skills into agent repos) is a separate, larger call filed as a follow-up.
 
 **Per skill, resolve two version stamps and compare content:**
 - `installed` = `metadata.version` in the agent's `.claude/skills/<skill>/SKILL.md`
@@ -175,8 +178,9 @@ vcmp() { awk -v a="$1" -v b="$2" 'BEGIN{
   for(i=1;i<=L;i++){u=x[i]+0; v=y[i]+0; if(u<v){print "<";exit} if(u>v){print ">";exit}}
   print "=" }'; }
 
-for skill in discover-agents compose-system orchestrate sync-fleet-to-head profile-fleet fleet-reconcile reconcile-skill-map project-init project-steward; do
+for skill in discover-agents compose-system orchestrate sync-fleet-to-head profile-fleet fleet-reconcile reconcile-skill-map project-init project-task project-intake project-steward project-reconcile project-status; do
   inst=".claude/skills/$skill/SKILL.md"; bund="$SKILL_DIR/templates/$skill.md"
+  case "$skill" in project-*) bund="${CLAUDE_PLUGIN_ROOT:-$SKILL_DIR/..}/skills/$skill/SKILL.md";; esac   # the project set lives in the plugin's skills/, not in this bundle"
   [ -f "$inst" ] || { echo "$skill: — not installed"; continue; }
   iv=$(ver "$inst"); bv=$(ver "$bund"); cmp=$(vcmp "$iv" "$bv")
   if [ "$cmp" = "=" ]; then
@@ -245,9 +249,9 @@ If any target skill directory already exists under `.claude/skills/`, ask per-sk
 
 **Q3 — Add the project-management layer?** (opt-in — this installs an *autonomous, scheduled* driver, so it is never bundled silently)
 - `No` — skip; re-run this skill later to add it.
-- `Yes` — install `/project-init` + `/project-steward` and seed `fleet/project-standard.md` (which carries the §12 loop-closure discipline: the steward reports back to the operator rather than only filing on issues, and ages the operator's `waiting-on:<actor>` loops with drafted-but-unsent follow-ups). Then gather three parameters:
+- `Yes` — install the six standalone project skills (`/project-init`, `/project-task`, `/project-intake`, `/project-steward`, `/project-reconcile`, `/project-status` — the same files the `trinity-skills` library carries; on a Trinity instance you may **assign them from the library instead of copying**, which is the library-first default) and seed `fleet/project-standard.md` (which carries the §14 loop-closure discipline: the steward reports back to the operator rather than only filing on issues, and ages the operator's `waiting-on:<actor>` loops with drafted-but-unsent follow-ups). Then gather three parameters:
   - **Registry repo** — which GitHub repo hosts the project epics (default: this agent's own origin repo).
-  - **Operator** — the human name `status:needs-operator` escalates to.
+  - **Operator** — the human name the needs-operator label escalates to.
   - **Steward cadence** — cron for the sweep (default `0 7-19/2 * * 1-5`, i.e. every 2h, weekdays). **Times are UTC unless you say otherwise** — `create_agent_schedule` and a declared `schedules:` entry both default `timezone` to `UTC`, and the agent container's own clock is UTC. If "working hours" should mean the operator's clock, ask for a timezone and pass it (`timezone: "Europe/London"`); never a legacy IANA alias (`Europe/Kiev`, `Asia/Calcutta`) — those no longer resolve and the schedule 500s on create.
 
   Then **verify registry access before wiring the steward** — it runs unattended, so a bad grant surfaces as a silently failing schedule, not an error in front of anyone: `gh api "repos/$REGISTRY_REPO" --jq '{push: .permissions.push, issues: .has_issues}'` — expect `push: true, issues: true`. On failure, warn and have the user fix access (or pick another repo) before the first sweep; don't hard-stop the install — the layer is repairable. Note that a **deployed** steward additionally needs a `GH_TOKEN` in the instance's `.env` (see the Trinity note in Step 9's summary).
@@ -281,26 +285,32 @@ fi
 
 **Upgrade path — §3c data layer:** same rule for `### 3c` (an install predating v1.13): offer to insert the `### 3c. Data layer` section from the template after §3b (before `## 4`), table left empty. Only relevant once the fleet adopts `/add-canon`, so mention that when offering.
 
-**Upgrade path — §12 loop closure:** `fleet/project-standard.md` is live fleet configuration and is never clobbered, so an install predating v1.16 has no `## 12. Loop closure` — and `/project-steward`'s open-loop pass reads it. If the file exists and `grep -q '## 12. Loop closure' fleet/project-standard.md` fails, offer to append that section from the template (plus the `waiting-on:<actor>` row in §3, the two comment formats in §6, and the open-loop ladder paragraph in §8), substituting the existing `{{AGENT_NAME}}`/`{{OPERATOR}}` values. On no, skip and say the steward's loop pass stays inert until the section exists.
+**Upgrade path — §0 Configuration (installs predating v1.34):** `fleet/project-standard.md` is live fleet configuration and is never clobbered. The project skills now take *all* their configuration from its `## 0. Configuration` block; a standard without one is read with the stand-alone defaults (colon label vocabulary, `project-steward/` state, no fleet hooks) — which is **not** what an orchestrator install wants. If `grep -q '^## 0\. Configuration' fleet/project-standard.md` fails, offer to insert the §0 section from `skills/project-init/PROJECT_STANDARD.template.md` (after the header, before `## 1`) with `registry`, `agent`, `operator` filled from the existing file's §1/§2, `state_dir: fleet/project-steward`, `fleet.system_map: fleet/system-map.yaml`, `fleet.orchestration: fleet/orchestration.md`, and the label values copied from the existing §3 table (an install riding its tracker's hyphen vocabulary sets `labels.*` to those names; the pending-verification / done / unclassified roles stay empty when the tracker has no such labels, and `quarantine: off` when `project_files/` holds non-project folders). On no, skip and say so plainly: the steward will run with stand-alone defaults against a fleet standard until the block exists. Older gaps (a standard predating §12 loop closure, v1.16) are closed the same way — insert the missing section from the template.
 
 If the user pasted repos in Q2, append them under `repos:` in `fleet/sources.yaml` (one entry per line, preserving the header comments).
 
 If the project layer was selected in Q3, also seed the standard and the steward's state dirs (never clobber an existing standard — it is live fleet configuration):
 
 ```bash
+PLUGIN="${CLAUDE_PLUGIN_ROOT:-$SKILL_DIR/..}"
 if [ ! -f fleet/project-standard.md ]; then
-  sed -e "s|{{REGISTRY_REPO}}|$REGISTRY_REPO|g" -e "s|{{OPERATOR}}|$OPERATOR|g" \
-      -e "s|{{AGENT_NAME}}|$AGENT_NAME|g" -e "s|{{DATE}}|$(date -u +%Y-%m-%d)|g" \
-      "$SKILL_DIR/templates/project-standard.md.template" > fleet/project-standard.md
+  sed -e "s|{{REGISTRY}}|$REGISTRY_REPO|g" -e "s|{{OPERATOR}}|$OPERATOR|g" -e "s|{{AGENT_NAME}}|$AGENT_NAME|g" \
+      -e "s|{{PV_MAX_AGE}}|48|g" -e "s|{{DATE}}|$(date -u +%Y-%m-%d)|g" \
+      "$PLUGIN/skills/project-init/PROJECT_STANDARD.template.md" > fleet/project-standard.md
+  # fleet values in §0 — the only orchestrator-specific part of the standard
+  sed -i.bak -e 's|^\(state_dir:\) [^#]*|\1 fleet/project-steward  |' \
+             -e 's|^\(fleet.system_map:\) *[^#]*|\1 fleet/system-map.yaml  |' \
+             -e 's|^\(fleet.orchestration:\) *[^#]*|\1 fleet/orchestration.md  |' fleet/project-standard.md && rm -f fleet/project-standard.md.bak
+  grep -c '{{' fleet/project-standard.md   # must print 0
 fi
 mkdir -p fleet/project-steward/digests fleet/project-steward/outputs
 ```
 
-(`$AGENT_NAME` = this agent's logical name — `name:` from `template.yaml`, else the CLAUDE.md agent name. Label creation in the registry repo is NOT done here — `/project-init` creates the taxonomy idempotently on first use.)
+(`$AGENT_NAME` = this agent's logical name — `name:` from `template.yaml`, else the CLAUDE.md agent name. The template is `project-init`'s — this bundle carries no standard of its own. If the fleet's registry is a product tracker with its own status vocabulary, set the `labels.*` roles in §0 to those names now (e.g. `labels.needs_operator: status-needs-operator`, `labels.priority_prefix: priority-`, `labels.owner_prefix: "agent:"`, `labels.epic_extra: type-epic`) — the skills never hard-code a label. Label creation in the registry repo is NOT done here — `/project-init` creates the taxonomy idempotently on first use.)
 
 ### Step 4: Copy the selected runtime skills
 
-For each skill selected in Q1, copy its template. The templates are ready to use as-is — **no placeholder substitution** (they read `fleet/sources.yaml` / `fleet/system-map.yaml` at runtime and infer the agent name themselves).
+For each skill selected in Q1, copy its template. The templates are ready to use as-is — **no placeholder substitution** (they read `fleet/sources.yaml` / `fleet/system-map.yaml` at runtime and infer the agent name themselves). The Q3 project skills are not templates of this bundle: they are copied from the plugin's `skills/project-*/` directories (below).
 
 **Before overwriting any existing `.claude/skills/<skill>/SKILL.md`, run the Check-mode comparison for that one skill (above) and present its verdict inside the overwrite prompt** — this is the moment issue #8 exists for. Make the prompt say what the operator is about to do:
 - **PASS** (in sync) — nothing to warn about; the overwrite is a no-op. Offer skip as the default.
@@ -318,11 +328,14 @@ for skill in discover-agents compose-system orchestrate sync-fleet-to-head profi
   cp "$SKILL_DIR/templates/$skill.md" ".claude/skills/$skill/SKILL.md"
 done
 
-# Project layer (Q3) — same copy pattern, same overwrite prompt rules
+# Project layer (Q3) — the six standalone project skills, copied whole from the plugin's own skills/
+# directories (never from this bundle's templates/ — there are none); same overwrite prompt rules.
+# On a Trinity instance prefer assigning them from the trinity-skills library and skip this copy.
 if project_layer_selected; then
-  for skill in project-init project-steward; do
-    mkdir -p ".claude/skills/$skill"
-    cp "$SKILL_DIR/templates/$skill.md" ".claude/skills/$skill/SKILL.md"
+  PLUGIN="${CLAUDE_PLUGIN_ROOT:-$SKILL_DIR/..}"
+  for skill in project-init project-task project-intake project-steward project-reconcile project-status; do
+    SRC="$PLUGIN/skills/$skill"; [ -d "$SRC" ] || { echo "missing $SRC — is the agent-dev plugin installed?"; exit 1; }
+    rm -rf ".claude/skills/$skill" && cp -R "$SRC" ".claude/skills/$skill"
   done
 fi
 ```
@@ -397,12 +410,12 @@ Skip unless Q3 selected the project layer. The steward is autonomous — it need
    ```yaml
    - name: project-steward-sweep     # identity key — Trinity dedups on `name`; there is no `id` field
      cron: "<from Q3, default 0 7-19/2 * * 1-5>"
-     message: "Run /project-steward"
+     message: "/project-steward"
      purpose: Sweep fleet-managed projects — reconcile dispatches, dispatch next work, escalate, digest
      timezone: UTC                   # canonical IANA only — legacy aliases (Europe/Kiev) 500 on create
      enabled: false                  # armed live in step 2; keeps a template-derived agent from inheriting an unattended sweep
    ```
-2. **If Trinity MCP is available**, install the live schedule via `create_agent_schedule` with its real params: `agent_name`, `name: "project-steward-sweep"`, `cron_expression: "<from Q3>"`, `message: "Run /project-steward"`, optional `description`. (There is no `schedule_name`/`cron`/`skill` param — the `message` is the prompt the agent receives, so it must name the skill.) If not, print that the steward works locally when invoked manually and the schedule will be reconciled by `/trinity:onboard` / `/trinity:sync` later.
+2. **If Trinity MCP is available**, install the live schedule via `create_agent_schedule` with its real params: `agent_name`, `name: "project-steward-sweep"`, `cron_expression: "<from Q3>"`, `message: "/project-steward"`, optional `description`. (There is no `schedule_name`/`cron`/`skill` param — the `message` is the prompt the agent receives, so it must name the skill.) If not, print that the steward works locally when invoked manually and the schedule will be reconciled by `/trinity:onboard` / `/trinity:sync` later.
 3. If `template.yaml` is absent, warn: the schedule exists live-only (invisible to `/trinity:sync` and fleet discovery) — same caveat as `/add-pipeline`.
 
 ### Step 8: First scan (advisory)
@@ -430,15 +443,16 @@ Print:
 - /profile-fleet      → interview + introspect agents, correct the orchestration.md narrative
 - /fleet-reconcile    → fold already-verified deltas into the doc surfaces — no new evidence
 - /reconcile-skill-map → diff fleet/skill-map.yaml vs live get_agent_skills, apply approved additions
-- /project-init       → create/adopt a managed project (epic + workspace)   [if Q3 = yes]
-- /project-steward    → autonomous project driver — sweep, dispatch, close loops, digest [if Q3 = yes]
+- /project-init · /project-task · /project-intake · /project-steward · /project-reconcile · /project-status
+                      → the project-management layer (the six standalone agent-dev project skills, configured by
+                        fleet/project-standard.md §0 — same files as the trinity-skills library)   [if Q3 = yes]
 
 ### Files
 - fleet/sources.yaml       (edit this — your repo list)
 - fleet/system-map.yaml    (FACTS/nodes — <generated | empty until first scan>)
 - fleet/skill-map.yaml     (declared-intent skill map — edit this to add entries | not installed — reconcile-skill-map skipped)
 - fleet/orchestration.md   (NARRATIVE/intent — author §4–§7; imported into CLAUDE.md)
-- fleet/project-standard.md (project-management conventions | not installed — Q3 skipped)
+- fleet/project-standard.md (project-management conventions — §0 Configuration carries the fleet values | not installed — Q3 skipped)
 - CLAUDE.md                (Orchestration section + @fleet/orchestration.md import added)
 - dashboard.yaml           (Fleet section added — rows refresh on each /discover-agents | no dashboard.yaml)
 

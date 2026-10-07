@@ -5,10 +5,11 @@ argument-hint: "--project=<slug> --title=\"...\" --source=\"<url-or-note>\" [--o
 allowed-tools: Bash, Read, Grep
 user-invocable: false
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.5: One lineage (ent#789): the standard is resolved at the repo root or at fleet/project-standard.md and its §0 Configuration supplies the label vocabulary by role — owner and priority labels are ${L_OWNER}<owner> / ${L_PRIORITY}pN (defaults unchanged); the epic's owner/priority defaults are read through the same prefixes"
     - "1.4: Internal tracking (ent#673): a project whose charter resolves to `tracking: internal` (standard §16) takes intake as a task file — dedupe by meaning over the titles of its open tasks/*.md, create through the same internal path as /project-task (id allocation, front matter, Tasks list, commit / canon-publish), waiting-on as `waiting_on:` + a Log entry — and state news as one appended line in the project's log.md. Outputs `<slug>/T-NNN`, `DUPLICATE:<slug>/T-NNN`, `PROJECT:<slug>`. No GitHub access for internal projects. External: unchanged"
     - "1.3: Shared projects (ruling R21, ent#588) — no behaviour change: intake targets the epic by `project:<slug>` label exactly as before, at both visibility levels; the one rule added is that a workspace path, when one is passed through, is the epic body's Workspace field resolved per PROJECT_STANDARD §15 (canon: paths through the x-canon clone), never project_files/<slug>/ derived from the slug"
     - "1.2: Read-the-standard guard (missing PROJECT_STANDARD.md → run /project-init first); skill is now authored standalone (installer copies from here)"
@@ -51,14 +52,31 @@ This skill writes GitHub, not workspaces. If a caller hands it — or it hands a
 
 | Source | Location | Read | Write |
 |---|---|---|---|
-| Convention doc | `PROJECT_STANDARD.md` | Yes | No |
+| Convention doc | `PROJECT_STANDARD.md` (repo root) or `fleet/project-standard.md` (orchestrator) — §0 is the configuration | Yes | No |
 | GitHub issues | `$REGISTRY` via `gh` | Yes | Yes (task issue + epic checklist or one-line comment) |
 
 ## Process
 
 ### Step 1: Read the standard
 
-Read `PROJECT_STANDARD.md`. **If it is missing, stop and run `/project-init` first** — it materializes the standard from its shipped template; every project skill reads that file as its configuration. Resolve `$REGISTRY` and `$AGENT_NAME` from §1 and §2.
+Resolve the standard — repo root first, then an orchestrator's `fleet/` placement — and read its **§0 Configuration**. A standard without a §0 block (written before template 1.3) resolves to the defaults below, which are exactly the pre-1.3 behaviour (colon vocabulary, `project-steward/` state, no fleet hooks):
+
+```bash
+STANDARD=$(ls PROJECT_STANDARD.md fleet/project-standard.md 2>/dev/null | head -1)
+cfg() { awk -v k="$1" -v d="$2" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$0~p{v=$0;sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
+REGISTRY=$(cfg registry ""); AGENT_NAME=$(cfg agent ""); OPERATOR=$(cfg operator "")      # empty → take them from the §1/§2 prose (pre-1.3 standard)
+STATE_DIR=$(cfg state_dir project-steward); PV_MAX_AGE=$(cfg pv_max_age_hours 48); QUARANTINE=$(cfg quarantine on); MEMBER_REPOS=$(cfg member_repos "")
+L_OWNER=$(cfg labels.owner_prefix "owner:"); L_PRIORITY=$(cfg labels.priority_prefix "priority:")
+L_LIVE=$(cfg labels.live "status:active"); L_ACTIVE=$(cfg labels.active "status:active")
+L_BLOCKED=$(cfg labels.blocked "status:blocked"); L_NEEDS_OPERATOR=$(cfg labels.needs_operator "status:needs-decision")
+L_PAUSED=$(cfg labels.paused "status:paused"); L_PENDING=$(cfg labels.pending_verification "status:pending-verification")
+L_DONE=$(cfg labels.done "status:done"); L_UNCLASSIFIED=$(cfg labels.unclassified "status:unclassified")
+L_EPIC_EXTRA=$(cfg labels.epic_extra ""); FLEET_MAP=$(cfg fleet.system_map ""); FLEET_NARRATIVE=$(cfg fleet.orchestration "")
+```
+
+Labels are referred to by **role** from here on — `$L_NEEDS_OPERATOR` is the needs-operator label whatever the deployment names it, `$L_LIVE` is the comma-separated set that means "being worked" (split it with `tr ',' ' '`), `status:*` / `priority:*` mean the configured status / priority labels. An empty role turns its feature off (§0).
+
+**If no standard exists, stop and run `/project-init` first** — it materializes the standard from its shipped template; every project skill reads that file as its configuration. Pre-1.3 standards: resolve `$REGISTRY` and `$AGENT_NAME` from §1 and §2 when the block returns them empty.
 
 ### Step 2: Parse and validate arguments
 
@@ -75,8 +93,8 @@ Validate:
 - `--source` present. If missing: exit with `ERROR: --source is required`
 
 Resolve defaults from the epic (internal: from the charter — `owner:` for OWNER when no `## Owners` entry is clearer, `priority:` for PRIORITY):
-- `OWNER`: if not provided, extract from epic's `owner:*` labels (first match).
-- `PRIORITY`: if not provided, read from epic's `priority:*` label.
+- `OWNER`: if not provided, extract from the epic's `${L_OWNER}*` labels (first match).
+- `PRIORITY`: if not provided, read from the epic's `${L_PRIORITY}*` label.
 - `OBJECTIVE`: if not provided, use the title.
 - `DOD`: if not provided, generate: `- [ ] $TITLE completed and verified against source`
 
@@ -130,7 +148,7 @@ For an internal project, Steps 5–7 are replaced by the **Internal path** of `/
 ### Step 5: Ensure owner label exists
 
 ```bash
-gh label create "owner:$OWNER" --repo "$REGISTRY" \
+gh label create "${L_OWNER}$OWNER" --repo "$REGISTRY" \
   --color "0052cc" --description "Accountable: $OWNER" 2>/dev/null || true
 ```
 
@@ -162,7 +180,7 @@ Create the issue:
 ```bash
 gh issue create --repo "$REGISTRY" \
   --title "$TITLE" \
-  --label "task,project:$PROJECT_SLUG,owner:$OWNER,priority:$PRIORITY" \
+  --label "task,project:$PROJECT_SLUG,${L_OWNER}$OWNER,${L_PRIORITY}$PRIORITY" \
   --body-file /tmp/intake-body.md
 ```
 

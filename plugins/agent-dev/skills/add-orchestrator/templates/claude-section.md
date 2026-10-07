@@ -33,8 +33,10 @@ Deployed agents are called by their live `deployed_name` from the map (matched r
 | `/profile-fleet` | Interview + introspect agents, reconcile reality vs the narrative, and correct this file's prose behind a gate |
 | `/fleet-reconcile` | Fold already-verified deltas (session fixes, audit queues) into the doc surfaces — narrative, dossiers, CLAUDE.md, memory — behind one gate; generates no new evidence |
 | `/reconcile-skill-map` | Diff `fleet/skill-map.yaml` (declared intent) against live `get_agent_skills`, apply approved additions via `assign_skill_to_agent`, report drift and never-reviewed agents — never auto-remove |
-| `/project-init` (opt-in layer) | Create or adopt a managed project — epic issue + workspace — per `fleet/project-standard.md` |
-| `/project-steward` (opt-in layer) | Autonomous sweep of managed projects: reconcile dispatches, dispatch next work to explicitly-labeled owners, escalate stalls, daily digest — never asks mid-run |
+| `/project-init` (opt-in layer) | Create or adopt a managed project — epic issue + workspace — per `fleet/project-standard.md` (the six standalone project skills, configured for this fleet by the standard's §0) |
+| `/project-task` · `/project-intake` (opt-in layer) | Create tasks in the uniform anatomy — interactively, or headlessly from any source |
+| `/project-steward` (opt-in layer) | Autonomous sweep of managed projects: reconcile dispatches, dispatch next work to explicitly-labeled owners through the fleet map, escalate stalls, daily digest — never asks mid-run |
+| `/project-reconcile` · `/project-status` (opt-in layer) | Projection sync against the registry · daily per-project status + projected finish for the operator |
 
 **Loaded at session start (design narrative):**
 @fleet/orchestration.md

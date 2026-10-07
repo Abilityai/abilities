@@ -1,13 +1,14 @@
 ---
 name: add-project-management
-description: Install cross-actor project management into this agent — one registry per project (GitHub Issues, or the project's own task files for an internal project), uniform task anatomy with approval-ready completion lattice (open → pending-verification → done), loop closure in both directions (the agent closes loops with the user; the user is handed the loops only they can close with other people or agents), autonomous project steward, and projection sync with Google Tasks adapter v1. Writes PROJECT_STANDARD.md + five runtime skills. No dependency on fleet infrastructure.
+description: Install cross-actor project management into this agent — one registry per project (GitHub Issues, or the project's own task files for an internal project), uniform task anatomy with approval-ready completion lattice (open → pending-verification → done), loop closure in both directions (the agent closes loops with the user; the user is handed the loops only they can close with other people or agents), autonomous project steward, and projection sync with Google Tasks adapter v1. Writes PROJECT_STANDARD.md + six runtime skills. No dependency on fleet infrastructure.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "2.2"
+  version: "2.3"
   created: 2026-07-30
   author: Ability.ai
   changelog:
+    - "2.3: Six skills, one lineage (ent#789): project-status joins the set (daily per-project status + projected finish date), and PROJECT_STANDARD.template.md 1.3 gains §0 Configuration — the machine-read block every project skill resolves first (registry, agent, operator, state_dir, label roles, fleet hooks). The same six skills now also serve fleet orchestrators (/add-orchestrator copies them instead of embedding its own pair), so a stand-alone install and a fleet install run identical files and differ only in that block. Installs that keep an existing PROJECT_STANDARD.md at Step 3 should paste §0 in by hand — without it the skills run with the defaults, which equal pre-1.3 behaviour"
     - "2.2: Internal tracking (ent#673, operator ruling 2026-09-22): a project may track its tasks in its own folder instead of GitHub — PROJECT_STANDARD.template.md 1.2 gains §16 Tracking modes (the charter's `tracking:` decides; omitted = external when the charter names a real epic, so every existing project is untouched; one task file per task, tasks/T-NNN.md, front matter for what labels hold and an append-only ## Log for what comments hold; log.md for the epic's thread; a registry of `none` = no GitHub at all), and Invariant 1 becomes one registry per project. Runtime skills copied by Step 6: project-init 1.3 (`--internal`), project-task 1.5, project-intake 1.4, project-steward 1.4 (sweeps both modes; writes canon task files for its own internal projects and publishes them), project-reconcile 1.2 (`[<slug>/T-NNN]` keys). An internal-only deployment may skip gh auth. Installs that keep an existing PROJECT_STANDARD.md at Step 3 should paste §16 in by hand"
     - "2.1: Shared projects (operator rulings R21, 2026-09-10 — one PM standard, two visibility levels — and 2026-09-22 — shared projects at the canon root; ent#588): PROJECT_STANDARD.template.md gains §15 Visibility (same charter, same registry epic, same steward, same intake, same decision ledger at agent level and at canon level; placement decides only who can read the definition; company projects are shared by design and live in canon; Tandem is the reference instance) and the §15 workspace resolver every project skill now uses — the epic body's Workspace field, `canon:` paths through the x-canon clone, never a path derived from the slug. Runtime skills copied by Step 6: project-init 1.2 (`--canon` creates the workspace at the canon root's projects/<slug>/ with this agent as steward, the linted charter envelope + ledger, `adopt --canon` (moves an earlier-placement project of this agent's to the root), `--dry-run`), project-steward 1.4 (reads the charter wherever the epic points; quarantine never scans the canon; writes nothing into the canon), project-intake 1.3 / project-task 1.4 (path resolution through §15). Installs that keep an existing PROJECT_STANDARD.md at Step 3 should paste §15 in by hand"
     - "2.0: The installer no longer carries its own copies of the runtime skills or the standard. The five project-* skills are now standalone agent-dev skills (authored once, mirrored into the trinity-skills library for assignment on Trinity) and this installer copies them from the plugin at install time; PROJECT_STANDARD.md is rendered from the template shipped inside project-init. Same installed result, but one authoring home — fixes the drift where installed copies silently lagged the maintained skills"
@@ -28,16 +29,17 @@ It also installs a **loop-closure discipline** (standard §14), because tracked 
 
 **Altitude note:** this skill governs *cross-actor* work (humans + multiple agents collaborating on projects). For a single agent's own dev-loop task backlog, use its sibling `/agent-dev:add-backlog` instead.
 
-**What gets installed** (the five skills are copied from this plugin's own `skills/project-*` directories — the same files Trinity instances assign from the `trinity-skills` library; the installer embeds nothing):
+**What gets installed** (the six skills are copied from this plugin's own `skills/project-*` directories — the same files Trinity instances assign from the `trinity-skills` library; the installer embeds nothing):
 
 | Artifact | Location | Purpose |
 |---|---|---|
-| `PROJECT_STANDARD.md` | repo root | Convention doc — the deployer's config surface, rendered from `skills/project-init/PROJECT_STANDARD.template.md`. All five skills read it at runtime. Edit this file to change behavior; don't edit the skills. |
+| `PROJECT_STANDARD.md` | repo root | Convention doc — the deployer's config surface, rendered from `skills/project-init/PROJECT_STANDARD.template.md`. All six skills read it at runtime, starting with its §0 Configuration block (registry, label roles, state directory, fleet hooks). Edit this file to change behavior; don't edit the skills. |
 | `/project-init` | `.claude/skills/project-init/SKILL.md` | Create or adopt a project: GitHub epic + idempotent labels + workspace stub |
 | `/project-task` | `.claude/skills/project-task/SKILL.md` | The only sanctioned interactive task-creation path — enforces full anatomy including the Validation section; supports `--headless` for cron/compose use |
 | `/project-steward` | `.claude/skills/project-steward/SKILL.md` | Autonomous sweep: verify pending-verification claims, dispatch, escalate, digest |
 | `/project-reconcile` | `.claude/skills/project-reconcile/SKILL.md` | Projection sync — Google Tasks adapter v1 + adapter contract for other surfaces |
 | `/project-intake` | `.claude/skills/project-intake/SKILL.md` | Headless intake primitive: route actionable items from any source into the registry, dedupe by meaning, return issue number. Called by other skills and crons — never interactive. |
+| `/project-status` | `.claude/skills/project-status/SKILL.md` | Daily status for one project — what moved, what waits on the operator (Trinity asks), projected finish date from the project's `plan.md` ledger |
 
 ---
 
@@ -100,6 +102,7 @@ ls .claude/skills/project-task 2>/dev/null && echo "project-task: EXISTS" || ech
 ls .claude/skills/project-steward 2>/dev/null && echo "project-steward: EXISTS" || echo "project-steward: missing"
 ls .claude/skills/project-reconcile 2>/dev/null && echo "project-reconcile: EXISTS" || echo "project-reconcile: missing"
 ls .claude/skills/project-intake 2>/dev/null && echo "project-intake: EXISTS" || echo "project-intake: missing"
+ls .claude/skills/project-status 2>/dev/null && echo "project-status: EXISTS" || echo "project-status: missing"
 ls PROJECT_STANDARD.md 2>/dev/null && echo "PROJECT_STANDARD.md: EXISTS" || echo "PROJECT_STANDARD.md: missing"
 ```
 
@@ -145,12 +148,12 @@ sed -e "s|{{REGISTRY}}|$REGISTRY|g" -e "s|{{OPERATOR}}|$OPERATOR|g" -e "s|{{AGEN
 grep -c '{{' PROJECT_STANDARD.md   # must print 0 — every placeholder substituted
 ```
 
-### Step 6: Copy the five runtime skills from the plugin
+### Step 6: Copy the six runtime skills from the plugin
 
-The runtime skills are authored **once**, as standalone skills in this plugin (`/agent-dev:project-init`, `project-task`, `project-steward`, `project-reconcile`, `project-intake`) and mirrored into the public `trinity-skills` library, where Trinity instances assign them to agents and re-inject updates automatically. This installer copies the same files — it never carries its own versions, so an install and a library assignment always agree:
+The runtime skills are authored **once**, as standalone skills in this plugin (`/agent-dev:project-init`, `project-task`, `project-steward`, `project-reconcile`, `project-intake`, `project-status`) and mirrored into the public `trinity-skills` library, where Trinity instances assign them to agents and re-inject updates automatically. This installer copies the same files — it never carries its own versions, so an install and a library assignment always agree:
 
 ```bash
-for s in project-init project-task project-steward project-reconcile project-intake; do
+for s in project-init project-task project-steward project-reconcile project-intake project-status; do
   SRC="${CLAUDE_PLUGIN_ROOT}/skills/$s"
   [ -d "$SRC" ] || { echo "missing $SRC — is the agent-dev plugin installed?"; exit 1; }
   rm -rf ".claude/skills/$s" && cp -R "$SRC" ".claude/skills/$s"
