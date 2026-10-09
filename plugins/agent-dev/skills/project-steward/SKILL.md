@@ -3,14 +3,15 @@ name: project-steward
 description: Autonomous sweep of all managed projects per the project standard (PROJECT_STANDARD.md at the repo root, or fleet/project-standard.md on an orchestrator — its §0 block configures registry, label vocabulary, state directory and fleet hooks) — external projects tracked in GitHub Issues and internal projects tracked in their own workspace files (standard §16), with the same policy for both. Verifies pending-verification claims against Definition of Done, dispatches next work to explicitly-labeled owner agents (Trinity when available; triage-only when not), escalates stalls per the staleness policy, sweeps open loops (ages every waiting-on item and drafts the operator's follow-ups), runs the quarantine classification pass, and writes a digest that closes the loop with the operator. Never asks a human anything mid-run.
 automation: autonomous
 schedule: "0 7-19/2 * * 1-5"   # default: every 2h, weekdays UTC — adjust, or delete this line for manual-only (the installer substitutes your choice)
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__list_agents, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result, mcp__trinity__get_chat_history, mcp__trinity__send_notification
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__list_agents, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result, mcp__trinity__get_chat_history, mcp__trinity__send_notification, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__list_project_tasks, mcp__trinity__get_project_log, mcp__trinity__update_project_task, mcp__trinity__add_project_task_note, mcp__trinity__add_project_log_entry, mcp__trinity__get_steward_digest, mcp__trinity__set_project_health
 effort: high
 user-invocable: true
 metadata:
-  version: "1.8"
+  version: "1.9"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.9: Platform mode (ent#788, ruling R38): on a Trinity instance with Projects enabled the sweep starts from get_steward_digest, sweeps platform-tracked projects through the platform's task list (verify, reopen, notes, dispatch brief by task id), and for every platform project records health (set_project_health) and one shared-log entry per outcome — a verified deliverable, a new blocker, a hand-off — so members see what the steward did. Priority, reopening, project status and membership stay a person's. Charters gain platform_project by a linking pass. Without Trinity, or without Projects, the sweep is unchanged"
     - "1.8: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — a dispatch answered pending_approval ran nothing (posted as waiting on approval, no tracker entry, never re-sent); refused / inter_agent_depth_exceeded block the task; the tracker entry keeps the receipt's execution_id and a silent dispatch is read with get_execution_result before any re-ping"
     - "1.7: Fix — the 1.6 resolver's default label values were self-references ($L_ACTIVE etc.) instead of the colon vocabulary, so a standard without a §0 block resolved every label role to an empty string (quarantine and verification silently off, needs-operator writes failing). Defaults restored: status:active / status:blocked / status:needs-decision / status:paused / status:pending-verification / status:done / status:unclassified. Found 2026-10-07 reviewing the library copy before the first fleet run"
     - "1.6: One lineage (ent#789) — this skill absorbs the orchestrator-side project-steward (add-orchestrator template 1.3 / the production orchestrator's 1.5) so one steward runs everywhere. The standard is resolved at the repo root OR at fleet/project-standard.md and its §0 Configuration drives what the two lineages had hard-coded differently: label vocabulary by role ($L_NEEDS_OPERATOR, $L_BLOCKED, $L_PAUSED, the $L_LIVE set, the $L_PRIORITY prefix — a tracker-native hyphen vocabulary is now a config value), owner-label prefix, state directory ($STATE_DIR — fleet-placed on an orchestrator, project-steward by default), verification hold on/off (empty pending label = done claims verified in the same run), quarantine on/off. Fleet hooks when §0 names them: owners resolve to their deployed_name through the fleet map, a dispatch needs a sanctioned manager→owner edge in the narrative's §5, the §3b ownership matrix adds consulted agents to the brief and informed agents to the digest. Ported from the orchestrator copy: inline output for workspaces the run cannot see goes to $STATE_DIR/outputs/<slug>/; the waiting-on sweep lists with --limit 1000 (gh sorts by recent activity and silently truncates — the oldest loops were exactly what a low cap dropped, seen live 2026-10-06); Trinity MCP tools declared in allowed-tools"
@@ -24,7 +25,7 @@ metadata:
 
 # Project Steward
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-steward v1.8 — recent: gate results and execution-id-aware re-pings`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-steward v1.9 — recent: platform mode on Trinity Projects`. Then proceed.
 
 ## Purpose
 
@@ -42,6 +43,8 @@ Keep every managed project moving without the operator having to push it. Each r
 **Deliberate non-composition:** this skill dispatches only to owners explicitly named by `agent:*` labels — no routing judgment. The interactive disambiguation that `/orchestrate` provides would hang an unattended run.
 
 **Trinity is optional.** When Trinity MCP is unavailable, the skill runs in triage-only mode: all registry operations continue; dispatch is skipped and noted in the digest. Nothing is lost.
+
+**On Trinity with Projects enabled the platform holds the project record** (standard §17): the same steps then run against it — see **Platform projects** below. Off Trinity nothing changes.
 
 **Two tracking modes, one steward.** A project's registry is its GitHub epic (external) or its own workspace files (internal, standard §16). Every step below is written for GitHub; for an internal project apply the same step through **Internal projects** (below) — same order, same thresholds, same run budget, same digest. A run may mix both.
 
@@ -119,6 +122,8 @@ If this returns a 403 or "Resource not accessible": abort immediately. Prepend a
 
 **Detect Trinity MCP:** attempt `mcp__trinity__list_agents`. If it fails or is unavailable, set `TRINITY_MODE=triage-only` and continue.
 
+**Detect platform mode (standard §17):** `PLATFORM=$(cfg platform auto)`. It is **off** when that is `off`, when `TRINITY_MODE=triage-only`, or when this session has no `mcp__trinity__list_projects` tool. Otherwise call it: `enabled: true` → on; `enabled: false` → off, silently (an install without Projects, an unlicensed one, a person's key). A project tool refusing with `code: external_audience` or `turn_unknown` (the platform cannot place this run as an internal one — an agent image older than the turn id, most often) turns it off for the run and is named once in the digest. With platform mode off, every project is swept exactly as before, and a platform-tracked project (charter `tracking: platform`) is **skipped and named in the digest** — never continued from its folder.
+
 ## No-op discipline (high-frequency cadence)
 
 Most runs will find nothing to do. Before writing anything, compute whether ANY actionable condition exists:
@@ -130,6 +135,7 @@ Most runs will find nothing to do. Before writing anything, compute whether ANY 
 - A `waiting-on:*` loop crossing a nudge threshold (3 days, then weekly, then 14 days) — a quiet loop still ages
 - A `$L_NEEDS_OPERATOR` ask that has now gone unanswered across two digests
 - Unclassified workspace folders not yet stubbed
+- Platform mode: the steward digest shows a task awaiting verification, a task blocked or waiting on a decision, a stale task, or a health update due
 
 **If none: stop.** Update `last_run` in `$STATE_DIR/state.json` only — do NOT commit, do NOT write a digest, do NOT notify, do NOT post any comment. Quiet runs leave no trace.
 
@@ -152,7 +158,7 @@ Most runs will find nothing to do. Before writing anything, compute whether ANY 
      --json number,title,labels,updatedAt,body --limit 50
    ```
    Internal projects are the charters the standard's §16 finder returns (`charters`) whose `mode_of` is internal and whose `status:` is not `done` — under the top-level canon `projects/` zone, only those whose `owner:` is this agent. For canon-placed ones, `git -C "$CANON" pull --ff-only` first (on failure, read the local copy and say so in the digest).
-5. Check Trinity MCP availability.
+5. Check Trinity MCP availability, then platform mode (Prerequisites). When on: `mcp__trinity__get_steward_digest`, and note which reviewed projects are linked or platform-tracked (**Platform projects**, below).
 
 ### Internal projects — the same steps, file operations instead of `gh`
 
@@ -174,6 +180,37 @@ For an internal project, `$WS` is the charter's folder and every step above and 
 | Task reference in the digest | `<slug>/T-NNN` |
 
 A task file the charter lists but that no longer exists is an error for the digest (`<slug>/T-NNN missing`), never a closed task — absence is not deletion. A task file whose front matter will not parse is `needs-decision` in the digest with the file named; the steward does not repair it.
+
+### Platform projects — the same steps against the platform record (standard §17)
+
+Only in platform mode (detected in Prerequisites). Start with `mcp__trinity__get_steward_digest`: it lists the platform projects **this agent stewards**, each with its health and whether an update is due, tasks awaiting verification, tasks blocked or waiting on a decision, tasks untouched for a week, open asks, and whether it has gone quiet. Those join the review list beside the epics and the internal charters — one staleness ladder, one digest, one run budget. A platform project this agent is on but does not steward is not swept.
+
+**Linked project** (tasks in GitHub): every step runs as written. In addition, per run:
+
+- **Health** — `mcp__trinity__set_project_health` when the project's state changed this run or the digest says an update is due: `on-track` (nothing blocked, nothing waiting on a decision, nothing stale), `at-risk` (a task blocked, waiting on a decision, stale, or past `$PV_MAX_AGE`), `off-track` (a success criterion or a committed date can no longer be met without a decision); `note` = the one line the steward update opens with.
+- **Shared log** — `mcp__trinity__add_project_log_entry`, **one entry per outcome this run produced, never one per run and never "nothing changed"**: a verified task → `deliverable` (what was delivered, the issue link); a task newly blocked or newly needing the operator → `blocker` (what is needed, from whom); a dispatch → `handoff` (task, owner). `task_id` is left out — the tasks are GitHub issues.
+
+**Platform-tracked project**: every step applies with this translation. `$WS` is the charter's folder when there is one (files and drafts only), else empty.
+
+| In a step (GitHub) | For a platform-tracked project |
+|---|---|
+| Read the epic body + comments since the last steward update | `mcp__trinity__get_project` — goal, status, steward, the latest 20 log entries and the open tasks; `mcp__trinity__get_project_log` for more |
+| Read open `project:<slug>` task issues with labels and bodies | `mcp__trinity__list_project_tasks` (open is the default; `status: all` when counting done) |
+| The epic's `status:*` label | The project's status — `paused` or `done` → skip it |
+| Set a task's `status:*` label | `mcp__trinity__update_project_task` with `status` (the same six values) |
+| Age of `pending-verification` | the task's `pending_since`, or the digest's awaiting-verification age |
+| Post a comment on a task (dispatch receipt, relay, `[Verified]`, `[Verification failed]`, waiting-on, loop closed) | `mcp__trinity__add_project_task_note`, same heading and text |
+| Close the task as done | `update_project_task` `status: done` with the `[Verified]` text as `note` — the steward agent may set done; a `done_needs_verification` refusal means this agent is not the steward: leave it and say so in the digest |
+| Verification failed | `update_project_task` `status: active` with the `[Verification failed]` text as `note` |
+| `waiting-on:*` label / its age | the task's `waiting_on` / the date on its `### Waiting on` note |
+| Post a steward update on the epic | `set_project_health` (state + the update's first line) and one `add_project_log_entry` per outcome, as for a linked project, with `task_id` set |
+| Days since last activity | the digest's last activity / quiet flag |
+| Dispatch brief `Issue: <url>` | `Task: <project name> / T-NNN (Trinity project <id> — read it with get_project and list_project_tasks; claim done by moving the task to pending-verification with your evidence as the note)` |
+| Task reference in the digest | `<slug>/T-NNN` |
+
+**What stays a person's on the platform:** a task's priority, reopening a done task, the project's own status, its members and who can see it. When a step would change one of them (the closure proposal of Step 4.1, a priority escalation, a missing owner who is not on the project), the steward records the proposal as a `blocker` log entry and takes the needs-operator path (`status: needs-decision` on the task, or the digest's **Needs operator** section for the project) — it never works around a refusal. An owner agent that is not on the project cannot read the task: that is **needs-human** ("add <agent> to the project"), not a dispatch.
+
+**Linking pass (cheap, every material run):** an external charter this agent can write that has no `platform_project:` line, while `list_projects` shows a project whose tracker link is its epic URL, gets the line written (agent level: committed with the state push; canon: `/canon-publish`). That is how a project a person created or imported in the Workspace becomes linked. An **internal** charter is never switched by this pass — a name is too weak a match: when `list_projects` shows a project with no tracker link whose name is the charter's project name, leave the charter alone, sweep the project from its folder this run, and put one line in **Needs operator**: *"<slug> looks imported to the platform as <id> — run `/project-init platform <slug>` to confirm, or tell me they are different projects."* Until that is answered the folder stays the registry.
 
 ### Step 2: Reconcile outstanding dispatches
 
@@ -313,7 +350,7 @@ Then the sections:
 - **Worked inline**: tasks executed inline, result links
 - **Quarantine**: N folders stubbed
 - **Healthy/quiet**: one line each
-- **Carry-over + mode**: projects not reviewed; note if triage-only; one line per canon-placed project whose clone could not be read (`/canon-doctor`) or whose charter `status:` disagrees with the epic label
+- **Carry-over + mode**: projects not reviewed; note if triage-only; platform mode on or off, and any platform-tracked project skipped because the platform could not be reached; one line per canon-placed project whose clone could not be read (`/canon-doctor`) or whose charter `status:` disagrees with the epic label
 
 If (and only if) there are needs-operator items, blockers, past-max-age pending-verification, a loop crossing a nudge threshold, or errors: send a short summary via `mcp__trinity__send_notification` (when Trinity available) linking the digest path. Standing open loops that crossed no threshold this run stay in the digest without a notification — the list is always visible, the interruption is not.
 

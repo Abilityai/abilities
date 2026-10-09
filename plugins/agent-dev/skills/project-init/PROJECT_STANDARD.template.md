@@ -7,7 +7,7 @@
 > reports one project's progress and projected finish to the operator.
 > **{{AGENT_NAME}}** is the managing agent; **{{OPERATOR}}** is the operator (the human this standard escalates to).
 >
-> Version: 1.3 ({{DATE}}) — §0 Configuration: the machine-read block every project skill resolves at run time (where the standard lives, the label vocabulary, the steward's state directory, the fleet hooks); one skill set for stand-alone agents and fleet orchestrators alike
+> Version: 1.4 ({{DATE}}) — §17 Platform mode: on a Trinity instance with Projects enabled the platform holds the project record and the same skills work against it (ruling R38); §0 gains `platform:`. 1.3 — §0 Configuration, one skill set for stand-alone agents and fleet orchestrators alike
 
 ## 0. Configuration
 
@@ -20,6 +20,7 @@ agent: {{AGENT_NAME}}                         # this agent's logical name — ta
 operator: {{OPERATOR}}                        # the human the needs-operator label escalates to
 state_dir: project-steward                    # steward state, digests, run log, reconcile log, outputs for workspaces the run cannot see
 pv_max_age_hours: {{PV_MAX_AGE}}              # pending-verification SLA (§12)
+platform: auto                                # auto | off — auto: on a Trinity instance with Projects enabled the skills work against the platform's project record (§17); off: always folder + GitHub
 quarantine: on                                # on | off — the steward auto-stubs unregistered project_files/ folders (§9); off on a repo whose project_files/ holds non-project folders
 member_repos:                                 # extra owner/repo(s), comma-separated, whose `project:<slug>` issues count as project members (status reports); empty = the registry only
 labels.owner_prefix: "owner:"                 # the accountable-party label. `agent:` on a fleet whose owners ARE the executing agents (one label, no GitHub assignee)
@@ -351,7 +352,8 @@ A project is managed **the same way** whether it lives at agent level or at cano
 ---
 owner: {{AGENT_NAME}}                # the steward — the one managing agent (in canon: must name an agents/<name>/ folder)
 status: active                      # active | blocked | needs-decision | paused | pending-verification | done — mirrors the epic's status:* label (external); IS the project status (internal)
-tracking: external                  # external | internal (§16). Omitted → external when `epic:` names a real epic (#N, N > 0), else internal
+tracking: external                  # external | internal (§16) | platform (§17). Omitted → external when `epic:` names a real epic (#N, N > 0), else internal
+platform_project: prj_…             # optional (§17) — the Trinity project this charter belongs to; written by /project-init, never by hand
 epic: {{REGISTRY}}#<N>              # external: the registry epic this charter mirrors — the epic is the authoritative record. Internal: omit, or `none`
 priority: p2                        # internal only — the project's priority (external keeps it on the epic's priority:* label)
 updated: YYYY-MM-DD
@@ -455,3 +457,44 @@ The completion lattice is the task's `status:` read as a lattice: **open** is an
 - **Absence is not deletion.** A missing task file is an error the steward reports, never a task it treats as closed.
 - **Placement is unchanged (§15).** An internal project in the canon keeps its task files in its slug folder, `projects/<slug>/`; the steward (the charter's `owner:`) is the managing agent that writes them and pushes with `/canon-publish`, like the charter. Anyone may edit the folder by hand — the zone is shared — but only the steward's skills write tasks and `log.md`.
 - **Switching modes is a deliberate act**, recorded as a decision in `decisions.md`: create the tasks in the new mode, close the old ones with a `### Loop closed` pointing at their new home, then change `tracking:`. Nothing converts automatically.
+
+## 17. Platform mode — the project record on Trinity (operator ruling R38, 2026-09-29)
+
+On a Trinity instance with **Projects** enabled, the platform owns the project record: its name and goal, who is on it, who can see it, the chats and rooms where the work happens, the shared log, the task list and the health. The six project skills stay the process and work against that record. Everything in §1–§16 is the **offline mode** and stays valid — Trinity is the upgrade, never the gate. Without Trinity, on an install without Projects, or with `platform: off` in §0, this section does nothing.
+
+**Detecting it** (every project skill, once per run): the `list_projects` tool answering `enabled: true`. `enabled: false`, or no such tool, means folder + GitHub mode. A refusal coded `external_audience` or `turn_unknown` means the conversation is not an internal one — the skills then use nothing from the platform and repeat no project detail.
+
+**Two kinds of platform project**, both marked by `platform_project: prj_…` in the charter envelope (§15):
+
+| | Linked | Platform-tracked |
+|---|---|---|
+| Charter | `tracking: external` + `platform_project:` | `tracking: platform` + `platform_project:` (a project created in the Workspace may have no charter at all) |
+| Tasks | GitHub task issues, as in §5 — the platform project's tracker link is the epic | the platform's task list — `T-NNN`, the §16 fields |
+| Project record people see | the platform project (the epic stays the task registry) | the platform project |
+| Log | epic and task comments (§7), **plus** one platform log entry per outcome | the platform's project log and task logs |
+| Workspace folder | unchanged (§15) | optional — files and drafts only; never `tasks/` or `log.md` |
+
+A project is matched to its platform record by `platform_project:`; lacking that line (or a visible charter), by the listed project whose tracker link is the epic URL.
+
+**Where each thing lives (platform-tracked):**
+
+| Concept (§16 column "Internal") | On the platform |
+|---|---|
+| Project record, goal | `get_project` — name, goal, status, steward, members, the latest log entries and open tasks |
+| Task | `list_project_tasks` / `create_project_task` — title, objective, definition of done, context, owner, assignee (`agent`), waiting-on |
+| Task status | `update_project_task` — the same six values as §16 |
+| Task comment thread (done claims, verification, dispatch receipts, relays, waiting-on, loop closed — §7) | `add_project_task_note`, same headings; a `note` sent with a move to `pending-verification` is the done claim |
+| Epic comment thread, steward updates | `add_project_log_entry` — `decision`, `deliverable`, `blocker`, `handoff` or `note`; **one entry per outcome, never one per run**. Task status changes are logged by the platform |
+| Current status | `set_project_health` — `on-track`, `at-risk` or `off-track`, with one line saying why |
+| What needs the steward | `get_steward_digest` — awaiting verification, blocked or waiting on a decision, untouched for a week, open asks, quiet, health update due |
+| A report, file, decision or ask on the project | `link_to_project` |
+
+**The lattice on the platform is the platform's, and it is §5's:** an agent moves a task to `pending-verification`; the steward agent or a person sets `done`; only a person reopens a done task. **Priority is a person's** — an agent's task starts at `p2`, and a different priority is stated in the task's context for a person to set (Invariant 2). **Members, visibility and the project's own status** (active, paused, done) are a person's too: the steward proposes a change through the needs-operator path and never works around a refusal.
+
+**Health, from the steward's review:** `on-track` — nothing blocked, nothing waiting on a decision, nothing stale; `at-risk` — a task is blocked, waiting on a decision, stale, or past the §12 age; `off-track` — a success criterion or a committed date can no longer be met without a decision. Set it when it changes, and when the digest says an update is due.
+
+**Starting a project on the platform** (`/project-init`): `create_project` with the name, the goal, and the epic URL as its tracker link when the project is external. It needs the *start projects* permission an instance admin grants the agent; the owner becomes the creator and first member, the agent the steward, and only members see it. Refused, or the tool not there → the project is created in offline mode as before, and the skill says what a person can do: grant the permission and run `/project-init platform <slug>`, or create or import it in Workspace → Projects.
+
+**Bringing an existing folder project onto the platform** (`/project-init platform <slug>`): `import_project` with the folder path, once. The platform reads the charter, the task files with their logs, `log.md` and `decisions.md`, and keeps the task ids; an external charter's epic becomes the tracker link. Afterwards the platform is the home and nothing syncs back: an internal project's charter becomes `tracking: platform`, its `tasks/` and `log.md` are left as they were with a closing line saying where the project went, and the move is recorded in `decisions.md` (§16's switching rule). A second import of the same folder is refused; the skill then finds the project in `list_projects` and records its id.
+
+**Invariant 1 holds.** A project still has exactly one registry for its tasks: GitHub (linked) or the platform (platform-tracked). A linked project's log entries and health on the platform are a report of what the registry already says, written by the managing agent — they never carry state back.

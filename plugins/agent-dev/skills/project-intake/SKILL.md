@@ -2,13 +2,14 @@
 name: project-intake
 description: Headless intake primitive — routes actionable items from any source (meetings, email, Slack, issue trackers) into the project's registry — GitHub Issues for an external project, the project's own tasks/ folder for an internal one (standard §16). Dedupes by meaning (not exact title), creates tasks with full anatomy (Objective / Definition of Done / Context / Validation), or records one-line state news (epic comment / log.md). Returns the task reference. Never interactive — called by other skills and crons.
 argument-hint: "--project=<slug> --title=\"...\" --source=\"<url-or-note>\" [--owner=<actor>] [--priority=p2] [--agent=<name>] [--waiting-on=<actor>] [--dod=\"item1|item2\"] [--objective=\"...\"] [--context=\"...\"] [--state-news]"
-allowed-tools: Bash, Read, Grep
+allowed-tools: Bash, Read, Grep, mcp__trinity__list_projects, mcp__trinity__list_project_tasks, mcp__trinity__create_project_task, mcp__trinity__add_project_task_note, mcp__trinity__add_project_log_entry
 user-invocable: false
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.6: Platform mode (ent#788, ruling R38): for a platform-tracked project on a Trinity instance with Projects enabled intake dedupes against the platform's task list and creates the task there, and state news lands in the project's shared log (linked projects: the epic comment plus one log entry). Without Trinity nothing changes"
     - "1.5: One lineage (ent#789): the standard is resolved at the repo root or at fleet/project-standard.md and its §0 Configuration supplies the label vocabulary by role — owner and priority labels are ${L_OWNER}<owner> / ${L_PRIORITY}pN (defaults unchanged); the epic's owner/priority defaults are read through the same prefixes"
     - "1.4: Internal tracking (ent#673): a project whose charter resolves to `tracking: internal` (standard §16) takes intake as a task file — dedupe by meaning over the titles of its open tasks/*.md, create through the same internal path as /project-task (id allocation, front matter, Tasks list, commit / canon-publish), waiting-on as `waiting_on:` + a Log entry — and state news as one appended line in the project's log.md. Outputs `<slug>/T-NNN`, `DUPLICATE:<slug>/T-NNN`, `PROJECT:<slug>`. No GitHub access for internal projects. External: unchanged"
     - "1.3: Shared projects (ruling R21, ent#588) — no behaviour change: intake targets the epic by `project:<slug>` label exactly as before, at both visibility levels; the one rule added is that a workspace path, when one is passed through, is the epic body's Workspace field resolved per PROJECT_STANDARD §15 (canon: paths through the x-canon clone), never project_files/<slug>/ derived from the slug"
@@ -19,7 +20,7 @@ metadata:
 
 # Project Intake
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-intake v1.1 — recent: --waiting-on opens the loop explicitly`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-intake v1.6 — recent: platform mode on Trinity Projects`. Then proceed.
 
 ## Purpose
 
@@ -54,6 +55,33 @@ This skill writes GitHub, not workspaces. If a caller hands it — or it hands a
 |---|---|---|---|
 | Convention doc | `PROJECT_STANDARD.md` (repo root) or `fleet/project-standard.md` (orchestrator) — §0 is the configuration | Yes | No |
 | GitHub issues | `$REGISTRY` via `gh` | Yes | Yes (task issue + epic checklist or one-line comment) |
+
+## Platform mode (Trinity Projects — standard §17)
+
+On a Trinity instance with Projects enabled, the platform holds the project record (ruling R38) and this skill works against it. Without Trinity, or where Projects is not enabled, nothing in this section applies and the skill runs exactly as written below.
+
+**Check once per run, after the standard is resolved.** `PLATFORM=$(cfg platform auto)`. Platform mode is **off** when that is `off`, or when this session has no `mcp__trinity__list_projects` tool. Otherwise call `mcp__trinity__list_projects`:
+
+- `enabled: true` → **on**; its `projects` are the platform projects this agent works on.
+- `enabled: false` → **off** (an install without Projects, an unlicensed one, or a local session on a person's key). Say nothing; carry on in folder + GitHub mode.
+- `enabled: false` with a `message` about internal conversations, or any project tool refusing with `code: external_audience` or `turn_unknown` → someone outside the company is in this conversation, or the platform cannot identify the turn: platform mode is off for the run, and no project detail read from the platform is repeated here.
+
+**Which projects are on the platform.** A project is on the platform when its charter envelope carries `platform_project: prj_…`, or — when the charter has no such line, or is not visible to this run — when a listed project's tracker link is the project's epic URL. It is one of two kinds:
+
+- **Linked** — `tracking: external`. Tasks stay GitHub issues exactly as below; the platform carries the record people see in the Workspace, the shared log and the health.
+- **Platform-tracked** — `tracking: platform`, or a platform project with no charter and no tracker link into `$REGISTRY`. Its tasks are the platform's task list (`T-NNN`, the same fields as a §16 task file); there is no `tasks/` folder and no `log.md`. Reference: `<slug>/T-NNN`, the slug being the charter's folder, else the project name in kebab-case.
+
+A platform-tracked project whose platform cannot be reached this run is skipped and named in the output. It is never continued from a folder — after an import nothing syncs back.
+
+**What this skill does in platform mode:**
+
+- **Linked project** — the task path is unchanged (GitHub issue). `--state-news` posts the epic comment as written **and** one `mcp__trinity__add_project_log_entry` (`kind: note`, the same line), so the project's members see it.
+- **Platform-tracked project:**
+  - **Dedupe (Step 4):** the candidates are the titles from `mcp__trinity__list_project_tasks` (open is the default). Same two tests. Duplicate → `DUPLICATE:<slug>/T-NNN`.
+  - **Create (Steps 5–7):** one `mcp__trinity__create_project_task`, as in `/project-task`'s platform mode — `context` carries `Source: $SOURCE`; `--agent` → `assignee`; `--waiting-on` → `waiting_on` plus a `### Waiting on` note via `mcp__trinity__add_project_task_note`; a `--priority` other than p2 goes into `context` as `Requested priority: pN` (priority is a person's on the platform). Output `<slug>/T-NNN`.
+  - **`--state-news`:** one `mcp__trinity__add_project_log_entry` (`kind: note`). Output `PROJECT:<slug>`.
+
+This skill stays headless: a platform refusal is printed as `ERROR: <message>` and the run exits — never a task file instead.
 
 ## Process
 

@@ -106,6 +106,8 @@ Standalone skills — usable directly as `/agent-dev:<name>`, copied into an age
 
 ### Project Management (cross-actor)
 
+> **On Trinity with Projects enabled** the same skills work against the platform's project record (standard §17): the project people see in the Workspace is the one the skills manage, the steward's outcomes land in its shared log, and `/project-init platform <slug>` brings an existing folder project over in one import. Off Trinity nothing changes.
+
 Standalone skills — usable directly as `/agent-dev:<name>`, copied into an agent by `/add-project-management` (which also renders `PROJECT_STANDARD.md` from the template shipped in `project-init/`), and mirrored into the `trinity-skills` library. All five read `PROJECT_STANDARD.md` as their configuration; `/project-init` materializes it from the template when it is missing, so the set works when assigned from the library without the installer.
 
 | Skill | Description |

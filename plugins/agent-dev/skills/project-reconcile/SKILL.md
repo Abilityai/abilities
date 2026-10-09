@@ -2,13 +2,14 @@
 name: project-reconcile
 description: Sync projection adapters against the registry per the project standard (PROJECT_STANDARD.md, or fleet/project-standard.md on an orchestrator) — GitHub Issues for external projects, task files for internal ones (standard §16). Processes projection gestures (check/date-push/delete) back into the registry with correct reversibility typing. Ships with Google Tasks adapter v1 (notes-field [#NN] key). Other adapters are per-deployment extensions. Reconciler is idempotent; refuses unkeyed items with a sync-gap alert.
 argument-hint: "[adapter] — default: google-tasks"
-allowed-tools: Bash, Read, Write, AskUserQuestion
+allowed-tools: Bash, Read, Write, AskUserQuestion, mcp__trinity__list_projects, mcp__trinity__list_project_tasks, mcp__trinity__update_project_task
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.4: Platform mode (ent#788, ruling R38): on a Trinity instance with Projects enabled, platform-tracked projects feed the registry map from the platform's task list (keyed <slug>/T-NNN) and a completion gesture is written with update_project_task under the platform's lattice. Without Trinity nothing changes"
     - "1.3: One lineage (ent#789): the standard is resolved at the repo root or at fleet/project-standard.md; its §0 Configuration supplies the label vocabulary by role and the state directory — the reconcile log lives under $STATE_DIR/reconcile-log/ (project-steward/ by default, fleet/project-steward/ on an orchestrator); with the done label unset, closing the issue is the done marker; with the pending-verification label unset, an agent-owned completion gesture is verified against the Definition of Done right away instead of parked"
     - "1.2: Internal tracking (ent#673): internal projects' task files join the registry map under the key `[<slug>/T-NNN]` (external keeps `[#NN]`); a check gesture on one writes the task's front matter and an appended Log entry instead of labels and a comment (human owner → status: done; agent owner → pending-verification + pending_since), and the projection item's note carries the task file path. Everything else — gesture typing, absence never authoritative, unkeyed items personal — is unchanged"
     - "1.1: Read-the-standard guard (missing PROJECT_STANDARD.md → run /project-init first); skill is now authored standalone (installer copies from here)"
@@ -17,7 +18,7 @@ metadata:
 
 # Project Reconcile
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-reconcile v1.0 — recent: Initial version`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-reconcile v1.4 — recent: platform mode on Trinity Projects`. Then proceed.
 
 ## Purpose
 
@@ -32,6 +33,25 @@ Sync projection surfaces (personal task views, team tools) against the GitHub Is
 ## Adapters
 
 This skill ships with the **Google Tasks adapter v1**. Other adapters (Fibery, Notion, Linear, etc.) follow the adapter contract in `PROJECT_STANDARD.md §11` and are per-deployment extensions — copy this skill, implement the three adapter methods, and register your adapter in the dispatch block below.
+
+## Platform mode (Trinity Projects — standard §17)
+
+On a Trinity instance with Projects enabled, the platform holds the project record (ruling R38) and this skill works against it. Without Trinity, or where Projects is not enabled, nothing in this section applies and the skill runs exactly as written below.
+
+**Check once per run, after the standard is resolved.** `PLATFORM=$(cfg platform auto)`. Platform mode is **off** when that is `off`, or when this session has no `mcp__trinity__list_projects` tool. Otherwise call `mcp__trinity__list_projects`:
+
+- `enabled: true` → **on**; its `projects` are the platform projects this agent works on.
+- `enabled: false` → **off** (an install without Projects, an unlicensed one, or a local session on a person's key). Say nothing; carry on in folder + GitHub mode.
+- `enabled: false` with a `message` about internal conversations, or any project tool refusing with `code: external_audience` or `turn_unknown` → someone outside the company is in this conversation, or the platform cannot identify the turn: platform mode is off for the run, and no project detail read from the platform is repeated here.
+
+**Which projects are on the platform.** A project is on the platform when its charter envelope carries `platform_project: prj_…`, or — when the charter has no such line, or is not visible to this run — when a listed project's tracker link is the project's epic URL. It is one of two kinds:
+
+- **Linked** — `tracking: external`. Tasks stay GitHub issues exactly as below; the platform carries the record people see in the Workspace, the shared log and the health.
+- **Platform-tracked** — `tracking: platform`, or a platform project with no charter and no tracker link into `$REGISTRY`. Its tasks are the platform's task list (`T-NNN`, the same fields as a §16 task file); there is no `tasks/` folder and no `log.md`. Reference: `<slug>/T-NNN`, the slug being the charter's folder, else the project name in kebab-case.
+
+A platform-tracked project whose platform cannot be reached this run is skipped and named in the output. It is never continued from a folder — after an import nothing syncs back.
+
+**What this skill does in platform mode:** platform-tracked projects join the one registry map (Step 3). For each, `mcp__trinity__list_project_tasks` with `status: all`; every task becomes an entry keyed `<slug>/T-NNN` (projection key `[<slug>/T-NNN]`) with its title, status, priority and owner, `is_closed` = `done`. A **check** gesture on such an item is the same two decisions as §11, written with `mcp__trinity__update_project_task`: a human owner → `status: done` with the endorsement as `note` when this agent is the project's steward (otherwise `pending-verification` — the platform lets only the steward or a person set done); an agent owner → `pending-verification` with the note. Date-push and delete gestures write nothing, as before. Linked projects are unchanged — their tasks are GitHub issues.
 
 ## Process
 

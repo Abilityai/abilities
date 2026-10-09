@@ -5,12 +5,13 @@ argument-hint: "<slug>"
 automation: autonomous
 disable-model-invocation: false
 user-invocable: true
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__report, mcp__trinity__send_notification, mcp__trinity__list_reports, mcp__trinity__ask_operator, mcp__trinity__get_my_ask
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__report, mcp__trinity__send_notification, mcp__trinity__list_reports, mcp__trinity__ask_operator, mcp__trinity__get_my_ask, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__list_project_tasks, mcp__trinity__get_project_log, mcp__trinity__add_project_task_note, mcp__trinity__update_project_task, mcp__trinity__link_to_project
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-10-02
   author: trinity-pm
   changelog:
+    - "1.4: Platform mode (ent#788, ruling R38): on a Trinity instance with Projects enabled the daily report and the asks it raises are put on the platform project (link_to_project) so its members find them there; a platform-tracked project is read from the platform's task list and log instead of an epic. Without Trinity nothing changes"
     - "1.3: Fix — the ask request_id used / and #, which Trinity refuses (invalid_request_id), so no ask was ever filed; it is now <slug>:<owner>.<repo>:<N>. Asks respect the atomic caps (title ≤120, ≤5 options of ≤60 chars), dismissed is a fourth ending, and an answer of (something else) no longer flips the issue to active (Trinity dev ed5904906)"
     - "1.2: Promoted from the production orchestrator's local skill into the agent-dev plugin as the sixth project skill (ent#789) — reads the standard through the shared resolver (PROJECT_STANDARD.md or fleet/project-standard.md, §0 Configuration: registry, state_dir, member_repos, label roles), the ledger contract is documented here, a project without a ledger still gets a daily report (progress from the task checklist, no projected date — and says so) instead of failing, the report type is namespaced by the agent name"
     - "1.1: Waiting-on-you items become Trinity asks (operator 2026-10-02: 'that's why we have asks and approvals on trinity') — one idempotent ask_operator per needs-operator issue, approval asks carry the frozen proposal from the issue's Approval needed comment; ended asks are relayed back to the issue and the label flipped. A local user-scoped key cannot raise asks, so this only fires on the deployed agent"
@@ -19,7 +20,7 @@ metadata:
 
 # Project Status
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-status v1.3 — recent: ask request_id fixed, atomic asks, dismissed ending`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-status v1.4 — recent: platform mode on Trinity Projects`. Then proceed.
 
 ## Purpose
 
@@ -42,6 +43,28 @@ The workspace is the epic body's `## Workspace` field resolved through the stand
 ## Ledger contract
 
 `plan.md` is a markdown table with at least these columns (others are free): `Step` · `Issue` (`owner/repo#N`, or blank for work with no issue) · `Estimate (d)` (working days) · `Depends on` (comma-separated step ids, or blank) · `Status` (`todo · in-progress · waiting-on-operator · done`) · `Evidence` (merged PR, commit, file — what proves `done`). The ledger is the project's plan; this skill only ever edits the `Status` and `Evidence` cells, from evidence, never from a summary. `/build-chain`-style chain ledgers already have this shape.
+
+## Platform mode (Trinity Projects — standard §17)
+
+On a Trinity instance with Projects enabled, the platform holds the project record (ruling R38) and this skill works against it. Without Trinity, or where Projects is not enabled, nothing in this section applies and the skill runs exactly as written below.
+
+**Check once per run, after the standard is resolved.** `PLATFORM=$(cfg platform auto)`. Platform mode is **off** when that is `off`, or when this session has no `mcp__trinity__list_projects` tool. Otherwise call `mcp__trinity__list_projects`:
+
+- `enabled: true` → **on**; its `projects` are the platform projects this agent works on.
+- `enabled: false` → **off** (an install without Projects, an unlicensed one, or a local session on a person's key). Say nothing; carry on in folder + GitHub mode.
+- `enabled: false` with a `message` about internal conversations, or any project tool refusing with `code: external_audience` or `turn_unknown` → someone outside the company is in this conversation, or the platform cannot identify the turn: platform mode is off for the run, and no project detail read from the platform is repeated here.
+
+**Which projects are on the platform.** A project is on the platform when its charter envelope carries `platform_project: prj_…`, or — when the charter has no such line, or is not visible to this run — when a listed project's tracker link is the project's epic URL. It is one of two kinds:
+
+- **Linked** — `tracking: external`. Tasks stay GitHub issues exactly as below; the platform carries the record people see in the Workspace, the shared log and the health.
+- **Platform-tracked** — `tracking: platform`, or a platform project with no charter and no tracker link into `$REGISTRY`. Its tasks are the platform's task list (`T-NNN`, the same fields as a §16 task file); there is no `tasks/` folder and no `log.md`. Reference: `<slug>/T-NNN`, the slug being the charter's folder, else the project name in kebab-case.
+
+A platform-tracked project whose platform cannot be reached this run is skipped and named in the output. It is never continued from a folder — after an import nothing syncs back.
+
+**What this skill does in platform mode:**
+
+- **Any platform project (linked or platform-tracked):** after the report is published (Step 5), put it on the project with `mcp__trinity__link_to_project` (`kind: report`, `target_id` = the report's id from the `report` receipt), and tag every ask this run raised in Step 4b with `kind: ask` and the ask's id from its receipt — so members find the status and the open asks on the project page. A refusal here is ignored; the report and the asks stand without it.
+- **Platform-tracked project:** there is no epic. Find the project by the charter's `platform_project:` or by slug in `list_projects`. Evidence (Step 2) is `mcp__trinity__list_project_tasks` with `status: all` plus `mcp__trinity__get_project_log`; a ledger step whose `Issue` cell reads `T-NNN` is done when that task is `done`. Waiting-on-you (Step 4b) is every task in `needs-decision`; the request id is `<slug>:T-NNN`, and an ended ask is relayed with `mcp__trinity__add_project_task_note` (the `### Operator answer` text) and, when an option was chosen, `mcp__trinity__update_project_task` back to `active`. The ledger and the status files live in the charter's folder when there is one, else in `$STATE_DIR/outputs/<slug>/`.
 
 ## Process
 

@@ -1,14 +1,15 @@
 ---
 name: project-init
 description: Create or adopt a long-term managed project per the project standard (PROJECT_STANDARD.md at the repo root, or fleet/project-standard.md on an orchestrator — its §0 block configures registry, label vocabulary and fleet hooks) — GitHub epic issue with idempotent label creation and a workspace carrying the project.md charter, at agent level (project_files/<slug>/) or, with --canon, as a shared project in the fleet's canon repo (projects/<slug>/ at the canon root — same charter, same epic, same steward; canon placement only decides who can read it). Use when starting a new multi-session project or bringing an existing project folder under management.
-argument-hint: "[project name | adopt <existing-folder>] [--canon] [--internal] [--dry-run]"
-allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
+argument-hint: "[project name | adopt <existing-folder> | platform <slug>] [--canon] [--internal] [--no-platform] [--dry-run]"
+allowed-tools: Bash, Read, Write, Edit, AskUserQuestion, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__create_project, mcp__trinity__import_project
 user-invocable: true
 metadata:
-  version: "1.4"
+  version: "1.5"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.5: Platform mode (ent#788, ruling R38): on a Trinity instance with Projects enabled a new project is also created as a platform project (create_project — linked to the epic, or platform-tracked with --internal), and `platform <slug>` brings an existing folder project onto the platform in one import without rewriting it; the charter records platform_project. A refusal (no start-projects permission, no Projects) finishes in folder + GitHub mode and says what a person can do. Without Trinity nothing changes"
     - "1.4: One lineage (ent#789): the standard is resolved at the repo root OR at fleet/project-standard.md (an orchestrator's placement) and its new §0 Configuration block drives everything that used to be hard-coded — label vocabulary by role ($L_ACTIVE, $L_NEEDS_OPERATOR, $L_PRIORITY, …; a tracker-native hyphen vocabulary is now a config value), the owner-label prefix (owner: or agent:), extra epic labels (type-epic), state directory and fleet hooks. Label creation iterates the configured names. With fleet.orchestration set, its §3b ownership matrix supplies the default owner (informational). A missing standard materializes at fleet/project-standard.md when a fleet/ layer exists, else at the root. Absorbs the add-orchestrator template project-init 1.2 — that copy is retired"
     - "1.3: Internal tracking (ent#673, operator ruling 2026-09-22): `--internal` creates a project whose registry is its own workspace — project.md carries the epic's sections (Goal, Success criteria, Owners, Cadence, Current status, Tasks) and `tracking: internal` + `priority:` in the envelope, plus an empty tasks/ and an append-only log.md; no GitHub access, no labels, no epic. Forced when the standard's registry is `none`. Works at both placements (`--canon --internal` = a shared project with its tasks in the canon). External stays the default and writes `tracking: external` explicitly"
     - "1.2: Shared projects (operator rulings R21, 2026-09-10 — one PM standard, two visibility levels — and 2026-09-22 — shared projects at the canon root; ent#588): `--canon` creates the workspace in the fleet's canon repo at projects/<slug>/ — the top-level zone every agent writes directly, not inside any agent's folder — through the x-canon clone, pushed with /canon-publish, instead of project_files/<slug>/, and records `canon:projects/<slug>/` in the epic's Workspace field; this agent becomes the charter's owner: (the steward). A slug already taken in canon — by any steward — is a collision. `adopt --canon <slug>` adopts an existing canon project: one at the root keeps its steward unless it is this agent's (a project stewarded by another agent is refused — ask that agent); one still at the earlier agents/<self>/projects/<slug>/ placement is moved to projects/<slug>/ in the same publish (another agent's earlier-placement project is theirs to move). The charter is the same file at both levels and now carries the linted envelope the canon convention § Projects defines (owner = steward, status mirrors the epic label, epic as owner/repo#N, updated, review_by, tldr) plus an append-only decisions.md ledger with its own envelope; agent-level project.md gains the same envelope so moving a project changes readers and nothing else. `--dry-run` writes the workspace and prints the epic body without touching GitHub (so a scaffold can be linted before it exists). Default placement is unchanged (agent level)"
@@ -18,7 +19,7 @@ metadata:
 
 # Project Init
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-init v1.0 — recent: Initial version`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-init v1.5 — recent: platform mode on Trinity Projects`. Then proceed.
 
 ## Purpose
 
@@ -34,6 +35,34 @@ Bring a long-term project under standardized management: create its registry and
 | Project workspace (agent level) | `project_files/<slug>/` | Yes | Yes |
 | Project workspace (`--canon`) | `<x-canon.clone_path>/projects/<slug>/` — the canon's shared projects zone | Yes | Yes (the shared zone every agent writes directly; push = `/canon-publish`) |
 | Canon declaration | `template.yaml → x-canon:` (`repo`, `clone_path`, `folder`) | Yes (`--canon` only) | No |
+
+## Platform mode (Trinity Projects — standard §17)
+
+On a Trinity instance with Projects enabled, the platform holds the project record (ruling R38) and this skill works against it. Without Trinity, or where Projects is not enabled, nothing in this section applies and the skill runs exactly as written below.
+
+**Check once per run, after the standard is resolved.** `PLATFORM=$(cfg platform auto)`. Platform mode is **off** when that is `off`, or when this session has no `mcp__trinity__list_projects` tool. Otherwise call `mcp__trinity__list_projects`:
+
+- `enabled: true` → **on**; its `projects` are the platform projects this agent works on.
+- `enabled: false` → **off** (an install without Projects, an unlicensed one, or a local session on a person's key). Say nothing; carry on in folder + GitHub mode.
+- `enabled: false` with a `message` about internal conversations, or any project tool refusing with `code: external_audience` or `turn_unknown` → someone outside the company is in this conversation, or the platform cannot identify the turn: platform mode is off for the run, and no project detail read from the platform is repeated here.
+
+**Which projects are on the platform.** A project is on the platform when its charter envelope carries `platform_project: prj_…`, or — when the charter has no such line, or is not visible to this run — when a listed project's tracker link is the project's epic URL. It is one of two kinds:
+
+- **Linked** — `tracking: external`. Tasks stay GitHub issues exactly as below; the platform carries the record people see in the Workspace, the shared log and the health.
+- **Platform-tracked** — `tracking: platform`, or a platform project with no charter and no tracker link into `$REGISTRY`. Its tasks are the platform's task list (`T-NNN`, the same fields as a §16 task file); there is no `tasks/` folder and no `log.md`. Reference: `<slug>/T-NNN`, the slug being the charter's folder, else the project name in kebab-case.
+
+A platform-tracked project whose platform cannot be reached this run is skipped and named in the output. It is never continued from a folder — after an import nothing syncs back.
+
+**What this skill does in platform mode:**
+
+- **New project (default, external).** Steps 1–7 run unchanged. Then call `mcp__trinity__create_project` with `name`, `goal` (the Goal paragraph, at most 2,000 characters) and `tracker_url` = the epic URL, and write `platform_project: <id>` into the charter envelope after `tracking:`. The project is **linked**.
+- **New project with `--internal`.** The project is **platform-tracked** instead of internal: skip Steps 2, 5 and 6, call `mcp__trinity__create_project` with `name` and `goal`, and write the internal charter of Step 7 with `tracking: platform` and `platform_project: <id>`, without the `## Tasks` section, the `tasks/` folder or `log.md` — the platform holds those. `--no-platform` keeps a new project in folder + GitHub mode.
+- **`platform <slug>`** — bring a project this agent already manages onto the platform, without rewriting it. Resolve its charter (`charter_for <slug>`, standard §16), make sure the folder is committed and pushed (the platform reads the deployed agent's files), then call `mcp__trinity__import_project` with `path` = the folder as the agent sees it (`project_files/<slug>` or `<canon clone>/projects/<slug>`). On success write `platform_project: <id>` into the charter. An internal project also gets `tracking: platform`, one closing line appended to `log.md` (`### Moved to the platform YYYY-MM-DD — <id>; this folder is no longer the registry`) and the same fact appended to `decisions.md`; its `tasks/` files stay as they are. An external project keeps `tracking: external` and becomes linked. `code: already_imported` (a person imported it in the Workspace, or an earlier run did) → find the project in `list_projects` (by tracker link, else by name; ask when more than one fits), then make the same charter changes as after a successful import.
+- **`adopt`** runs as written, then continues as `platform <slug>`.
+
+**When the platform says no.** `code: project_management_not_permitted`, or no `create_project` / `import_project` tool in this session: nothing was created on the platform. Finish in folder + GitHub mode and add to the summary: *"Not on the platform yet. An instance admin can allow this agent to start projects (agent Settings → Permissions to change itself), then run `/project-init platform <slug>`; or create or import it in Workspace → Projects — the next steward run links it."* Never retry, and never ask a person to add members or change who can see the project on the agent's behalf — those stay the owner's.
+
+Publishing a charter change follows the placement: commit at agent level, `/canon-publish` in the canon. The summary (Step 8) gains one line: `Platform:  <id> — linked | platform-tracked | not on the platform (<reason>)`.
 
 ## Process
 
