@@ -5,10 +5,11 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 argument-hint: "[--check]"
 metadata:
-  version: "1.34"
+  version: "1.35"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.35: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — bundled orchestrate 1.18 (agents.manage grant for rollout/teardown, gate results, two-argument get_execution_result, delegation-contract resend reason, ⟦ ⟧ payload framing, A2A payment outcomes), compose-system 1.6 (manifest prompt overwrites the instance-wide Trinity Prompt; explicit: not map:; agents.manage for the dry run; kind: deployment), profile-fleet 1.8, sync-fleet-to-head 1.8 (409 agent_busy), reconcile-skill-map 1.3 (approval: recommended gates on assign); the two-tokens note names the clone token order and the agents.manage requirement"
     - "1.34: The project layer (Q3) no longer embeds its own project-init / project-steward — those two templates and project-standard.md.template are deleted (ent#789: two lineages under one name, ~600 lines apart, fixes landing in one and not the other). Q3 now copies the six standalone agent-dev project skills (project-init / task / intake / steward / reconcile / status) from the plugin's own skills/ directories — the same files the trinity-skills library carries — and seeds fleet/project-standard.md from project-init's PROJECT_STANDARD.template.md with the fleet values set in its §0 Configuration (state_dir: fleet/project-steward, fleet.system_map, fleet.orchestration). Everything the orchestrator pair did — reading the standard at fleet/, resolving owners through the map, §5 edge checks, §3b etiquette, outputs for invisible workspaces — is now behaviour of the one skill set, switched on by that block. --check compares the project set against the plugin's skills/ copies. Existing installs: re-run and overwrite the pair, then add §0 to the existing fleet/project-standard.md (the upgrade path below)"
     - "1.33: Bundled sync-fleet-to-head 1.7 — ahead is a finding, not a footnote (universalized from the production orchestrator's 1.7, field lesson 2026-09-24: 40 commits on 10 agents existed only on container disks, all long listed as 'Left ahead'). Ahead > 0 is a needs-attention line with count + oldest unpushed commit age (get_git_log), confirmed over get_git_status; diverged/ahead lead the report; > 24 h is red. Still pull-only. Re-run /add-orchestrator (or --check) on an installed orchestrator to pick it up"
     - "1.32: Platform-truth refresh (Trinity dev 863240f3) — bundled reconcile-skill-map 1.2 (skill-manager permission enforced, ent#596: 403 skill_management_not_permitted until an admin grants it; skill sets set:<name>, ent#530), orchestrate 1.17 (notify is a role via send_message(to:) or an ask_operator alert, ent#606/ent#611; inter_agent_depth_exceeded is terminal, #2806; start_agent skill-delivery lines, #2991), sync-fleet-to-head 1.6 (null ahead/behind = unknown, #2105)."
@@ -465,7 +466,9 @@ Print:
 ### Two different GitHub tokens — don't conflate them
 - **The instance token** (Trinity UI → Settings → GitHub token): what *Trinity* clones with. It's what makes
   the default deploy path work — `create_agent(template: github:Org/repo)` and every `github:` member in a
-  `deploy_system` manifest. Required for private repos; public ones clone without it.
+  `deploy_system` manifest. Required for private repos; public ones clone without it. Clone token order: the
+  agent's own PAT, then its owner's personal PAT, then the instance token. From an agent key both calls also
+  need the `agents.manage` grant (`403 agent_management_not_permitted` otherwise).
 - **GH_TOKEN in this agent's .env**: what *this agent's own* `gh`/git commands run as inside its container.
   It never affects how Trinity clones fleet members.
 A fleet of private repos needs both: the instance token to deploy the members, the agent token for the

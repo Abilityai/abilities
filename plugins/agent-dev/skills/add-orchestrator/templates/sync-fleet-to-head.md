@@ -8,10 +8,11 @@ allowed-tools: Read, Grep, Skill, AskUserQuestion, mcp__trinity__list_agents, mc
 effort: high
 user-invocable: true
 metadata:
-  version: "1.7"
+  version: "1.8"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.8: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — git_pull 409 agent_busy (the agent's own sync cycle holds the repo lock, likelier since the ent#703 pull loop) is a retry-later, not a conflict; get_execution_result takes agent_name + execution_id; the queued_timeout reason follows the delegation contract"
     - "1.7: Ahead is a finding, not a footnote — universalized from the production orchestrator (field lesson 2026-09-24): an audit found 40 commits on 10 agents that existed only on container disks, every one of them an agent this run had listed under 'Left ahead' each morning for weeks, which read as normal until it was a data-loss report. Ahead > 0 is now a needs-attention line with the commit count and the age of the oldest unpushed commit (get_git_log), confirmed over get_git_status before reporting (the sync-state row is a cache that has been wrong both ways); diverged/ahead agents lead the report and age over 24 h is red. Still pull-only — the push half is the agent's own."
     - "1.6: A null ahead/behind count is unknown, never at-HEAD — Trinity now reports a count it cannot compute (no upstream, detached HEAD) as null instead of 0, and measures the working tuple against the agent's own branch whatever it is named (#2105)."
     - "1.5: Permission denials are a regression signal, never a scope boundary — universalized from the production orchestrator (field lesson 2026-08-17, closing the issue #5 back-flow gap once more): a key that loses read access to an agent used to make that agent silently disappear from the run ('nothing to pull' over a shrinking reachable set), and in one fleet ~10 agents went unsynced for six weeks that way — the losses clustered around container recreations, nobody revoked anything on purpose. New rule block after Step 3: every narrative-scoped agent is attempted every run (no known-denied skip list, ever), each denial is classified covered-by-another-tier / covered-by-nobody and named with the verbatim error, and a previously-denied agent that becomes reachable is reported FIRST and loudly because nothing else in the fleet watches for it. Optional tiering documented: where one key cannot read the whole fleet, a second agent runs this same playbook for its own group, earlier, with intentional overlap (pull-only is idempotent) — tiers are declared in the fleet narrative, never hard-coded here. Report section and the Error Recovery row updated to match"
@@ -141,6 +142,7 @@ For each agent to pull, walk this ladder — stop at the first success:
 1. `git_pull(strategy: "clean")`.
    - Success → done for this agent.
    - **409 "cannot pull with rebase: You have unstaged changes"** → `clean` rebases and refuses on a dirty tree. This is expected; escalate to step 2. Nothing was changed.
+   - **409 `agent_busy` ("Repository busy: auto-sync or git maintenance in progress")** → the agent's own sync cycle holds the repo lock — not a conflict. Retry once later in the run; still busy → list the agent as skipped-busy.
    - **409 "Pulling is not possible because you have unmerged files"** → pre-existing conflict state in the working tree (UU/AA/DD entries from a prior failed merge or stash pop). `stash_reapply` will also fail here (`git stash` refuses with unmerged files). Skip step 2 and go directly to Step 6. Call `get_git_status` first to identify the conflicted paths.
 2. `git_pull(strategy: "stash_reapply")` — stashes local changes, pulls, reapplies.
    - `success: true` with **no** warning → done; local changes preserved.
@@ -203,10 +205,11 @@ Re-call `get_git_sync_state` for each acted agent. **Note:** the sync-state row 
 | `get_git_*` permission denied for an agent | Insufficient key scope for this run — keep the agent in scope, record the verbatim error, classify covered-by-tier / covered-by-nobody, continue. Never add it to a skip list; attempt it again next run so restored access self-heals. |
 | `clean` returns 409 "unstaged changes" | Expected on a dirty tree (clean = rebase). Escalate to `stash_reapply`. |
 | `clean` returns 409 "unmerged files" | Pre-existing conflict state — `stash_reapply` also fails. Go directly to Step 6: call `get_git_status` to identify conflicted paths; non-trivial files → flag for human, do not auto-resolve. |
+| `git_pull` returns 409 `agent_busy` (repository busy) | The agent's own sync cycle holds the repo lock — not a conflict; retry once later in the run, else list as skipped-busy. |
 | `clean` returns 400 "Could not access submodule" | `git pull --rebase` tries to fetch submodules and fails when a submodule is unmounted. MCP `git_pull` has no `--no-recurse-submodules` option. Flag as needs-attention; suggest the agent run `git pull --no-recurse-submodules origin main` directly via `chat_with_agent` Bash. Do not retry with `stash_reapply` (same underlying fetch fails). |
 | `stash_reapply` success **with** "Could not reapply local changes" | Stash pop conflicted; go to conflict handling. Local work is in the stash — do not drop it. |
 | Real merge conflict on non-trivial files | STOP for that agent; report conflicted paths; leave the stash intact for the human. |
-| `chat_with_agent` returns `queued_timeout` | The task is still running — poll `get_execution_result(execution_id)`; do NOT re-send (duplicate-guard will kill it). |
+| `chat_with_agent` returns `queued_timeout` | The task is still running — poll `get_execution_result(agent_name, execution_id)`; do NOT resend — an identical repeat is answered with the original receipt, a reworded one runs the work twice. |
 | Agent stopped / unhealthy | Skip git ops for it; flag as "not running". |
 | Nothing is behind | Report "all in-scope agents at HEAD" and stop — no gate needed. |
 

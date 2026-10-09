@@ -5,10 +5,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Glob, Bash, AskUserQuestion
 metadata:
-  version: "1.3.1"
+  version: "1.3.2"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.3.2: Trinity dev ed5904906 truth sync — a different value at the same ts now corrects a metric point in place (ent#729; never record a correction at a new ts; the summary counts `corrected`); the git-sync note no longer says the container never pulls (ent#703) — the point is that git sync never refreshes the metric registry; bound widgets document `dims:` for dimensioned metrics"
     - "1.3.1: Platform-truth refresh (Trinity dev 1a1deb2b, the ent#476 metrics merge, 2026-09-22) — Phase 4.1 now says what actually happens on a deployed agent: an in-container edit to template.yaml metrics: is invisible to the backend until refresh_metric_definitions (or a restart), because auto-sync pushes and never pulls; malformed entries are dropped and reported as D-009. The generated /update-dashboard drops its kpi_snapshot report step — the metric store is the history, a KPI report was a second store for the same number (operator ruling 2026-09-21). Generated-skill block moved to a four-backtick outer fence (Gate 1 B4)"
     - "1.3: Declared business metrics (trinity-enterprise#482; contract ent#477/#478/#479) — Phase 3 also proposes which of the approved numbers become DECLARED metrics, Phase 4 writes or extends `template.yaml metrics:` (name, type, label, cadence = the schedule, status values) and the generated /update-dashboard gains STEP 4: record the same numbers as points via `record_metrics` (guarded, silent off Trinity; `metric_undeclared` → `refresh_metric_definitions`); widget templates gain the `metric:` binding (a bound widget reads the recorded series — no hand-typed value)"
     - "1.2: Chart widget templates removed — `type: chart` never existed in Trinity (the agent-server validator strips it, the frontend has no renderer); trend lines come from the platform's Dynamic Dashboards enrichment instead: metric/progress widgets get auto-captured history + sparklines, keyed by a stable `id:` field (now taught). Added markdown widget template and a no-YAML-anchors caution (hardened loader rejects aliases, trinity#1965)"
@@ -166,7 +167,7 @@ metrics:
       - {value: healthy, color: green, label: Healthy}
 ```
 
-Trinity reads this block at create / git pull / container start (trinity-enterprise#477). If the agent is already deployed, **nothing on the backend sees an edit the agent makes to its own `template.yaml`** — the in-container auto-sync pushes, it never pulls — so call `refresh_metric_definitions` right after writing the block (idempotent; the agent must be running, 409 otherwise), or restart the agent. A malformed entry is dropped from the registry and reported as compatibility finding D-009; its points then come back `metric_undeclared`.
+Trinity reads this block at create / git pull / container start (trinity-enterprise#477). If the agent is already deployed, **nothing on the backend sees an edit the agent makes to its own `template.yaml`** — the in-container git sync (push and pull) never notifies the backend's metric registry — so call `refresh_metric_definitions` right after writing the block (idempotent; the agent must be running, 409 otherwise), or restart the agent. A malformed entry is dropped from the registry and reported as compatibility finding D-009; its points then come back `metric_undeclared`.
 
 ### 4.2 Generate the skill
 
@@ -255,7 +256,7 @@ record_metrics(points=[
 ], execution_id="{from the Execution Context block, when present}")
 ```
 
-Only declared metrics (`metric_undeclared` → declare it in `template.yaml`, call `refresh_metric_definitions`, retry once); one point per metric per run (identity is metric + ts + dims — re-sends are deduplicated, a correction is a new `ts`); a `status` value must be one of its declared `values`. Skip **silently** when the tool is absent or refuses with an agent-scoped-key error — the dashboard write still succeeds. Trinity is the upgrade, never the gate.
+Only declared metrics (`metric_undeclared` → declare it in `template.yaml`, call `refresh_metric_definitions`, retry once); one point per metric per run (identity is metric + ts + dims — re-sending the same value is deduplicated, and a different value at the same `ts` corrects the stored point in place (counted as `corrected`); keep the `ts` of the period the number describes, never record a correction at a new `ts`); a `status` value must be one of its declared `values`. Skip **silently** when the tool is absent or refuses with an agent-scoped-key error — the dashboard write still succeeds. Trinity is the upgrade, never the gate.
 
 ---
 
@@ -264,7 +265,7 @@ Only declared metrics (`metric_undeclared` → declare it in `template.yaml`, ca
 Report:
 - Dashboard updated at {timestamp}
 - Metrics refreshed with current values
-- Points recorded: {n} recorded, {m} deduplicated (Trinity only)
+- Points recorded: {n} recorded, {m} deduplicated, {k} corrected (Trinity only)
 - Next scheduled update: {if scheduled}
 ````
 
@@ -290,6 +291,7 @@ When generating the skill, use these widget templates:
   id: {stable_snake_case_id}
   metric: {declared_metric_name}   # reads the recorded series: value, point time, stale flag, sparkline
   label: "{label}"
+  # dims: {region: emea}   # only for a metric declared with dimensions: — selects ONE series; without it the tile shows the folded aggregate
   # value / unit / trend are optional on a bound widget — the platform fills them
 ```
 

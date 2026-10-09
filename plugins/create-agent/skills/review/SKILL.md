@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Skill
 metadata:
-  version: "1.9"
+  version: "1.10"
   created: 2026-06-14
-  updated: 2026-09-30
+  updated: 2026-10-09
   author: Ability.ai
   changelog:
+    - "1.10: Token-tier note names the full working-branch condition (Trinity dev ed5904906, ent#705): the repo must also sit under the token's own GitHub account — an organisation-owned or someone else's repo stays pull-only even with a write-capable personal token; the create response's git_mode (pushes, reason) says which"
     - "1.9: Platform-truth refresh (Trinity dev 863240f3, 2026-09-30) — Trinity Readiness stops requiring .claude/settings.json in .gitignore (ent#708: project settings may be committed; flag a committed copy only for /opt/trinity/ hooks or credential keys); new warning for deprecated operator-queue paths (file appends, responded_by, agent-side respond — ent#611/ent#715) and recipient_email/audience_email (ent#606 `to` role); report-guard check matches the #2975 refusal wording; repository check explains the working-branch default vs pull-only by token tier (ent#705)"
     - "1.8: Trinity Readiness gains the declared-metrics checks (Trinity dev 1a1deb2b, the ent#476 metrics merge, 2026-09-22): template.yaml metrics: entries must be well-formed (name charset, six types, status values, cadence 60 s–366 d — finding D-009) and metrics.json must be gone (retired, finding D-010; record_metrics is the only write path)"
     - "1.7: Trinity Readiness (2h) gains two checks — template.yaml declares a plugins: block (trinity#1704; trinity@abilityai is pre-installed since ent#411, so its absence is a warning, not a blocker), and CLAUDE.md's Reporting to Trinity guard covers both tool absence and the `requires an agent-scoped API key` refusal, never retrying"
@@ -147,7 +148,7 @@ Real findings:
 - **Deployable from its repository** — Trinity deploys an agent by cloning its GitHub repo, so this is the difference between a reproducible deployment and an upload:
   - a `git remote` exists (`git remote get-url origin`)
   - the working tree is clean and the branch is pushed — anything uncommitted or unpushed simply won't exist on the deployed agent
-  - note the token tier: with the owner's **own** GitHub token holding *Contents: Read and write* on the repo, Trinity creates the agent on a working branch it alone writes (`trinity/<agent>/<id>`) with auto-sync on (ent#705); a read-only or instance-wide token yields a pull-only agent whose work never reaches git (a private repo needs at least *Contents: Read* to clone)
+  - note the token tier: with the owner's **own** GitHub token holding *Contents: Read and write* on the repo, and the repo under that same GitHub account, Trinity creates the agent on a working branch it alone writes (`trinity/<agent>/<id>`) with auto-sync on (ent#705); a read-only or instance-wide token, or a repo owned by an organisation or someone else, yields a pull-only agent whose work never reaches git (the create response's `git_mode.reason` says why) (a private repo needs at least *Contents: Read* to clone)
   - no remote → finding: *deploys by upload only; no reproducible source*. Not a blocker (the local-file path works), but the fix is one command: `gh repo create <name> --private --source=. --push`
 
 ### 2i. Project Hygiene

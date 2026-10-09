@@ -136,7 +136,7 @@ The `/add-memory` skill copies memory skills directly into the agent (no plugin 
 
 ### System Orchestration
 
-`/add-orchestrator` makes an agent **system-aware** — able to discover other agents (deployed *or* just sitting in a GitHub repo), describe what each can do, and put them to work. It installs seven fleet skills (plus an opt-in project-management pair) into the agent and a `fleet/` workspace:
+`/add-orchestrator` makes an agent **system-aware** — able to discover other agents (deployed *or* just sitting in a GitHub repo), describe what each can do, and put them to work. It installs seven fleet skills (plus the opt-in six-skill project-management set) into the agent and a `fleet/` workspace:
 
 | Skill Installed | Purpose |
 |------|----------|

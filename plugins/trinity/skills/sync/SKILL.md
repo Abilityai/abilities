@@ -4,12 +4,13 @@ description: Synchronize this agent with one or more remote instances on Trinity
 argument-hint: "[status|push|pull|deploy|remotes|add-remote|set-default|schedules|plugins] [@remote] [branch]"
 disable-model-invocation: true
 user-invocable: true
-allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__list_operator_queue, mcp__trinity__get_operator_queue_item, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule, mcp__trinity__git_pull, mcp__trinity__get_git_status, mcp__trinity__get_git_log, mcp__trinity__get_git_sync_state
+allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__list_operator_queue, mcp__trinity__get_operator_queue_item, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule, mcp__trinity__git_pull, mcp__trinity__get_git_status, mcp__trinity__get_git_log, mcp__trinity__get_git_sync_state, mcp__trinity__get_agent_compatibility_report
 metadata:
-  version: "2.7.2"
+  version: "2.7.3"
   created: 2025-02-05
   author: eugene
   changelog:
+    - "2.7.3: Trinity dev ed5904906 — open-item check asks the queue for status pending and pages on has_more; schedule reconcile names the schedules.manage grant an agent key needs to write another agent's schedules (ent#164); allowed-tools gains get_agent_compatibility_report, which Phase 7b already calls"
     - "2.7.2: The pull-path note names the ent#708 settings.json content guard — .claude/settings.json is no longer ignored, only container-hook or credential-bearing copies are kept out of a commit (replaces the trinity#2036 untracking claim)"
     - "2.7.1: Phase 7b reads plugin state from get_agent_compatibility_report I-006 (~/.trinity/plugins-state.json, ent#411) before falling back to the in-container CLI; git_pull note covers the trinity#2529 gitignore rebuild + gitignore_untracked operator-queue item (expected on the first sync after an upgrade)"
     - "2.7.0: Plugin reconciliation (Phase 7b, trinity#1704 / ent#411) — `template.yaml plugins:` is the declared plugin set and Trinity re-installs it headlessly on every container boot; sync now checks it the way it checks schedules: `status` reports declared-vs-installed drift on the remote (via `claude plugin list --json` inside the agent, run through chat_with_agent), push/pull/deploy re-check after the code lands, and the new `plugins` subcommand reconciles on demand — install what is declared and missing (same two CLI calls the boot hook makes), never uninstall (additive; a live-only plugin is reported as drift for the operator, mirroring the schedule rule). Also flags a template.yaml with no plugins: block at all as SOFT drift with the one-line fix"
@@ -475,10 +476,10 @@ After syncing a remote (push/pull/deploy) — and for each remote shown in a `st
 For each targeted remote, using its resolved Trinity agent name:
 
 ```
-mcp__trinity__list_operator_queue(agent_name: <remote.agent>)
+mcp__trinity__list_operator_queue(agent_name: <remote.agent>, status: "pending")
 ```
 
-Treat items that are not already resolved/closed as **open**. For each open item, optionally fetch detail with `mcp__trinity__get_operator_queue_item(<id>)` to summarize what it needs.
+`pending` is the open set; if the result says `has_more`, page with `cursor`. For each open item, optionally fetch detail with `mcp__trinity__get_operator_queue_item(<id>)` to summarize what it needs.
 
 Report back to the user:
 - **No open items:** one line — `✓ Operating Room: no open notifications for <remote>`
@@ -513,6 +514,8 @@ Schedules are declared in `template.yaml` under a `schedules:` block (the design
    | **Update** | Declared + live, cron/message/timezone/etc. differ | `update_agent_schedule(...)` to match manifest (never touch `enabled`) | report "would update" |
    | **In sync** | Declared + live, identical | nothing | — |
    | **Drift** | Live `name` not in manifest | **report, never delete** | report |
+
+   Run from an agent key against a *different* agent, the create/update calls need the `schedules.manage` grant (403 `schedule_management_not_permitted` otherwise, ent#164); a local user-key session and an agent reconciling its own schedules need nothing.
 
 4. **Never flip `enabled` on an existing schedule** — turning schedules on/off on a live agent is the operator's decision (`toggle_agent_schedule`). The manifest's `enabled` is applied only at create time. Reconcile keeps *configuration* in sync, not *activation*.
 5. **Deletions are never automatic.** A live schedule with no matching declaration is surfaced as drift for the operator to resolve (remove on the instance, or add to `template.yaml`).

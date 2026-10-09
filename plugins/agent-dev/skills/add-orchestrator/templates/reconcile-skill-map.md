@@ -8,10 +8,11 @@ allowed-tools: Read, Write, Edit, Grep, AskUserQuestion, mcp__trinity__get_agent
 effort: medium
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-09-20
   author: orchestrator
   changelog:
+    - "1.3: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — assigning a library skill marked approval: recommended also puts an approval gate on it for that agent (list_skill_gates, origin library_default) — the plan says so"
     - "1.2: The skill-manager permission is enforced (Trinity ent#596): an agent key gets 403 skill_management_not_permitted — even for its own skills — until an instance admin grants it; the skill stops and reports the missing grant, never retries. Skill sets shipped (ent#530): a map entry may name set:<name>, applied via assign_skill_to_agent, and skills held via a declared set (get_agent_skills via_sets) count as in sync."
     - "1.1: Delivery ladder gains the `conflict` state (trinity#2914, Trinity dev 1a1deb2b, 2026-09-22) — a library skill whose name matches an agent-authored .claude/skills/<name>/ is now refused before a byte is staged; never retried via sync_agent_skills (force does not override), reported as an unassign-or-rename decision; pre-fix instances still overwrite, so diff repo-native names first there"
     - "1.0: Initial version — declared-intent skill map (fleet/skill-map.yaml) reconciled against live get_agent_skills; missing entries proposed for apply via assign_skill_to_agent (additive, single-skill — never set_agent_skills, which replaces the whole list and would silently wipe undeclared skills); undeclared live skills reported as drift and never auto-removed (no safe single-skill removal call exists yet, #493); live agents absent from the map entirely surface as a distinct `unmapped` state, never conflated with a reviewed `skills: []` entry; excludes role-companion agents (capabilities come from their canon role file instead) and an agent's own in-repo playbooks (a separate plane, governed by /sync-fleet-to-head). ent#646"
@@ -94,7 +95,7 @@ State plainly: only `missing` items are ever proposed for `assign_skill_to_agent
 
 ### Step 4: Apply approved additions
 
-For each approved `missing` item, call `assign_skill_to_agent(agent_name, skill_name)` — **never `set_agent_skills`**, which replaces an agent's entire skill list and would silently delete any `undeclared` skill this run already promised not to touch. It is additive. A declared `set:<name>` entry goes through the same call — `assign_skill_to_agent(agent_name, "set:<name>")` assigns and delivers every member as a unit; only a set whose `list_skill_sets` status is `ok` can be assigned (`partial` / `invalid` are reported, not applied). A `403 skill_management_not_permitted` stops Step 4 for the whole run — report the missing grant (see Prerequisites).
+For each approved `missing` item, call `assign_skill_to_agent(agent_name, skill_name)` — **never `set_agent_skills`**, which replaces an agent's entire skill list and would silently delete any `undeclared` skill this run already promised not to touch. It is additive. A declared `set:<name>` entry goes through the same call — `assign_skill_to_agent(agent_name, "set:<name>")` assigns and delivers every member as a unit; only a set whose `list_skill_sets` status is `ok` can be assigned (`partial` / `invalid` are reported, not applied). A `403 skill_management_not_permitted` stops Step 4 for the whole run — report the missing grant (see Prerequisites). Assigning a library skill marked `approval: recommended` also puts an approval gate on it for that agent (`list_skill_gates`, origin `library_default`) — say so in the plan.
 
 Read the response's `delivery` status per skill:
 - `injected` — done.

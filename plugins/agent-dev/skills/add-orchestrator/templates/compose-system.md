@@ -4,10 +4,11 @@ description: Turn fleet/system-map.yaml into a Trinity SystemManifest (fleet/sys
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__deploy_system, mcp__trinity__list_systems, mcp__trinity__get_system_manifest, mcp__trinity__restart_system, mcp__trinity__list_templates
 user-invocable: true
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.6: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — a manifest prompt OVERWRITES the instance-wide Trinity Prompt for every agent, not just members (Q3 reworded); custom permissions use explicit:, not map: (which was ignored — no permissions applied); deploy_system from an agent key needs agents.manage even for the dry run (ent#164); restart_system is a person's session only; members may declare kind: deployment"
     - "1.5: ent#411 shipped — the base image pre-installs the trinity plugin and the #1704 boot hook is default-ON, so a spec-less member runs /trinity:onboard in-place directly; the CLI-bootstrap caveat is gone (opt-out TRINITY_PLATFORM_PLUGINS=0)"
     - "1.4: Spec-less `github:` members are deployable, then onboarded in place — Step 3's table gains the row: a repo with no template.yaml still resolves to `template: github:Org/repo` (creation tolerates a missing template; the member just lands with no declared resources/schedules/plugins), and Step 6 hands each such member the follow-up playbook call `/trinity:onboard in-place` (trinity plugin v6.0) so it writes its own template.yaml + plugins:, pushes back and verifies via the platform compat report; the manifest then re-composes cleanly on the next run. Bootstrap caveat (ent#411) stated once"
     - "1.3: Repository-first members — `github:Org/repo` is stated as the only source that makes a manifest reproducible; a repo-less member is flagged `# NEEDS-REPO` with the push-and-update-the-map fix (local template/deploy_local_agent demoted to stopgaps), and Step 3 names the instance GitHub token (Settings → GitHub token, Contents: Read) as the prerequisite for private members"
@@ -57,7 +58,7 @@ Use `AskUserQuestion`:
 - `none` — no agent-to-agent calls; isolated members.
 - `custom` — an explicit map, e.g. `{this-agent: [worker-a, worker-b]}`.
 
-**Q3 — System-wide prompt?** (optional, free text) — one instruction injected into every member agent (Trinity's `prompt` field). Leave empty for none.
+**Q3 — Replace the instance-wide Trinity Prompt?** (optional, free text) — a manifest `prompt` **overwrites the platform-wide Trinity Prompt for every agent on the instance**, members or not. Leave empty unless you mean to overwrite it.
 
 **Q4 — Shared folders?** (optional) — if members pass files, mark which `expose` (publisher) and which `consume`. Default: none (all `expose:false, consume:false`).
 
@@ -85,11 +86,12 @@ Assemble `fleet/system.yaml` in Trinity `SystemManifest` shape:
 ```yaml
 name: <system_name from map, or "<agent>-fleet">
 description: "<one line describing this system>"
-prompt: "<from Q3, or omit>"
+prompt: "<from Q3, or omit>"          # OVERWRITES the instance-wide Trinity Prompt for every agent — omit unless intended
 
 agents:
   prospector:
     template: github:your-org/prospector
+    # kind: deployment                     # optional — pull-only codebase deployment; omit for an agent repo (own working branch + auto-sync when the repo is yours)
     resources: {cpu: "2", memory: "4g"}     # from map; omit to use template defaults
     folders: {expose: false, consume: false}
     schedules:                               # carried over from the map (enabled as declared)
@@ -99,7 +101,7 @@ agents:
 
 permissions:
   preset: orchestrator-workers               # this agent orchestrates; others are workers
-  # or, for custom:  map: {<this-agent>: [worker-a, worker-b]}
+  # or, for custom:  explicit: {<this-agent>: [worker-a, worker-b]}   (never together with preset)
 
 default_tags: [<system_name>]                # optional
 # system_view:                               # optional pre-built dashboard view
@@ -114,6 +116,8 @@ Notes:
 ### Step 5: Validate (dry-run) and write
 
 Always write `fleet/system.yaml` to the repo first (so it's version-controlled even if we don't deploy).
+
+From a deployed orchestrator (agent key) both the dry run and the deploy need the **`agents.manage`** grant — the route is fenced as a whole, so without it `deploy_system` answers `403 agent_management_not_permitted` even with `dry_run: true` (raise one `ask_operator` question whose title includes `agents.manage`; an instance admin grants it in the agent's Settings → Permissions to change itself). A local user-key session is unaffected.
 
 If Trinity MCP is available, validate before deploying:
 
@@ -131,7 +135,7 @@ Deploying creates/starts real agents and is outward-facing and not trivially rev
 mcp__trinity__deploy_system with the manifest YAML (dry_run: false)
 ```
 
-If a system with this `name` already exists (`mcp__trinity__list_systems`), tell the user and offer: `restart_system` to apply changes, deploy under a new name, or cancel. Do not blindly redeploy over a running system.
+If a system with this `name` already exists (`mcp__trinity__list_systems`), tell the user and offer: `restart_system` to apply changes (a person's session only — agent keys are refused), deploy under a new name, or cancel. Do not blindly redeploy over a running system.
 
 ### Step 7: Report
 

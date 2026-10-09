@@ -7,10 +7,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__report, mcp__trinity__send_notification, mcp__trinity__list_reports, mcp__trinity__ask_operator, mcp__trinity__get_my_ask
 metadata:
-  version: "1.2"
+  version: "1.3"
   created: 2026-10-02
   author: trinity-pm
   changelog:
+    - "1.3: Fix — the ask request_id used / and #, which Trinity refuses (invalid_request_id), so no ask was ever filed; it is now <slug>:<owner>.<repo>:<N>. Asks respect the atomic caps (title ≤120, ≤5 options of ≤60 chars), dismissed is a fourth ending, and an answer of (something else) no longer flips the issue to active (Trinity dev ed5904906)"
     - "1.2: Promoted from the production orchestrator's local skill into the agent-dev plugin as the sixth project skill (ent#789) — reads the standard through the shared resolver (PROJECT_STANDARD.md or fleet/project-standard.md, §0 Configuration: registry, state_dir, member_repos, label roles), the ledger contract is documented here, a project without a ledger still gets a daily report (progress from the task checklist, no projected date — and says so) instead of failing, the report type is namespaced by the agent name"
     - "1.1: Waiting-on-you items become Trinity asks (operator 2026-10-02: 'that's why we have asks and approvals on trinity') — one idempotent ask_operator per needs-operator issue, approval asks carry the frozen proposal from the issue's Approval needed comment; ended asks are relayed back to the issue and the label flipped. A local user-scoped key cannot raise asks, so this only fires on the deployed agent"
     - "1.0: Initial version — operator ask 2026-10-02 for the builder-agent project (ent#762): 'let me know once a day how this is going and when you will be done'"
@@ -18,7 +19,7 @@ metadata:
 
 # Project Status
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-status v1.2 — recent: sixth project skill, ledger contract documented`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-status v1.3 — recent: ask request_id fixed, atomic asks, dismissed ending`. Then proceed.
 
 ## Purpose
 
@@ -73,10 +74,10 @@ Critical-path walk over the ledger: each remaining step starts when all its `Dep
 ### Step 4b — Turn waiting-on-you into Trinity asks (deployed agent only)
 
 For every open issue in the project carrying `$L_NEEDS_OPERATOR`:
-- **request_id** = `<slug>:<owner>/<repo>#<N>` (+ `:<sha-or-date>` when the issue's newest `### Approval needed` comment names a revision) — stable, so a daily re-raise **replays** and never duplicates.
-- **Approval** when the newest `### Approval needed` comment exists: `type: approval`, `options` and `proposal` (JSON) copied from that comment verbatim, `question` = its prose. **Question** otherwise: `question` = the issue's Objective + Definition of done, with the defaults stated in the body.
+- **request_id** = `<slug>:<owner>.<repo>:<N>` (letters, digits, `.` `_` `:` `-` only — a `/` or `#` is refused `invalid_request_id`) (+ `:<sha-or-date>` when the issue's newest `### Approval needed` comment names a revision) — stable, so a daily re-raise **replays** and never duplicates.
+- **Approval** when the newest `### Approval needed` comment exists: `type: approval`, `options` from that comment (≤5, each ≤60 chars — shorten and move the detail to `question`) and `proposal` (JSON) copied verbatim, `question` = its prose; title ≤120 chars. **Question** otherwise: `question` = the issue's Objective + Definition of done, with the defaults stated in the body.
 - `to: primary`, `priority: high` when waiting ≥ 2 days, else `medium`.
-- Read every earlier request_id back with `get_my_ask`. **Ended** (answered / cancelled / expired) and not yet relayed → post `### Operator answer YYYY-MM-DD` on the issue with the disposition and the answer verbatim, flip `$L_NEEDS_OPERATOR` → `$L_ACTIVE` (answered) or leave it (cancelled/expired, and say so in the report). Record relayed ids in `<workspace>/status/asks.json` so a relay happens once.
+- Read every earlier request_id back with `get_my_ask`. **Ended** (answered / cancelled / dismissed / expired) and not yet relayed → post `### Operator answer YYYY-MM-DD` on the issue with the disposition and the answer verbatim, flip `$L_NEEDS_OPERATOR` → `$L_ACTIVE` only when a listed option was chosen (or a question answered); a response of `(something else)` approves none of the options — relay `response_text` and leave the label; cancelled / dismissed / expired leave it too (say so in the report; a dismissed ask is not re-raised straight away). Record relayed ids in `<workspace>/status/asks.json` so a relay happens once.
 - A refusal naming the key (`requires a key that carries an agent identity`), or no Trinity tools at all, means a local session: skip this step silently; the issues still carry the request.
 
 The "Waiting on you" section of the report names each ask by title and says it is in the Trinity operator queue.

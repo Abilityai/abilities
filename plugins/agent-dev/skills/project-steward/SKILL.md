@@ -3,14 +3,15 @@ name: project-steward
 description: Autonomous sweep of all managed projects per the project standard (PROJECT_STANDARD.md at the repo root, or fleet/project-standard.md on an orchestrator — its §0 block configures registry, label vocabulary, state directory and fleet hooks) — external projects tracked in GitHub Issues and internal projects tracked in their own workspace files (standard §16), with the same policy for both. Verifies pending-verification claims against Definition of Done, dispatches next work to explicitly-labeled owner agents (Trinity when available; triage-only when not), escalates stalls per the staleness policy, sweeps open loops (ages every waiting-on item and drafts the operator's follow-ups), runs the quarantine classification pass, and writes a digest that closes the loop with the operator. Never asks a human anything mid-run.
 automation: autonomous
 schedule: "0 7-19/2 * * 1-5"   # default: every 2h, weekdays UTC — adjust, or delete this line for manual-only (the installer substitutes your choice)
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__list_agents, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__get_chat_history, mcp__trinity__send_notification
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__list_agents, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result, mcp__trinity__get_chat_history, mcp__trinity__send_notification
 effort: high
 user-invocable: true
 metadata:
-  version: "1.7"
+  version: "1.8"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.8: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — a dispatch answered pending_approval ran nothing (posted as waiting on approval, no tracker entry, never re-sent); refused / inter_agent_depth_exceeded block the task; the tracker entry keeps the receipt's execution_id and a silent dispatch is read with get_execution_result before any re-ping"
     - "1.7: Fix — the 1.6 resolver's default label values were self-references ($L_ACTIVE etc.) instead of the colon vocabulary, so a standard without a §0 block resolved every label role to an empty string (quarantine and verification silently off, needs-operator writes failing). Defaults restored: status:active / status:blocked / status:needs-decision / status:paused / status:pending-verification / status:done / status:unclassified. Found 2026-10-07 reviewing the library copy before the first fleet run"
     - "1.6: One lineage (ent#789) — this skill absorbs the orchestrator-side project-steward (add-orchestrator template 1.3 / the production orchestrator's 1.5) so one steward runs everywhere. The standard is resolved at the repo root OR at fleet/project-standard.md and its §0 Configuration drives what the two lineages had hard-coded differently: label vocabulary by role ($L_NEEDS_OPERATOR, $L_BLOCKED, $L_PAUSED, the $L_LIVE set, the $L_PRIORITY prefix — a tracker-native hyphen vocabulary is now a config value), owner-label prefix, state directory ($STATE_DIR — fleet-placed on an orchestrator, project-steward by default), verification hold on/off (empty pending label = done claims verified in the same run), quarantine on/off. Fleet hooks when §0 names them: owners resolve to their deployed_name through the fleet map, a dispatch needs a sanctioned manager→owner edge in the narrative's §5, the §3b ownership matrix adds consulted agents to the brief and informed agents to the digest. Ported from the orchestrator copy: inline output for workspaces the run cannot see goes to $STATE_DIR/outputs/<slug>/; the waiting-on sweep lists with --limit 1000 (gh sorts by recent activity and silently truncates — the oldest loops were exactly what a low cap dropped, seen live 2026-10-06); Trinity MCP tools declared in allowed-tools"
     - "1.5: Internal tracking (ent#673): internal projects (charter `tracking: internal`, standard §16) are found by their charters — project_files/*/ and the canon projects this agent stewards (projects/<slug>/ with owner: <self>, or its earlier-placement folder) — and swept by the same steps with file operations instead of gh: task status in front matter (pending_since as the verification clock), comments as append-only `## Log` entries, the epic's comment thread as log.md, the epic's Current status/Tasks as project.md sections, a done task stays as a file with status: done. One staleness ladder, one digest, one run budget across both modes. The steward now writes into the canon only for internal projects it stewards (task files, log.md, charter status/Current status/Tasks) and publishes them with /canon-publish at the end of the run. A registry of `none` runs with no GitHub at all. Quarantine treats a folder with an internal charter as registered"
@@ -23,7 +24,7 @@ metadata:
 
 # Project Steward
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-steward v1.3 — recent: GH_TOKEN via git's credential helper (Trinity v0.9.5)`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-steward v1.8 — recent: gate results and execution-id-aware re-pings`. Then proceed.
 
 ## Purpose
 
@@ -180,7 +181,7 @@ For each entry in `open_dispatches` (skip in triage-only mode):
 
 1. Use `mcp__trinity__get_chat_history` with the dispatched agent; look for a "Done claim" reply posted after `sent_at`.
 2. **Reply found**: check DoD items against the claim (Step 3b verification protocol). If verified: close the task issue as done, check it off in the epic, post an agent-report relay comment. If failed: reopen with logged reason. Remove the tracker entry.
-3. **No reply, 6+ hours since `sent_at`**: send one re-ping via `mcp__trinity__chat_with_agent` referencing the original dispatch; record `repinged_at`.
+3. **No reply, 6+ hours since `sent_at`**: read `mcp__trinity__get_execution_result(agent, execution_id)` first when the entry has an `execution_id` — a run still in flight is not silence. Re-ping (once, via `mcp__trinity__chat_with_agent`, referencing the original dispatch) only when that run is terminal or the entry has no id; record `repinged_at`.
 4. **No reply, 24+ hours since `sent_at`** (re-ping already sent): set the task issue to `$L_BLOCKED`, post a steward comment naming the silent agent, remove the tracker entry, flag in digest.
 5. **Under threshold**: leave the tracker entry — not yet actionable.
 
@@ -252,8 +253,12 @@ Take exactly one action per project, in this order:
       set and its §3b ownership matrix listing *consulted* agents for the task's domain, add one Context line
       naming them (the owner seeks their input before calling it done); mention outcomes to the domain's
       *informed* agents in the digest. Etiquette only — never a gate, never an extra dispatch.
+      The call answering `status: pending_approval` ran nothing (the owner's skill awaits a person's approval):
+      post it on the task issue as waiting on approval, add no tracker entry, never re-send. `status: refused`
+      or `inter_agent_depth_exceeded` → `$L_BLOCKED` + steward comment + digest.
    d. Post dispatch receipt on the task issue
-   e. Add tracker entry to open_dispatches: {project_slug, task_number, agent, sent_at}
+   e. Add tracker entry to open_dispatches: {project_slug, task_number, agent, sent_at, execution_id}
+      (execution_id from the call's receipt, when it carries one)
    ```
    If unhealthy: `$L_BLOCKED` + steward comment + digest.
 4. **auto-dispatch, Trinity unavailable (triage-only mode)**: note in digest that dispatch was skipped; task remains open.

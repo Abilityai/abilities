@@ -4,11 +4,12 @@ description: Scaffold a Trinity-compatible long-running pipeline inside any agen
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.8"
+  version: "1.9"
   created: 2026-05-23
-  updated: 2026-09-30
+  updated: 2026-10-09
   author: Ability.ai
   changelog:
+    - "1.9: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — bundled pipeline-tick 1.5 (ask title cap 120, dismissed disposition, gate results hold or escalate a remote stage, two-argument get_execution_result) and pipeline-recover 1.2 (dismissed disposition)"
     - "1.8: Platform-truth refresh (Trinity dev 863240f3) — pipeline-tick 1.4 files escalations with ask_operator and reads them back with get_my_ask (ent#611/ent#715; queue file = two-release fallback), chain-depth refusals escalate, never retry (#2806); pipeline-recover 1.1 never calls respond_to_operator_queue (person-only since ent#611)."
     - "1.7: Cross-agent stages — pipeline.yaml stages accept an optional agent: (the stage is that fleet agent's playbook); pipeline-tick 1.3 dispatches it as a one-line playbook call and polls the execution; when-to-use gains the multi-agent-process shape (instance = one run). Fleet convention protocols/playbook-call.md, operator direction 2026-08-16"
     - "1.6: Platform caveat rewritten for ent#89 — Trinity materializes the declared schedules: block at agent creation (disabled unless a literal YAML true, max 20, deduped by name, never re-applied on recreate), so a derived agent DOES get the heartbeat. Dropped the non-schema `id:` key from the scaffold and made `name:` the live schedule name, since Trinity keys idempotency on name — the mismatch produced two heartbeats for one job"

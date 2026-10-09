@@ -50,7 +50,7 @@ Present to the operator:
 
 - [The exact diff / draft / list they must see to decide]
 
-Wait for approval before proceeding. If this run is headless (scheduled), park the prepared work in [state file], raise an approval with `mcp__trinity__ask_operator` (stable `request_id`, `options`, the exact action in `proposal`) and end the run. On the next run, read it with `mcp__trinity__get_my_ask(request_id)`: `answered` → proceed with the answer; `expired` = denied (a re-ask needs new information and `supersedes_expired`). Never auto-approve.
+Wait for approval before proceeding. If this run is headless (scheduled), park the prepared work in [state file], raise an approval with `mcp__trinity__ask_operator` (stable `request_id`, `options`, the exact action in `proposal`) and end the run. On the next run, read it with `mcp__trinity__get_my_ask(request_id)`: `answered` → proceed with the chosen option (a response of `(something else)` approves none — follow `response_text`); `dismissed` → do not proceed or re-ask straight away; `expired` = denied (a re-ask needs new information and `supersedes_expired`). Keep the ask to one decision — title ≤120 chars, ≤5 options of ≤60 chars. Never auto-approve.
 
 ### Step 4: [Apply Approved Work]
 

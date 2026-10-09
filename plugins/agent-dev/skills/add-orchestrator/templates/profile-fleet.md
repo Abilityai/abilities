@@ -8,10 +8,11 @@ allowed-tools: Read, Grep, Write, Edit, Bash, Skill, AskUserQuestion, mcp__trini
 effort: high
 user-invocable: true
 metadata:
-  version: "1.7"
+  version: "1.8"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.8: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — get_execution_result takes agent_name + execution_id; a queued_timeout is not resent because an identical repeat is answered with the original receipt and a reworded one runs the work twice (the duplicate-guard reason is gone from the platform contract)"
     - "1.7: get_agent_skills is documented for what it is — library-assigned skills only; repo-native .claude/skills playbooks are not listed and must be read from the workspace"
     - "1.6: `--autonomous` run mode (new Run modes section) — back-ported from the production orchestrator (issue #5). Both approval gates become conditional: in autonomous mode this skill never calls AskUserQuestion (a gate reached on an unattended cron burns the whole timeout with nothing committed — the live failure mode #6 describes), never edits orchestration.md, queues corrections to a `corrections_pending:` list in its own `.claude/skills/profile-fleet/status.yaml` (the handoff convention /fleet-reconcile already globs), and makes one dossier-scoped commit. Universalized from corbin's copy: the corbin-specific `fleet-gap-analysis/status.yaml` path and the Step 0 workspace-refresh scaffolding are dropped. The bundle-wide convention this instantiates is tracked in issue #6"
     - "1.5: Autonomy-toggle cross-check in Step 3 — an agent with enabled schedules but `autonomy_enabled: false` will NEVER fire them (`next_run_at` silently advances); flag the mismatch as a finding instead of interviewing around a mystery (root-caused 2026-07-28 on a production finance agent)"
@@ -190,7 +191,7 @@ Present the proposed `orchestration.md` changes section-by-section, each change 
 |---|---|
 | `fleet/system-map.yaml` missing/stale | Invoke `/discover-agents`, then re-read. |
 | Agent stopped / unhealthy | Introspect only; mark dossier "introspection-only, not interviewed"; skip its self-report. |
-| `chat_with_agent` returns `queued_timeout` | The task is still running — poll `get_execution_result(execution_id)`; do NOT resend (duplicate-guard will kill it). |
+| `chat_with_agent` returns `queued_timeout` | The task is still running — poll `get_execution_result(agent_name, execution_id)`; do NOT resend — an identical repeat is answered with the original receipt, a reworded one runs the work twice. |
 | Permission denied on a teammate-owned agent | Try introspection (often still allowed); if chat denied, note "not interviewable with current key" and continue. |
 | `list_agent_pipelines` / `get_agent_pipeline_state` not on this Trinity build | Skip the probe without erroring; use the map's `pipelines:` field + `~/.trinity/pipeline-state/` when visible; tag pipeline facts as not live-verified. |
 | Thin/evasive answers | Fall back to declared facts; mark those facts low-confidence; in **deep** mode, one targeted follow-up, then move on. |
