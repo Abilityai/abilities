@@ -5,10 +5,11 @@ argument-hint: "[project name | adopt <existing-folder> | platform <slug>] [--ca
 allowed-tools: Bash, Read, Write, Edit, AskUserQuestion, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__create_project, mcp__trinity__import_project
 user-invocable: true
 metadata:
-  version: "1.5"
+  version: "1.5.1"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.5.1: Fix — the skill runner replaces every dollar-digit placeholder in a skill body with the invocation's arguments, so a run with arguments (project-init platform <slug>, project-status <slug>, --headless task/intake) broke the §0 resolver and the awk field reads: every config key resolved empty. Shell positionals are now ${1}/${2}, awk fields $(0)/$(2). Found 2026-10-10 by the deployed trinity-pm on the first platform import"
     - "1.5: Platform mode (ent#788, ruling R38): on a Trinity instance with Projects enabled a new project is also created as a platform project (create_project — linked to the epic, or platform-tracked with --internal), and `platform <slug>` brings an existing folder project onto the platform in one import without rewriting it; the charter records platform_project. A refusal (no start-projects permission, no Projects) finishes in folder + GitHub mode and says what a person can do. Without Trinity nothing changes"
     - "1.4: One lineage (ent#789): the standard is resolved at the repo root OR at fleet/project-standard.md (an orchestrator's placement) and its new §0 Configuration block drives everything that used to be hard-coded — label vocabulary by role ($L_ACTIVE, $L_NEEDS_OPERATOR, $L_PRIORITY, …; a tracker-native hyphen vocabulary is now a config value), the owner-label prefix (owner: or agent:), extra epic labels (type-epic), state directory and fleet hooks. Label creation iterates the configured names. With fleet.orchestration set, its §3b ownership matrix supplies the default owner (informational). A missing standard materializes at fleet/project-standard.md when a fleet/ layer exists, else at the root. Absorbs the add-orchestrator template project-init 1.2 — that copy is retired"
     - "1.3: Internal tracking (ent#673, operator ruling 2026-09-22): `--internal` creates a project whose registry is its own workspace — project.md carries the epic's sections (Goal, Success criteria, Owners, Cadence, Current status, Tasks) and `tracking: internal` + `priority:` in the envelope, plus an empty tasks/ and an append-only log.md; no GitHub access, no labels, no epic. Forced when the standard's registry is `none`. Works at both placements (`--canon --internal` = a shared project with its tasks in the canon). External stays the default and writes `tracking: external` explicitly"
@@ -19,7 +20,7 @@ metadata:
 
 # Project Init
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-init v1.5 — recent: platform mode on Trinity Projects`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-init v1.5.1 — recent: arguments no longer break the config resolver`. Then proceed.
 
 ## Purpose
 
@@ -75,7 +76,7 @@ STANDARD=$(ls PROJECT_STANDARD.md fleet/project-standard.md 2>/dev/null | head -
 [ -n "$STANDARD" ] && echo "standard: $STANDARD" || echo "standard: MISSING — materializing from template"
 ```
 
-When missing, resolve the four config values (ask only where nothing sensible resolves): registry repo (`gh repo view --json nameWithOwner -q .nameWithOwner`, default = this repo; `none` when the deployment has no GitHub registry — every project is then internal, standard §16), operator (the human this deployment escalates to — ask), agent name (`grep '^name:' template.yaml | head -1 | awk '{print $2}'`, else the folder name), pending-verification max age (default `48` hours). Then:
+When missing, resolve the four config values (ask only where nothing sensible resolves): registry repo (`gh repo view --json nameWithOwner -q .nameWithOwner`, default = this repo; `none` when the deployment has no GitHub registry — every project is then internal, standard §16), operator (the human this deployment escalates to — ask), agent name (`grep '^name:' template.yaml | head -1 | awk '{print $(2)}'`, else the folder name), pending-verification max age (default `48` hours). Then:
 
 ```bash
 TARGET=PROJECT_STANDARD.md; [ -d fleet ] && TARGET=fleet/project-standard.md
@@ -97,7 +98,7 @@ Resolve the standard — repo root first, then an orchestrator's `fleet/` placem
 
 ```bash
 STANDARD=$(ls PROJECT_STANDARD.md fleet/project-standard.md 2>/dev/null | head -1)
-cfg() { awk -v k="$1" -v d="$2" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$0~p{v=$0;sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
+cfg() { awk -v k="${1}" -v d="${2}" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$(0)~p{v=$(0);sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
 REGISTRY=$(cfg registry ""); AGENT_NAME=$(cfg agent ""); OPERATOR=$(cfg operator "")      # empty → take them from the §1/§2 prose (pre-1.3 standard)
 STATE_DIR=$(cfg state_dir project-steward); PV_MAX_AGE=$(cfg pv_max_age_hours 48); QUARANTINE=$(cfg quarantine on); MEMBER_REPOS=$(cfg member_repos "")
 L_OWNER=$(cfg labels.owner_prefix "owner:"); L_PRIORITY=$(cfg labels.priority_prefix "priority:")
@@ -129,8 +130,8 @@ Determine mode from the argument: `adopt` (argument starts with "adopt" or names
 - **`--canon`** — a **shared (company) project** (standard §15, ruling R21): the workspace lives in the fleet's canon repo at `projects/<slug>/` — the top-level shared zone, not inside any agent's folder (ruling 2026-09-22) — so every agent and human on the canon can read the definition, and this agent is its steward (the charter's `owner:`). Managed exactly like an agent-level project — same charter, same epic, same steward, same intake, same ledger; only the readers differ. Requires this agent to be enrolled in the canon:
   ```bash
   grep -q '^x-canon:' template.yaml || { echo "not enrolled in a canon — run /add-canon first, or drop --canon"; exit 1; }
-  CANON=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/clone_path:/{print $2}' template.yaml); CANON=${CANON:-canon}
-  SELF=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/folder:/{print $2}' template.yaml | sed 's#^agents/##; s#/$##'); SELF=${SELF:-$AGENT_NAME}
+  CANON=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/clone_path:/{print $(2)}' template.yaml); CANON=${CANON:-canon}
+  SELF=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/folder:/{print $(2)}' template.yaml | sed 's#^agents/##; s#/$##'); SELF=${SELF:-$AGENT_NAME}
   [ -d "$CANON/.git" ] || { echo "canon clone missing at $CANON/ — run /canon-doctor (it self-heals from x-canon.repo)"; exit 1; }
   git -C "$CANON" pull --ff-only || { echo "canon clone diverged — resolve with /canon-publish before creating a shared project"; exit 1; }
   ```
@@ -169,7 +170,7 @@ Internal projects skip Steps 5 and 6 entirely — their status, priority and own
 Create any missing labels **by the names §0 configures** — the standard's own labels plus every status / priority role it names. All `2>/dev/null || true` so re-runs are safe, and a label the tracker already owns (a product tracker's `status-blocked`, `priority-p1`) is simply a no-op:
 
 ```bash
-mk() { [ -n "$1" ] && gh label create "$1" --repo "$REGISTRY" --color "$2" --description "$3" 2>/dev/null || true; }
+mk() { [ -n "${1}" ] && gh label create "${1}" --repo "$REGISTRY" --color "${2}" --description "${3}" 2>/dev/null || true; }
 mk project 0e8a16 "Project epic issue"
 mk task    c2e0c6 "Task belonging to a project"
 for L in $(printf '%s' "$L_LIVE" | tr ',' ' '); do mk "$L" 1d76db "Being worked"; done

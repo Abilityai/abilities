@@ -44,7 +44,7 @@ fleet.orchestration:                          # path to the orchestration narrat
 
 ```bash
 STANDARD=$(ls PROJECT_STANDARD.md fleet/project-standard.md 2>/dev/null | head -1)   # repo root first, then an orchestrator's fleet/ placement
-cfg() { awk -v k="$1" -v d="$2" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$0~p{v=$0;sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
+cfg() { awk -v k="${1}" -v d="${2}" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$(0)~p{v=$(0);sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
 ```
 
 ## 1. Registry
@@ -384,8 +384,8 @@ A project tracks its tasks in **one** of two places, declared in the charter's `
 **Finding projects** (every project skill uses this, never a path of its own):
 
 ```bash
-CANON=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/clone_path:/{print $2}' template.yaml 2>/dev/null); CANON=${CANON:-canon}
-SELF=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/folder:/{print $2}' template.yaml 2>/dev/null | sed 's#^agents/##; s#/$##'); SELF=${SELF:-{{AGENT_NAME}}}
+CANON=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/clone_path:/{print $(2)}' template.yaml 2>/dev/null); CANON=${CANON:-canon}
+SELF=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/folder:/{print $(2)}' template.yaml 2>/dev/null | sed 's#^agents/##; s#/$##'); SELF=${SELF:-{{AGENT_NAME}}}
 # every charter this agent can see: agent level, the canon root zone, then its own earlier-placement canon folder (internal projects are registered by these files)
 charters() { for f in project_files/*/project.md "$CANON"/projects/*/project.md "$CANON"/agents/"$SELF"/projects/*/project.md; do [ -f "$f" ] && echo "$f"; done; }
 # the one charter for a slug — the first placement that has it, in the order above (a slug in two placements is a mistake to report)

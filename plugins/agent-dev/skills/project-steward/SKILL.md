@@ -7,10 +7,11 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__list_agents, m
 effort: high
 user-invocable: true
 metadata:
-  version: "1.9"
+  version: "1.9.1"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.9.1: Fix — the skill runner replaces every dollar-digit placeholder in a skill body with the invocation's arguments, so a run with arguments (project-init platform <slug>, project-status <slug>, --headless task/intake) broke the §0 resolver and the awk field reads: every config key resolved empty. Shell positionals are now ${1}/${2}, awk fields $(0)/$(2). Found 2026-10-10 by the deployed trinity-pm on the first platform import"
     - "1.9: Platform mode (ent#788, ruling R38): on a Trinity instance with Projects enabled the sweep starts from get_steward_digest, sweeps platform-tracked projects through the platform's task list (verify, reopen, notes, dispatch brief by task id), and for every platform project records health (set_project_health) and one shared-log entry per outcome — a verified deliverable, a new blocker, a hand-off — so members see what the steward did. Priority, reopening, project status and membership stay a person's. Charters gain platform_project by a linking pass. Without Trinity, or without Projects, the sweep is unchanged"
     - "1.8: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — a dispatch answered pending_approval ran nothing (posted as waiting on approval, no tracker entry, never re-sent); refused / inter_agent_depth_exceeded block the task; the tracker entry keeps the receipt's execution_id and a silent dispatch is read with get_execution_result before any re-ping"
     - "1.7: Fix — the 1.6 resolver's default label values were self-references ($L_ACTIVE etc.) instead of the colon vocabulary, so a standard without a §0 block resolved every label role to an empty string (quarantine and verification silently off, needs-operator writes failing). Defaults restored: status:active / status:blocked / status:needs-decision / status:paused / status:pending-verification / status:done / status:unclassified. Found 2026-10-07 reviewing the library copy before the first fleet run"
@@ -25,7 +26,7 @@ metadata:
 
 # Project Steward
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-steward v1.9 — recent: platform mode on Trinity Projects`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-steward v1.9.1 — recent: arguments no longer break the config resolver`. Then proceed.
 
 ## Purpose
 
@@ -54,7 +55,7 @@ Resolve the standard — repo root first, then an orchestrator's `fleet/` placem
 
 ```bash
 STANDARD=$(ls PROJECT_STANDARD.md fleet/project-standard.md 2>/dev/null | head -1)
-cfg() { awk -v k="$1" -v d="$2" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$0~p{v=$0;sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
+cfg() { awk -v k="${1}" -v d="${2}" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$(0)~p{v=$(0);sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
 REGISTRY=$(cfg registry ""); AGENT_NAME=$(cfg agent ""); OPERATOR=$(cfg operator "")      # empty → take them from the §1/§2 prose (pre-1.3 standard)
 STATE_DIR=$(cfg state_dir project-steward); PV_MAX_AGE=$(cfg pv_max_age_hours 48); QUARANTINE=$(cfg quarantine on); MEMBER_REPOS=$(cfg member_repos "")
 L_OWNER=$(cfg labels.owner_prefix "owner:"); L_PRIORITY=$(cfg labels.priority_prefix "priority:")
@@ -78,7 +79,7 @@ Labels are referred to by **role** from here on — `$L_NEEDS_OPERATOR` is the n
   WS_FIELD=$(printf '%s' "$WS_SECTION" | grep -o '`[^`]*`' | head -1 | tr -d '`')          # first backticked path wins …
   [ -n "$WS_FIELD" ] || WS_FIELD=$(printf '%s' "$WS_SECTION" | awk 'NF{print;exit}' | xargs)  # … else the first non-empty line
   case "$WS_FIELD" in
-    canon:*) CANON=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/clone_path:/{print $2}' template.yaml 2>/dev/null); CANON=${CANON:-canon}
+    canon:*) CANON=$(awk '/^x-canon:/{f=1;next} f&&/^[^ ]/{f=0} f&&/clone_path:/{print $(2)}' template.yaml 2>/dev/null); CANON=${CANON:-canon}
              WS="$CANON/${WS_FIELD#canon:}"; git -C "$CANON" pull --ff-only >/dev/null 2>&1 || echo "canon clone stale/diverged — reading local copy" ;;
     "")      WS="" ;;                       # pre-§15 epic: no workspace, the epic body is the context
     *)       WS="$WS_FIELD" ;;              # repo-relative (project_files/<slug>/ by convention — the field wins)

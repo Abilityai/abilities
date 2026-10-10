@@ -5,10 +5,11 @@ argument-hint: "[project-slug | --headless --project=<slug> --title=\"...\" --ob
 allowed-tools: Bash, Read, AskUserQuestion, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__create_project_task, mcp__trinity__add_project_task_note
 user-invocable: true
 metadata:
-  version: "1.7"
+  version: "1.7.1"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.7.1: Fix — the skill runner replaces every dollar-digit placeholder in a skill body with the invocation's arguments, so a run with arguments (project-init platform <slug>, project-status <slug>, --headless task/intake) broke the §0 resolver and the awk field reads: every config key resolved empty. Shell positionals are now ${1}/${2}, awk fields $(0)/$(2). Found 2026-10-10 by the deployed trinity-pm on the first platform import"
     - "1.7: Platform mode (ent#788, ruling R38): for a platform-tracked project on a Trinity instance with Projects enabled the task is created in the platform's task list (create_project_task — same anatomy, the platform allocates T-NNN, priority stays a person's); linked projects keep their GitHub task issues. Without Trinity nothing changes"
     - "1.6: One lineage (ent#789): the standard is resolved at the repo root or at fleet/project-standard.md and its §0 Configuration supplies the label vocabulary by role — the task carries ${L_OWNER}<owner> and ${L_PRIORITY}pN (owner: / priority: by default; agent: / priority- on a fleet riding its tracker's labels) instead of hard-coded names"
     - "1.5: Internal tracking (ent#673): for a project whose charter resolves to `tracking: internal` (standard §16) the task is written as `<workspace>/tasks/T-NNN.md` — front matter for what labels hold, the same four body sections plus an append-only `## Log` for what comments hold — and listed in project.md's `## Tasks`; a waiting-on actor becomes `waiting_on:` + a `### Waiting on` Log entry. No GitHub access. Headless output is `<slug>/T-NNN`. Canon-placed internal projects publish through /canon-publish; an id collision on publish takes the next free id. External projects: unchanged"
@@ -21,7 +22,7 @@ metadata:
 
 # Project Task
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-task v1.7 — recent: platform mode on Trinity Projects`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-task v1.7.1 — recent: arguments no longer break the config resolver`. Then proceed.
 
 ## Purpose
 
@@ -107,7 +108,7 @@ Resolve the standard — repo root first, then an orchestrator's `fleet/` placem
 
 ```bash
 STANDARD=$(ls PROJECT_STANDARD.md fleet/project-standard.md 2>/dev/null | head -1)
-cfg() { awk -v k="$1" -v d="$2" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$0~p{v=$0;sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
+cfg() { awk -v k="${1}" -v d="${2}" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$(0)~p{v=$(0);sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
 REGISTRY=$(cfg registry ""); AGENT_NAME=$(cfg agent ""); OPERATOR=$(cfg operator "")      # empty → take them from the §1/§2 prose (pre-1.3 standard)
 STATE_DIR=$(cfg state_dir project-steward); PV_MAX_AGE=$(cfg pv_max_age_hours 48); QUARANTINE=$(cfg quarantine on); MEMBER_REPOS=$(cfg member_repos "")
 L_OWNER=$(cfg labels.owner_prefix "owner:"); L_PRIORITY=$(cfg labels.priority_prefix "priority:")

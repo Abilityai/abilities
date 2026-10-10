@@ -5,10 +5,11 @@ argument-hint: "--project=<slug> --title=\"...\" --source=\"<url-or-note>\" [--o
 allowed-tools: Bash, Read, Grep, mcp__trinity__list_projects, mcp__trinity__list_project_tasks, mcp__trinity__create_project_task, mcp__trinity__add_project_task_note, mcp__trinity__add_project_log_entry
 user-invocable: false
 metadata:
-  version: "1.6"
+  version: "1.6.1"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.6.1: Fix — the skill runner replaces every dollar-digit placeholder in a skill body with the invocation's arguments, so a run with arguments (project-init platform <slug>, project-status <slug>, --headless task/intake) broke the §0 resolver and the awk field reads: every config key resolved empty. Shell positionals are now ${1}/${2}, awk fields $(0)/$(2). Found 2026-10-10 by the deployed trinity-pm on the first platform import"
     - "1.6: Platform mode (ent#788, ruling R38): for a platform-tracked project on a Trinity instance with Projects enabled intake dedupes against the platform's task list and creates the task there, and state news lands in the project's shared log (linked projects: the epic comment plus one log entry). Without Trinity nothing changes"
     - "1.5: One lineage (ent#789): the standard is resolved at the repo root or at fleet/project-standard.md and its §0 Configuration supplies the label vocabulary by role — owner and priority labels are ${L_OWNER}<owner> / ${L_PRIORITY}pN (defaults unchanged); the epic's owner/priority defaults are read through the same prefixes"
     - "1.4: Internal tracking (ent#673): a project whose charter resolves to `tracking: internal` (standard §16) takes intake as a task file — dedupe by meaning over the titles of its open tasks/*.md, create through the same internal path as /project-task (id allocation, front matter, Tasks list, commit / canon-publish), waiting-on as `waiting_on:` + a Log entry — and state news as one appended line in the project's log.md. Outputs `<slug>/T-NNN`, `DUPLICATE:<slug>/T-NNN`, `PROJECT:<slug>`. No GitHub access for internal projects. External: unchanged"
@@ -20,7 +21,7 @@ metadata:
 
 # Project Intake
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-intake v1.6 — recent: platform mode on Trinity Projects`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-intake v1.6.1 — recent: arguments no longer break the config resolver`. Then proceed.
 
 ## Purpose
 
@@ -91,7 +92,7 @@ Resolve the standard — repo root first, then an orchestrator's `fleet/` placem
 
 ```bash
 STANDARD=$(ls PROJECT_STANDARD.md fleet/project-standard.md 2>/dev/null | head -1)
-cfg() { awk -v k="$1" -v d="$2" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$0~p{v=$0;sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
+cfg() { awk -v k="${1}" -v d="${2}" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$(0)~p{v=$(0);sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
 REGISTRY=$(cfg registry ""); AGENT_NAME=$(cfg agent ""); OPERATOR=$(cfg operator "")      # empty → take them from the §1/§2 prose (pre-1.3 standard)
 STATE_DIR=$(cfg state_dir project-steward); PV_MAX_AGE=$(cfg pv_max_age_hours 48); QUARANTINE=$(cfg quarantine on); MEMBER_REPOS=$(cfg member_repos "")
 L_OWNER=$(cfg labels.owner_prefix "owner:"); L_PRIORITY=$(cfg labels.priority_prefix "priority:")
@@ -161,7 +162,7 @@ For each existing issue title, check if the incoming title means the same thing:
 
 **Internal:** the candidates are the `title:` values of the project's task files whose `status:` is not `done`:
 ```bash
-for f in "$WS"/tasks/T-*.md; do awk -v f="$(basename "$f" .md)" 'NR==1&&/^---/{m=1;next} m&&/^---/{exit} m&&/^status:/{st=$2} m&&/^title:/{sub(/^title: */,"");t=$0} END{if(st!="done")print f"\t"t}' "$f"; done
+for f in "$WS"/tasks/T-*.md; do awk -v f="$(basename "$f" .md)" 'NR==1&&/^---/{m=1;next} m&&/^---/{exit} m&&/^status:/{st=$(2)} m&&/^title:/{sub(/^title: */,"");t=$(0)} END{if(st!="done")print f"\t"t}' "$f"; done
 ```
 Same two tests.
 

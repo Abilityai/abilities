@@ -7,10 +7,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__report, mcp__trinity__send_notification, mcp__trinity__list_reports, mcp__trinity__ask_operator, mcp__trinity__get_my_ask, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__list_project_tasks, mcp__trinity__get_project_log, mcp__trinity__add_project_task_note, mcp__trinity__update_project_task, mcp__trinity__link_to_project
 metadata:
-  version: "1.4"
+  version: "1.4.1"
   created: 2026-10-02
   author: trinity-pm
   changelog:
+    - "1.4.1: Fix — the skill runner replaces every dollar-digit placeholder in a skill body with the invocation's arguments, so a run with arguments (project-init platform <slug>, project-status <slug>, --headless task/intake) broke the §0 resolver and the awk field reads: every config key resolved empty. Shell positionals are now ${1}/${2}, awk fields $(0)/$(2). Found 2026-10-10 by the deployed trinity-pm on the first platform import"
     - "1.4: Platform mode (ent#788, ruling R38): on a Trinity instance with Projects enabled the daily report and the asks it raises are put on the platform project (link_to_project) so its members find them there; a platform-tracked project is read from the platform's task list and log instead of an epic. Without Trinity nothing changes"
     - "1.3: Fix — the ask request_id used / and #, which Trinity refuses (invalid_request_id), so no ask was ever filed; it is now <slug>:<owner>.<repo>:<N>. Asks respect the atomic caps (title ≤120, ≤5 options of ≤60 chars), dismissed is a fourth ending, and an answer of (something else) no longer flips the issue to active (Trinity dev ed5904906)"
     - "1.2: Promoted from the production orchestrator's local skill into the agent-dev plugin as the sixth project skill (ent#789) — reads the standard through the shared resolver (PROJECT_STANDARD.md or fleet/project-standard.md, §0 Configuration: registry, state_dir, member_repos, label roles), the ledger contract is documented here, a project without a ledger still gets a daily report (progress from the task checklist, no projected date — and says so) instead of failing, the report type is namespaced by the agent name"
@@ -20,7 +21,7 @@ metadata:
 
 # Project Status
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-status v1.4 — recent: platform mode on Trinity Projects`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-status v1.4.1 — recent: arguments no longer break the config resolver`. Then proceed.
 
 ## Purpose
 
@@ -75,7 +76,7 @@ Resolve the standard — repo root first, then an orchestrator's `fleet/` placem
 ```bash
 STANDARD=$(ls PROJECT_STANDARD.md fleet/project-standard.md 2>/dev/null | head -1)
 [ -n "$STANDARD" ] || { echo "no project standard — run /project-init first"; exit 1; }
-cfg() { awk -v k="$1" -v d="$2" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$0~p{v=$0;sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
+cfg() { awk -v k="${1}" -v d="${2}" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$(0)~p{v=$(0);sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
 REGISTRY=$(cfg registry ""); AGENT_NAME=$(cfg agent ""); STATE_DIR=$(cfg state_dir project-steward); MEMBER_REPOS=$(cfg member_repos "")
 L_ACTIVE=$(cfg labels.active "status:active"); L_NEEDS_OPERATOR=$(cfg labels.needs_operator "status:needs-decision")
 ```
