@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[playbook-name] [what to change] [--archive] [--review-proposals]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.14"
+  version: "1.14.1"
   created: 2025-02-10
   updated: 2026-10-01
   author: Ability.ai
   changelog:
+    - "1.14.1: Fix — the runtime replaces every dollar-digit placeholder in a skill body with the words the skill was invoked with, so dollar-digit text here was rewritten on runs with arguments. Shell positionals are now ${0}/${1}, intended placeholders $ARGUMENTS[0], and prices are written in USD (library validator rule arg-substitution, 2026-10-10)"
     - "1.14: Upgrade step 1 reads git honestly — an edit committed in the agent's own workspace shows where a change was made, not who asked for it (a schedule, a user's chat, another agent and the agent itself all commit under one identity); dropped the pointer to a skill no longer in this marketplace"
     - "1.13: Self-improving skills get a guard + an approval seat — Step 2 detects the Controlled Self-Improvement contract (create-playbook 2.19) or the legacy free-edit checklist; any edit to such a skill runs a conflict check against existing rules and a before/after scenario replay; 🔒 zones (purpose, stop rules, write scope — locked by kind) change only on an explicit human ask, never from a self-proposal; new --review-proposals triages the ledger (the proposing run never approves); new Upgrade adjustment migrates legacy self-improving skills (counterweight + scenarios required)"
     - "1.12: Platform-truth refresh (Trinity v0.9.0, tag 93d7ce7c) — headless-fitness checklist + fork note distinguish background shell jobs (still killed at turn-end) from background subagents/forks (waited for since trinity#2127, bounded by execution timeout + 300s idle-finalize); `background: false` stays the rule, now for the right reason"
@@ -49,16 +50,16 @@ Modify existing playbooks while preserving their core structure and functionalit
 
 ### Step 1: Locate the Playbook
 
-If `$0` (playbook name) provided:
+If `$ARGUMENTS[0]` (playbook name) provided:
 ```bash
 # Check project skills
-ls .claude/skills/$0/SKILL.md 2>/dev/null
+ls .claude/skills/$ARGUMENTS[0]/SKILL.md 2>/dev/null
 
 # Check personal skills
-ls ~/.claude/skills/$0/SKILL.md 2>/dev/null
+ls ~/.claude/skills/$ARGUMENTS[0]/SKILL.md 2>/dev/null
 
 # Check plugin skills (when inside a plugin/marketplace repo)
-ls plugins/*/skills/$0/SKILL.md 2>/dev/null
+ls plugins/*/skills/$ARGUMENTS[0]/SKILL.md 2>/dev/null
 ```
 
 If not provided or not found, list available playbooks:
@@ -184,7 +185,7 @@ Everything else remains the same:
 
 ```bash
 # Skills that compose this one (any plugin)
-grep -rln "/$0\b\|:$0\b" --include=SKILL.md .claude/skills/ ~/.claude/skills/ plugins/ 2>/dev/null
+grep -rln "/$ARGUMENTS[0]\b\|:$ARGUMENTS[0]\b" --include=SKILL.md .claude/skills/ ~/.claude/skills/ plugins/ 2>/dev/null
 ```
 
 ```

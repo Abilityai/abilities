@@ -4,11 +4,12 @@ description: Scaffold a Trinity-compatible long-running pipeline inside any agen
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.9"
+  version: "1.9.1"
   created: 2026-05-23
   updated: 2026-10-09
   author: Ability.ai
   changelog:
+    - "1.9.1: Fix — the runtime replaces every dollar-digit placeholder in a skill body with the words the skill was invoked with, so dollar-digit text here was rewritten on runs with arguments. Shell positionals are now ${0}/${1}, intended placeholders $ARGUMENTS[0], and prices are written in USD (library validator rule arg-substitution, 2026-10-10)"
     - "1.9: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — bundled pipeline-tick 1.5 (ask title cap 120, dismissed disposition, gate results hold or escalate a remote stage, two-argument get_execution_result) and pipeline-recover 1.2 (dismissed disposition)"
     - "1.8: Platform-truth refresh (Trinity dev 863240f3) — pipeline-tick 1.4 files escalations with ask_operator and reads them back with get_my_ask (ent#611/ent#715; queue file = two-release fallback), chain-depth refusals escalate, never retry (#2806); pipeline-recover 1.1 never calls respond_to_operator_queue (person-only since ent#611)."
     - "1.7: Cross-agent stages — pipeline.yaml stages accept an optional agent: (the stage is that fleet agent's playbook); pipeline-tick 1.3 dispatches it as a one-line playbook call and polls the execution; when-to-use gains the multi-agent-process shape (instance = one run). Fleet convention protocols/playbook-call.md, operator direction 2026-08-16"
@@ -228,7 +229,7 @@ Use the Trinity MCP tool create_agent_schedule with:
   description: "Heartbeat for the <display name> pipeline."
 ```
 
-These are the tool's real parameters — there is no `schedule_name`, `cron`, `skill`, or `pre_check` param. The `message` is the prompt the agent receives on each trigger, so it must name the skill to run. If the named skill isn't actually installed in the agent container, the run finalizes **FAILED with `SKILL_NOT_FOUND`** and raises an Operating Room item (trinity#1410) — it used to masquerade as a $0 success, so a wrong `message` is loudly visible now.
+These are the tool's real parameters — there is no `schedule_name`, `cron`, `skill`, or `pre_check` param. The `message` is the prompt the agent receives on each trigger, so it must name the skill to run. If the named skill isn't actually installed in the agent container, the run finalizes **FAILED with `SKILL_NOT_FOUND`** and raises an Operating Room item (trinity#1410) — it used to masquerade as a success, so a wrong `message` is loudly visible now.
 
 If Trinity MCP is not available, print:
 

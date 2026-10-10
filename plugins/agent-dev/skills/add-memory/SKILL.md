@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.1"
+  version: "1.1.1"
   created: 2026-04-16
   updated: 2026-05-16
   author: Ability.ai
   changelog:
+    - "1.1.1: Fix — the runtime replaces every dollar-digit placeholder in a skill body with the words the skill was invoked with, so dollar-digit text here was rewritten on runs with arguments. Shell positionals are now ${0}/${1}, intended placeholders $ARGUMENTS[0], and prices are written in USD (library validator rule arg-substitution, 2026-10-10)"
     - "1.1: Add portability note — memory skills are copied into the agent so it stays self-contained with no plugin dependency"
     - "1.0: Initial version — adds a memory system (file-index, brain, json-state, or workspace) to an existing agent"
 ---
@@ -89,7 +90,7 @@ Copy the selected memory type's skills into the agent:
 
 ```bash
 # Get the plugin directory (where this skill lives)
-PLUGIN_DIR="$(dirname "$(dirname "$(dirname "$0")")")"
+PLUGIN_DIR="$(dirname "$(dirname "$(dirname "${0}")")")"
 TEMPLATES_DIR="$PLUGIN_DIR/memory-templates"
 
 # Copy skills to agent

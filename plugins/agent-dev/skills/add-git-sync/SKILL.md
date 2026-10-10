@@ -4,10 +4,11 @@ description: Add git-as-state hooks to an agent — auto-commits on Stop, rebase
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.3"
+  version: "1.3.1"
   created: 2026-04-21
   author: Ability.ai
   changelog:
+    - "1.3.1: Fix — the runtime replaces every dollar-digit placeholder in a skill body with the words the skill was invoked with, so dollar-digit text here was rewritten on runs with arguments. Shell positionals are now ${0}/${1}, intended placeholders $ARGUMENTS[0], and prices are written in USD (library validator rule arg-substitution, 2026-10-10)"
     - "1.3: .gitignore rationale corrected — the platform no longer bakes ~/.claude/settings.json (guardrail registration moved to root-owned /etc/claude-code/managed-settings.json, ent#345); the ignore rule stays because a committed copy with container-only hook paths bricks outside clones"
     - "1.2: The .gitignore block now carries `.claude/settings.json` + `!.claude/settings.json` (plain rule first, negation last). Trinity#2036 ignores that file fleet-wide and untracks a committed copy on every Push — and it is exactly where this skill registers its hooks, so on a deployed agent the entire setup silently ceased to exist. First-run checklist now stages the hook files explicitly and verifies with git check-ignore"
     - "1.1: State why the hooks pair with deployment — Trinity deploys by cloning the repo and tracking the branch, so these hooks keep the branch tip the real agent state and make git_pull//trinity:sync carry work forward"
@@ -86,13 +87,13 @@ Use AskUserQuestion with these three questions (in order):
 Templates live in this skill's `templates/` directory. Copy to the agent's `.claude/hooks/` with placeholder substitution:
 
 ```bash
-SKILL_DIR="$(dirname "$0")"  # resolved at runtime
+SKILL_DIR="$(dirname "${0}")"  # resolved at runtime
 TEMPLATES="$SKILL_DIR/templates"
 HOOKS_DIR="$AGENT_DIR/.claude/hooks"
 mkdir -p "$HOOKS_DIR"
 
 substitute() {
-  local src="$1" dst="$2"
+  local src="${1}" dst="${2}"
   sed -e "s|__BRANCH__|$BRANCH|g" \
       -e "s|__REMOTE__|$REMOTE|g" \
       -e "s|__COAUTHOR__|$COAUTHOR|g" \
