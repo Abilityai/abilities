@@ -1,13 +1,14 @@
 ---
 name: canon-publish
-description: "Publish this agent's canonical data — freshen the shared canon repo clone, review working changes, enforce the own-folder-only write rule (the shared projects/ zone publishes directly; other cross-folder changes split to a branch + PR), stamp the two-zone schema (facts.yaml entries + doc envelopes), run the deterministic canon linter as the pre-push gate, commit and push."
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+description: "Publish this agent's canonical data — freshen the shared canon repo clone, review working changes, enforce the own-folder-only write rule (the shared projects/ zone publishes directly; other cross-folder changes split to a branch + PR), stamp the two-zone schema (facts.yaml entries + doc envelopes), run the deterministic canon linter as the pre-push gate, commit and push. When the push changed a domain other agents keep a copy of, it moves that domain's anchor and sends the propagation hub one line, so the change reaches every consumer without anyone remembering to start it."
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__chat_with_agent
 user-invocable: true
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.6: Publishing a change starts its propagation (protocols/change-propagation.md §1, operator direction 2026-10-11: one single way for a change in one agent to reach the agents that depend on it). New Step 5b: after the push, the canon linter's --changed-domains mode says which domains this folder owns that consumers keep a copy of (propagation: copied in domains.yaml) changed in content — a markdown body, a file under the domain path, a fact value under its key_prefixes; re-stamps never count. For each, the skill moves the anchor (a canon-native domain to canon@<the publish commit>; an upstream anchor such as trinity@<sha> is the owner's to move, and a content change without it is reported) and sends the hub one line, /propagate-change --domain <id> --source <repo@sha>, skipping a domain whose notice already exists. Off Trinity, the line is printed for the operator to send. A copied domain with no anchor is seeded at its last content commit without starting a run. Before this, starting a run was an owner obligation nobody's playbook carried, so 18 of 21 domains never propagated"
     - "1.5: Shared projects (projects/<slug>/ at the canon root — CONVENTIONS.md § Projects, rulings R21 + 2026-09-22) are a third class beside IN and OUT: SHARED — published directly by any agent (the one carve-out from own-folder-only), linted per project (--scope projects/<slug>) before the push, committed as canon(projects/<slug>): … by <name>. Stamping follows their own envelopes at Step 4: project.md is the charter — on change set updated: today, push review_by: forward when missing/past, keep status: in the registry epic's vocabulary (active|blocked|needs-decision|paused|pending-verification|done — never canonical/draft), epic: as owner/repo#N and owner: as the steward (never rewrite someone else's stewardship to yourself); decisions.md is the append-only ledger — bump updated: only when a decision was appended, never add a review_by:, never rewrite earlier entries; nothing else in a slug folder is stamped (it is the project's workspace, unlinted). A project still under the earlier agents/<name>/projects/ placement is IN like the rest of the folder and its project-placement lint warning is reported; a missing charter is /project-init --canon's job, not a stamp"
     - "1.4: Relation docs (docs/relations/<counterpart>.md, CONVENTIONS.md § Relations) — sanctioned home for relational events (asks, commitments, handoffs, outcomes with refs): Step 4's process-state exclusion does not bar them, tick-by-tick status still stays out; on publish the cap is enforced (more than 10 events → fold the oldest into the Earlier: rolling summary) and the doc must be linked from profile.md under ## Relations before the commit — an unlinked canonical doc is exactly what the reachability lint rejects"
     - "1.3: Publish test as the first review gate (Step 4) — before stamping, each new/changed claim must pass 'would another agent decide something differently knowing this?'; self-describing registry data (agent version, schedule counts, internal cadences) is working state and stays out of the publish, reported rather than silently committed; process state (active runs, pending requests) never publishes — it belongs in messages/events, not a durable repo"
@@ -53,6 +54,7 @@ esac
 
 ```bash
 git -C canon pull --ff-only
+PRE=$(git -C canon rev-parse HEAD)   # Step 5b compares against this
 ```
 
 If the pull fails (diverged history): **stop and report** — never force, never rebase silently. Divergence means something committed to this folder outside this skill; show `git -C canon status` + the divergent commits and let the operator resolve.
@@ -111,6 +113,39 @@ git -C canon push || { git -C canon pull --rebase --autostash && git -C canon pu
 
 One rebase-on-reject retry; if it still fails, report the exact error — never leave the operator guessing whether the publish landed. Own-folder and shared-project publishes need no approval gate: the folder is this agent's to keep true, the `projects/` zone is everyone's by ruling, and git history is the audit trail.
 
+### Step 5b: Start the change run — when this publish changed a domain others copy
+
+Skip silently when `canon/domains.yaml` is absent, when nothing was published under IN, or when the linter has no `--changed-domains` mode (an older canon — say so once in the report).
+
+A consumer that keeps a copy of a domain (a deck, a page, a rubric, a restated fact) goes stale the moment the source changes. The map marks those domains `propagation: copied`; `live` ones are read at use and never start a run. **This step is the only trigger**, so a change reaches its consumers whether or not anyone remembers.
+
+1. **Ask what changed** — deterministic, never judged:
+
+   ```bash
+   python3 canon/tools/canon-lint/canon_lint.py --repo canon \
+     --changed-domains "$PRE" --scope "agents/<name>" --format json
+   ```
+
+   One row per copied domain whose `path` sits in this folder: `changed`, `reasons`, `anchor_kind` (`mirror` | `native` | `none`), `anchor`, `anchor_moved`, `upstream`, `seed_sha`. Content counts; re-stamping `updated:`/`review_by:`/`verified:` and a mirror whose `source_sha` moved while no mirrored file changed do not.
+
+2. **Move the anchor**, per changed row:
+   - `mirror` → the mirror's `source_sha` is the anchor already. Write nothing.
+   - `native`, `upstream: false` (`canon@…`) → set `<domain>.anchor` in `facts.yaml` to `canon@<sha of the Step 5 commit> — <one line: what changed>`, stamp it as Step 4 does, commit `canon(<name>): <domain> anchor → canon@<short>`, push with the same one retry.
+   - `native`, `upstream: true` (`trinity@…`, any other repo) → the owner moves it, never this step. `anchor_moved: true` → use it. `anchor_moved: false` → do **not** start a run; report: "`<domain>` content changed but its upstream anchor did not move — consumers are not told. Move the anchor, or say why this change does not count."
+   - `none` → write `<domain>.anchor` = `canon@<seed_sha or the Step 5 commit>` as above. The domain had no anchor, so nobody was ever behind it. Seed and start the run.
+
+   An unchanged row with `anchor_kind: none` gets the same seed (at `seed_sha`) and **no** run: nothing changed, it just becomes trackable.
+
+3. **Already started?** If `canon/agents/*/files/propagation/*.yaml` holds a notice whose `domain:` is this domain and whose `source:` cites the anchor's sha → skip it and say so. Re-publishing never starts a second run.
+
+4. **Call the hub — one line, nothing else** (`protocols/playbook-call.md`):
+
+   ```
+   /propagate-change --domain <domain> --source <repo@sha>
+   ```
+
+   The hub is `x-canon.propagation.hub` when set, else the map's `steward:`. Send it with `mcp__trinity__chat_with_agent` (async), one call per changed domain, one at a time. Never put the change into the message — the hub reads it from canon, classifies it, and holds the human gate for a `full` change. This agent is the hub → run `/propagate-change` itself after the report. Trinity tools unavailable (a local session) or the call refused → do not retry; print the line under **Propagation due** for the operator to send.
+
 ### Step 6: Route OUT via branch + PR (never direct)
 
 If OUT paths exist:
@@ -136,6 +171,7 @@ Published: <n> file(s) in agents/<name>/ → canon@<short-sha>
 Shared:    <n> file(s) in projects/<slug>/ (per project) | none
 Proposed:  <PR URL | none> (<paths>)
 Skipped:   <anything left unstaged, and why>
+Propagation: <domain> → /propagate-change … sent to <hub> (<execution id>) | due — send: <the line> | already started (<run-id>) | seeded <domain> anchor | none
 ```
 
 ## Error handling
@@ -152,4 +188,6 @@ Skipped:   <anything left unstaged, and why>
 | Lint FAIL in own folder (Step 4b) | Stop before commit — fix, or downgrade to `status: draft` and unlink; never push red |
 | Lint FAIL is a cross-folder key conflict | A drift dispute, not a push blocker to bypass — settle with the other owner via PR |
 | Linter missing in the canon repo | Publish normally; note `/add-canon-lint` once |
+| A copied domain changed but its upstream anchor did not move (5b) | No run; report it to the owner — moving `trinity@…`-style anchors is a decision, not a stamp |
+| Hub call refused or Trinity unavailable (5b) | No retry; print the one line under **Propagation due** — the publish itself is complete |
 | Secrets spotted in the diff (keys, tokens, credentials) | Refuse to publish that file; canon is public-safe by convention |

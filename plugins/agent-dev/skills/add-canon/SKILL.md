@@ -4,10 +4,11 @@ description: Give any agent a shared canonical-data layer — installs /canon-pu
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.10"
+  version: "1.11"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.11: The installed canon-publish (1.6) starts propagation itself — after a push that changed the content of a domain other agents keep a copy of (domains.yaml propagation: copied), it moves the domain's anchor and sends the hub one line, /propagate-change --domain <id> --source <repo@sha>, or prints that line when Trinity is not reachable. The trigger is the canon linter's deterministic --changed-domains check, so re-stamps never wake the fleet. Installs nothing new: an agent that publishes now propagates (protocols/change-propagation.md §1)"
     - "1.10: Consumers are found, not asked (new Step 8b) — when the canon carries a domain map, the installer greps the agent's own repo for every domain's subject (id, key_prefixes, retired phrases from change notices), proposes the missing `consumers:` lines to the map's steward in one PR, and has the agent rebuild once against each anchored domain so it starts current instead of waiting to be noticed. Before this, a newly enrolled agent was invisible to every propagation run until someone remembered to add it. Fleet enrollment (Step 9) runs the same pass per target and folds every proposal into one map PR; the summary gains a Consumes block"
     - "1.9: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — activation step no longer claims every deployed instance keeps whatever it last pulled: pull-enabled agents (new github: agents, any that had auto-sync on) converge within ~15 min when idle (ent#703); activation is for pull-off agents and for immediate effect"
     - "1.8: Internal tracking (ent#673, PM standard §16 — a project may keep its tasks in its own folder instead of an external tracker): the CONVENTIONS.md template's § Projects charter envelope gains `tracking: external | internal` (omitted = external when epic: is #N, N > 0, else internal) and an internal-only `priority:`; `epic:` is required only for external projects; an internal project's tasks/T-NNN.md files (front matter id/title/status/owner/priority/updated, linted by add-canon-lint 1.2) and log.md sit beside the charter. canon-reconcile 1.5 treats an internal charter as self-sourced (verified by recent activity, never mirrored from an epic); canon-consume 1.5 lists and serves internal task state from the folder"
