@@ -5,10 +5,11 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 argument-hint: "[--check]"
 metadata:
-  version: "1.37"
+  version: "1.38"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.38: installs orchestrate 1.21 — model floor on dispatch (operator ruling 2026-10-20, dispatch only): chat_with_agent(parallel=true) and fan_out name a full model ID at or above the floor (Opus 5 minimum, Fable 5 for knowledge work, Sonnet 5 only for trivial mechanical calls, never Haiku); a sequential chat_with_agent cannot carry model, so playbook dispatches go parallel=true; set_reminder, create_agent_schedule and run_skill are outside the floor"
     - "1.37: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — ver/vcmp helpers use braced ${1}/${2}; installs discover-agents 1.11 (an agent key lists only its reach, trinity#3810: an unlisted repo agent is deployed: unknown / reach: none, never deployed: false), orchestrate 1.20 (peer skill grants ent#662: prefer repo-declared playbooks; skill_not_granted + peer_surface_unavailable rows; never roll out a deployed: unknown entry; @mention wakes agents only), sync-fleet-to-head 1.9 (under an agent key git reach = permission edges; a narrative agent missing from list_agents is out of reach, not down), compose-system 1.7 (list_systems is reach-scoped; deploy_system renames on a taken member name, so its warning is the stop signal); the self-change toggles live in the agent Settings → Guardrails pane"
     - "1.36: Platform-truth refresh (Trinity dev 6434ff935, 1.0.0-rc1) — bundled orchestrate 1.19 (agent_busy = nothing ran; new rate_limited result is never re-sent, trinity#3244)"
     - "1.35: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — bundled orchestrate 1.18 (agents.manage grant for rollout/teardown, gate results, two-argument get_execution_result, delegation-contract resend reason, ⟦ ⟧ payload framing, A2A payment outcomes), compose-system 1.6 (manifest prompt overwrites the instance-wide Trinity Prompt; explicit: not map:; agents.manage for the dry run; kind: deployment), profile-fleet 1.8, sync-fleet-to-head 1.8 (409 agent_busy), reconcile-skill-map 1.3 (approval: recommended gates on assign); the two-tokens note names the clone token order and the agents.manage requirement"
