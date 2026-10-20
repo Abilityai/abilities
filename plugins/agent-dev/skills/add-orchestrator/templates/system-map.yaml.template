@@ -26,6 +26,8 @@ system_name: null        # from sources.yaml, or "<agent>-fleet"
 #     source: github:Org/prospector               # where it was scanned from
 #     github_repo: org/prospector                 # normalized repo — used for MATCHING (repo-first)
 #     deployed: true                              # matched a live Trinity agent
+#                                                 #   true | false (catalog-only) | unknown (agent key, out of reach)
+#     reach: none                                 # only with deployed: unknown — no permission edge; never roll out
 #     deployed_name: prospector-internal          # ACTUAL callable name — /orchestrate uses THIS,
 #                                                 #   not the key; it may differ from the template name
 #     ref: trinity://<instance>/prospector-internal   #  OR github://Org/repo when catalog-only

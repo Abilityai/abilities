@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__create_agent, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__get_agent_github_pat_status, mcp__trinity__set_agent_github_pat, mcp__trinity__initialize_github_sync, mcp__trinity__git_pull, mcp__trinity__get_git_sync_state, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule, mcp__trinity__get_agent_compatibility_report, mcp__trinity__git_sync
 metadata:
-  version: "6.7"
+  version: "6.8"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "6.8: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — an agent ends its own moot pending ask with `withdraw_ask` (ent#901; `ask_ended` = the answer stands; never `replaces` as a close-out); install menu adds Marketplace images (DigitalOcean 1-Click, AWS, Vultr) and names AWS; the self-change grant lives in the agent's Settings → Guardrails → Permissions to change itself; a peer calling a library-assigned skill is refused `skill_not_granted` (ent#662); voice chat runs from the Workspace call button and is on by default (`VOICE_ENABLED` defaults true, only a Gemini key is needed)"
     - "6.7: Trinity dev 6434ff935, 1.0.0-rc1 truth sync — Asking a Person: an agent can replace its own pending ask with `replaces` (ends cancelled by agent, reason replaced; 409 replaces_ended when the person answered first), repeating a pending approval's proposal is refused 409 already_pending, and disposed_by gains `agent` (trinity#3247)"
     - "6.6: Trinity dev ed5904906 truth sync — Path-B archive is built from deploy_local_agent's `archive` parameter recipe (manifest required: MANIFEST_REQUIRED / MANIFEST_DRIFT rows; .env is moved aside, not tar-excluded; oversized archives go to `trinity deploy .`); agent keys need the agents.manage grant to create/deploy (ent#164, agent_management_not_permitted row); asks end answered/cancelled/dismissed/expired with `(something else)` and the atomic-ask caps (title 120, 5 options of 60); gated-skill results pending_approval/refused; depth refusal also from run_agent_loop/trigger_agent_schedule/emit_event; event payload values arrive framed in ⟦ ⟧ and clamped; get_execution_result takes agent_name + execution_id; async needs parallel=true; compatibility report param is agent_name; repo agents pull on their own (ent#703); inject_credentials allowlist named"
     - "6.5: Positioning (ADR-0011, ent#803) — the intro line now names Trinity as the operating system for the AI-native company (open source, self-hosted, that you own) replacing the retired pre-ADR-0011 tagline; no procedural change"
@@ -53,11 +54,12 @@ Onboard any Claude Code agent to Trinity — the operating system for the AI-nat
 
 **You need access to a Trinity instance before proceeding.** Trinity is open source and **self-hosted** — there is no hosted or managed offering; every instance is one you or your team runs.
 
-Don't have one yet? Run **`/trinity:deploy-new-instance`** — it walks you through the three ways to stand one up:
+Don't have one yet? Run **`/trinity:deploy-new-instance`** — it walks you through the four ways to stand one up:
 
-1. **DigitalOcean, guided installer** — Trinity's own one-command installer (`scripts/deploy/trinity-do-create.sh`, v0.9.5+): a new Droplet behind HTTPS in about ten minutes, billed by DigitalOcean
-2. **Self-hosted, remote server** — any SSH-reachable VPS / GCP / AWS machine
-3. **Self-hosted, local Docker** — Docker on this machine
+1. **DigitalOcean, guided installer** — Trinity's own one-command installer (`scripts/deploy/trinity-do-create.sh`): a new Droplet behind HTTPS in about ten minutes, billed by DigitalOcean
+2. **Marketplace image** — DigitalOcean 1-Click, AWS Marketplace AMI or Vultr: launch from your cloud console, claim the admin in the browser
+3. **Self-hosted, remote server** — any SSH-reachable machine: AWS EC2, GCP, any VPS
+4. **Self-hosted, local Docker** — Docker on this machine
 
 Once it's up you'll have your own Trinity URL; `/trinity:connect` mints the MCP key from there. Repository: https://github.com/abilityai/trinity
 
@@ -257,7 +259,7 @@ Once deployed to Trinity, agents gain access to these platform features. These d
 
 ### Asking a Person (Native Asks)
 
-An agent asks for an approval, a question, or raises an alert with `mcp__trinity__ask_operator` — validated at the call, idempotent by `request_id`, answered with a receipt — and reads how it ended with `get_my_ask(request_id)` (trinity-enterprise#611). Only a person can answer an ask; an agent can only replace one of its **own pending** asks, by raising the new one with `replaces: <request_id>` (the old ask ends `cancelled` by `agent`, reason `replaced` — `409 replaces_ended` if the person answered first, and that answer stands). Repeating a pending approval's `proposal` without `replaces` is refused `409 already_pending`. An ask ends `answered`, `cancelled`, `dismissed` or `expired` (`disposed_by` person / agent / timeout / platform): expired = *denied*, dismissed = the person chose not to decide (do not proceed, do not re-raise straight away), and an approval answered `(something else)` approves none of the options — re-plan from `response_text`. Write atomic asks: one decision, title ≤120 chars, ≤5 options of ≤60 chars each (defaults; refusals `title_too_long` / `too_many_options` / `option_too_long`), and never list `(something else)` yourself (`invalid_options`). The `~/.trinity/operator-queue.json` file is a fallback for two releases, then removed.
+An agent asks for an approval, a question, or raises an alert with `mcp__trinity__ask_operator` — validated at the call, idempotent by `request_id`, answered with a receipt — and reads how it ended with `get_my_ask(request_id)` (trinity-enterprise#611). Only a person can answer an ask. An agent can end one of its **own pending** asks two ways: when it has gone **moot** (the work finished another way, the question no longer applies), `withdraw_ask(request_id, reason)` ends it `cancelled` by `agent`, reason `withdrawn` — `409 ask_ended` if the person answered first, and that answer stands (trinity-enterprise#901); when the facts **changed**, it replaces it by raising the new one with `replaces: <request_id>` (the old ask ends `cancelled` by `agent`, reason `replaced` — `409 replaces_ended` if the person answered first, and that answer stands). Repeating a pending approval's `proposal` without `replaces` is refused `409 already_pending`. An ask ends `answered`, `cancelled`, `dismissed` or `expired` (`disposed_by` person / agent / timeout / platform): expired = *denied*, dismissed = the person chose not to decide (do not proceed, do not re-raise straight away), never use `replaces` as a close-out for a moot ask, and an approval answered `(something else)` approves none of the options — re-plan from `response_text`. Write atomic asks: one decision, title ≤120 chars, ≤5 options of ≤60 chars each (defaults; refusals `title_too_long` / `too_many_options` / `option_too_long`), and never list `(something else)` yourself (`invalid_options`). The `~/.trinity/operator-queue.json` file is a fallback for two releases, then removed.
 
 ### Persistent Setup Script
 
@@ -278,12 +280,11 @@ pip install --user opencv-python moviepy
 
 ### Voice Chat
 
-Agents can accept real-time voice conversations via the Gemini Live API. Users click a microphone button in the Chat tab to speak naturally with the agent.
+Agents can take real-time voice calls via the Gemini Live API. A call runs in the **Workspace**: pick the agent, open a chat and click **Start a voice call** in the composer — the orb takes the conversation column, real work is handed to the agent as a background task in that chat, and the transcript lands in the chat. Agent Detail has no voice control.
 
 **To enable:**
-1. Set `GEMINI_API_KEY` in platform environment variables
-2. Set `VOICE_ENABLED=true` in platform settings
-3. Create a voice system prompt file on the agent: `/home/developer/voice-agent-system-prompt.md`
+1. Set `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) in the platform environment — `VOICE_ENABLED` already defaults to `true`
+2. Optional: shape the voice persona with `/home/developer/voice-agent-system-prompt.md` on the agent (otherwise one is generated from the template)
    - Keep it concise (< 500 tokens), personality-focused
    - Example: "You are a helpful assistant. Keep responses under 2 sentences. Use casual, friendly language."
 
@@ -325,7 +326,7 @@ Four MCP tools enable programmatic monitoring and async result polling:
 
 A `chat_with_agent` / `fan_out` / `run_agent_loop` / `trigger_agent_schedule` / `emit_event` call past the instance's chain-depth limit (`inter_agent_max_chain_depth`, default 8) returns `inter_agent_depth_exceeded` as a result with `retryable: false` — never retry it (#2806, #2973).
 
-A call that hits a gated skill returns `status: pending_approval` (nothing ran; an approval was raised — do not retry or route it through another agent; `message` says whether you will hear the outcome) or `status: refused` + `code` (terminal — report it to whoever asked).
+A call that names a skill the target got from the skills **library** (not one it declares in its own repo) is refused `status: refused`, `code: skill_not_granted` unless an admin granted that skill to the caller — nothing ran; ask for the grant, never retry or re-route (trinity-enterprise#662). A call that hits a gated skill returns `status: pending_approval` (nothing ran; an approval was raised — do not retry or route it through another agent; `message` says whether you will hear the outcome) or `status: refused` + `code` (terminal — report it to whoever asked).
 
 These are especially useful for orchestrator agents monitoring worker fleets, and for polling async task results: a sync `chat_with_agent` call that outlives `MCP_CHAT_TIMEOUT_MS` (~25s) returns a `{status: "queued_timeout", execution_id}` receipt — poll `get_execution_result(agent_name, execution_id)` instead of re-sending; the same receipt covers `chat_with_agent(parallel=true)` (trinity#2661), and `fan_out` returns `fan_out_timeout` → poll `get_fan_out_result` (trinity#2670). For push-style report-back, subscribe to the worker's backend-emitted `agent.task.completed` / `agent.task.failed` events (trinity#1578) instead of polling.
 
@@ -1048,7 +1049,7 @@ If user runs `/trinity:onboard in-place` — or a schedule/orchestrator dispatch
 | MCP tools not available | Run `/trinity:connect` (writes `.mcp.json`), then reconnect with `/mcp` — full restart only as a fallback |
 | Deployment failed | Confirm the connection is live (`mcp__trinity__list_agents`); re-run `/trinity:connect` if the profile expired |
 | Deploy rejected on `resources` (e.g. `invalid literal for int() with base 10: '0.5'`) | `template.yaml` has an invalid cpu/memory. cpu must be integer (`"1"`/`"2"`/`"4"`/`"8"`/`"16"`), memory must use the `g` suffix (`"1g"`..`"32g"`). Fix `template.yaml` and redeploy — see Step 3a |
-| `agent_management_not_permitted` (403) | `create_agent` / `deploy_local_agent` was called with an **agent** key that lacks the `agents.manage` grant (ent#164 — default-deny). A local `/trinity:connect` session (user key) is unaffected. From inside a deployed agent or an orchestrator: raise one `ask_operator` question whose title includes `agents.manage`, then stop — approving the ask grants nothing; an instance admin grants it in the agent's Settings → Permissions to change itself |
+| `agent_management_not_permitted` (403) | `create_agent` / `deploy_local_agent` was called with an **agent** key that lacks the `agents.manage` grant (ent#164 — default-deny). A local `/trinity:connect` session (user key) is unaffected. From inside a deployed agent or an orchestrator: raise one `ask_operator` question whose title includes `agents.manage`, then stop — approving the ask grants nothing; an instance admin turns it on in the agent's Settings → Guardrails → Permissions to change itself |
 | `MANIFEST_REQUIRED` (400) | The Path-B archive has no `.trinity-manifest.json`. Rebuild it with the four steps in `deploy_local_agent`'s `archive` parameter (Step 5c) |
 | `MANIFEST_DRIFT` (400) | The archive's contents differ from its manifest — the error names the missing/altered/extra paths. Usually a tar exclude the manifest script lacks (e.g. `.env`), or a file changed between the two steps. Re-run manifest + tar back to back with identical excludes |
 | Agent already exists | Path A: don't re-create — push + `git_pull` (Step 5c). Path B: `deploy_local_agent` creates a new version (`my-agent-2`) and stops the old one |

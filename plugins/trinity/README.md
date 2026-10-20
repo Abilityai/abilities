@@ -37,7 +37,7 @@ Set up, connect, deploy, and sync Claude Code agents to Trinity — the operatin
 ### 0. Deploy Trinity (if you don't have an instance yet)
 
 Run `/trinity:deploy-new-instance` to set up a Trinity instance and create an ops agent:
-- Choose DigitalOcean (Trinity's guided one-command installer, v0.9.5+), a remote server over SSH, or local Docker — Trinity is self-hosted
+- Choose DigitalOcean (Trinity's guided one-command installer), a Marketplace image (DigitalOcean 1-Click, AWS Marketplace AMI, Vultr), a remote server over SSH (AWS EC2 included), or local Docker — Trinity is self-hosted
 - For fresh installs: generates secrets, configures `.env`, runs `start.sh`, verifies health
 - Handles firewall/security group guidance for AWS, GCP, Hetzner, DigitalOcean
 - Scaffolds a complete ops agent with 13 skills: `/status`, `/restart`, `/update`, `/logs`, `/agents`, `/cleanup`, `/diagnose`, `/rebuild-agent`, `/rollback`, `/telemetry`, `/provision`, `/migrate-to-postgres`, `/sync-ops-knowledge`
@@ -92,7 +92,7 @@ Once connected, Trinity MCP tools are available directly:
 
 | Tool | Description |
 |------|-------------|
-| `mcp__trinity__list_agents` | List all remote agents |
+| `mcp__trinity__list_agents` | List the agents your key can reach — every agent you can open under a user key; under an agent key only itself, the agents it may call and the agents it spawned (Trinity 1.0) |
 | `mcp__trinity__chat_with_agent` | Send messages to remote agents |
 | `mcp__trinity__create_agent` | **Deploy an agent from its GitHub repo** (`template: "github:owner/repo[@branch]"`) — the default path |
 | `mcp__trinity__deploy_local_agent` | Deploy from a local tar.gz — the fallback path |
@@ -106,11 +106,11 @@ Once connected, Trinity MCP tools are available directly:
 | `mcp__trinity__create_agent_schedule` | Create a cron schedule on an agent (`list_agent_schedules`, `update_agent_schedule`, `toggle_agent_schedule`, `delete_agent_schedule`, `trigger_agent_schedule`, `get_schedule_executions`) |
 | `mcp__trinity__report` | Publish a structured result to the agent's **Reports** tab (see *Reporting* below) |
 | `mcp__trinity__list_reports` / `get_report` | Read back what was already filed — metadata list (filters: `report_type`, `hours` ∈ {0,1,6,24,168,720}, `search`) then fetch one payload by id. Call before writing a new report so a scheduled series resumes instead of duplicating itself |
-| `mcp__trinity__create_room` | Open a shared multi-agent thread (`post_to_room`, `read_room`, `list_rooms`, `close_room`) — the substrate for several agents plus a human working one problem |
+| `mcp__trinity__create_room` | Open a shared multi-agent thread (`post_to_room`, `read_room`, `list_rooms`, `close_room`) — the substrate for several agents working one problem; a human can follow and tag agents in, but an `@mention` wakes agent participants only (agents cannot tag people), and every participant's access is re-checked when it wakes |
 | `mcp__trinity__call_a2a_agent` | Call an **operator-registered external A2A agent** by name (`get_a2a_task` polls the task) — default **OFF** (`A2A_OUTBOUND_ENABLED`), endpoints are admin-managed; inbound exposure is per-agent opt-in (`set_agent_a2a_exposure`, `get_agent_a2a_card`, `set_a2a_inbound_allowlist`) |
-| `mcp__trinity__list_skill_gates` | Which of an agent's skills need a person's approval before they run (`set_skill_gate` / `clear_skill_gate` — a person, or a `skills.manage` holder on another agent; a gated call answers `pending_approval`) |
+| `mcp__trinity__list_skill_gates` | Which of an agent's skills need a person's approval before they run (`set_skill_gate` / `clear_skill_gate` — the agent's owner or an admin, or with an agent key the skill-management permission on another agent, never on itself; the approver is `primary`, `approver` or a canon role `role:<id>` from the agent's roster; a gated call answers `pending_approval`. A peer calling a skill the target got from the library rather than declaring it is refused `skill_not_granted` until an admin grants it) |
 | `mcp__trinity__ask_trinity` | Ask Trinity's own grounded documentation Q&A — the live answer channel for "how does Trinity do X" |
-| `mcp__trinity__set_canvas` | Publish/patch a live canvas the Workspace renders (`patch_canvas`, `get_canvas`, `list_canvases`, `clear_canvas`; ≤100 per agent, pinning is human-only) — the canvas skill ships in trinity-skills v0.2.0 |
+| `mcp__trinity__set_canvas` | Publish/patch a live canvas the Workspace renders (`patch_canvas`, `get_canvas`, `list_canvases`, `clear_canvas`; ≤100 per agent, pinning is human-only) — no skill needed: the platform prompt teaches every agent the canvas |
 
 ### Schedules are declarative
 

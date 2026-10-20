@@ -8,10 +8,11 @@ allowed-tools: Read, Grep, Skill, AskUserQuestion, mcp__trinity__list_agents, mc
 effort: high
 user-invocable: true
 metadata:
-  version: "1.8"
+  version: "1.9"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.9: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — under an agent key (the scheduled headless run) owning or sharing an agent grants nothing: `get_git_*` / `git_pull` reach only self and agents behind a permission edge from this one (MCP access gate + backend reach, ent#629), and `list_agents` returns only that reach (trinity#3810). A narrative agent missing from `list_agents` is reported as \"out of reach (no edge)\", not \"declared but not running\"; a missing edge is named as a structural denial cause beside the access-loss pattern. A person's key keeps the owner/sharee rule"
     - "1.8: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — git_pull 409 agent_busy (the agent's own sync cycle holds the repo lock, likelier since the ent#703 pull loop) is a retry-later, not a conflict; get_execution_result takes agent_name + execution_id; the queued_timeout reason follows the delegation contract"
     - "1.7: Ahead is a finding, not a footnote — universalized from the production orchestrator (field lesson 2026-09-24): an audit found 40 commits on 10 agents that existed only on container disks, every one of them an agent this run had listed under 'Left ahead' each morning for weeks, which read as normal until it was a data-loss report. Ahead > 0 is now a needs-attention line with the commit count and the age of the oldest unpushed commit (get_git_log), confirmed over get_git_status before reporting (the sync-state row is a cache that has been wrong both ways); diverged/ahead agents lead the report and age over 24 h is red. Still pull-only — the push half is the agent's own."
     - "1.6: A null ahead/behind count is unknown, never at-HEAD — Trinity now reports a count it cannot compute (no upstream, detached HEAD) as null instead of 0, and measures the working tuple against the agent's own branch whatever it is named (#2105)."
@@ -51,7 +52,7 @@ ultrathink — git edge cases (rebase-vs-dirty-tree, partial stash pops, real me
 
 - Trinity MCP (`trinity` server) reachable and callable (`mcp__trinity__*`).
 - `fleet/orchestration.md` and `fleet/system-map.yaml` exist. If the map is missing or clearly stale versus live Trinity, refresh it first (see Step 1 — composes `/discover-agents`).
-- A Trinity key with scope to read git state and pull for the in-scope agents. Some agents may be owned by **teammates** (another Trinity user); `git_pull` is available to owners **and shared accessors**, and `get_git_*` obeys per-agent permission. Insufficient scope → skip that agent and flag it, never fail the whole run.
+- A Trinity key with scope to read git state and pull for the in-scope agents. **Under an agent key** — the scheduled headless run on a deployed orchestrator — that means an `agent_permissions` edge from this agent to each in-scope agent: `get_git_*` and `git_pull` reach only self and permitted agents (ent#629), and owning or sharing an agent grants an agent key nothing. Under a person's key (an interactive local session) the owner/sharee rule still applies — some agents may be owned by **teammates** and are reachable when shared. Insufficient scope → skip that agent and flag it, never fail the whole run.
 
 ## Composes
 
@@ -99,7 +100,7 @@ Call `mcp__trinity__list_agents` once. Join to the narrative roster by `trinity_
 - **In-scope + GitHub-backed + live** → survey for HEAD (Step 3).
 - **No repo** (local template / system agent) → skip; list under "no repo".
 - **Live but not in the narrative** → **out of scope**; list under "on Trinity, not in fleet narrative" and suggest `/discover-agents` if it should be adopted. Do **not** pull it.
-- **In narrative but not live** → drift; flag under "declared but not running".
+- **In narrative but not in the list** → under a person's key: drift, flag under "declared but not running". **Under an agent key the list is this key's reach** (self, permission edges, spawned — trinity#3810), so an absent agent may be live and merely edgeless: flag it under "out of reach (no edge)" with the fix (an admin adds the edge from this agent), never as not running.
 
 ### Step 3: Survey git state (read-only)
 
@@ -111,7 +112,7 @@ For every in-scope + GitHub-backed agent, call `get_git_sync_state` (compact —
 - **diverged** — ahead > 0 and behind > 0 → attempt non-destructive pull; likely needs manual resolution (Step 6).
 - **unknown** — `ahead_working` or `behind_working` is `null` (no upstream, detached HEAD — the platform reports a count it cannot compute as `null`, never 0) → flag, do not pull, never count as at-HEAD.
 
-**Permission denials are a regression signal, never a scope boundary.** A `get_git_*` denial on an in-scope agent does not remove it from scope — not this run, not the next. Keys lose access without anyone deciding it (the losses cluster around container recreations and re-shares), and a run that quietly reports "nothing to pull" over a shrinking reachable set is exactly how a fleet ends up with agents nobody has synced for weeks. So:
+**Permission denials are a regression signal, never a scope boundary.** A `get_git_*` denial on an in-scope agent does not remove it from scope — not this run, not the next. Keys lose access without anyone deciding it (the losses cluster around container recreations and re-shares), and under an agent key a **missing permission edge** is a structural cause of its own — no edge, no reach, whatever the ownership, and a run that quietly reports "nothing to pull" over a shrinking reachable set is exactly how a fleet ends up with agents nobody has synced for weeks. So:
 
 - **Attempt every narrative-scoped agent, every run.** Never keep a "known-denied" skip list — a denial that is attempted again self-heals the moment access is restored, with no code change.
 - **Classify each denial, never omit it:** *denied, covered by another tier* (another agent runs this same playbook over that group — say which), or *denied, covered by nobody* — name it every run, with the verbatim error.

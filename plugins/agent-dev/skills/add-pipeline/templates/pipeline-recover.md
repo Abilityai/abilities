@@ -5,10 +5,11 @@ argument-hint: "<pipeline-slug> <instance-slug> [--from-stage <stage-id>]"
 allowed-tools: Bash, Read, Write, Edit, AskUserQuestion, Skill, mcp__trinity__get_my_ask
 user-invocable: true
 metadata:
-  version: "1.2"
+  version: "1.3"
   author: agent-dev
   source: agent-dev:add-pipeline
   changelog:
+    - "1.3: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — a pending escalation goes moot when recovery rewinds, retries or resets past it: recover withdraws it with `withdraw_ask(request_id, reason)` (ent#901) instead of telling the operator to cancel it; `409 ask_ended` = the person answered first, so the answer is recorded and honoured. The 1.1 premise (only a person ends an ask) is history — only answering is person-only"
     - "1.2: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — asks can end dismissed — recorded alongside answered / cancelled / expired, never proceeded on or re-filed straight away"
     - "1.1: Escalations are not self-resolved — only a person ends an ask (Trinity ent#611: respond_to_operator_queue refuses agent keys with 403 person_required). Recovery reads each one with get_my_ask, records its disposition, and hands a still-pending one to the operator."
     - "1.0: Initial version — clear escalations, reset attempts, optional rewind, trigger the next heartbeat"
@@ -49,7 +50,7 @@ If `--from-stage` was passed, default to "Rewind". Otherwise default to "Retry c
 
 For each entry in `state.open_escalations[]`:
 
-Read it with `mcp__trinity__get_my_ask(request_id)` when the tool is available and record the disposition (`answered` / `cancelled` / `dismissed` / `expired`) in the recovery note — `dismissed` = the person chose not to answer: do not proceed on it, do not re-file straight away. An ask still `pending` is the operator's to close: tell them to answer or cancel it in the Operating Room. Never call `respond_to_operator_queue` — only a person ends an ask, and an agent key gets `403 person_required`. Without Trinity, just clear locally.
+Read it with `mcp__trinity__get_my_ask(request_id)` when the tool is available and record the disposition (`answered` / `cancelled` / `dismissed` / `expired`) in the recovery note — `dismissed` = the person chose not to answer: do not proceed on it, do not re-file straight away. An ask still `pending` is moot once you rewind, retry or reset past what it escalated — end it yourself with `mcp__trinity__withdraw_ask(request_id, reason: "<the recovery action, one line>")` (ent#901) so nobody answers a question that no longer applies; `409 ask_ended` means the person answered first: record that answer and honour it before applying the recovery. Never call `respond_to_operator_queue` — only a person *answers* an ask, and an agent key gets `403 person_required`; never use `replaces` as a close-out. Without Trinity, just clear locally.
 
 Clear the array: `state.open_escalations = []`.
 

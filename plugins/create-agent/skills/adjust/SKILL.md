@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-04-04
-  updated: 2026-06-18
+  updated: 2026-10-20
   author: Ability.ai
   changelog:
+    - "1.4: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — documentation-coherence fixes point at the templates in /create-agent:custom STEP 9 (the create skill is the router since 2.0.0)"
     - "1.3: Trinity-readiness focus option names repository deployability, matching /review-agent 2h"
     - "1.2: Apply Documentation Coherence fixes — generate missing README/ARCHITECTURE/TARGET-ARCHITECTURE + /reconcile-docs, fix descriptive targets, flag prescriptive-source drift"
     - "1.1: Compose /review-agent for the audit instead of an inline rubric (Composition Rule — single-sourced); add Skill to allowed-tools; add composition-aware fix guidance"
@@ -174,7 +175,7 @@ Everything else remains the same:
 - *Dependency graph (MISSING)* — draft a complete `artifacts:` + `sync_skills:` block from the agent's actual files and skills.
 - *Schedules (MISSING)* — propose cadences by task type: monitoring/health → 15m–1h; sync/update → 1–6h or daily; reports/summaries → daily/weekly; cleanup → weekly. Default `enabled: false`.
 - *Composition findings* — for skill-internal fixes (missing `Skill` tool, broken invoke target, cycles, inlined logic), hand off to `/agent-dev:adjust-playbook` rather than rewriting the SKILL.md's logic here.
-- *Documentation coherence (MISSING/DRIFT)* — for *missing* docs, generate them from the templates in `/create-agent:create` STEP 9 (`README.md`, `ARCHITECTURE.md`, `TARGET-ARCHITECTURE.md`) and install the `/reconcile-docs` skill (STEP 10); register all three in the dependency graph. For *drift*, respect the graph's direction: fix **descriptive targets** (`README.md`, `ARCHITECTURE.md`) to match reality, move shipped items from `TARGET-ARCHITECTURE.md` into `ARCHITECTURE.md`, and only **flag** drift in **prescriptive sources** (`CLAUDE.md`, `TARGET-ARCHITECTURE.md`) for the user — don't rewrite intent. Where an agent already has `/reconcile-docs`, prefer running it over re-deriving the checks here.
+- *Documentation coherence (MISSING/DRIFT)* — for *missing* docs, generate them from the templates in `/create-agent:custom` STEP 9 (`README.md`, `ARCHITECTURE.md`, `TARGET-ARCHITECTURE.md`) and install the `/reconcile-docs` skill (STEP 10); register all three in the dependency graph. For *drift*, respect the graph's direction: fix **descriptive targets** (`README.md`, `ARCHITECTURE.md`) to match reality, move shipped items from `TARGET-ARCHITECTURE.md` into `ARCHITECTURE.md`, and only **flag** drift in **prescriptive sources** (`CLAUDE.md`, `TARGET-ARCHITECTURE.md`) for the user — don't rewrite intent. Where an agent already has `/reconcile-docs`, prefer running it over re-deriving the checks here.
 
 ---
 

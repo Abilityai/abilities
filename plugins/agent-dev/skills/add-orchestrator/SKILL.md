@@ -5,10 +5,11 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 argument-hint: "[--check]"
 metadata:
-  version: "1.36"
+  version: "1.37"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.37: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — ver/vcmp helpers use braced ${1}/${2}; installs discover-agents 1.11 (an agent key lists only its reach, trinity#3810: an unlisted repo agent is deployed: unknown / reach: none, never deployed: false), orchestrate 1.20 (peer skill grants ent#662: prefer repo-declared playbooks; skill_not_granted + peer_surface_unavailable rows; never roll out a deployed: unknown entry; @mention wakes agents only), sync-fleet-to-head 1.9 (under an agent key git reach = permission edges; a narrative agent missing from list_agents is out of reach, not down), compose-system 1.7 (list_systems is reach-scoped; deploy_system renames on a taken member name, so its warning is the stop signal); the self-change toggles live in the agent Settings → Guardrails pane"
     - "1.36: Platform-truth refresh (Trinity dev 6434ff935, 1.0.0-rc1) — bundled orchestrate 1.19 (agent_busy = nothing ran; new rate_limited result is never re-sent, trinity#3244)"
     - "1.35: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — bundled orchestrate 1.18 (agents.manage grant for rollout/teardown, gate results, two-argument get_execution_result, delegation-contract resend reason, ⟦ ⟧ payload framing, A2A payment outcomes), compose-system 1.6 (manifest prompt overwrites the instance-wide Trinity Prompt; explicit: not map:; agents.manage for the dry run; kind: deployment), profile-fleet 1.8, sync-fleet-to-head 1.8 (409 agent_busy), reconcile-skill-map 1.3 (approval: recommended gates on assign); the two-tokens note names the clone token order and the agents.manage requirement"
     - "1.34: The project layer (Q3) no longer embeds its own project-init / project-steward — those two templates and project-standard.md.template are deleted (ent#789: two lineages under one name, ~600 lines apart, fixes landing in one and not the other). Q3 now copies the six standalone agent-dev project skills (project-init / task / intake / steward / reconcile / status) from the plugin's own skills/ directories — the same files the trinity-skills library carries — and seeds fleet/project-standard.md from project-init's PROJECT_STANDARD.template.md with the fleet values set in its §0 Configuration (state_dir: fleet/project-steward, fleet.system_map, fleet.orchestration). Everything the orchestrator pair did — reading the standard at fleet/, resolving owners through the map, §5 edge checks, §3b etiquette, outputs for invisible workspaces — is now behaviour of the one skill set, switched on by that block. --check compares the project set against the plugin's skills/ copies. Existing installs: re-run and overwrite the pair, then add §0 to the existing fleet/project-standard.md (the upgrade path below)"
@@ -173,9 +174,9 @@ Compare **numerically, per dotted component** — `1.9 < 1.13`, so a plain strin
 
 ```bash
 SKILL_DIR="<this add-orchestrator skill's own directory>"
-ver()  { grep -m1 -E '^[[:space:]]*version:' "$1" 2>/dev/null | tr -dc '0-9.'; }
+ver()  { grep -m1 -E '^[[:space:]]*version:' "${1}" 2>/dev/null | tr -dc '0-9.'; }
 # numeric dotted compare → prints <, =, or >
-vcmp() { awk -v a="$1" -v b="$2" 'BEGIN{
+vcmp() { awk -v a="${1}" -v b="${2}" 'BEGIN{
   n=split(a,x,"."); m=split(b,y,"."); L=(n>m?n:m);
   for(i=1;i<=L;i++){u=x[i]+0; v=y[i]+0; if(u<v){print "<";exit} if(u>v){print ">";exit}}
   print "=" }'; }

@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Bash, AskUserQuestion, Skill, mcp__trinity__list_agents, mcp__trinity__get_fleet_health, mcp__trinity__ask_trinity, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result
 metadata:
-  version: "1.6"
+  version: "1.7"
   created: 2026-08-06
   author: Ability.ai
   changelog:
+    - "1.7: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — the no-instance branch names all four install routes (DigitalOcean guided installer, Marketplace images on DigitalOcean / AWS / Vultr, an existing server, local Docker); \"What is Trinity\" no longer says Claude Code only — runtimes are Claude Code, Codex and Gemini CLI"
     - "1.6: Trinity dev ed5904906 — the queued_timeout note calls get_execution_result with both agent_name and execution_id and gives the platform's current reason not to re-send (an identical repeat is answered with the original; a reworded one can run twice)"
     - "1.5: Trinity v0.9.5 — the instance options are DigitalOcean (guided installer), your own server, or local Docker; the cloud (ability.ai) managed-hosting option is gone — Trinity is self-hosted"
     - "1.4: Next-steps menu points only at /create-agent:custom (kb-agent retired with create-agent 2.0.0); docs MCP package is the unscoped npm name trinity-docs-mcp (the scoped one 404s); queued_timeout note extended to parallel turns (#2661) and fan_out_timeout → get_fan_out_result (#2670)"
@@ -86,7 +87,7 @@ Print this orientation, then stop narrating (rule 2):
 ```
 ## What is Trinity?
 
-Trinity runs Claude Code agents as an always-on fleet.
+Trinity runs agents — on Claude Code, OpenAI Codex or Gemini CLI — as an always-on fleet.
 
 - An agent is a folder: CLAUDE.md (identity) + skills + memory files,
   driven by the same Claude Code harness you're using right now.
@@ -126,7 +127,7 @@ Use AskUserQuestion — **Question:** "Where are you right now?" — **Header:**
 Ask: **"Do you already have a Trinity instance URL?"**
 
 - **Yes** → note `instance_url`, skip to Stage 3.
-- **No** → `/trinity:deploy-new-instance` owns provisioning; it will ask them to choose between DigitalOcean (Trinity's own guided installer — a new Droplet behind HTTPS in about ten minutes, ~$48/month), a server they already have, or local Docker on this machine. Trinity is self-hosted — there is no managed hosting offering. Run it, and when an instance is reachable, return here → Stage 3.
+- **No** → `/trinity:deploy-new-instance` owns provisioning; it will ask them to choose between DigitalOcean (Trinity's own guided installer — a new Droplet behind HTTPS in about ten minutes, ~$48/month), a Marketplace image (DigitalOcean 1-Click, AWS Marketplace or Vultr — launched from their cloud console, no terminal), a server they already have, or local Docker on this machine. Trinity is self-hosted — there is no managed hosting offering. Run it, and when an instance is reachable, return here → Stage 3.
 - **Not yet / just exploring** → perfectly fine. Save state and close warmly: "Your progress is saved — run `/trinity:start-here` whenever you're ready and we continue at this exact step."
 
 ## STAGE 3: Connect the MCP — and prove it works

@@ -23,6 +23,10 @@ BRANCH="__BRANCH__"
 REMOTE="__REMOTE__"
 COAUTHOR="__COAUTHOR__"
 
+# On a Trinity-deployed agent the platform heartbeat owns commit/pull (one writer,
+# trinity-enterprise#708) — stand down so two writers never race on one tree.
+[ -d /opt/trinity/hooks ] && exit 0
+
 # Manual override escape hatch
 if [ -f .git/NO_AUTOSYNC ]; then
   exit 0

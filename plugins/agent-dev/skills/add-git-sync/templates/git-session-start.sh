@@ -36,6 +36,10 @@ if [ "$SOURCE" = "clear" ] || [ "$SOURCE" = "compact" ]; then
   exit 0
 fi
 
+# On a Trinity-deployed agent the platform heartbeat owns commit/pull (one writer,
+# trinity-enterprise#708) — stand down so two writers never race on one tree.
+[ -d /opt/trinity/hooks ] && exit 0
+
 # Respect manual override
 if [ -f .git/NO_AUTOSYNC ]; then
   emit_context "[git-sync] NO_AUTOSYNC flag present — session started without pulling. Remove .git/NO_AUTOSYNC to re-enable."

@@ -5,10 +5,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, AskUserQuestion
 metadata:
-  version: "1.7"
+  version: "1.8"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.8: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — platform role `user` is Workspace-only (ent#837): a whitelisted email defaults to `user`, so the no-code advice says grant `operator`+, Phase 0 treats `role: user` as unusable for MCP, Phase 4 handles `403 workspace_only`; Phase 1 reads `email_delivery_available` (#3655) and `email_code_login_enabled`; Phase 2 adds `403 email_code_disabled` (ent#849); re-login + reconnect after a backend upgrade"
     - "1.7: Key provisioning notes that /api/mcp/keys and ensure-default take a signed-in (JWT) session only — any key-authenticated caller gets 403 since #2996; the OTP flow already uses the JWT, so the flow itself is unchanged"
     - "1.6: No managed hosting — Trinity is self-hosted only. The no-instance fallback now hands off to /trinity:deploy-new-instance (DigitalOcean guided installer, SSH server, or local Docker) instead of ending the flow at a request-access email; example URLs are self-hosted forms, no *.abilityai.dev tenants"
     - "1.5: UI label — MCP keys live under Settings → MCP Keys (the tab was never called API Keys); verified against Settings.vue at v0.9.5"
@@ -46,7 +47,8 @@ cat ~/.trinity/config.json 2>/dev/null | jq -r '.current_profile // empty'
 If a profile exists, check if it's still valid:
 - Read the current profile's instance_url and token
 - Test connection: `curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer {token}" {instance_url}/api/users/me`
-- If 200 (profile valid): **ensure `.mcp.json` in the current directory is present and correct before reporting done.** `/trinity:connect` is the single writer of `.mcp.json` — `/trinity:onboard`, `/trinity:sync`, and `/trinity:loop` delegate here rather than writing it themselves, so a valid profile must still (re)materialize the file for the current agent directory:
+- If 200, also read the body's `role`: a `user` account is Workspace-only since Trinity 1.0 (ent#837) — `/api/users/me` answers it, but every MCP route refuses `403 workspace_only`, so treat it as **not usable for MCP**: tell the user an admin must raise the account to `operator` (Settings → Access → User Management), then stop.
+- If 200 and the role is `operator` or above (profile valid): **ensure `.mcp.json` in the current directory is present and correct before reporting done.** `/trinity:connect` is the single writer of `.mcp.json` — `/trinity:onboard`, `/trinity:sync`, and `/trinity:loop` delegate here rather than writing it themselves, so a valid profile must still (re)materialize the file for the current agent directory:
   - Derive the MCP URL and write the `trinity` server block from the stored profile's `instance_url` + `mcp_api_key`, exactly as in PHASE 6 — **no email round-trip needed**. If the file was already present and identical, leave it.
   - Report: "Already connected to {instance_url}. `.mcp.json` [written / refreshed / already current]. Reconnect with `/mcp` if it just changed. Run `/trinity:connect --force` to re-authenticate or switch instances." Then **skip to PHASE 7** (verify) — do not re-run the email flow.
 - If not 200: Continue with flow (token expired)
@@ -70,6 +72,7 @@ Validate URL:
 - Strip trailing slash
 - Test reachability: `curl -s -o /dev/null -w "%{http_code}" {url}/api/auth/mode`
 - If not reachable, ask user to verify URL
+- Read the same `/api/auth/mode` body: `email_code_login_enabled: false` → email-code sign-in is off by login policy (ent#849) — tell the user to sign in with SSO in the web UI, mint a key under Settings → MCP Keys, and stop; `email_delivery_available: false` → this install has no email provider, so no code will ever arrive (it goes to the backend log) — say so up front, before Phase 2 (#3655)
 
 Store: `INSTANCE_URL`
 
@@ -89,13 +92,14 @@ Expected: 200 with `{"success": true, "message": "If your email is registered, y
 
 If error:
 - 403 `Email authentication is disabled`: an admin must enable email auth on the instance (`EMAIL_AUTH_ENABLED` / the `email_auth_enabled` setting).
+- 403 `email_code_disabled`: a login policy turned email-code sign-in off (ent#849) — sign in with SSO in the web UI and mint the key under Settings → MCP Keys.
 - 403 `setup_required`: the instance has no admin yet — finish first-run setup in the web UI first.
 - 422: "Invalid email format."
 - Other: Show error detail
 
 Tell user: "Verification code sent to {EMAIL}. Check your inbox (and spam folder)."
 
-**If no code arrives within ~2 minutes**: the most likely cause is that {EMAIL} is not on the instance's whitelist — the API deliberately returns the same 200 for unknown emails (anti-enumeration, trinity#186), so a missing email is the only signal. The fix is admin-side: an instance admin adds the email to the whitelist, or the operator enables self-signup (`PUBLIC_ACCESS_REQUESTS_ENABLED`, **default OFF** since trinity#1274 — `POST /api/access/request` returns 403 until it's opted in). Tell the user exactly that instead of looping on resend.
+**If no code arrives within ~2 minutes** (and Phase 1 showed the install can deliver email): the most likely cause is that {EMAIL} is not on the instance's whitelist — the API deliberately returns the same 200 for unknown emails (anti-enumeration, trinity#186), so a missing email is the only signal. The fix is admin-side: an instance admin adds the email under Settings → Access → Email Whitelist **with role `operator` or above** — the whitelist's role picker defaults to `user`, which is Workspace-only since Trinity 1.0 (ent#837) and cannot use MCP. Self-signup (`PUBLIC_ACCESS_REQUESTS_ENABLED`, default OFF) and sharing an agent only ever create Workspace-only `user` accounts, so they never unblock `/trinity:connect`. Tell the user exactly that instead of looping on resend.
 
 ### PHASE 3: Email Verification - Enter Code
 
@@ -116,7 +120,7 @@ Expected response:
   "user": {
     "email": "user@example.com",
     "username": "user@example.com",
-    "role": "user"
+    "role": "operator"
   }
 }
 ```
@@ -126,6 +130,8 @@ If the 200 body carries `mfa_required: true` / `challenge_token` and **no** `acc
 If error:
 - 401/422: "Invalid or expired code. Request a new one?"
 - Offer to retry Phase 2
+
+If `user.role` is `user`, stop here: the account is Workspace-only (ent#837) and Phase 4 will refuse it — an admin must raise it to `operator` first.
 
 Store: `ACCESS_TOKEN`, `USER`
 
@@ -156,6 +162,8 @@ curl -s -X POST "{INSTANCE_URL}/api/mcp/keys" \
 ```
 
 and use its `api_key`. Both routes take a **signed-in session** — the JWT from Phase 3 — and refuse any key-authenticated caller with 403 (#2996): you can't mint a key with a key. Omit `scope` — `ensure-default` and this call mint a plain user-scope key, the only scope that exposes the full operator tool set; an `ops`-scope key (trinity#2389, GET-only, admin-JWT-minted) will connect but is not usable for deploy/sync.
+
+If either call answers `403 {"code": "workspace_only"}`, the account is Workspace-only (platform role `user`, ent#837): it can use the web Workspace but never MCP. Tell the user an admin must raise it to `operator` (Settings → Access → User Management) and re-run `/trinity:connect --force`.
 
 Store: `MCP_API_KEY`
 
@@ -257,6 +265,8 @@ Next steps:
 | Instance unreachable | "Cannot reach {URL}. Check the URL and your network connection." |
 | Email not sent | "Failed to send verification email. Is this email registered on this Trinity instance?" |
 | Invalid code | "Code invalid or expired. Would you like a new code?" |
+| `403 workspace_only` | "This account works in the Workspace only (role `user`). An admin must raise it to `operator` before it can use MCP." |
+| `403 email_code_disabled` | "Email-code sign-in is off by policy — sign in with SSO in the web UI and mint a key under Settings → MCP Keys." |
 | MCP key failed | "Logged in but couldn't provision MCP key — mint one under Settings → MCP Keys and re-run `/trinity:connect --force`." |
 | Config write failed | "Couldn't write to ~/.trinity/config.json. Check permissions." |
 
@@ -264,4 +274,5 @@ Next steps:
 
 - Credentials are stored in `~/.trinity/config.json`
 - The JWT token expires (check `exp` claim) but MCP API key is long-lived
+- After the instance upgrades (e.g. to Trinity 1.0) and its backend restarts, sign in again in the browser and reconnect MCP clients (`/mcp` in Claude Code) — the release notes ask for both
 - Multiple profiles are supported - run again with a different URL to add another instance

@@ -6,11 +6,12 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Skill
 metadata:
-  version: "1.10"
+  version: "1.11"
   created: 2026-06-14
-  updated: 2026-10-09
+  updated: 2026-10-20
   author: Ability.ai
   changelog:
+    - "1.11: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — deprecated operator-queue check no longer says only a person ends an ask: only a person answers one, an agent withdraws its own moot ask with withdraw_ask (ent#901), never with `replaces` as a close-out"
     - "1.10: Token-tier note names the full working-branch condition (Trinity dev ed5904906, ent#705): the repo must also sit under the token's own GitHub account — an organisation-owned or someone else's repo stays pull-only even with a write-capable personal token; the create response's git_mode (pushes, reason) says which"
     - "1.9: Platform-truth refresh (Trinity dev 863240f3, 2026-09-30) — Trinity Readiness stops requiring .claude/settings.json in .gitignore (ent#708: project settings may be committed; flag a committed copy only for /opt/trinity/ hooks or credential keys); new warning for deprecated operator-queue paths (file appends, responded_by, agent-side respond — ent#611/ent#715) and recipient_email/audience_email (ent#606 `to` role); report-guard check matches the #2975 refusal wording; repository check explains the working-branch default vs pull-only by token tier (ent#705)"
     - "1.8: Trinity Readiness gains the declared-metrics checks (Trinity dev 1a1deb2b, the ent#476 metrics merge, 2026-09-22): template.yaml metrics: entries must be well-formed (name charset, six types, status values, cadence 60 s–366 d — finding D-009) and metrics.json must be gone (retired, finding D-010; record_metrics is the only write path)"
@@ -144,7 +145,7 @@ Real findings:
 - `.env.example` documenting required variables
 - `.mcp.json.template` declaring the agent's **own** MCP servers, with `${VAR}` placeholders **inside `env` blocks only** (a placeholder in `command`/`url`/`args` makes Trinity withhold the whole server at startup) an allowlisted literal `command`, and — for `http`/`sse` servers — a `url` that resolves to a public address (loopback/private/link-local/CGNAT `100.64/10` are refused with 400, trinity-enterprise#394) — never a hand-written `trinity` entry, which the platform overwrites
 - `.gitignore` excluding `.env`, `.env.*`, `.mcp.json`, `credentials.json`, `*.pem`, `*.key`, `.claude/projects/`, `.claude/todos/`, `.claude/plugins/`, and `.trinity/*` with the authored hooks negated. `.claude/settings.json` is **not** required to be ignored — it is the agent's project settings and may be committed (ent#708); a *committed* copy is a finding only when it registers `/opt/trinity/` hook paths or carries a credential-bearing key (`env`, `apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`, `gcpAuthRefresh`, `otelHeadersHelper`)
-- Deprecated operator-queue paths — a skill or CLAUDE.md that appends to `~/.trinity/operator-queue.json`, reads `responded_by` from it, or calls `respond_to_operator_queue` itself is a **warning**: agents raise asks with `mcp__trinity__ask_operator` and read the outcome with `get_my_ask` (ent#611; the file is a two-release fallback and only a person can end an ask); likewise `send_message` with `recipient_email` instead of the `to` role
+- Deprecated operator-queue paths — a skill or CLAUDE.md that appends to `~/.trinity/operator-queue.json`, reads `responded_by` from it, or calls `respond_to_operator_queue` itself is a **warning**: agents raise asks with `mcp__trinity__ask_operator` and read the outcome with `get_my_ask` (ent#611; the file is a two-release fallback; only a person answers an ask — the agent ends its own moot ask with `withdraw_ask`, never with `replaces` as a close-out); likewise `send_message` with `recipient_email` instead of the `to` role
 - **Deployable from its repository** — Trinity deploys an agent by cloning its GitHub repo, so this is the difference between a reproducible deployment and an upload:
   - a `git remote` exists (`git remote get-url origin`)
   - the working tree is clean and the branch is pushed — anything uncommitted or unpushed simply won't exist on the deployed agent

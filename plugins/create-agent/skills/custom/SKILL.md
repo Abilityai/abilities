@@ -4,13 +4,14 @@ description: Scaffold a new Trinity-compatible Claude Code agent from scratch on
 argument-hint: "[topic or purpose]"
 disable-model-invocation: false
 user-invocable: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents, mcp__trinity__ask_operator, mcp__trinity__get_my_ask, mcp__trinity__create_agent, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent_info, mcp__trinity__list_agent_schedules
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_agents, mcp__trinity__ask_operator, mcp__trinity__get_my_ask, mcp__trinity__withdraw_ask, mcp__trinity__create_agent, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent_info, mcp__trinity__list_agent_schedules
 metadata:
-  version: "1.17"
+  version: "1.18"
   created: 2026-04-01
-  updated: 2026-10-09
+  updated: 2026-10-20
   author: Ability.ai
   changelog:
+    - "1.18: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — the agents.manage grant is found in Settings › Guardrails → Permissions to change itself (ent#887–891); headless gaps ask handles a pending ask the new brief makes moot with withdraw_ask (ent#901), corrects a changed ask with `replaces` (duplicate = already_pending), withdraw_ask added to allowed-tools; headless repository path commits the Repository line as a new commit (the guardrail refuses force pushes); .env.example notes the platform's `.env.*` protected path blocks Write headlessly (tracked upstream, no workaround); generated Project Structure carries the committed memory/ (write_user_memory for per-person facts), reports/<kind>/, project_files/<slug>/, platform-owned folders and $TMPDIR (#3797, ent#945); report `to` names the unfilled/multi-holder role refusal; record_metrics guard quotes the real refusal wording; generated .gitignore matches the platform list (.env.* with !.env.example / !.mcp.json.template, .tmp/, every authored .trinity re-include incl. plugins.yaml)"
     - "1.17: Platform-truth refresh (Trinity dev ed5904906, 2026-10-09). Headless create: the approval ask now carries `options` and an object-shaped `proposal` (an approval without options is refused `options_required`), reads the real endings (chosen option / `(something else)` / cancelled / dismissed / expired) instead of approved/declined, and names the `agents.manage` grant an agent key needs for create_agent and deploy_local_agent (ent#164, default-deny); the repository path reads `git_mode` instead of promising auto-sync; the archive recipe pointer moves to the tool's `archive` parameter. Gaps ask and playbook-gap text cover `dismissed` and the ask caps (title ≤120). Metrics: a different value at the same ts corrects the point in place (ent#729) — never a new ts. Dashboard: no `chart` widget exists (image does); bound widgets keep a placeholder for older images and take `dims:`. Working branch needs the repo under the token's own account (ent#705). Schedule example is a playbook call; repo-deployed agents pull on their own (ent#703)"
     - "1.16: Headless mode — the wizard now runs inside a deployed Trinity agent (no interactive question tool): the brief carries every answer, real gaps go out as ONE batched ask_operator instead of guesses or placeholders, the skill-outline gate folds into one approval ask before creation, and the last step creates the agent on the agent's own instance (GitHub repo + create_agent when a token exists, else deploy_local_agent with an explicit no-reproducible-source warning) instead of /trinity:onboard. Also: dashboard.yaml widgets always carry value (+ color on status) — Trinity's compatibility check D-003 is HARD and requires them even on metric-bound widgets (trinity-enterprise#765, from the in-Trinity experiment #764)"
     - "1.15: Platform-truth refresh (Trinity dev 863240f3, 2026-09-30) — generated .gitignore stops ignoring .claude/settings.json (ent#708: project settings may be committed; the platform filters only /opt/trinity/-hook or credential-bearing copies); playbook-gap escalation raises mcp__trinity__ask_operator + reads back with get_my_ask, queue file kept as the two-release fallback (ent#611); deploy guidance explains the working-branch default — own write-scoped token → trinity/<agent>/<id> + auto-sync, else pull-only, git_mode reports which (ent#705); Reporting section gains the `to` role, audience_email deprecated (ent#606); report guard matches the new refusal wording `requires a key that carries an agent identity` (#2975)"
@@ -47,7 +48,7 @@ In headless mode every `AskUserQuestion` below is replaced by these rules:
 
 1. **The brief is the answer.** Take purpose, name, destination, skills, plugins, credentials and schedules from the argument. Destination defaults to `~/builds/[agent-name]`; plugins default to `agent-dev` + `trinity`.
 2. **Decorative choices take the default silently** — the avatar prompt, widget layout, wording. Never ask about them.
-3. **Real gaps go out as ONE ask, never as guesses.** A real gap is something the generated agent cannot work without and the brief does not say: the data sources it watches, the accounts it posts to, a currency or locale, an external system's name. Collect every gap first, then raise a single `mcp__trinity__ask_operator` — `request_id: "create-agent:[agent-name]:gaps"`, `type: "question"`, `title: "[Agent Display Name] — N details needed before I build it"`, `question`: the numbered gaps, each with the default you would use. Write `~/builds/[agent-name].pending.md` (the brief + the request_id + the gap list), report that you are waiting on the ask, and **end the turn**. On the next invocation for the same agent, read the pending file and `mcp__trinity__get_my_ask(request_id)`: answered → merge the answers and continue from Step 2; cancelled or dismissed → stop and say so (do not raise the same ask again); expired → continue with the stated defaults and list them as assumptions in the Completion summary. Keep the title ≤120 characters and the question ≤4,000 (longer is refused); the gaps are one decision — "confirm or correct these defaults" — never a list of unrelated approvals. Never write `REPLACE-ME` placeholders for a gap you could have asked about.
+3. **Real gaps go out as ONE ask, never as guesses.** A real gap is something the generated agent cannot work without and the brief does not say: the data sources it watches, the accounts it posts to, a currency or locale, an external system's name. Collect every gap first, then raise a single `mcp__trinity__ask_operator` — `request_id: "create-agent:[agent-name]:gaps"`, `type: "question"`, `title: "[Agent Display Name] — N details needed before I build it"`, `question`: the numbered gaps, each with the default you would use. Write `~/builds/[agent-name].pending.md` (the brief + the request_id + the gap list), report that you are waiting on the ask, and **end the turn**. On the next invocation for the same agent, read the pending file and `mcp__trinity__get_my_ask(request_id)`: answered → merge the answers and continue from Step 2; cancelled or dismissed → stop and say so (do not raise the same ask again); expired → continue with the stated defaults and list them as assumptions in the Completion summary; still pending and the new brief already answers it → `mcp__trinity__withdraw_ask(request_id, reason)` with a one-line reason, then continue (`ask_ended` means the person answered first — read and use that answer); still pending with nothing new → end the turn. If the facts changed while the ask is pending, raise the corrected ask with `replaces: <request_id>` rather than a second ask (a duplicate is refused `already_pending`); never use `replaces` as a close-out. Keep the title ≤120 characters and the question ≤4,000 (longer is refused); the gaps are one decision — "confirm or correct these defaults" — never a list of unrelated approvals. Never write `REPLACE-ME` placeholders for a gap you could have asked about.
 4. **One approval before anything leaves the workspace.** The Step 6 "present each skill outline" gate and the Step 13/14 questions fold into a single approval ask at the end — see **Step 14 → Headless**. Nothing is pushed or created before it is approved.
 5. **Schedules stay declared `enabled: false`** (the default below). The created agent is non-production until a person reviews it.
 
@@ -225,7 +226,7 @@ Learn more at [ability.ai](https://ability.ai)
 
 Once deployed, publish **structured reports** so an operator can see what you produced without reading chat. At the end of any skill that yields a meaningful result — a summary, a batch of items, a metrics snapshot — call the `mcp__trinity__report` MCP tool. The report appears on this agent's **Reports** tab and the fleet-wide **Operations → Reports** view.
 
-- **`to`:** name the role the report is for — `primary` (the person this agent serves), `approver`, `viewer` or `operator`; the platform resolves the person. Omitting it publishes an operator-only report. Never pass `audience_email` (deprecated).
+- **`to`:** name the role the report is for — `primary` (the person this agent serves), `approver`, `viewer` or `operator`; the platform resolves the person. Omitting it publishes an operator-only report. A role nobody fills, or one several people fill, is refused by name — re-address to `primary` or omit `to`; never retry unchanged. Never pass `audience_email` (deprecated).
 
 - **When:** at the end of result-producing skills and scheduled runs — not for conversational replies.
 - **`report_type`:** namespaced `lower_snake` segments joined by `.` — `^[a-z0-9_]+(\.[a-z0-9_]+)+$`. **Hyphens are rejected (422)**, so an agent named `pr-reviewer` reports as `pr_reviewer.weekly_summary`, not `pr-reviewer.weekly_summary`.
@@ -286,8 +287,12 @@ These plugins are installed during onboarding (`/onboarding` handles this automa
       onboarding/SKILL.md       # Setup progress tracker
       update-dashboard/SKILL.md # Dashboard metrics updater
       reconcile-docs/SKILL.md   # Doc/skill/architecture coherence check
-  memory/                # Persistent state (if using memory plugin)
+  memory/                # The agent's memory — committed, shared by everyone it serves (per-person facts → write_user_memory)
+  reports/<kind>/        # Dated outputs a skill produces, one folder per kind
+  project_files/<slug>/  # Working files for one piece of work
 ```
+
+On Trinity the platform owns `data/`, `public/`, `uploads/`, `shared-out/`, `shared-in/`, `content/` and `.trinity/` — never use them as this agent's own folders. Scratch work goes to `$TMPDIR`, not `/tmp` (noexec).
 
 ## Artifact Dependency Graph
 
@@ -877,7 +882,7 @@ record_metrics(points=[
 ], execution_id="<from your Execution Context block, when present>")
 ```
 
-Rules: only metrics declared in `template.yaml` (`metric_undeclared` → add it there, then call `refresh_metric_definitions` and retry once); one point per metric per run (identity is metric + ts + dims — re-sending the same observation is deduplicated; a different value at the same `ts` restates the point in place and the result counts it as `corrected` — keep the period's `ts`, never record a correction at a new one); a `status` value must be one of its declared `values`. Skip this step **silently** when the tool is absent (local run) or refuses with an agent-scoped-key error — the dashboard write above still succeeds. Trinity is the upgrade, never the gate.
+Rules: only metrics declared in `template.yaml` (`metric_undeclared` → add it there, then call `refresh_metric_definitions` and retry once); one point per metric per run (identity is metric + ts + dims — re-sending the same observation is deduplicated; a different value at the same `ts` restates the point in place and the result counts it as `corrected` — keep the period's `ts`, never record a correction at a new one); a `status` value must be one of its declared `values`. Skip this step **silently** when the tool is absent (local run) or refuses because the key `requires a key that carries an agent identity` (a user/admin-key session) — the dashboard write above still succeeds. Trinity is the upgrade, never the gate.
 
 ### Step 4: Confirm
 
@@ -1105,6 +1110,8 @@ Apply approved edits to **descriptive targets** (`README.md`, `ARCHITECTURE.md`)
 
 Write `[destination]/.env.example`:
 
+> **Headless (inside a Trinity agent):** the platform's protected-path list currently matches `.env.*`, so Write/Edit on `.env.example` is refused (tracked upstream). Keep that rule — do not work around it; list the variables in the Completion summary as a gap instead.
+
 ```
 # [Agent Display Name] Configuration
 # Copy this to .env and fill in your values
@@ -1129,6 +1136,9 @@ Write `[destination]/.gitignore`:
 # Credentials - never commit
 .mcp.json
 .env
+.env.*
+!.env.example
+!.mcp.json.template
 *.pem
 *.key
 
@@ -1151,12 +1161,15 @@ Write `[destination]/.gitignore`:
 .trinity/*
 !.trinity/pre-check
 !.trinity/post-check
+!.trinity/pre-snapshot
 !.trinity/setup.sh
+!.trinity/persistent-processes.allow
+!.trinity/pipelines/
+!.trinity/plugins.yaml
 credentials.json
-*.pem
-*.key
 
 # Runtime
+.tmp/
 content/
 session-files/
 node_modules/
@@ -1298,9 +1311,9 @@ Move on silently — the agent works fine without a remote. Note once, without p
 `/trinity:onboard` is for a person's local session; inside an agent, create the new agent on **this agent's own instance** with the Trinity tools directly:
 
 1. **Approval ask.** Raise one `mcp__trinity__ask_operator` — `request_id: "create-agent:[agent-name]:create"`, `type: "approval"`, `options: ["Create it", "Do not create"]` (an approval without options is refused), `title: "Create [Agent Display Name] on this instance?"` (≤120 characters), `question`: the assumptions made, `proposal`: a JSON **object** of at most 8 KB — `{purpose, skills: [{name, purpose}], schedules (all declared off), credentials (names only), source_mode}`; skill steps stay in the scaffold, not the ask. Record it in the pending file and end the turn. On the next invocation read `get_my_ask`: response `Create it` → continue; `Do not create`, cancelled, dismissed or expired → keep the scaffold on disk, stop, and say where it is (dismissed or expired: do not re-raise without new information; a re-ask after expiry sets `supersedes_expired`); response `(something else)` → no option is approved: re-plan from `response_text` and raise a new `request_id`.
-2. **Permission first.** From an agent key, `create_agent` and `deploy_local_agent` need the `agents.manage` grant (off by default). On `agent_management_not_permitted`: raise one `mcp__trinity__ask_operator` (`type: "question"`, a title containing the literal `agents.manage`, e.g. `Grant agents.manage so I can create [agent-name]`), keep the scaffold and the pending file, and end the turn. Approving that ask grants nothing — an instance admin grants it in this agent's Settings → Permissions to change itself. Never retry unchanged.
+2. **Permission first.** From an agent key, `create_agent` and `deploy_local_agent` need the `agents.manage` grant (off by default). On `agent_management_not_permitted`: raise one `mcp__trinity__ask_operator` (`type: "question"`, a title containing the literal `agents.manage`, e.g. `Grant agents.manage so I can create [agent-name]`), keep the scaffold and the pending file, and end the turn. Approving that ask grants nothing — an instance admin turns on *Manage other agents* in this agent's Settings › Guardrails → Permissions to change itself. Never retry unchanged.
 3. **Pick the source mode.** If a GitHub token is usable here (`gh auth status` succeeds, or `GITHUB_TOKEN` is set), use the **repository path**; otherwise the **local path**.
-4. **Repository path (preferred — reproducible source):** create a **private** repo `[agent-name]` under the token's account (`gh repo create [agent-name] --private --source=[destination] --push`), add the `**Repository:**` line to CLAUDE.md as in Step 13, push, then `mcp__trinity__create_agent(name: "[agent-name]", template: "github:<owner>/[agent-name]", kind: "agent")`. Read `git_mode` in the response: `pushes: true` → working branch with auto-sync; otherwise the agent is pull-only and `reason` says why (Trinity clones with the owner's saved GitHub token or the instance one, not this container's) — report it in the Completion summary. A 400 saying the repo is not found or private means that token cannot read the new repo: fall back to the local path and say so.
+4. **Repository path (preferred — reproducible source):** create a **private** repo `[agent-name]` under the token's account (`gh repo create [agent-name] --private --source=[destination] --push`), add the `**Repository:**` line to CLAUDE.md as a **new commit** and push normally (never Step 13's amend + force-push — the platform guardrail refuses force pushes), then `mcp__trinity__create_agent(name: "[agent-name]", template: "github:<owner>/[agent-name]", kind: "agent")`. Read `git_mode` in the response: `pushes: true` → working branch with auto-sync; otherwise the agent is pull-only and `reason` says why (Trinity clones with the owner's saved GitHub token or the instance one, not this container's) — report it in the Completion summary. A 400 saying the repo is not found or private means that token cannot read the new repo: fall back to the local path and say so.
 5. **Local path (no token):** `mcp__trinity__deploy_local_agent(name: "[agent-name]", archive: <base64 of a gzipped tar of [destination]>)`. Build the archive exactly as the tool's `archive` parameter description specifies (manifest script → `COPYFILE_DISABLE=1` tar with the same excludes → base64) — including its `.trinity-manifest.json` integrity file — from a **copy** of the scaffold, excluding `.git`, `node_modules`, `__pycache__`, `.venv`, and never including a `.env`. State plainly in the Completion summary: *no reproducible source — this agent has no repository, no auto-sync, and changes must be re-uploaded; push it to a repo and recreate from it when a token is available.*
 6. **Verify on evidence, not on the call's status:** `mcp__trinity__get_agent_info(name)` returns the new agent's template, and `list_agent_schedules` shows every schedule `enabled: false`. Delete the pending file.
 

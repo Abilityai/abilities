@@ -6,10 +6,11 @@ disable-model-invocation: true
 user-invocable: true
 allowed-tools: Bash, Read, Write, Grep, Glob, mcp__trinity__list_agents, mcp__trinity__chat_with_agent, mcp__trinity__list_operator_queue, mcp__trinity__get_operator_queue_item, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule, mcp__trinity__git_pull, mcp__trinity__get_git_status, mcp__trinity__get_git_log, mcp__trinity__get_git_sync_state, mcp__trinity__get_agent_compatibility_report
 metadata:
-  version: "2.7.3"
+  version: "2.8.0"
   created: 2025-02-05
   author: eugene
   changelog:
+    - "2.8.0: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — an agent on a working branch (`trinity/<agent>/<id>`, the default for an agent created from your own repo with your own token, ent#705) is verified by \"its branch contains local HEAD\", not equality, since each pull merges `main` into it; such a clone is never `git checkout`-ed onto another branch (switching branches means recreating the agent) — push @remote <branch> and deploy refuse it and say so"
     - "2.7.3: Trinity dev ed5904906 — open-item check asks the queue for status pending and pages on has_more; schedule reconcile names the schedules.manage grant an agent key needs to write another agent's schedules (ent#164); allowed-tools gains get_agent_compatibility_report, which Phase 7b already calls"
     - "2.7.2: The pull-path note names the ent#708 settings.json content guard — .claude/settings.json is no longer ignored, only container-hook or credential-bearing copies are kept out of a commit (replaces the trinity#2036 untracking claim)"
     - "2.7.1: Phase 7b reads plugin state from get_agent_compatibility_report I-006 (~/.trinity/plugins-state.json, ent#411) before falling back to the in-container CLI; git_pull note covers the trinity#2529 gitignore rebuild + gitignore_untracked operator-queue item (expected on the first sync after an upgrade)"
@@ -392,14 +393,14 @@ Based on analysis, command, and target remote:
    mcp__trinity__git_pull(agent_name: <remote.agent>)
    ```
    Use this rather than a `chat_with_agent` shell command. The platform pull path is what runs the fleet-wide `.gitignore` reconcile and the ent#708 content guard that keeps a container-hook or credential-bearing `.claude/settings.json` out of the commit (the file itself is no longer ignored) (since trinity#2529 that reconcile reports removed/unignored paths and files a `gitignore_untracked` operator-queue item, which Phase 6 will surface — treat one as expected on the first sync after an upgrade, not as an incident); a raw `git checkout` also moves a source-mode clone off the branch the DB records, which trinity#1913 re-derives and reverts on the next config-drift recreate.
-6. Verify both at same HEAD: `mcp__trinity__get_git_sync_state(agent_name: <remote.agent>)` (or `get_git_status` / `get_git_log` for detail)
+6. Verify: `mcp__trinity__get_git_sync_state(agent_name: <remote.agent>)` (or `get_git_status` / `get_git_log` for detail). A **source-mode** remote should sit at the same HEAD as `origin/<tracked-branch>`. A remote on a **working branch** (`trinity/<agent>/<id>` — the default since Trinity 1.0 for an agent created from your own repo with your own token, ent#705) merges `main` into its own branch on every pull, so check that its branch **contains** local HEAD (`git merge-base --is-ancestor <local HEAD> origin/<working-branch>` after a fetch), not that the two are equal
 
 **If `/trinity-sync push @remote <branch>`:**
 1. Resolve target remote
 2. Ensure local changes are committed on specified branch
 3. If branch doesn't exist remotely: `git push -u origin <branch>`
 4. Otherwise: `git push origin <branch>`
-5. Tell remote agent to fetch and checkout the branch
+5. If the remote is on a working branch (`trinity/<agent>/<id>`), stop here: that clone is never checked out onto another branch — switching branches means recreating the agent from `github:owner/repo@<branch>`. Otherwise tell the remote agent to fetch and checkout the branch
 6. **Update remote config** if branch differs from tracked:
    - Ask: "Update @remote to track <branch>? (y/n)"
    - If yes, update `.trinity-remote.yaml`
@@ -407,7 +408,7 @@ Based on analysis, command, and target remote:
 **If `/trinity-sync deploy <branch>` or `/trinity-sync deploy @remote <branch>`:**
 1. Resolve target remote
 2. Verify branch/tag exists: `git ls-remote --heads --tags origin <branch>`
-3. Check remote working tree is clean (or only runtime state)
+3. Check remote working tree is clean (or only runtime state). A remote on a working branch (`trinity/<agent>/<id>`) cannot be deployed to another branch in place — tell the user to recreate the agent from `github:owner/repo@<branch>` instead, and stop
 4. Tell remote to: `git fetch origin && git checkout <branch> && git pull origin <branch>`
 5. Verify remote is on correct branch at expected HEAD
 6. Update remote's tracked branch in config
@@ -465,8 +466,8 @@ survives the pull.
 ### Phase 5: Verification
 
 Confirm both agents report:
-- Same branch checked out
-- Same HEAD commit hash
+- The expected branch checked out (a working-branch agent stays on its own `trinity/<agent>/<id>` branch)
+- Same HEAD commit hash — or, for a working-branch agent, a branch that contains local HEAD
 - Clean working tree (or only runtime state uncommitted)
 
 ### Phase 6: Operator Queue Check

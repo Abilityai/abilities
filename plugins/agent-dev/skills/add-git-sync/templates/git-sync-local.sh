@@ -14,6 +14,9 @@ cd "$CLAUDE_PROJECT_DIR" 2>/dev/null || exit 0
 COAUTHOR="__COAUTHOR__"
 
 [ -f .git/NO_AUTOSYNC ] && exit 0
+# On a Trinity-deployed agent the platform heartbeat owns commit/pull (one writer,
+# trinity-enterprise#708) — stand down so two writers never race on one tree.
+[ -d /opt/trinity/hooks ] && exit 0
 [ -d ".git" ] || exit 0
 
 if git diff --quiet && git diff --cached --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then

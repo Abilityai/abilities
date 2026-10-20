@@ -4,10 +4,11 @@ description: Turn fleet/system-map.yaml into a Trinity SystemManifest (fleet/sys
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__deploy_system, mcp__trinity__list_systems, mcp__trinity__get_system_manifest, mcp__trinity__restart_system, mcp__trinity__list_templates
 user-invocable: true
 metadata:
-  version: "1.6"
+  version: "1.7"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.7: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — under an agent key `list_systems` shows only systems inside the key's reach (trinity#3810), so a free-looking name may be taken outside it: the existing-system check says so, and the dry run's `already exists, will create …-2` warning is the stop signal (deploy_system renames rather than refuses); the agents.manage toggle lives in the agent's Settings → Guardrails pane"
     - "1.6: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — a manifest prompt OVERWRITES the instance-wide Trinity Prompt for every agent, not just members (Q3 reworded); custom permissions use explicit:, not map: (which was ignored — no permissions applied); deploy_system from an agent key needs agents.manage even for the dry run (ent#164); restart_system is a person's session only; members may declare kind: deployment"
     - "1.5: ent#411 shipped — the base image pre-installs the trinity plugin and the #1704 boot hook is default-ON, so a spec-less member runs /trinity:onboard in-place directly; the CLI-bootstrap caveat is gone (opt-out TRINITY_PLATFORM_PLUGINS=0)"
     - "1.4: Spec-less `github:` members are deployable, then onboarded in place — Step 3's table gains the row: a repo with no template.yaml still resolves to `template: github:Org/repo` (creation tolerates a missing template; the member just lands with no declared resources/schedules/plugins), and Step 6 hands each such member the follow-up playbook call `/trinity:onboard in-place` (trinity plugin v6.0) so it writes its own template.yaml + plugins:, pushes back and verifies via the platform compat report; the manifest then re-composes cleanly on the next run. Bootstrap caveat (ent#411) stated once"
@@ -117,7 +118,7 @@ Notes:
 
 Always write `fleet/system.yaml` to the repo first (so it's version-controlled even if we don't deploy).
 
-From a deployed orchestrator (agent key) both the dry run and the deploy need the **`agents.manage`** grant — the route is fenced as a whole, so without it `deploy_system` answers `403 agent_management_not_permitted` even with `dry_run: true` (raise one `ask_operator` question whose title includes `agents.manage`; an instance admin grants it in the agent's Settings → Permissions to change itself). A local user-key session is unaffected.
+From a deployed orchestrator (agent key) both the dry run and the deploy need the **`agents.manage`** grant — the route is fenced as a whole, so without it `deploy_system` answers `403 agent_management_not_permitted` even with `dry_run: true` (raise one `ask_operator` question whose title includes `agents.manage`; an instance admin grants it in the agent's Settings → Guardrails → Permissions to change itself). A local user-key session is unaffected.
 
 If Trinity MCP is available, validate before deploying:
 
@@ -135,7 +136,7 @@ Deploying creates/starts real agents and is outward-facing and not trivially rev
 mcp__trinity__deploy_system with the manifest YAML (dry_run: false)
 ```
 
-If a system with this `name` already exists (`mcp__trinity__list_systems`), tell the user and offer: `restart_system` to apply changes (a person's session only — agent keys are refused), deploy under a new name, or cancel. Do not blindly redeploy over a running system.
+If a system with this `name` already exists (`mcp__trinity__list_systems`), tell the user and offer: `restart_system` to apply changes (a person's session only — agent keys are refused), deploy under a new name, or cancel. Do not blindly redeploy over a running system. Under an agent key the list shows only systems inside this key's reach (trinity#3810), so "not listed" does not mean the name is free: an agent name already taken outside reach is not refused: `deploy_system` names each member `<system>-<member>` and, when that is taken, creates `<system>-<member>-2` beside it, saying so in its warnings (`Agent '<system>-<member>' already exists, will create '<system>-<member>-2'`). Read the dry run's warnings for that line — when it appears, stop and ask the operator rather than deploy a renamed member the map does not know.
 
 ### Step 7: Report
 

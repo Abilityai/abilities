@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.7"
+  version: "1.8"
   created: 2026-04-30
   author: Ability.ai
   changelog:
+    - "1.8: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — the guided DigitalOcean installer is fetched from the v1.0.0 tag and no longer asks for a Claude credential (Connect Claude happens at first sign-in, ent#582), so the token step is gone; new Marketplace-image path (DigitalOcean 1-Click, AWS Marketplace AMI with the EC2 instance-ID claim, Vultr) that continues as an existing install; the remote path names AWS; prebuilt-image fast path pins v1.0.0 and notes the bundled PostgreSQL; the ops-agent Anthropic key question no longer claims agents won't run without it"
     - "1.7: Positioning (ADR-0011, ent#803) — the 'what you'll get' line names Trinity as your own self-hosted operating system for the AI-native company replacing the retired pre-ADR-0011 wording; no procedural change"
     - "1.6: Aligned with Trinity v0.9.5 (released 2026-09-17) — the Cloud (ability.ai) path is gone (Trinity is self-hosted; there is no managed hosting offering) and PATH A is now the DigitalOcean guided installer (scripts/deploy/trinity-do-create.sh — run in the user's own terminal, secrets never pass through this session), continuing into the ops-agent scaffold with the Droplet values (root, /opt/trinity, hosted compose, FRONTEND_PORT 8081); first-run wording corrected — after login the Dashboard opens first-run setup (Connect Claude is the one required step; the GitHub token goes in Other keys, later Settings → Integrations); the MCP key lives under Settings → MCP Keys (the tab was never called API Keys); hosted fast path pins TRINITY_IMAGE_TAG=v0.9.5 and the ops agent gets COMPOSE_FILE=docker-compose.hosted.yml so /update pulls instead of building"
     - "1.5: Aligned with Trinity 0.9.5 — no first-run setup screen when ADMIN_PASSWORD is seeded (#2381/#2385: admin exists at first boot, setup endpoint 403s), ADMIN_USERNAME live in prod, start.sh auto-generates CREDENTIAL_ENCRYPTION_KEY/SECRET_KEY/INTERNAL_API_SECRET/AGENT_AUTH_SECRET (ent#435 boot gate), optional prebuilt-image path (start.sh --hosted + TRINITY_IMAGE_TAG, #2280/#2390), MCP reachable at /mcp via nginx (#2475) so only the frontend port needs opening, docker-firewall.sh for public VPS hardening, three published ports (8001 is internal), the non-matching frontend port sed dropped, Path C healthcheck patch removed (same corruption 1.4 removed from Path B), SSH tunnel replaces the never-existing scripts/tunnel.sh, Settings → API Keys naming, 13 ops-agent skills"
@@ -41,16 +42,17 @@ Use AskUserQuestion:
 - **Header:** "Trinity Deployment"
 - **Options:**
   1. **DigitalOcean, guided installer** — Trinity's own one-command installer: a new Droplet behind HTTPS in about ten minutes (~$48/month, billed by DigitalOcean)
-  2. **Self-hosted, remote server** — VPS, GCP, AWS, or any SSH-accessible machine
-  3. **Self-hosted, local Docker** — Docker running on this machine
+  2. **Marketplace image** — DigitalOcean 1-Click, AWS Marketplace AMI or Vultr Marketplace: launch it from your cloud console, claim the admin in the browser, no terminal
+  3. **Self-hosted, remote server** — AWS EC2, GCP, any VPS, or any SSH-accessible machine
+  4. **Self-hosted, local Docker** — Docker running on this machine
 
 ---
 
 ## PATH A: DigitalOcean (guided installer)
 
-Trinity ships its own installer for this (`scripts/deploy/trinity-do-create.sh`, v0.9.5+): it creates a stock Ubuntu Droplet (`s-4vcpu-8gb`, about **$48/month** until the Droplet is deleted), installs Trinity from prebuilt images on first boot, and serves it over HTTPS with a real certificate for the IP address. There is no managed Trinity hosting — this is the least-infrastructure path.
+Trinity ships its own installer for this (`scripts/deploy/trinity-do-create.sh`): it creates a stock Ubuntu Droplet (`s-4vcpu-8gb`, about **$48/month** until the Droplet is deleted), installs Trinity from prebuilt images on first boot, and serves it over HTTPS with a real certificate for the IP address. There is no managed Trinity hosting — this is the least-infrastructure path.
 
-**The installer asks for the admin password and a Claude subscription token in the user's own terminal. Never run it from this session and never ask for either secret here** — the script is built to keep them off the screen and out of shell history.
+**The installer asks for the admin password in the user's own terminal. Never run it from this session and never ask for the password here** — the script is built to keep it off the screen and out of shell history. It does not ask for a Claude credential: the first sign-in opens a setup overlay whose **Connect Claude** step takes a subscription token or an API key.
 
 Display:
 
@@ -60,19 +62,17 @@ Display:
 Run these in your own terminal (on Windows: inside WSL):
 
 1. Install DigitalOcean's CLI (doctl) and authorise it:   doctl auth init
-2. Create a Claude subscription token:                     claude setup-token
-   (an sk-ant-oat01-… value — the installer refuses sk-ant-api03- API keys;
-    add an API key later under Settings → Integrations if you prefer one)
-3. Pick an admin password: 12+ characters with upper/lowercase, a digit and a symbol.
-4. Run the installer — it installs the release it was fetched from:
+2. Pick an admin password: 12+ characters with upper/lowercase, a digit and a symbol.
+3. Run the installer — it installs the release it was fetched from:
 
-   bash <(curl -fsSL https://raw.githubusercontent.com/abilityai/trinity/v0.9.5/scripts/deploy/trinity-do-create.sh)
+   bash <(curl -fsSL https://raw.githubusercontent.com/abilityai/trinity/v1.0.0/scripts/deploy/trinity-do-create.sh)
 
    (newer release? swap the tag — https://github.com/abilityai/trinity/releases)
-   It asks for the password, the token, a region and a Droplet name, shows the cost,
+   It asks for the password, a region and a Droplet name, shows the cost,
    and asks before creating anything. About six minutes end to end.
-5. When it prints "Trinity is ready", open https://<droplet-ip> and sign in as admin.
-   First-run setup opens — "Secure this instance" is the step worth doing now.
+4. When it prints "Trinity is ready", open https://<droplet-ip> and sign in as admin.
+   First-run setup opens: connect Claude (subscription token or API key) there —
+   "Secure this instance" is the other step worth doing now.
 
 Full guide: https://docs.ability.ai/getting-started/deploying/digitalocean
 ```
@@ -89,6 +89,35 @@ Preset the Droplet's values — do not ask for them:
 Then run **STEP B2** for `SSH_HOST` (the Droplet IP) and `SSH_KEY` only — skip the SSH-user question. The installer attached every SSH key already on the DigitalOcean account; if the account had none, SSH will fail — tell the user to add a key through the Droplet's browser **Console** (`~/.ssh/authorized_keys`), since the ops agent works over SSH. Continue with **STEP B3b** (keeping the preset ports), then **STEP 2**.
 
 The backend port is not reachable from outside the Droplet — that is by design; the ops agent calls it on the server over SSH.
+
+---
+
+## PATH M: Marketplace image (DigitalOcean 1-Click / AWS / Vultr)
+
+The image installs itself on first boot: Docker, Caddy with HTTPS for the instance's IP, a host firewall and Trinity from prebuilt images. Nothing runs from this session — the user launches it from their cloud console and claims the admin account in the browser.
+
+Display:
+
+```
+## Marketplace Install
+
+Pick your cloud and follow its guide:
+
+- DigitalOcean 1-Click — https://marketplace.digitalocean.com/apps/trinity
+  (at least 4 GB / 2 vCPU; 8 GB / 4 vCPU for a working fleet)
+- AWS Marketplace AMI — https://aws.amazon.com/marketplace/pp/prodview-q6f3biwa662o2
+  Launch with a public IPv4 and ports 80/443 open. The "Create your admin account"
+  form asks for the EC2 instance ID (Instances → Instance ID, starts with i-),
+  so whoever finds the IP cannot claim it.
+- Vultr Marketplace — see scripts/deploy/vultr-marketplace.md in the Trinity repo
+
+Then open https://<public-ip>, claim the admin account and connect Claude in the
+setup overlay.
+
+Every path side by side: https://github.com/abilityai/trinity/blob/main/docs/user-docs/guides/deploying-trinity.md
+```
+
+When the user confirms Trinity is up, continue as **PATH B → Already running**. These images use the same layout as the guided installer — preset `TRINITY_PATH=/opt/trinity`, `COMPOSE_FILE=docker-compose.hosted.yml`, `FRONTEND_PORT=8081`, `BACKEND_PORT=8000`, `MCP_PORT=8080`, `SCHEDULER_PORT=8001` — and ask only for `SSH_HOST`, `SSH_USER` (`root` on DigitalOcean, the AMI's default user on AWS) and `SSH_KEY`. Without SSH (no key on the account) the instance still works; the ops agent does not — tell the user to add a key through the cloud console first.
 
 ---
 
@@ -220,7 +249,7 @@ If they say "Skip", note that the web UI and MCP server will not be reachable un
 
 #### Run deployment
 
-Inform the user: "Deploying Trinity — first run takes 10-15 minutes to build the base Docker image." (Optional fast path: `TRINITY_IMAGE_TAG=v0.9.5 ./scripts/deploy/start.sh --hosted` pulls prebuilt GHCR images instead of building — pin the tag, `latest` turns the next run into an upgrade; upgrades = re-run `start.sh --hosted`, never `docker compose pull`. If you take it, set `COMPOSE_FILE=docker-compose.hosted.yml` for STEP 3 so the ops agent's `/update` pulls instead of building.)
+Inform the user: "Deploying Trinity — first run takes 10-15 minutes to build the base Docker image." (Optional fast path: `TRINITY_IMAGE_TAG=v1.0.0 ./scripts/deploy/start.sh --hosted` pulls prebuilt GHCR images instead of building — since 1.0 a fresh `--hosted` install runs on the bundled PostgreSQL, and `start.sh` generates `POSTGRES_PASSWORD` and `DATABASE_URL` itself; pin the tag, `latest` turns the next run into an upgrade; upgrades = re-run `start.sh --hosted`, never `docker compose pull`. If you take it, set `COMPOSE_FILE=docker-compose.hosted.yml` for STEP 3 so the ops agent's `/update` pulls instead of building.)
 
 **Step 1: Verify / install Docker**
 ```bash
@@ -375,7 +404,7 @@ Collect:
 - AskUserQuestion (≥2 options): "Trinity admin password" → Option 1: "Enter it now", Option 2: "I'll add it to .env manually" → store as `ADMIN_PASSWORD`
 - AskUserQuestion (≥2 options): "MCP API key (Settings → MCP Keys)" → Option 1: "Paste key now", Option 2: "I'll configure later" → store as `MCP_API_KEY`
 
-Set defaults (unless PATH A preset them): `BACKEND_PORT=8000`, `FRONTEND_PORT=80`, `MCP_PORT=8080`, `SCHEDULER_PORT=8001`. If this instance was installed with `start.sh --hosted` (prebuilt images — including both DigitalOcean paths), set `COMPOSE_FILE=docker-compose.hosted.yml`; on a DigitalOcean Droplet also `TRINITY_PATH=/opt/trinity` and `FRONTEND_PORT=8081`.
+Set defaults (unless PATH A or PATH M preset them): `BACKEND_PORT=8000`, `FRONTEND_PORT=80`, `MCP_PORT=8080`, `SCHEDULER_PORT=8001`. If this instance was installed with `start.sh --hosted` (prebuilt images — including the DigitalOcean installer and every Marketplace image), set `COMPOSE_FILE=docker-compose.hosted.yml`; on a DigitalOcean Droplet also `TRINITY_PATH=/opt/trinity` and `FRONTEND_PORT=8081`.
 
 ---
 
@@ -493,8 +522,8 @@ Use AskUserQuestion to collect:
 - Store as `DEST`
 - If destination already exists, warn and offer to pick a different path
 
-**Anthropic API Key (optional but recommended):**
-- Question: "Anthropic API key for agent containers? (agents won't run without this — get one at console.anthropic.com)"
+**Anthropic API Key (optional):**
+- Question: "Anthropic API key for the ops agent's .env? (optional — the instance's own model credential is set in the browser at first sign-in, under Connect Claude)"
 - Options:
   1. **Paste key now** → collect as `ANTHROPIC_API_KEY`
   2. **I'll add it to .env later** → set `ANTHROPIC_API_KEY=""`
@@ -648,7 +677,7 @@ Agent:    {DEST}
 Credentials are in {DEST}/.env — keep this file secret.
 ```
 
-**DigitalOcean Droplet (PATH A):** print `https://{SSH_HOST}` as the Web UI and `https://{SSH_HOST}/mcp` as the MCP Server instead — Caddy terminates HTTPS on 443, and ports 8081/8000/8080 are closed to the internet by design (omit the Backend and raw-port lines).
+**DigitalOcean Droplet or Marketplace image (PATH A / PATH M):** print `https://{SSH_HOST}` as the Web UI and `https://{SSH_HOST}/mcp` as the MCP Server instead — Caddy terminates HTTPS on 443, and ports 8081/8000/8080 are closed to the internet by design (omit the Backend and raw-port lines).
 
 ---
 

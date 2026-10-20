@@ -7,10 +7,11 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__list_agents, m
 effort: high
 user-invocable: true
 metadata:
-  version: "1.9.1"
+  version: "1.10"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.10: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — a dispatch refused `skill_not_granted` (ent#662: a library-assigned playbook needs a per-skill admin grant; a permission edge covers only what the owner declares itself) is still `$L_BLOCKED`, and the steward comment + digest now name the exact grant for the operator"
     - "1.9.1: Fix — the skill runner replaces every dollar-digit placeholder in a skill body with the invocation's arguments, so a run with arguments (project-init platform <slug>, project-status <slug>, --headless task/intake) broke the §0 resolver and the awk field reads: every config key resolved empty. Shell positionals are now ${1}/${2}, awk fields $(0)/$(2). Found 2026-10-10 by the deployed trinity-pm on the first platform import"
     - "1.9: Platform mode (ent#788, ruling R38): on a Trinity instance with Projects enabled the sweep starts from get_steward_digest, sweeps platform-tracked projects through the platform's task list (verify, reopen, notes, dispatch brief by task id), and for every platform project records health (set_project_health) and one shared-log entry per outcome — a verified deliverable, a new blocker, a hand-off — so members see what the steward did. Priority, reopening, project status and membership stay a person's. Charters gain platform_project by a linking pass. Without Trinity, or without Projects, the sweep is unchanged"
     - "1.8: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — a dispatch answered pending_approval ran nothing (posted as waiting on approval, no tracker entry, never re-sent); refused / inter_agent_depth_exceeded block the task; the tracker entry keeps the receipt's execution_id and a silent dispatch is read with get_execution_result before any re-ping"
@@ -293,7 +294,10 @@ Take exactly one action per project, in this order:
       *informed* agents in the digest. Etiquette only — never a gate, never an extra dispatch.
       The call answering `status: pending_approval` ran nothing (the owner's skill awaits a person's approval):
       post it on the task issue as waiting on approval, add no tracker entry, never re-send. `status: refused`
-      or `inter_agent_depth_exceeded` → `$L_BLOCKED` + steward comment + digest.
+      or `inter_agent_depth_exceeded` → `$L_BLOCKED` + steward comment + digest. A refusal with
+      `code: skill_not_granted` (ent#662 — the owner got that playbook from the skills library; an edge covers
+      only the skills it declares itself) names the exact grant in the comment and the digest's operator
+      section: *grant `<skill>` on `<agent>` to `<this agent>`* — the fix is that admin grant, never a re-send.
    d. Post dispatch receipt on the task issue
    e. Add tracker entry to open_dispatches: {project_slug, task_number, agent, sent_at, execution_id}
       (execution_id from the call's receipt, when it carries one)

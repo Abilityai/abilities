@@ -4,11 +4,12 @@ description: Scaffold a Trinity-compatible long-running pipeline inside any agen
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.9.1"
+  version: "1.10"
   created: 2026-05-23
-  updated: 2026-10-09
+  updated: 2026-10-20
   author: Ability.ai
   changelog:
+    - "1.10: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — installs pipeline-tick 1.6 (a remote stage refused skill_not_granted escalates with the exact per-skill grant, ent#662) and pipeline-recover 1.3 (a pending escalation made moot by the recovery is withdrawn with withdraw_ask, ent#901)"
     - "1.9.1: Fix — the runtime replaces every dollar-digit placeholder in a skill body with the words the skill was invoked with, so dollar-digit text here was rewritten on runs with arguments. Shell positionals are now ${0}/${1}, intended placeholders $ARGUMENTS[0], and prices are written in USD (library validator rule arg-substitution, 2026-10-10)"
     - "1.9: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — bundled pipeline-tick 1.5 (ask title cap 120, dismissed disposition, gate results hold or escalate a remote stage, two-argument get_execution_result) and pipeline-recover 1.2 (dismissed disposition)"
     - "1.8: Platform-truth refresh (Trinity dev 863240f3) — pipeline-tick 1.4 files escalations with ask_operator and reads them back with get_my_ask (ent#611/ent#715; queue file = two-release fallback), chain-depth refusals escalate, never retry (#2806); pipeline-recover 1.1 never calls respond_to_operator_queue (person-only since ent#611)."

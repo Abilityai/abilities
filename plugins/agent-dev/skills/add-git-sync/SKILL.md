@@ -4,10 +4,11 @@ description: Add git-as-state hooks to an agent — auto-commits on Stop, rebase
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 metadata:
-  version: "1.3.1"
+  version: "1.4"
   created: 2026-04-21
   author: Ability.ai
   changelog:
+    - "1.4: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — local-session durability, not a deployment companion. On a deployed agent the platform heartbeat owns commit-and-push (ruling 2026-09-25, trinity-enterprise#708 §1c: one writer, visible in sync health); two writers running `git add -A` on one tree is the race it rules out, so every hook now stands down when the Trinity platform is present (`/opt/trinity/hooks`). `.claude/settings.json` is committable on 1.0 (ent#708 retired the #2036 file-level ignore for a content guard): the .gitignore comment says so, the negation stays for pre-1.0 instances, and the skill warns that a non-empty top-level `env` (or another credential-bearing key) keeps the file out of every platform commit"
     - "1.3.1: Fix — the runtime replaces every dollar-digit placeholder in a skill body with the words the skill was invoked with, so dollar-digit text here was rewritten on runs with arguments. Shell positionals are now ${0}/${1}, intended placeholders $ARGUMENTS[0], and prices are written in USD (library validator rule arg-substitution, 2026-10-10)"
     - "1.3: .gitignore rationale corrected — the platform no longer bakes ~/.claude/settings.json (guardrail registration moved to root-owned /etc/claude-code/managed-settings.json, ent#345); the ignore rule stays because a committed copy with container-only hook paths bricks outside clones"
     - "1.2: The .gitignore block now carries `.claude/settings.json` + `!.claude/settings.json` (plain rule first, negation last). Trinity#2036 ignores that file fleet-wide and untracks a committed copy on every Push — and it is exactly where this skill registers its hooks, so on a deployed agent the entire setup silently ceased to exist. First-run checklist now stages the hook files explicitly and verifies with git check-ignore"
@@ -27,9 +28,9 @@ Installs three hooks that turn the agent's own repo into its durable state layer
 | `git-pre-compact.sh` | `PreCompact` | Fast local commit so in-flight work survives context compaction. No push. |
 | `git-sync.sh` | `Stop` (async) | `git add -A` → commit → push with rebase-on-reject retry. Drops `.git/SYNC_FAILED` if it can't reconcile; SessionStart surfaces the note next run. |
 
-**Who this is for:** any agent whose directory is its own git repo and benefits from cross-session continuity (Trinity-deployed agents, autonomous workers, long-running research agents). Not appropriate for agents nested inside a larger monorepo.
+**Who this is for:** any agent whose directory is its own git repo and is worked on in **local** Claude Code sessions that should leave the repo committed and pushed — authoring an agent before it is deployed, long-running local research agents. Not appropriate for agents nested inside a larger monorepo.
 
-**Why this pairs with deployment:** Trinity deploys an agent by **cloning its GitHub repo** and tracking the branch, so the remote agent's state is whatever the branch tip holds. These hooks keep that tip honest — work is committed and pushed at session end instead of lingering uncommitted, so a `git_pull` (or `/trinity:sync`) actually carries the agent forward. Install this before deploying, not after the first surprise.
+**Where it fits with Trinity:** Trinity deploys an agent by **cloning its GitHub repo**, so the deployed agent starts from whatever the branch tip holds. Locally, these hooks keep that tip honest — work is committed and pushed at session end instead of lingering uncommitted, so the deployed copy's own pull (or `/trinity:sync`) carries it forward. **Inside a deployed agent the hooks stand down:** the platform heartbeat owns commit-and-push there (one writer, visible in sync health — trinity-enterprise#708), and the hooks exit as soon as they see the platform (`/opt/trinity/hooks`). Committing them to the repo is harmless; they simply stay silent on Trinity.
 
 **Escape hatches baked in:**
 - `touch .git/NO_AUTOSYNC` — disables all three hooks
@@ -173,16 +174,13 @@ Add only entries not already present. Block-wrap with a header so it's clear wha
 
 ```
 # --- agent-dev:add-git-sync runtime exclusions ---
-# Trinity (#2036) ignores .claude/settings.json fleet-wide and `git rm --cached`s
-# an already-committed copy on the next Push, because a legacy/agent-authored copy can
-# register absolute container-only hook paths that brick outside clones (platform
-# guardrails now live in root-owned /etc/claude-code/managed-settings.json, ent#345)
-# and HOME is the repo root. THIS SKILL registers its hooks in
-# that file — so on a Trinity-deployed agent the registration would be untracked and
-# the whole setup would silently stop existing. Emit BOTH lines, plain rule FIRST:
-# the plain line satisfies Trinity's exact-line `grep -qxF` gate so it stops appending
-# its own copy at the end of the file, and the negation comes last so git's
-# last-match-wins re-includes the file.
+# .claude/settings.json is committable on Trinity 1.0 (ent#708): the platform no
+# longer ignores the file, it refuses only one CONTENT in every commit it makes —
+# hook commands under /opt/trinity/ and credential-bearing keys (a non-empty
+# top-level `env`, apiKeyHelper, …). Pre-1.0 instances (#2036) still ignore and
+# untrack the file, so emit BOTH lines, plain rule FIRST — it satisfies the old
+# exact-line `grep -qxF` gate — and the negation last, so git's last-match-wins
+# re-includes the file everywhere.
 .claude/settings.json
 !.claude/settings.json
 .claude/projects/
@@ -204,6 +202,8 @@ credentials.json
 ```
 
 Before appending, grep each line against the existing `.gitignore` and skip duplicates. If the entire block header is already present, skip the section entirely.
+
+**Keep credentials out of `.claude/settings.json`.** On Trinity, `HOME` is the repo root, so this file is also Claude Code's *user* settings, and the platform refuses to commit it while it carries a non-empty top-level `env` or another credential-bearing key (`apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`, `gcpAuthRefresh`, `otelHeadersHelper`). Hooks commit fine. If the merged file has an `env` block, say so: secrets belong in `.env`, never here.
 
 ### Step 6: Add a section to the agent's `CLAUDE.md`
 
@@ -228,6 +228,8 @@ Three hooks manage git sync for this agent. Defined in `.claude/settings.json`, 
 - `.git/SYNC_FAILED` — written when push can't reconcile; surfaced in next SessionStart
 
 **Design principle:** hooks enforce session-boundary consistency. Inside a session the agent is free; at boundaries (start / compact / stop) the repo reconciles.
+
+**On Trinity the hooks stand down** — the platform heartbeat owns commit-and-push for a deployed agent (one writer); the hooks exit when they see `/opt/trinity/hooks`.
 ```
 
 Substitute `<REMOTE>` and `<BRANCH>` (or drop the SessionStart row entirely in local-only mode).
