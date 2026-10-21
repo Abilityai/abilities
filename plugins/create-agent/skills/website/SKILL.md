@@ -4,13 +4,14 @@ description: Scaffold a complete, self-contained Next.js 15 website with Tailwin
 disable-model-invocation: false
 user-invocable: true
 argument-hint: "[project-name or description]"
-allowed-tools: Read, Write, Edit, Bash, Bash(gh *), Bash(vercel *), Glob, Grep, AskUserQuestion, mcp__vercel__deploy_to_vercel, mcp__vercel__list_teams, mcp__vercel__list_projects, mcp__vercel__get_project, mcp__vercel__list_deployments, mcp__vercel__get_deployment, mcp__vercel__get_deployment_build_logs
+allowed-tools: Read, Write, Edit, Bash, Bash(gh *), Bash(vercel *), Bash(npx *), Glob, Grep, AskUserQuestion, mcp__trinity__ask_operator, mcp__trinity__get_my_ask, mcp__trinity__withdraw_ask, mcp__vercel__deploy_to_vercel, mcp__vercel__list_teams, mcp__vercel__list_projects, mcp__vercel__get_project, mcp__vercel__list_deployments, mcp__vercel__get_deployment, mcp__vercel__get_deployment_build_logs
 metadata:
-  version: "1.3"
+  version: "1.4"
   created: 2026-03-25
-  updated: 2026-07-29
+  updated: 2026-10-21
   author: Ability.ai
   changelog:
+    - "1.4: Headless mode — the wizard now runs inside a deployed Trinity agent (no interactive question tool): the brief carries every answer, decorative choices take defaults, real gaps go out as ONE ask_operator (resumed from ~/sites/<project>.pending.md), sites build under ~/sites/<project> (created if missing). Token-based delivery replaces interactive logins — GitHub via GITHUB_TOKEN or the platform git credential (REST fallback when gh is absent), repo-local credential helper reading the token from env at push time + GIT_TERMINAL_PROMPT=0 (never hangs, never writes the token), Vercel via VERCEL_TOKEN (npx vercel, no probe, no global install, no vercel login); a missing key is reported and skips to the summary, never prompted for; interactive-only blocks marked. Redeploy-on-edit loop documented so the agent keeps running the site after the first build"
     - "1.3: Field-tested Studio upgrades — repeating item groups + toggles, verbatim-section guard (banner, flagged commits, optional webhook), per-section live links, and a multilingual variant (per-language content with per-key fallback, [lang] editors)"
     - "1.2: JSON-backed content layer + optional zero-dependency Studio CMS (/studio) for self-service editing"
     - "1.1: Prefer Vercel CLI for deployment; fall back to Vercel MCP, then to manual"
@@ -23,6 +24,21 @@ metadata:
 Scaffold a complete, production-ready Next.js 15 website deployable to Vercel.
 
 > For tech stack details and component patterns, see [reference.md](./reference.md).
+
+---
+
+## HEADLESS MODE (read first)
+
+You are **headless** when the `AskUserQuestion` tool is not available — typically when this wizard runs inside a deployed Trinity agent (a website-builder agent) rather than a person's Claude Code session. Interactive sessions ignore this section entirely.
+
+In headless mode every `AskUserQuestion` below is replaced by these rules:
+
+1. **The brief is the answer.** Take project name, what the site is, pages, brand name, tagline, colour, languages and design direction from the argument. Defaults: project name = the brand name in lowercase-with-hyphens; pages = Home + About + Contact; destination = `~/sites` (each site is its own git repo there, never inside the agent's own repo); design direction = the preset the brief's wording best matches (dark/bold → Bold Dark, friendly/warm/local business → Warm Professional, else Minimal Clean); Studio = **yes** only if the brief says the owner wants to edit the site themselves, else no; GitHub repo = **private**, created; deploy = **yes**.
+2. **Decorative choices take the default silently** — section order, copy tone, icons, fonts. Write real, specific copy from the brief; never lorem ipsum.
+3. **Real gaps go out as ONE ask, never as guesses.** A real gap is something the site cannot be honest without and the brief does not say — usually only the brand name or what the business actually does. Prices, addresses, phone numbers, team names are **never invented**: leave the section out or mark it `TBD` in the content JSON and list it in the summary. If there is a real gap, raise a single `mcp__trinity__ask_operator` — `request_id: "create-website:[project-name]:gaps"`, `type: "question"`, `title: "[Brand] website — N details needed before I build it"` (≤120 chars), `question`: the numbered gaps, each with the default you would use. Write `~/sites/[project-name].pending.md` (the brief + the request_id + the gap list), say you are waiting on the ask, and **end the turn**. On the next invocation for the same site (the argument names it, or says `resume`; or exactly one `~/sites/*.pending.md` exists and the argument reads as an answer), read the pending file and `mcp__trinity__get_my_ask(request_id)`: answered → merge and continue from Step 3; cancelled or dismissed → stop and say so; expired → continue on the stated defaults and list them as assumptions in the summary; still pending and the new brief answers it → `mcp__trinity__withdraw_ask(request_id, reason)` then continue; still pending with nothing new → end the turn. No `mcp__trinity__ask_operator` tool (not on Trinity) → build on the defaults and list them as assumptions.
+4. **No interactive login, ever.** `gh auth login` and `vercel login` open a browser and cannot work in a container. Use the keys the agent already holds — GitHub: `GITHUB_TOKEN` in the environment, else the platform git credential (Step 15); Vercel: `VERCEL_TOKEN` (Step 17a). A missing key is not a reason to stop building: finish the site, commit it, do every step the held keys allow, then say in the summary exactly which key is missing and that a person adds it in the agent's settings as a credential (`VERCEL_TOKEN` from vercel.com/account/tokens; a GitHub fine-grained token with Contents + Administration read/write). Never ask for a token in chat.
+5. **Use `npx --yes vercel@latest`** wherever the steps below say `vercel` — the container may not allow a global npm install.
+6. **Editing an existing site.** If `~/sites/[project-name]` already exists, this is an edit, not a new build: change the content JSON (or the component, for a layout change), `npm run build`, commit, push, redeploy (Step 17a), and report the live URL. Never re-scaffold over it.
 
 ---
 
@@ -63,7 +79,7 @@ Map the choice to CSS variable values in Step 4.
 ### Step 3: Initialize Project
 
 ```bash
-cd $DESTINATION
+mkdir -p $DESTINATION && cd $DESTINATION
 npx create-next-app@latest $PROJECT_NAME \
   --typescript \
   --tailwind \
@@ -373,6 +389,35 @@ git add -A
 git commit -m "Initial scaffold: Next.js 15 + Tailwind + TypeScript website"
 ```
 
+**Headless:** skip the questions below — create a **private** repo and push. Resolve a token without any login:
+
+```bash
+TOKEN="${GITHUB_TOKEN:-}"
+[ -z "$TOKEN" ] && TOKEN=$(printf 'protocol=https\nhost=github.com\n\n' | GIT_TERMINAL_PROMPT=0 git credential fill 2>/dev/null | sed -n 's/^password=//p')
+```
+
+Create the repo through the REST API (works with or without `gh`), point git at the token, then push:
+
+```bash
+OWNER=$(curl -fsS -H "Authorization: Bearer $TOKEN" https://api.github.com/user | python3 -c 'import sys,json;print(json.load(sys.stdin)["login"])')
+curl -fsS -H "Authorization: Bearer $TOKEN" https://api.github.com/user/repos \
+  -d "{\"name\":\"$PROJECT_NAME\",\"private\":true}" >/dev/null
+git remote add origin "https://github.com/$OWNER/$PROJECT_NAME.git"
+# Repo-local helper: reads the token from the environment at push time — the literal
+# token is never written to .git/config or the remote URL. GIT_TERMINAL_PROMPT=0 makes
+# a bad token fail fast instead of waiting forever for a password nobody can type.
+export SITE_GIT_TOKEN="$TOKEN"
+git config --local credential.helper ''
+git config --local --add credential.helper '!f() { echo username=x-access-token; echo "password=$SITE_GIT_TOKEN"; }; f'
+git branch -M main && GIT_TERMINAL_PROMPT=0 git push -u origin main
+```
+
+Every later push from this site (Headless rule 6) runs with `SITE_GIT_TOKEN` exported the same way and `GIT_TERMINAL_PROMPT=0`.
+- Name taken (HTTP 422) → append `-site`, then `-2`, and say so in the summary.
+- No token at all → keep the local commit, skip to Step 16, and report the missing GitHub key (Headless rule 4).
+
+Headless ends Step 15 here — continue at Step 16. **Everything below in this step is interactive mode only.**
+
 Check if `gh` is available:
 
 ```bash
@@ -421,6 +466,8 @@ This creates the repo, sets the remote, and pushes in one command.
 
 ### Step 16: Pick Deployment Method
 
+**Headless:** skip this step — do not probe `vercel --version` or the Vercel MCP. Go straight to Step 17a's headless path (`npx`, `VERCEL_TOKEN`).
+
 **Prefer the Vercel CLI** — it deploys directly from the local project without needing the GitHub→Vercel webhook to fire, gives immediate URLs, and works without any MCP setup. Fall back to the Vercel MCP only if the CLI is unavailable and the user doesn't want to install it.
 
 Probe both options in parallel:
@@ -452,13 +499,27 @@ Decision tree:
 
    Or deploy via the dashboard:
        1. Go to vercel.com/new
-       2. Import the GitHub repo: $GITHUB_REPO_URL
+       2. Import the GitHub repo: [the repo URL from Step 15]
        3. Click Deploy
    ```
 
    Skip to Step 20 (Summary).
 
 ### Step 17a: Deploy via Vercel CLI (preferred)
+
+**Headless:** no question, no `whoami`, no login. If `VERCEL_TOKEN` is set, deploy with it (add `--scope "$VERCEL_SCOPE"` when that variable is set, for a team account):
+
+```bash
+npx --yes vercel@latest --prod --yes --token "$VERCEL_TOKEN"
+```
+
+Then try to connect the GitHub repo so pushes (and Studio's Publish) redeploy on their own:
+
+```bash
+npx --yes vercel@latest git connect --yes --token "$VERCEL_TOKEN" 2>&1 || true
+```
+
+That needs Vercel's GitHub app on the repo owner's account; if it fails, the site still works — every later edit redeploys with the first command (Headless rule 6), and the summary says auto-deploy on push is not connected. No `VERCEL_TOKEN` → skip deployment, **skip to Step 20**, and report the missing key there (Headless rule 4). With a token, continue at Step 18.
 
 Use AskUserQuestion:
 - **Question:** "Deploy to Vercel now via the CLI?"
@@ -543,7 +604,7 @@ Display the live URL to the user.
 
 ### Step 20: Present Summary
 
-Display:
+Display (headless: this is the turn's final answer — lead with the live URL, then list every assumption taken from a default and every `TBD` left in the content):
 
 ```
 ## Website Created
@@ -638,6 +699,10 @@ Display:
 | Studio: "page changed since you opened it" (409) | Optimistic-concurrency guard — the file changed since load. Reload the editor and re-apply the edit |
 | Studio: Publish succeeds but site never updates | Committer-email gotcha — `STUDIO_COMMIT_EMAIL` maps to an account the host won't deploy from, so the host blocked the deploy. Use the repo owner's GitHub noreply email |
 | Studio: public Header/Footer show on `/studio` | Add the `usePathname` guard (`if (pathname?.startsWith("/studio")) return null;`) to `header.tsx`/`footer.tsx` |
+| Headless: no GitHub token | Commit locally, skip the repo, finish; summary names the missing key and where a person adds it (agent settings → credentials). Never ask for a token in chat |
+| Headless: no `VERCEL_TOKEN` | Build + push, skip deploy; summary names the missing `VERCEL_TOKEN` (vercel.com/account/tokens) |
+| Headless: `npm i -g` refused | Use `npx --yes vercel@latest …` — no global install needed |
+| Headless: `vercel git connect` fails | Not fatal — redeploy with `npx --yes vercel@latest --prod --yes --token "$VERCEL_TOKEN"` after each edit; say auto-deploy on push is off |
 | Multilingual: translated page shows canonical-language text | By design — blank translation fields fall back per key. Fill the field in that language's Studio editor; never machine-fill it |
 
 ---
