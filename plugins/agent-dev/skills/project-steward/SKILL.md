@@ -1,16 +1,17 @@
 ---
 name: project-steward
-description: Autonomous sweep of all managed projects per the project standard (PROJECT_STANDARD.md at the repo root, or fleet/project-standard.md on an orchestrator — its §0 block configures registry, label vocabulary, state directory and fleet hooks) — external projects tracked in GitHub Issues and internal projects tracked in their own workspace files (standard §16), with the same policy for both. Verifies pending-verification claims against Definition of Done, dispatches next work to explicitly-labeled owner agents (Trinity when available; triage-only when not), escalates stalls per the staleness policy, sweeps open loops (ages every waiting-on item and drafts the operator's follow-ups), runs the quarantine classification pass, and writes a digest that closes the loop with the operator. Never asks a human anything mid-run.
+description: Autonomous sweep of all managed projects per the project standard (PROJECT_STANDARD.md at the repo root, or fleet/project-standard.md on an orchestrator — its §0 block configures registry, label vocabulary, state directory and fleet hooks) — external projects tracked in GitHub Issues and internal projects tracked in their own workspace files (standard §16), with the same policy for both. Verifies pending-verification claims against Definition of Done, dispatches next work to explicitly-labeled owner agents that passed the participation check (Trinity when available; triage-only when not), reads each project's build-chain ledgers and owns the record for the engineering issues they run (status, stalls, parked questions — never dispatching into a chain), escalates stalls per the staleness policy, sweeps open loops (ages every waiting-on item and the chain's own asks, drafts the operator's follow-ups), writes the two-half evening brief once a day, runs the quarantine classification pass, and writes a digest that closes the loop with the operator. Never asks a human anything mid-run.
 automation: autonomous
 schedule: "0 7-19/2 * * 1-5"   # default: every 2h, weekdays UTC — adjust, or delete this line for manual-only (the installer substitutes your choice)
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__list_agents, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result, mcp__trinity__get_chat_history, mcp__trinity__send_notification, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__list_project_tasks, mcp__trinity__get_project_log, mcp__trinity__update_project_task, mcp__trinity__add_project_task_note, mcp__trinity__add_project_log_entry, mcp__trinity__get_steward_digest, mcp__trinity__set_project_health
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__list_agents, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result, mcp__trinity__get_chat_history, mcp__trinity__send_notification, mcp__trinity__list_reports, mcp__trinity__get_report, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__list_project_tasks, mcp__trinity__get_project_log, mcp__trinity__update_project_task, mcp__trinity__add_project_task_note, mcp__trinity__add_project_log_entry, mcp__trinity__get_steward_digest, mcp__trinity__set_project_health
 effort: high
 user-invocable: true
 metadata:
-  version: "1.10"
+  version: "1.11"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.11: Project standard rev 2 (from a 2026-11 multi-agent project retrospective). The steward owns every project's record and reads the chain (§18, §24.3, ruling R-a): for each chain folder a charter lists under `chains:` (or the epic's `## Engineering issues` names) it reads the committed `ledger-entry.yaml` mirror and the run-log tail — or the latest `trinity_pm.build_chain` report when the folder is not visible — writes the engineering issues' step/PR/validation into the epic's Current status, posts one platform log entry per new outcome, treats a run parked at needs-operator as the project's own ask, flags a dispatch queued past `chain.stall_minutes` as a stall, reports container-only state (§22.7) and never dispatches into the chain. Participation gate (§20, `participation_check`): an owner missing from the epic's `## Participation` table or carrying a FAIL row receives no dispatch. Two-half evening brief (§23.2, ruling D3, `brief.evening_utc`): once a day the digest opens with every open decision + the default the night will run, and every access the night's work needs. The chain's parked questions and open by-hand setup rows age as loops (§23.5). §0 keys read: chain.ledger, chain.stall_minutes, brief.evening_utc, participation_check"
     - "1.10: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — a dispatch refused `skill_not_granted` (ent#662: a library-assigned playbook needs a per-skill admin grant; a permission edge covers only what the owner declares itself) is still `$L_BLOCKED`, and the steward comment + digest now name the exact grant for the operator"
     - "1.9.1: Fix — the skill runner replaces every dollar-digit placeholder in a skill body with the invocation's arguments, so a run with arguments (project-init platform <slug>, project-status <slug>, --headless task/intake) broke the §0 resolver and the awk field reads: every config key resolved empty. Shell positionals are now ${1}/${2}, awk fields $(0)/$(2). Found 2026-10-10 by the deployed trinity-pm on the first platform import"
     - "1.9: Platform mode (ent#788, ruling R38): on a Trinity instance with Projects enabled the sweep starts from get_steward_digest, sweeps platform-tracked projects through the platform's task list (verify, reopen, notes, dispatch brief by task id), and for every platform project records health (set_project_health) and one shared-log entry per outcome — a verified deliverable, a new blocker, a hand-off — so members see what the steward did. Priority, reopening, project status and membership stay a person's. Charters gain platform_project by a linking pass. Without Trinity, or without Projects, the sweep is unchanged"
@@ -33,10 +34,11 @@ metadata:
 
 Keep every managed project moving without the operator having to push it. Each run:
 1. Reconcile outstanding dispatches (read agent replies, post relay comments, verify done claims)
-2. Review every open project epic: verify pending-verification tasks, dispatch next work, escalate stalls
-3. Sweep open loops (Invariant 7): age every `waiting-on:*` task, draft the operator's nudges, keep unanswered asks alive
-4. Run the quarantine pass: auto-stub unregistered workspace folders
-5. Write the digest (material runs only), opening with what the operator now knows and what is waiting on them
+2. Review every open project epic: verify pending-verification tasks, dispatch next work to admitted owners (standard §20), escalate stalls
+3. Read each project's build chains (standard §18, §24.3): the engineering issues a project runs through `/build-chain` are the steward's to *record* — step, PR, validation, stalls, parked questions — never its to dispatch
+4. Sweep open loops (Invariant 7): age every `waiting-on:*` task and the chain's own asks (§23.5), draft the operator's nudges, keep unanswered asks alive
+5. Run the quarantine pass: auto-stub unregistered workspace folders
+6. Write the digest (material runs only), opening with what the operator now knows and what is waiting on them — and, once a day at `brief.evening_utc`, the two-half evening brief (§23.2): the decisions with the defaults the night will run, and the access the night's work needs
 
 **This skill never asks a human anything mid-run.** Anything ambiguous gets `$L_NEEDS_OPERATOR` and moves on. It is the sole writer of steward update comments on GitHub issues.
 
@@ -65,6 +67,9 @@ L_BLOCKED=$(cfg labels.blocked "status:blocked"); L_NEEDS_OPERATOR=$(cfg labels.
 L_PAUSED=$(cfg labels.paused "status:paused"); L_PENDING=$(cfg labels.pending_verification "status:pending-verification")
 L_DONE=$(cfg labels.done "status:done"); L_UNCLASSIFIED=$(cfg labels.unclassified "status:unclassified")
 L_EPIC_EXTRA=$(cfg labels.epic_extra ""); FLEET_MAP=$(cfg fleet.system_map ""); FLEET_NARRATIVE=$(cfg fleet.orchestration "")
+# rev 2 keys (standard 2.0, §18–§24) — absent in an older standard, so every default below is the pre-rev-2 behaviour except the brief and the chain read, which are additive
+CHAIN_LEDGER=$(cfg chain.ledger run-log.md); CHAIN_STALL_MIN=$(cfg chain.stall_minutes 30)
+BRIEF_UTC=$(cfg brief.evening_utc "18:00"); PARTICIPATION_CHECK=$(cfg participation_check on)
 ```
 
 Labels are referred to by **role** from here on — `$L_NEEDS_OPERATOR` is the needs-operator label whatever the deployment names it, `$L_LIVE` is the comma-separated set that means "being worked" (split it with `tr ',' ' '`), `status:*` / `priority:*` mean the configured status / priority labels. An empty role turns its feature off (§0).
@@ -74,6 +79,7 @@ Labels are referred to by **role** from here on — `$L_NEEDS_OPERATOR` is the n
 - `$AGENT_NAME` — tasks labeled `agent:$AGENT_NAME` are inline-class, never dispatched (a chat dispatch to yourself would loop).
 - **Fleet hooks** (only when §0 sets them): `$FLEET_MAP` is the system map that turns an `agent:<name>` label into the live callable name (`deployed_name`, else the last segment of `ref:`; an owner absent from the map is unresolvable → `$L_NEEDS_OPERATOR`); `$FLEET_NARRATIVE` is the orchestration narrative whose §5 edges gate every dispatch and whose §3b ownership matrix supplies consulted / informed etiquette. Unset = call owners by their logical name, no edge check, no etiquette — the stand-alone behaviour.
 - **Workspaces may be invisible to this run** (gitignored `project_files/` on a Trinity container): then the epic body is the authoritative context, workspace reads are skipped without complaint, and an inline task's output is written to `$STATE_DIR/outputs/<slug>/` (tracked, pushed with the state) with the task comment saying so — a local run can land it in the workspace later.
+- **Rev 2 keys** (standard 2.0): `$CHAIN_LEDGER` is the run-log file name inside each chain folder the steward reads (**Chain reading**, below); `$CHAIN_STALL_MIN` is the queued age past which a chain dispatch is a stall; `$BRIEF_UTC` is the hour of the daily evening brief (empty = no brief); `$PARTICIPATION_CHECK` gates dispatch on the epic's `## Participation` table (`off` = dispatch as before). A pre-rev-2 standard has none of these keys: the defaults make the chain read and the brief additive and leave dispatch unchanged.
 - **Workspace resolver (§15)** — per project, from the epic body, never from the slug:
   ```bash
   WS_SECTION=$(printf '%s' "$EPIC_BODY" | awk '/^## Workspace/{f=1;next} f&&/^## /{exit} f{print}')
@@ -138,6 +144,8 @@ Most runs will find nothing to do. Before writing anything, compute whether ANY 
 - A `$L_NEEDS_OPERATOR` ask that has now gone unanswered across two digests
 - Unclassified workspace folders not yet stubbed
 - Platform mode: the steward digest shows a task awaiting verification, a task blocked or waiting on a decision, a stale task, or a health update due
+- A chain changed since the last sweep (**Chain reading**): a step closed, a PR opened or validated, a run newly parked at needs-operator, a new stall, or new container-only state — compared against `state.json.chain_seen`
+- The evening brief is due: `$BRIEF_UTC` is set, the current UTC time is at or past it, and `state.json.last_brief_date` is not today
 
 **If none: stop.** Update `last_run` in `$STATE_DIR/state.json` only — do NOT commit, do NOT write a digest, do NOT notify, do NOT post any comment. Quiet runs leave no trace.
 
@@ -153,7 +161,7 @@ Most runs will find nothing to do. Before writing anything, compute whether ANY 
 
 1. Sync: `git pull --rebase --autostash origin main` (continue on failure; note it in the digest).
 2. Read the standard (resolving runtime variables as above).
-3. Read `$STATE_DIR/state.json` (create with empty defaults if missing: `{"last_run": null, "carry_over": [], "open_dispatches": [], "open_loops": []}`). Each `open_loops` entry is `{issue, actor, asked_at, last_nudge, digests_carried}` — bookkeeping only; the `waiting-on:*` labels on GitHub are the truth, so a lost state file costs nudge timing, never a loop.
+3. Read `$STATE_DIR/state.json` (create with empty defaults if missing: `{"last_run": null, "carry_over": [], "open_dispatches": [], "open_loops": [], "chain_seen": {}, "last_brief_date": null}`). Each `open_loops` entry is `{issue, actor, asked_at, last_nudge, digests_carried}` — bookkeeping only; the `waiting-on:*` labels on GitHub are the truth, so a lost state file costs nudge timing, never a loop. `chain_seen` is `{<chain folder>: {issues: {<ref>: {step, pr, validation}}, stalls: [...], parked: <question or null>, status}}` — the last chain state this steward recorded, so a sweep knows what is *new*; a lost file costs one repeated outcome entry, never a missed one.
 4. Pull the registry — both modes:
    ```bash
    [ "$REGISTRY" != none ] && gh issue list --repo "$REGISTRY" --label project --state open \
@@ -161,6 +169,7 @@ Most runs will find nothing to do. Before writing anything, compute whether ANY 
    ```
    Internal projects are the charters the standard's §16 finder returns (`charters`) whose `mode_of` is internal and whose `status:` is not `done` — under the top-level canon `projects/` zone, only those whose `owner:` is this agent. For canon-placed ones, `git -C "$CANON" pull --ff-only` first (on failure, read the local copy and say so in the digest).
 5. Check Trinity MCP availability, then platform mode (Prerequisites). When on: `mcp__trinity__get_steward_digest`, and note which reviewed projects are linked or platform-tracked (**Platform projects**, below).
+6. Read each project's build chains (**Chain reading**, below) — the chain folders the charter envelope lists under `chains:`, or the epic's `## Engineering issues` section names. A project with neither has no chain and nothing changes.
 
 ### Internal projects — the same steps, file operations instead of `gh`
 
@@ -214,6 +223,26 @@ Only in platform mode (detected in Prerequisites). Start with `mcp__trinity__get
 
 **Linking pass (cheap, every material run):** an external charter this agent can write that has no `platform_project:` line, while `list_projects` shows a project whose tracker link is its epic URL, gets the line written (agent level: committed with the state push; canon: `/canon-publish`). That is how a project a person created or imported in the Workspace becomes linked. An **internal** charter is never switched by this pass — a name is too weak a match: when `list_projects` shows a project with no tracker link whose name is the charter's project name, leave the charter alone, sweep the project from its folder this run, and put one line in **Needs operator**: *"<slug> looks imported to the platform as <id> — run `/project-init platform <slug>` to confirm, or tell me they are different projects."* Until that is answered the folder stays the registry.
 
+### Chain reading — the engineering issues a project runs through `/build-chain` (standard §18, §24.3)
+
+**The steward owns every project's record; a build chain is the project's engineering executor, never a project of its own** (ruling R-a). The chain has its own machine (`/build-chain`: plan → rulings → implement → review → fix → PR → validate, one ledger per run) and the steward **never dispatches into it**: an issue the epic lists under `## Engineering issues` is skipped by Step 3b/Step 4 even when it carries an `agent:*` label — the chain dispatches it. What the steward does is read the chain's state and keep the record people see current.
+
+**Where the chain's state is.** Each chain folder (`project_files/chain-<id>/` by convention; the charter envelope's `chains:` list or the epic's `## Engineering issues` section names them, the steward never derives them from the slug) holds:
+- `ledger-entry.yaml` — the committed mirror of the build-chain ledger: `status` (`pending | needs-operator | paused | done`), `project`, `issues[]` with `ref`, `step`, `branch`, `tip`, `pr`, `validation {decision, post_merge}`, `depends_on`, `executions[]` with `step`, `id`, `queued_at`, `started_at`, `closed`, `rider_bytes`, and `dispatch_health[]` (the stalls the chain itself recorded);
+- `$CHAIN_LEDGER` (`run-log.md`) — the dated narrative; its newest entries carry a parked question (`needs-operator: <question>`), container-state lines (`ahead > 0`, `dirty tree`), rulings and lessons.
+
+Read the mirror whole (it is small) and the run-log's last ~60 lines. **When the folder is not visible to this run** (gitignored `project_files/` on a container), read the chain's latest `trinity_pm.build_chain` report instead — `mcp__trinity__list_reports` filtered to that `report_type`, then `mcp__trinity__get_report`: its rows carry issue, step, branch, tip, PR, verdict, cost, rider KB and stalls — and say in the digest that the chain was read from its report (a parked question is then only in the report's title or notes; if absent, the digest says "parked, question not readable here").
+
+**What the steward writes from it** (per project, per material run):
+1. **The epic's `## Current status`** (in the steward update, §7): one line per engineering issue — `<ref>: <step>, PR <#n or —>, validation <APPROVE | REQUEST CHANGES | — >` — then one line for the run (`chain <id>: <status>, cost $<n>`), stalls (`<ref> <step> queued <m> min`), and any container-only state the ledger or run-log reports (`<ref>: ahead <n> / dirty tree — not pushed`, standard §22.7). For a platform project this is also the `set_project_health` note's second line.
+2. **One platform log entry per *new* outcome** (platform mode, linked or platform-tracked project, `mcp__trinity__add_project_log_entry`): a PR opened → `deliverable` (ref, PR link); a validation decided → `deliverable` (APPROVE) or `blocker` (REQUEST CHANGES, round n); a run parked at `needs-operator` → `blocker` with the question verbatim; a new stall → `blocker` (`<ref> queued <m> min on <agent>`). *New* means absent from `state.json.chain_seen` for that chain; the chain itself posts its §7 receipts and closures on the issues and its own per-wake log entries when it runs with `--project`, so the steward never duplicates those — it logs the outcomes it is the first to record, and when the chain already logged the same outcome (same ref + same event in the project log since the last sweep) it skips it.
+3. **A parked run is the project's ask.** A chain `status: needs-operator` (its question in the run-log) is treated exactly like a task carrying `$L_NEEDS_OPERATOR`: it enters the digest's **Needs operator** section with the question and its age (from the run-log entry's timestamp), is promoted after two digests, and is never retired. The steward does **not** label the engineering issue — the chain's ledger is its state — but it does label the **epic** `$L_NEEDS_OPERATOR` when no other needs-operator item already holds it, and removes that label when the run resumes.
+4. **Stalls.** Any execution in the mirror with `queued_at` older than `$CHAIN_STALL_MIN` minutes and no `started_at` (or a `dispatch_health` entry not yet seen) is a stall line in the digest's **Stalls** section — `<chain> <ref> <step>: queued <m> min on <agent>` — and makes the run material. A stall is reported, never acted on: the steward re-sends nothing into a chain.
+5. **Container-only state is a finding** (§22.7): `ahead > 0` or a dirty-tree line for any branch in the ledger or the run-log's newest entries goes into the status line above and the digest's **Blocked** section as `<ref>: work only in the engineer's container (ahead <n>)` — the chain's next wake pushes it; the steward records that it is not yet on GitHub.
+6. **Material-run rule.** A chain step closed, a PR opened or validated, a run newly parked, a new stall, or new container-only state since `chain_seen` makes the run material (digest written, Current status posted); a chain that has not moved is silence, exactly like a quiet project. After writing, `chain_seen[<chain>]` is set to the state just recorded.
+
+**Cadence.** While a project has a chain run with `status: pending` and an open execution, the steward's sweep is what reads it between the chain's own wakes — the scheduled cadence (every 2 h) is enough, because the chain writes its own ledger on every wake and the steward only has to notice. A chain whose folder and report are both unreadable is named once in **Carry-over + mode** and skipped.
+
 ### Step 2: Reconcile outstanding dispatches
 
 For each entry in `open_dispatches` (skip in triage-only mode):
@@ -249,7 +278,9 @@ Build the review list: `carry_over` first, then `${L_PRIORITY}p1`, then least-re
 
 Classify the project's next actionable task:
 
-- **auto-dispatch**: has `agent:<fleet-agent>` label (not `agent:$AGENT_NAME`); Trinity available; owner resolvable (through `$FLEET_MAP` when set — an owner absent from the map is **not** resolvable); with `$FLEET_NARRATIVE` set, the manager→owner edge is sanctioned by its §5; no human gate implied → eligible for Trinity dispatch. An unsanctioned edge or an unmapped owner is **needs-human**, with the steward update naming exactly which edge or map entry is missing — an autonomous run never silently violates the permission intent.
+- **engineering issue** (standard §18): the task is listed in the epic's `## Engineering issues` section (or its number appears as an issue `ref` in one of the project's chain mirrors) → **not the steward's to dispatch**, whatever `agent:*` label it carries; it is recorded through **Chain reading** and skipped here. Classify it first, before any of the classes below.
+- **auto-dispatch**: has `agent:<fleet-agent>` label (not `agent:$AGENT_NAME`); Trinity available; owner resolvable (through `$FLEET_MAP` when set — an owner absent from the map is **not** resolvable); with `$FLEET_NARRATIVE` set, the manager→owner edge is sanctioned by its §5; **the owner is admitted** (the participation gate, below); no human gate implied → eligible for Trinity dispatch. An unsanctioned edge or an unmapped owner is **needs-human**, with the steward update naming exactly which edge or map entry is missing — an autonomous run never silently violates the permission intent.
+- **Participation gate** (standard §20, `$PARTICIPATION_CHECK` = `on`): read the epic body's `## Participation` section — one row per `agent:*` owner, written by `/project-init` and re-checked when an owner is added, each row carrying the eleven requirements as `PASS | FAIL | n/a` cells (or a one-line verdict per agent, `admitted` / `not admitted: <rows>`). An owner **absent** from the table, or whose row carries any `FAIL`, is **not admitted**: the task is not dispatched, the digest lists it once under **Needs operator** as `owner not admitted: <agent> (<failed rows, or "no participation row">) — <n> task(s) waiting`, and the project gets **one** `$L_NEEDS_OPERATOR` steward update naming the agent and the rows, never one per task. A later sweep that finds the row passing dispatches normally. `off`, or an epic with no `## Participation` section under a pre-rev-2 standard, = dispatch as before, and the digest's **Carry-over + mode** says "participation check: off / no table".
 - **auto-inline**: has `agent:$AGENT_NAME`; fits the remaining run budget (~15 min); touches only reading/analysis, workspace writes, or GitHub comments (no email, no external spend, no gated external effects) → execute it this run.
 - **needs-human**: everything else (missing owner, judgment call, gated external effect, human approval required) → `$L_NEEDS_OPERATOR` + digest.
 
@@ -277,13 +308,18 @@ Detect closure while you're here: if the task's comments show the awaited answer
 
 **Inbound — loops this agent owes the operator.** For every open `$L_NEEDS_OPERATOR` item, count how many digests have carried it since the ask was posted. At two or more, promote it to the top of the digest's **Needs operator** section with the age stated plainly ("asked 9 days ago, 4 digests"). An ask is never retired for going stale — it gets louder, not quieter.
 
+**The project's own asks age too** (standard §23.5). Two more kinds of loop enter the same ladder, with no label on any issue (their record is the chain ledger and the epic body):
+- a **chain run parked at `needs-operator`** (Chain reading item 3) — actor = the operator, asked_at = the run-log entry's timestamp; it sits in **Needs operator** from day 0 and is promoted after two digests like any ask;
+- an **open by-hand setup row** — a row of the epic's `## Setup` table (standard §19 item 4) marked `by hand` whose probe still reads unresolved, or that a chain run-log names as what the next step waits on (a token, a grant, a vault unlock, a merge) — actor = whoever the row names (the operator unless it names someone outside the fleet), listed in **Your open loops** with its age from the row's date (else the epic's last edit), the 3 / 7 / 14-day ladder applied as for a `waiting-on:*` task, the drafted nudge being the one sentence that unblocks it ("grant X on Y", "paste the token into Z").
+Both are tracked in `state.json.open_loops` with `kind: chain-ask | setup-row` and a `key` (chain folder, or `setup:<row>`), so a lost state file rebuilds them from the ledgers and the epic body on the next sweep. In the retrospective behind rev 2 the longest waits were exactly these and never reached a digest, while two unrelated loops were aged in sixty of them.
+
 ### Step 4: Act (deterministic priority order, per project)
 
-Take exactly one action per project, in this order:
+Take exactly one action per project, in this order (an **engineering issue** is never the action — Step 3b classified it out; its state is written by Chain reading, in the same steward update as whatever action this list picks):
 
 1. **All success criteria checked** → post a closure-proposal steward update, flag for digest. Do not close the epic (closure is the operator's call).
 2. **`$L_NEEDS_OPERATOR` or `$L_BLOCKED` already set** → no action; include in digest with age.
-3. **auto-dispatch, no open dispatch, dispatch budget left** (Trinity available):
+3. **auto-dispatch, no open dispatch, dispatch budget left, owner admitted** (Trinity available):
    ```
    a. mcp__trinity__get_agent_health(<agent>)
    b. If healthy: resolve the callable name — with $FLEET_MAP set, the owner's `deployed_name` in the map
@@ -315,7 +351,7 @@ Take exactly one action per project, in this order:
 7. **Next task exists but no actionable path**: if active project with zero tasks, draft 1–3 candidate next tasks as a proposal in a steward comment, set `$L_NEEDS_OPERATOR`.
 8. **Nothing to do** (work in flight, within staleness thresholds) → no comment, no label change. Silence is valid.
 
-Post at most **one** steward update comment per project per run, and only if something changed since the last one.
+Post at most **one** steward update comment per project per run, and only if something changed since the last one — a chain's movement (Chain reading item 6) counts as a change, and the chain lines ride in that same comment.
 
 ### Step 5: Quarantine pass (Invariant 6)
 
@@ -342,11 +378,20 @@ Skipped entirely on no-op runs. One file per day — `$STATE_DIR/digests/YYYY-MM
 
 Open with the **closing statement** (standard §14a) — three lines, before any section: what is now true, what is waiting on the operator, and what the steward will do next unprompted. A digest that opens with a table of statuses makes the operator do the reading; one that opens with these three lines has already closed the loop.
 
+**The evening brief (standard §23.2, ruling D3) — once a day, before the sections.** When `$BRIEF_UTC` is set and this is the first sweep at or after that hour UTC today (`state.json.last_brief_date` ≠ today), the run is material and the digest's run section opens, right after the closing statement, with `## Evening brief YYYY-MM-DD` in two halves:
+
+1. **Decisions and tonight's defaults** — every open decision, one line each: the `$L_NEEDS_OPERATOR` items, every chain run parked with its question, every pending-verification task past `$PV_MAX_AGE`, every closure proposal — each with the steward's **recommendation** and the **default the fleet will run overnight if nothing is said** (for a parked chain question: the planner's recommended answer the run-log records, or "stays parked"; for a needs-operator task: "stays parked"; for a pending-verification: "stays open"). The operator overrules in the morning; nothing in this half is acted on by the steward itself beyond what Step 4 already did.
+2. **Access needed tonight** — every token, grant, vault item, 1Password unlock, merge, account or by-hand setup row the night's queued work will need, so it is provided in one sitting: gathered from (a) each chain mirror's next steps (an issue at `pr` or `validate` waiting on a merge; a `needs-operator` whose question is an access; the run-log's newest "waiting on" line), (b) the epic's `## Setup` rows marked `by hand` that still read unresolved, (c) the open `waiting-on:*` loops and the setup-row loops of Step 3c, (d) the dispatch queue (`open_dispatches` and the tasks Step 4 would dispatch next, with the credentials their owners' `## Participation` rows list as unresolved). One line each: *what*, *for which step*, *who provides it*. Empty is written as "nothing — the night needs no access from you"; both overnight stalls in that retrospective were an access nobody had listed.
+
+The brief is written once per day: set `state.json.last_brief_date` to today in Step 7 and never write a second one, even on later material runs that day (they append their run sections as usual). On Trinity the brief is also sent to the operator with `mcp__trinity__send_notification` (the digest path linked) — it is the one notification of the day that goes out even when nothing crossed a threshold, because its purpose is the night.
+
 Then the sections:
 
-- **Needs operator** (top): each `$L_NEEDS_OPERATOR` item with the one decision or action required; items unanswered across 2+ digests come first with their age stated
-- **Your open loops**: every `waiting-on:*` task, oldest first — actor, age, and the one sentence that would close it; loops past 3 days carry the drafted follow-up message verbatim, ready for the operator to send
-- **Blocked**: blocker + age
+- **Needs operator** (top): each `$L_NEEDS_OPERATOR` item with the one decision or action required, and each chain run parked at `needs-operator` with its question (Chain reading item 3); items unanswered across 2+ digests come first with their age stated; owners not admitted by the participation gate (Step 3b) with the failed rows
+- **Your open loops**: every `waiting-on:*` task and every setup-row loop (Step 3c), oldest first — actor, age, and the one sentence that would close it; loops past 3 days carry the drafted follow-up message verbatim, ready for the operator to send
+- **Chains**: one line per chain run — `<chain>: <status>, <n> issues (<steps>), PRs <list>, validations <list>, cost $<n>` — and the outcomes new since the last sweep; "read from report" when the folder was not visible
+- **Stalls**: every chain execution queued past `$CHAIN_STALL_MIN` minutes without a start, and every `dispatch_health` entry not yet reported — chain, ref, step, agent, minutes
+- **Blocked**: blocker + age; container-only state per ref (`ahead <n>` / dirty tree — not on GitHub yet, standard §22.7)
 - **Pending-verification**: items waiting, age vs max-age SLA
 - **Dispatched this run**: agent, task, issue link
 - **Verified this run**: task, pass/fail
@@ -355,17 +400,17 @@ Then the sections:
 - **Worked inline**: tasks executed inline, result links
 - **Quarantine**: N folders stubbed
 - **Healthy/quiet**: one line each
-- **Carry-over + mode**: projects not reviewed; note if triage-only; platform mode on or off, and any platform-tracked project skipped because the platform could not be reached; one line per canon-placed project whose clone could not be read (`/canon-doctor`) or whose charter `status:` disagrees with the epic label
+- **Carry-over + mode**: projects not reviewed; note if triage-only; platform mode on or off, and any platform-tracked project skipped because the platform could not be reached; one line per canon-placed project whose clone could not be read (`/canon-doctor`) or whose charter `status:` disagrees with the epic label; participation check on / off / no table; chains whose folder and report were both unreadable
 
-If (and only if) there are needs-operator items, blockers, past-max-age pending-verification, a loop crossing a nudge threshold, or errors: send a short summary via `mcp__trinity__send_notification` (when Trinity available) linking the digest path. Standing open loops that crossed no threshold this run stay in the digest without a notification — the list is always visible, the interruption is not.
+If (and only if) there are needs-operator items (a parked chain run included), blockers, a new stall, past-max-age pending-verification, a loop crossing a nudge threshold, the evening brief, or errors: send a short summary via `mcp__trinity__send_notification` (when Trinity available) linking the digest path. Standing open loops that crossed no threshold this run stay in the digest without a notification — the list is always visible, the interruption is not.
 
 **Results the operator personally asked for go to the operator** (standard §14a.4): when this run finished work the operator initiated by name, `send_notification` with the outcome, even on an otherwise quiet day. The issue log is the record; the notification is the loop closing.
 
 ### Step 7: Write updated state
 
-1. Update `$STATE_DIR/state.json`: `last_run`, `carry_over`, `open_dispatches`, `open_loops`.
+1. Update `$STATE_DIR/state.json`: `last_run`, `carry_over`, `open_dispatches`, `open_loops` (chain asks and setup rows included, with their `kind` and `key`), `chain_seen` (the chain state just recorded, per chain folder), `last_brief_date` (today, only when the brief was written this run).
 2. Prepend one summary line to `$STATE_DIR/run_log.txt`:
-   `YYYY-MM-DD HH:MM UTC | reviewed N | dispatched N | verified N | inline N | needs-operator N | loops N (nudged N, closed N) | quarantine N | mode`
+   `YYYY-MM-DD HH:MM UTC | reviewed N | dispatched N (not admitted N) | verified N | inline N | needs-operator N | loops N (nudged N, closed N) | chains N (moved N, stalls N, parked N) | brief yes/no | quarantine N | mode`
 3. Push steward state (scoped — never add any other path). The registry files of **agent-level internal projects this run changed** are part of the commit too — they are the registry, not scratch — added by exact path:
    ```bash
    git add "$STATE_DIR" $INTERNAL_WS_TOUCHED && \
@@ -382,4 +427,5 @@ If (and only if) there are needs-operator items, blockers, past-max-age pending-
 - **Trinity MCP absent**: continue in triage-only mode; record in digest. Dispatch state is untouched — next healthy run resumes.
 - **Single project fails mid-review**: post a steward update describing the defect, set `$L_NEEDS_OPERATOR`, continue with the next project.
 - **Partial run (interrupted)**: safe to re-run — the changed-since-last-update check and dispatch tracker make all writes idempotent.
-- **State file corrupt**: move to `state.json.bak-YYYY-MM-DD`, rebuild defaults, rebuild `open_dispatches` conservatively from recent dispatch receipt comments that lack a matching agent-report relay, and rebuild `open_loops` from the live `waiting-on:*` labels (ages from each issue's `### Waiting on` comment). Nudge timing resets; no loop is lost.
+- **State file corrupt**: move to `state.json.bak-YYYY-MM-DD`, rebuild defaults, rebuild `open_dispatches` conservatively from recent dispatch receipt comments that lack a matching agent-report relay, and rebuild `open_loops` from the live `waiting-on:*` labels (ages from each issue's `### Waiting on` comment) plus the chain mirrors (parked runs) and the epics' `## Setup` rows. `chain_seen` rebuilds empty, so the next sweep re-records each chain's current state once (one repeated outcome entry at most); `last_brief_date` rebuilds null, so at most one extra brief is written that day. Nudge timing resets; no loop is lost.
+- **A chain mirror will not parse** (`ledger-entry.yaml` malformed, or a run-log with no dated entries): read the chain from its latest `trinity_pm.build_chain` report when Trinity is available; otherwise name the chain in **Carry-over + mode** and skip it this run — never edit a chain folder, it is `/build-chain`'s.

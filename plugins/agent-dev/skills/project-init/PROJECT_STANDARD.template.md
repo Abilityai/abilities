@@ -7,7 +7,7 @@
 > reports one project's progress and projected finish to the operator.
 > **{{AGENT_NAME}}** is the managing agent; **{{OPERATOR}}** is the operator (the human this standard escalates to).
 >
-> Version: 1.4 ({{DATE}}) — §17 Platform mode: on a Trinity instance with Projects enabled the platform holds the project record and the same skills work against it (ruling R38); §0 gains `platform:`. 1.3 — §0 Configuration, one skill set for stand-alone agents and fleet orchestrators alike
+> Version: 2.0 ({{DATE}}) — rev 2 operating rules §18–§26 (two machines, kickoff kit, participation contract, build/dispatch/record rules) and six §0 keys (`kickoff`, `participation_check`, `chain.ledger`, `chain.stall_minutes`, `metrics`, `brief.evening_utc`); derived from a 2026-11 multi-agent project retrospective. 1.4 — §17 Platform mode: on a Trinity instance with Projects enabled the platform holds the project record and the same skills work against it (ruling R38); §0 gains `platform:`. 1.3 — §0 Configuration, one skill set for stand-alone agents and fleet orchestrators alike
 
 ## 0. Configuration
 
@@ -36,6 +36,13 @@ labels.priority_prefix: "priority:"           # followed by p1 | p2 | p3
 labels.epic_extra:                            # comma-separated labels added to every epic (e.g. type-epic so a product tracker's roll-ups see it); empty = none
 fleet.system_map:                             # path to a fleet system map (fleet/system-map.yaml on an orchestrator) — owners resolve to their live deployed_name through it; empty = owners are called by their logical name
 fleet.orchestration:                          # path to the orchestration narrative (fleet/orchestration.md) — its §5 edges gate dispatch, its §3b ownership matrix supplies default owners and consulted/informed etiquette; empty = no edge check
+# rev 2 keys (standard 2.0) — read by project-init ≥ 1.6, project-steward ≥ 1.11, project-status ≥ 1.5; absent = the defaults shown
+kickoff: blocking                             # blocking | advisory — a missing kickoff-kit item stops /project-init (§19); advisory creates the epic and lists the gaps
+participation_check: on                       # on | off — an owner failing a machine-checkable row of §20 receives no dispatch until it passes
+chain.ledger: run-log.md                      # the engineering executor's run log the steward reads in every chain folder the charter lists (§24.3)
+chain.stall_minutes: 30                       # a dispatch queued longer than this is a stall line in status and digest (§24.5)
+metrics: on                                   # on | off — record the declared project metrics of §24.4 with record_metrics (needs them declared in template.yaml)
+brief.evening_utc: "18:00"                    # the two-half evening brief in the steward digest (§23.2); empty = no evening brief
 ```
 
 **Label roles, not label names.** Every skill refers to a label by its role — *the needs-operator label*, *the blocked label* — and resolves the name from this block (`$L_NEEDS_OPERATOR`, `$L_BLOCKED`, … in their bash). The tables below document the **default** vocabulary; a deployment that rides an existing tracker's vocabulary (e.g. `status-needs-operator`, `priority-p1`) changes the values here and nothing else. `status:*` / `priority:*` in the prose below mean "whichever status / priority labels this block names".
@@ -498,3 +505,108 @@ A project is matched to its platform record by `platform_project:`; lacking that
 **Bringing an existing folder project onto the platform** (`/project-init platform <slug>`): `import_project` with the folder path, once. The platform reads the charter, the task files with their logs, `log.md` and `decisions.md`, and keeps the task ids; an external charter's epic becomes the tracker link. Afterwards the platform is the home and nothing syncs back: an internal project's charter becomes `tracking: platform`, its `tasks/` and `log.md` are left as they were with a closing line saying where the project went, and the move is recorded in `decisions.md` (§16's switching rule). A second import of the same folder is refused; the skill then finds the project in `list_projects` and records its id.
 
 **Invariant 1 holds.** A project still has exactly one registry for its tasks: GitHub (linked) or the platform (platform-tracked). A linked project's log entries and health on the platform are a report of what the registry already says, written by the managing agent — they never carry state back.
+
+---
+
+# Rev 2 — operating rules for any managed project
+
+> Sections §18–§26 were derived from a retrospective of a multi-agent project run under version 1.4 of this standard (2026-11): the machinery existed and was not reachable from where the project ran, the rules lived in prose at two layers and bound nothing at run time, the setup was discovered one refusal at a time, and nothing woke anyone. Every rule below is general. A deployment may add a `## 27. Adoption status` of its own naming which rules its skills already enforce and which it applies by hand; `/reconcile-docs`-class drift checks compare §0–§17 and the §0 key set only.
+
+## 18. Scope and the two machines
+
+A **managed project** is work that more than one stateful agent does toward one outcome, with one managing agent ({{AGENT_NAME}}), one operator ({{OPERATOR}}), and one record. This standard applies to every such project, whatever the domain.
+
+**One machine owns every project: the steward.** `/project-steward` is the record owner, the dispatcher for task work, and the reader of everything else. An **engineering executor** — a build-chain skill or an equivalent that drives issues through an engineer to reviewed pull requests with its own ledger — is not a kind of project; it executes the issues inside a project that the engineer implements, and the steward reads its ledger.
+
+| unit inside a project | run by | dispatch | closure | the steward's part |
+|---|---|---|---|---|
+| **task**: work an agent finishes in one session | `/project-steward` (§10) | one open dispatch per project, reply-reconciled | the agent's done claim, verified (§6) | dispatches, reconciles, records |
+| **engineering issue**: plan, checkpoints, review, PR | the engineering executor | its own calls, parallel up to the engineer's capacity | a commit, a test count, a PR state | reads the executor's ledger, posts status, ages its open asks, flags stalls, never dispatches into it (§24.3) |
+
+A project declares at init which issues are engineering issues (`## Engineering issues` in the epic, §4) and lists its executor folders in the charter envelope (`chains:`); everything else is a task. Trinity is the upgrade, never the gate: everything below runs offline on GitHub and files, and uses the platform's Projects record when it is there (§17).
+
+## 19. Day zero: the kickoff kit
+
+**Nothing is dispatched until the kit exists** (`kickoff: blocking` in §0; `advisory` creates the epic and lists the gaps). `/project-init` produces it, in this order, and refuses to open the project on a missing item.
+
+1. **One page of intent** (`intent.md`): a picture of the system after the project, the objects it creates and the objects it retires. Ruled before any repo or agent is created. A new truth artifact is created only with the named retirement of the one it replaces, in the same change.
+2. **The charter with a delegation boundary**: one section, filled once — what the managing agent decides alone and reports, what needs the operator, what is a person-only act by platform rule. Inside the boundary the agent decides, writes "decided under rule N" to the ledger, and reports; it never asks.
+3. **`rulings.md`**: one line per ruling, numbered, dated, with a `provisional` flag. A provisional ruling may produce a design note and nothing else; building needs a confirmed one. Every later proposal and every executor plan carries a "touches rulings" line read from this file.
+4. **The setup manifest** (`setup.md`), declared and probed before the first create: every account, every token with the repos it must read or write, every vault item with which service account reads or writes it, every setting, subscription item, permission edge, skill assignment and model pin the project needs. Probed by machine where a probe exists (credential presence, token scope per repo, edges, the resolved model) and the result written into the epic's `## Setup`. Access the operator must grant by hand is listed here too, so it is granted in one sitting.
+5. **The participation table**: each `agent:*` owner is checked against §20; the eleven rows per agent are written into the epic's `## Participation`. An agent that fails a machine-checkable row does not receive work until it passes (`participation_check: on`).
+6. **The record, created once** (§24.1): the registry epic, and in platform mode the platform project created or imported **by the deployed managing agent** in the same step — a local session that cannot create one dispatches `/project-init platform <slug>` to the deployed agent rather than skipping it.
+7. **Declared project metrics** (§24.4), so the retrospective is a readout, not a collection.
+8. **Critique before a reversible build**: when a ruling changes where state lives, who holds a credential, or what is built new, and the plan will cost more than a few dollars, one independent critique bounded to the ruling text runs before the plan is dispatched; routine follow-ups skip it.
+
+## 20. The participation contract
+
+Eleven requirements an agent meets before it joins a project. Checked at kickoff by `/project-init` and re-checked by the steward when an `agent:*` label is added.
+
+| # | requirement | declared in | checked by |
+|---|---|---|---|
+| 1 | Every unit of work it will receive is a named playbook with declared arguments; prose is the recorded exception | `template.yaml x-capabilities`, the fleet's playbook-call protocol | `get_agent_skills` or the slash list, matched against the task list |
+| 2 | Its working state lives in a store another agent can read without opening its container: a repo it pushes to, a vault entry, a report, the project log | `template.yaml` state path and store | `get_git_status` ahead and dirty tree |
+| 3 | It wakes its caller when it ends or asks; it never polls itself with reminders for a callee's outcome | per-playbook `wakes_on_ending`; the platform default | the ask receipt |
+| 4 | Every closing reply names evidence a stranger can verify: a commit, a path, a record, a readiness verdict. An exit code is not evidence; a failed readiness row fails the run | the reply contract in the playbook-call protocol | the steward refuses a done claim without evidence |
+| 5 | It owns exactly the repos it edits and holds a token that can push a branch, open a PR and file an issue on each; an edit to another repo is routed to that repo's agent | the system manifest member `repo` plus a token-scope line | a repository probe per repo with the agent's token |
+| 6 | Its model is declared and read back as the resolved model on every channel it takes turns on, before its first turn | `template.yaml runtime.model` | a resolved-model read per channel |
+| 7 | Every credential it needs is declared by name with its vault; kickoff refuses to start until each name resolves | `template.yaml credentials` | `get_credential_status` or env presence |
+| 8 | Every edge it will call is declared and its key is proven to reach the target before the first dispatch | the system manifest `permissions.explicit` | `get_agent_permissions` plus one probe call |
+| 9 | If it speaks to a person outside the fleet it carries a reply fence: no execution ids, no other agent's name or output, no credential or vault names, no run-status preamble | the skill, linted | a lint over the skill text |
+| 10 | It reports its own readiness as rows, and a person-facing "ready" repeats the rows | a readiness script or equivalent | a dry run |
+| 11 | It carries its standing rules in its own repo; a dispatch carries only the step | the callee's playbooks, `docs/rulings.md` | a rider-bytes check in the executor |
+
+Two more: **the managing agent acts under its own identity** for project work, never on the operator's personal key, so the record can tell the agent's acts from the person's; and **a template repo an agent is created from is code only**, never carrying another instance's state.
+
+## 21. Build rules
+
+Binding on the engineering executor and on any agent that plans inside a managed project.
+
+1. **The plan reads what is already known.** Before taste decisions, the plan lists every platform-state and contracts entry the feature touches, by id, and carries a "touches rulings" line read from `rulings.md`; a part that depends on a `provisional` ruling is not planned — the run parks and names the ruling.
+2. **Independent issues start in parallel from the first dispatch.** Dependencies are declared at the scope check; only a declared dependency stacks.
+3. **A limit or default scoped to one class of agents is never accepted as a platform default; a withdrawn cap is withdrawn, not re-expressed in another unit.** A plan decision of that shape is an out-of-authority decision for the operator, never an accepted recommendation.
+4. **Stage fidelity over stage count.** Migrations are proved with the real migration tool on a merge-tree against the live base; git behaviour is proved on real git, never a fake.
+5. **Nothing new reaches a person untested.** Any template, skill or ops-script change rides a scripted dry run on a staging seat before a real person sees it; a project whose agents face people runs a preflight of reach, execution-read scope, writable paths and the resolved model before the first person-facing agent exists.
+6. **Readiness failures are fatal.** A playbook that ends with a readiness report fails on a failed row.
+7. **Merges are the operator's; validation is the executor's.** A PR merged before the executor marked it ready gets a post-merge validation by rule.
+
+## 22. Dispatch and state
+
+Binding on every caller: the steward, the executor, any agent that dispatches.
+
+1. **The callee carries the law; the dispatch carries the step.** Standing rules live in the callee's playbooks and its `docs/rulings.md`; the call line carries declared arguments, and a rider carries only the step's own content. A rider that restates a callee's standing rule is a finding, counted in bytes.
+2. **Route to the owner on the first hop.** Repo work goes to the repo's agent; a chief-of-staff agent never edits someone else's skill.
+3. **Fire once, read back by execution id.** Never retry a synchronous dispatch on a client timeout; never find a run by time or exit code.
+4. **A configuration change closes on a read-back of the effective value** from the surface that uses it, never on the write's response.
+5. **A callee's outcome lands where the caller can read it**: a journey, a vault entry's description, a report, a plan file's progress block, the project log. Never only behind an execution id the caller may not open.
+6. **Wake on ending.** Callers wait on the callee's ending or on `agent.task.*` events, never on a reminder loop; one re-armed watchdog per run is the recorded fallback where the platform default is not yet on.
+7. **Container-only state is a finding.** `ahead > 0` or a dirty tree is reported in every repo-touching reply and flagged by the steward.
+8. **Asks are split by owner before they are sent** and merges are batched into one ordered list per sitting.
+
+## 23. Approvals and the human's rhythm
+
+1. **Decide-and-report inside the boundary**: anything covered by the charter's delegation boundary or an accepted recommendation is decided, ledgered as "decided under rule N" and reported, never asked.
+2. **The evening brief has two halves** (`brief.evening_utc` in §0): the day's decisions with a recommendation and a default on each, and every access the night's work will need (tokens, vault grants, unlocks, merges). The fleet runs the defaults overnight; the operator overrules in the morning.
+3. **An agent's approval is never a person's.** A callee's ask is answered by a person on the person's own key; the managing agent never answers it with its agent key.
+4. **The record survives the session.** A pre-compaction hook in the managing agent's local workspace writes the active project's run-log and ledger mirror before every compaction, and the session that resumes reads them first.
+5. **Loop closure applies to the project's own asks** (§14). The executor's open asks (a token, a grant, an unlock, a merge) register as open loops so the digest ages them.
+
+## 24. The record and observability
+
+1. **Two records, no more**: the registry epic for status and the executor's ledger (its run log plus the committed ledger mirror) for the build. On a Trinity instance with Projects, the platform project is the record people see (§17), created or imported at kickoff by the deployed managing agent, with the epic as its tracker link.
+2. **The record is written by the machine that does the work.** The executor posts the §7 dispatch receipts and closures to the engineering issue and one platform log entry per outcome; the epic's `## Current status` is written by the steward from state; nothing is mirrored by hand.
+3. **The steward owns the record and reads the executor.** For a project with a live executor run the steward reads each chain folder's `chain.ledger` and ledger mirror, posts status to the epic and the platform project, ages the executor's open asks as the project's loops, flags a dispatch older than `chain.stall_minutes`, reports container-only state, and never dispatches into the executor. Its cadence follows the executor's steps while one is live, the schedule otherwise.
+4. **Declared project metrics**, recorded by the machine as it runs (`metrics: on`; declared in the managing agent's `template.yaml metrics:` with a `project` dimension, recorded with `record_metrics`): operator asks per day and the share inside the delegation boundary; median ask-to-answer wait; block time per hand-off; dispatches by form and per-call rider bytes; re-dispatch and duplicate rate; dispatch queue age; defects by catch stage; person-visible leaks; cost per agent per day.
+   The ten names `/project-init` checks for (item 7 of §19), each with `dimensions: [project, …]`: `project_operator_asks` (counter; dims `inside_boundary`), `project_ask_wait_p50_minutes` (duration), `project_block_hours` (duration; dims `handoff`), `project_dispatches` (counter; dims `form` = playbook|prose), `project_rider_bytes_p50` (bytes), `project_redispatch_rate` (percentage), `project_dispatch_queue_age_p95_minutes` (duration), `project_defects` (counter; dims `stage` = review|validate|live), `project_person_visible_leaks` (counter), `project_cost_usd` (gauge; dims `agent`). Declared once on the managing agent's `template.yaml metrics:`; no cadence, so a quiet project never reads stale.
+5. **Dispatch health is a first-class signal.** The executor reads queued age on every poll and reports a stall at `chain.stall_minutes`.
+
+## 25. Knowledge the agents read
+
+1. **A standard that is read or it does not exist.** The standards an agent is bound by are pinned by tag, named in the agent's template, and printed in the agent's receipts.
+2. **Protocols bind roles.** A protocol index carries `binds:` per role, a provisioning receipt names the standard it read, and a linter refuses a `binds:` to an unmerged protocol.
+3. **One rule, one home.** Where a rule exists at the protocol layer and the skill layer, only the skill copy runs and it drifts within days; the protocol says a rule must exist, the callee's skill holds it.
+4. **The standard and the skills move together.** A drift check reports differences between §0–§17 of the deployment's copy and this template at the skills' installed version.
+
+## 26. The retrospective is built in
+
+Every project ends with a readout: the metrics of §24.4, the rulings file with its reversals, the participation table's end state, the cost ledger per agent per day, and the record itself — collected by the managing agent at close, not by hand.

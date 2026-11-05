@@ -1,16 +1,17 @@
 ---
 name: project-status
-description: Daily operator status for ONE managed project per the project standard — what moved since yesterday, what is done, what waits on the operator (raised as Trinity asks when the platform is there), and the projected finish date computed from the remaining critical path in the project's build ledger (plan.md). Read-only against the registry; delivers a Trinity report plus one notification, or just the committed status file when Trinity is absent. Use when the operator wants a per-project daily "how is it going and when will it be done".
+description: Daily operator status for ONE managed project per the project standard — what moved since yesterday, what is done, what waits on the operator (raised as Trinity asks when the platform is there, merges due included), and the projected finish date computed from the remaining critical path in the project's build ledger (plan.md) and its build-chain ledgers. Read-only against the registry and the chain; delivers a Trinity report plus one notification, or just the committed status file when Trinity is absent. Use when the operator wants a per-project daily "how is it going and when will it be done".
 argument-hint: "<slug>"
 automation: autonomous
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__report, mcp__trinity__send_notification, mcp__trinity__list_reports, mcp__trinity__ask_operator, mcp__trinity__get_my_ask, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__list_project_tasks, mcp__trinity__get_project_log, mcp__trinity__add_project_task_note, mcp__trinity__update_project_task, mcp__trinity__link_to_project
 metadata:
-  version: "1.4.1"
+  version: "1.5"
   created: 2026-10-02
   author: trinity-pm
   changelog:
+    - "1.5: Reads the build chain (project standard rev 2 §24.3, ruling R-a 2026-11-04: the steward owns every project's record and the chain is its engineering executor). Step 1 resolves `chain.ledger` and `chain.stall_minutes`; Step 2 reads each chain folder the charter lists under `chains:` (or the epic's `## Engineering issues`) — the committed `ledger-entry.yaml` mirror and the run-log tail, else the latest build_chain report; Moved lists chain steps closed, PRs opened and validations decided; Waiting on you lists the chain's parked needs-operator questions with age and the **merges due** (validated, no longer draft, still open — merges are the operator's, §21.7, and an early merge gets post-merge validation by rule), raised as asks on the deployed agent like every other waiting-on-you item; the projection counts the chain's remaining steps × the observed median step duration; Risks lists stalls (§24.5) and container-only state"
     - "1.4.1: Fix — the skill runner replaces every dollar-digit placeholder in a skill body with the invocation's arguments, so a run with arguments (project-init platform <slug>, project-status <slug>, --headless task/intake) broke the §0 resolver and the awk field reads: every config key resolved empty. Shell positionals are now ${1}/${2}, awk fields $(0)/$(2). Found 2026-10-10 by the deployed trinity-pm on the first platform import"
     - "1.4: Platform mode (ent#788, ruling R38): on a Trinity instance with Projects enabled the daily report and the asks it raises are put on the platform project (link_to_project) so its members find them there; a platform-tracked project is read from the platform's task list and log instead of an epic. Without Trinity nothing changes"
     - "1.3: Fix — the ask request_id used / and #, which Trinity refuses (invalid_request_id), so no ask was ever filed; it is now <slug>:<owner>.<repo>:<N>. Asks respect the atomic caps (title ≤120, ≤5 options of ≤60 chars), dismissed is a fourth ending, and an answer of (something else) no longer flips the issue to active (Trinity dev ed5904906)"
@@ -21,7 +22,7 @@ metadata:
 
 # Project Status
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-status v1.4.1 — recent: arguments no longer break the config resolver`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-status v1.5 — recent: reads the build chain, merges due become asks`. Then proceed.
 
 ## Purpose
 
@@ -36,6 +37,7 @@ One short daily answer to two questions about one managed project: **how is it g
 | Convention doc | `PROJECT_STANDARD.md` (repo root) or `fleet/project-standard.md` (orchestrator) — §0 is the configuration | ✓ | |
 | Epic + tasks | `$REGISTRY`, label `project:<slug>`; plus every repo in `$MEMBER_REPOS` (comma-separated, §0) for member issues | ✓ | relay of an ended ask only |
 | Build ledger | `<workspace>/plan.md` — see **Ledger contract** | ✓ | ✓ (`Status` / `Evidence` cells only, from verified evidence) |
+| Chain ledgers | every folder the charter envelope lists under `chains:` (else the epic's `## Engineering issues` section): `<chain>/ledger-entry.yaml` (the committed mirror of the build-chain run — `status`, `dispatch_health[]`, `issues[].{ref,step,branch,tip,pr,validation,executions[]}`) and `<chain>/$CHAIN_LEDGER` (the run-log); when neither is visible to this run, the newest `<agent>.build_chain` report via `list_reports` / `get_report` — standard §18, §24.3 | ✓ | never — the chain writes its own ledger |
 | Steward digest | `$STATE_DIR/digests/<today>.md` | ✓ | |
 | Status history | `<workspace>/status/YYYY-MM-DD.md` + `status/asks.json` | ✓ | ✓ |
 
@@ -79,13 +81,24 @@ STANDARD=$(ls PROJECT_STANDARD.md fleet/project-standard.md 2>/dev/null | head -
 cfg() { awk -v k="${1}" -v d="${2}" 'BEGIN{p="^"k":"} /^## 0\. Configuration/{s=1;next} s&&/^```yaml/{f=1;next} f&&/^```/{exit} f&&$(0)~p{v=$(0);sub(p,"",v);sub(/[[:space:]]+#.*$/,"",v);gsub(/^[[:space:]"]+|[[:space:]"]+$/,"",v);print v;found=1;exit} END{if(!found)print d}' "$STANDARD"; }
 REGISTRY=$(cfg registry ""); AGENT_NAME=$(cfg agent ""); STATE_DIR=$(cfg state_dir project-steward); MEMBER_REPOS=$(cfg member_repos "")
 L_ACTIVE=$(cfg labels.active "status:active"); L_NEEDS_OPERATOR=$(cfg labels.needs_operator "status:needs-decision")
+CHAIN_LEDGER=$(cfg chain.ledger run-log.md); CHAIN_STALL_MIN=$(cfg chain.stall_minutes 30)   # rev 2 (§18, §24): the build-chain run-log name and the stall threshold
 ```
 
 Pre-1.3 standards return `$REGISTRY` / `$AGENT_NAME` empty — read them from §1 / §2. Then `git pull --rebase --autostash` (continue on failure, say so). Find the epic (`gh issue list --repo "$REGISTRY" --label project --label "project:<slug>" --state all`), resolve the workspace from its `## Workspace` field (§15), read `project.md` and `plan.md`. **No ledger** is not an error: note `no ledger at <workspace>/plan.md — progress from the task checklist, no projected date` and continue without Steps 3–4's projection.
 
+**Chain folders (rev 2).** Read the charter envelope's `chains:` list (paths relative to the managing agent's repo); when the charter has none or is not visible, take the chain folders named in the epic's `## Engineering issues` section (the epic also lists them after the project folder in `## Workspace`). A project with neither has no chain — skip every chain line below without comment. The chain is the project's engineering executor (standard §18): this skill reads its ledger and never writes it.
+
 ### Step 2 — Collect evidence (read-only)
 
 For every step in the ledger, and every open issue labeled `project:<slug>` in `$REGISTRY` and in each `$MEMBER_REPOS` repo: state, status labels, last comment date + first line, linked PRs (`gh pr list --repo <repo> --search "<ref>"`) with draft/merged state. Read today's steward digest if present. Read the newest file in `status/` as "yesterday".
+
+**Chain evidence**, per chain folder:
+- `<chain>/ledger-entry.yaml` — the run's `status`, `dispatch_health[]`, and per issue `ref`, `step`, `branch`, `tip`, `pr`, `validation` (`decision`, `post_merge`), `blocked_on_ruling`, and `executions[]` (`step`, `id`, `queued_at`, `started_at`, `closed`, `cost`). Parse with python3 + PyYAML; a missing mirror is not an error.
+- `<chain>/$CHAIN_LEDGER` — the last 60 lines: parked `needs-operator` questions (their first appearance is the ask's age), stall lines, `ahead > 0` / dirty-tree findings.
+- For every `pr` the ledger names: `gh pr view <url> --json isDraft,state,mergedAt,reviewDecision` — this is what decides *merges due* below.
+- When the chain folder is not visible to this run (a gitignored `project_files/` on a container): `list_reports` for the newest `<agent_name_with_underscores>.build_chain` report, `get_report` for its rows (issue · step · branch · tip · PR · verdict · cost · rider KB · stalls); say `chain read from the build_chain report of <date>, not from the ledger` in the Risks section. No report either → `chain ledger not readable from here` and carry on.
+
+Compare the chain's per-issue `step` with yesterday's status file: a step that advanced is a move.
 
 ### Step 3 — Reconcile the ledger (evidence only)
 
@@ -95,6 +108,8 @@ A step is **done** only when its issue is closed or its Definition of Done is ev
 
 Critical-path walk over the ledger: each remaining step starts when all its `Depends on` steps finish; its duration is `Estimate (d)` in working days (weekdays). Steps in `waiting-on-operator` count **from today** with their estimate — the clock is on the operator, so say so. The projected finish = the latest end date. Compare with yesterday's projection: state the slip or gain in days and the one step that caused it. If an estimate is blank, use 2 days and flag it.
 
+**Chain issues** are projected from the chain ledger, not from `plan.md` estimates: for each issue not `done`, the remaining steps are the ones after its current `step` in the chain's order (`prep → plan → ruled → implement → review → fix → pr → validate → done`); the duration of one step is the **median wall-clock of closed executions in `executions[]` across the whole run** (queued-to-closed), with a floor of 30 minutes; an issue with `depends_on` another starts when that one reaches `pr`. Issues with no dependency run in parallel (standard §21.2), so the chain's finish is the longest single path, not the sum. A parked issue (`needs-operator`, `blocked_on_ruling`) counts from today — the clock is on the operator. A `plan.md` row whose `Issue` is a chain issue takes the chain's projection and its `Evidence` cell gets the PR url when the PR is open. No closed executions yet → use the plan-ledger estimate as before and flag `chain duration unknown`.
+
 ### Step 4b — Turn waiting-on-you into Trinity asks (deployed agent only)
 
 For every open issue in the project carrying `$L_NEEDS_OPERATOR`:
@@ -103,6 +118,11 @@ For every open issue in the project carrying `$L_NEEDS_OPERATOR`:
 - `to: primary`, `priority: high` when waiting ≥ 2 days, else `medium`.
 - Read every earlier request_id back with `get_my_ask`. **Ended** (answered / cancelled / dismissed / expired) and not yet relayed → post `### Operator answer YYYY-MM-DD` on the issue with the disposition and the answer verbatim, flip `$L_NEEDS_OPERATOR` → `$L_ACTIVE` only when a listed option was chosen (or a question answered); a response of `(something else)` approves none of the options — relay `response_text` and leave the label; cancelled / dismissed / expired leave it too (say so in the report; a dismissed ask is not re-raised straight away). Record relayed ids in `<workspace>/status/asks.json` so a relay happens once.
 - A refusal naming the key (`requires a key that carries an agent identity`), or no Trinity tools at all, means a local session: skip this step silently; the issues still carry the request.
+
+**Chain items that wait on the operator** (rev 2) go through the same step, same caps, same ask contract:
+- **Parked questions** — every chain issue whose ledger `step`/`status` is `needs-operator` (or carries `blocked_on_ruling`): `type: question`, request_id `<slug>:chain:<run-id>:<N>`, `question` = the parked question quoted from the run-log with the planner's recommendation, age = days since the run-log line that parked it. The chain itself never re-asks; this skill is where the question reaches the operator daily until answered.
+- **Merges due** — every PR the chain's `validation.decision` is `APPROVE` on (so no longer a draft) that is still open: one ask per PR, `type: approval`, request_id `<slug>:merge:<owner>.<repo>:<pr-number>`, title `Merge <repo>#<N> — <issue title>` (≤120), `options` `["merge now","hold — say why","close without merging"]`, `question` = the PR's base, tip sha, validation date and the chain's *Before merge* notes. **Merges are the operator's; the chain never gates on them** (standard §21.7, ruling D9) — a PR the operator merges before the chain marks it ready is not an error: the chain records `validation.post_merge: true` and validates the merge commit by rule, and this skill reports it under Moved, not Risks. An ended merge ask is relayed to the chain issue as `### Operator answer` like any other; `hold` keeps the PR in Waiting on you with its reason until it is merged or closed.
+- Locally (no agent key) both kinds are listed in the report only, same as the issue-based items.
 
 The "Waiting on you" section of the report names each ask by title and says it is in the Trinity operator queue.
 
@@ -116,13 +136,19 @@ Write `<workspace>/status/<today>.md`:
 **Progress:** <done>/<total> steps · critical path: <step> → <step> → …
 ## Moved since yesterday
 - <one line per real change, with issue/PR link> | nothing moved
+- chain: <issue> <old step> → <new step> · PR <url> opened · validate <APPROVE|REQUEST CHANGES> (<post-merge> when the operator merged first)
 ## Waiting on you
 - <issue> — <what exactly to do, one line> (waiting <N> days)
+- chain question: <issue> — <the parked question, one line> (waiting <N> days)
+- merge due: <repo>#<N> — <title>, validated <date>, base <branch> (waiting <N> days)
 ## Next 24h
 - <what the steward / owners / this agent will do next>
 ## Risks
 - <only real ones, max 3> | none
+- stall: <issue> <step> queued <N> min (threshold <CHAIN_STALL_MIN>) · container-only state: <issue> <branch> ahead <N> / dirty
 ```
+
+Chain lines appear only when the project has a chain; the stall line only when `dispatch_health` has an entry, or an execution shows `queued_at` with no `started_at` older than `$CHAIN_STALL_MIN` minutes. "nothing moved" covers the chain too.
 
 Commit only `<workspace>/` (`status(<slug>): <date> — projected <date>`), push. A canon-placed workspace publishes through `/canon-publish` instead.
 
