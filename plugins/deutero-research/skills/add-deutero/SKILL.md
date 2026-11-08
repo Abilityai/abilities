@@ -69,7 +69,7 @@ Each agent gets **its own** key, so one agent can be revoked without touching th
    ```
    ! mkdir -p ~/.config/deutero && pbpaste > ~/.config/deutero/<agent-name>.key && chmod 600 ~/.config/deutero/<agent-name>.key
    ```
-   On Linux, create the file with an editor and `chmod 600` it.
+   On Linux, create the file with an editor and `chmod 600` it. The file may hold the bare key or a `.env` line (`DEUTERO_API_KEY=...`, as Deutero's dashboard copies it); the script stores only the value.
 3. If the user pastes the key into the chat anyway, write it to that file yourself and do not repeat it back.
 
 Never print the key, put it in a command line, or write it into the agent's repo.

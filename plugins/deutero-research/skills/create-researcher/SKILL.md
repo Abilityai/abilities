@@ -79,7 +79,7 @@ It refuses a non-empty folder and prints the files it wrote. Show the user `CLAU
 cd ./<agent-name> && git init -q -b main && git add -A && git commit -q -m "Initial Deutero research agent"
 ```
 
-Check no secrets were added: `git grep -nE "dtro_|sk-|ghp_" || echo clean`.
+Check no secrets were added: `git grep -nE "DEUTERO_API_KEY=.|dtro_|sk-|ghp_" || echo clean`.
 
 ---
 

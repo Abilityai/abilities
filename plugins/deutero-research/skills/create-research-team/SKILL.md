@@ -75,7 +75,7 @@ Confirm first — this creates three repositories. For each role:
 ```bash
 cd ./<system>/<system>-<role> && git init -q -b main && git add -A \
   && git commit -q -m "Initial Deutero research <role>"
-git grep -nE "dtro_|sk-|ghp_" || echo clean      # must print "clean"
+git grep -nE "DEUTERO_API_KEY=.|dtro_|sk-|ghp_" || echo clean      # must print "clean"
 gh repo create <owner>/<system>-<role> --private --source . --push
 ```
 

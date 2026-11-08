@@ -95,7 +95,11 @@ def deutero_key(key_file: str | None) -> str:
     else:
         raise Fail(f"No Deutero key. Put it in {DEFAULT_KEY_FILE} (chmod 600), "
                    f"pass --key-file, or set {ENV_VAR}.")
-    if not key or any(c.isspace() for c in key) or "\n" in key:
+    # Accept a pasted .env line too: [export ]DEUTERO_API_KEY="..."
+    m = re.match(r"^(?:export\s+)?" + ENV_VAR + r"\s*=\s*(.*)$", key)
+    if m:
+        key = m.group(1).strip().strip("'\"")
+    if not key or any(c.isspace() for c in key):
         raise Fail("The Deutero key is empty or contains whitespace.")
     return key
 
@@ -105,9 +109,15 @@ def deutero_key(key_file: str | None) -> str:
 # --------------------------------------------------------------------------
 
 
+USER_AGENT = "add-deutero/1.0 (abilityai deutero-research)"
+
+
 def _request(method: str, url: str, headers: dict, body: bytes | None = None,
              timeout: float = 30.0) -> tuple[int, bytes]:
-    req = urllib.request.Request(url, data=body, method=method, headers=headers)
+    # Deutero's edge (Cloudflare) refuses Python's default User-Agent with
+    # 403 / error 1010, so always send our own.
+    req = urllib.request.Request(url, data=body, method=method,
+                                 headers={"User-Agent": USER_AGENT, **headers})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.status, resp.read()
@@ -118,8 +128,11 @@ def _request(method: str, url: str, headers: dict, body: bytes | None = None,
 
 
 def verify_deutero_key(key: str) -> None:
-    status, _ = _request("GET", DEUTERO_REST_CHECK,
-                         {"X-API-Key": key, "Accept": "application/json"})
+    status, body = _request("GET", DEUTERO_REST_CHECK,
+                            {"X-API-Key": key, "Accept": "application/json"})
+    if status == 403 and b"cloudflare" in body.lower():
+        raise Fail("Deutero's network edge blocked the key check (Cloudflare 403). "
+                   "Retry later, or rerun with --no-verify.")
     if status in (401, 403):
         raise Fail(f"Deutero rejected the key (HTTP {status}). Generate a new one "
                    "in Deutero: Settings -> Generate API Key.")
