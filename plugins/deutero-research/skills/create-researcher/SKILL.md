@@ -111,7 +111,7 @@ Then `mcp__trinity__get_agent_compatibility_report(agent_name: "<agent-name>")`.
 | name already taken | pick another name, or this agent exists already: go to Step 6. |
 | `agent_management_not_permitted` | you are calling with an agent key; run from a person's session. |
 
-Until Step 6 the `deutero` server is withheld: Trinity only renders `.mcp.json.template` entries whose variables are set.
+Until Step 6 the `deutero` server is configured but has no key. Trinity renders the `.mcp.json.template` entry at start-up and leaves `${DEUTERO_API_KEY}` in the header for Claude Code to fill in, so Deutero calls fail with 401 until the key is in `.env`. Don't chat with the agent about research before Step 6.
 
 ---
 
