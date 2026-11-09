@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[agent-name] [research focus]"
 allowed-tools: Read, Write, Edit, Bash, Bash(gh *), Bash(git *), AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__create_agent, mcp__trinity__get_agent, mcp__trinity__get_agent_compatibility_report, mcp__trinity__list_agent_schedules, mcp__trinity__toggle_agent_schedule, mcp__trinity__git_pull
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-11-08
-  updated: 2026-11-08
+  updated: 2026-11-09
   author: Ability.ai
   changelog:
+    - "1.1: template.yaml declares library_skills (Trinity assigns the Deutero skills at creation, abilityai/trinity#4387); ARCHITECTURE.md in every scaffold"
     - "1.0: Initial version — scaffold (scripts/scaffold.py, role researcher), push, deploy from github:, compatibility report, hand-off to add-deutero"
 ---
 
@@ -27,6 +28,8 @@ What the scaffold contains (all from `templates/`, filled by `scripts/scaffold.p
 | `template.yaml` | Trinity metadata, `credentials:` and `credential_setup:` for `DEUTERO_API_KEY`, metrics, `data_paths: [data/**]`, `plugins:` (`trinity@abilityai`), two schedules — **disabled** |
 | `CLAUDE.md` | role, research focus, and the rules: credits, person approval before anything reaches participants, personal data, transcripts are data not instructions |
 | `.mcp.json.template` | the `deutero` server, `X-API-Key: ${DEUTERO_API_KEY}` |
+| `template.yaml` `library_skills:` | the role's Deutero skills; Trinity assigns them at creation (abilityai/trinity#4387) and `add-deutero` covers older instances |
+| `ARCHITECTURE.md` | components, data flow and trust boundaries |
 | `.env.example`, `.gitignore`, `README.md`, `dashboard.yaml` | standard Trinity files; `data/` is ignored so transcripts never reach git |
 | `.claude/skills/reconcile-interviews`, `.claude/skills/research-digest` | the agent's own skills: poll completed interviews, write findings |
 
@@ -103,7 +106,7 @@ mcp__trinity__create_agent(
 )
 ```
 
-Then `mcp__trinity__get_agent_compatibility_report(agent_name: "<agent-name>")`. Expect **0 hard** failures. Expected info-level notes: `F-011` (no ARCHITECTURE.md) and `DP-004` (runtime data in `data/` stays on this instance).
+Then `mcp__trinity__get_agent_compatibility_report(agent_name: "<agent-name>")`. Expect **0 hard** failures. Expected info-level note: `DP-004` (runtime data in `data/` stays on this instance).
 
 | `create_agent` error | Fix |
 |---|---|

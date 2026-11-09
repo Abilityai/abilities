@@ -6,11 +6,12 @@ user-invocable: true
 argument-hint: "[system-name] [research focus]"
 allowed-tools: Read, Write, Edit, Bash, Bash(gh *), Bash(git *), AskUserQuestion, mcp__trinity__deploy_system, mcp__trinity__list_systems, mcp__trinity__teardown_system, mcp__trinity__get_agent, mcp__trinity__get_agent_compatibility_report, mcp__trinity__list_agent_schedules, mcp__trinity__toggle_agent_schedule, mcp__trinity__chat_with_agent
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-11-08
-  updated: 2026-11-08
+  updated: 2026-11-09
   author: Ability.ai
   changelog:
+    - "1.1: each role's template.yaml declares its Deutero library_skills (abilityai/trinity#4387); ARCHITECTURE.md per agent"
     - "1.0: Initial version — lead/designer/analyst scaffolds (scripts/scaffold.py roles), manifest with explicit permissions and disabled schedules, deploy_system dry run + deploy, add-deutero per agent"
 ---
 
@@ -93,7 +94,7 @@ A dry run resolves each template and reports the agent names, permission edges a
 
 Check the result's `status`: `deployed`, or `partial` with `failed[]`. A name clash gets a `_2` suffix — if that happens, the role sections' teammate names (`<system>-designer` …) are wrong. Tear down with `teardown_system` and pick another system name rather than editing three repos.
 
-Then `mcp__trinity__get_agent_compatibility_report` for each agent: expect **0 hard**. Info-level `F-009` (no own skills, lead and designer), `F-011` and `DP-004` are expected.
+Then `mcp__trinity__get_agent_compatibility_report` for each agent: expect **0 hard**. Info-level `F-009` (no own skills, lead and designer) and `DP-004` are expected.
 
 ---
 

@@ -34,6 +34,18 @@ ROLES = {
     "designer":   {"expose": False, "consume": False, "skills": [], "schedules": []},
 }
 
+# Deutero skills each role gets from the Trinity skills library, assigned at
+# creation through template.yaml `library_skills:`. Same presets as add-deutero.
+LIBRARY_PRESETS = {
+    "researcher": ["deutero-setup", "plan-interview-research", "user-research", "simulate-users"],
+    "recruiter": ["deutero-setup", "plan-interview-research", "user-research", "simulate-users",
+                  "recruit-participants"],
+    "analyst": ["deutero-setup", "plan-interview-research"],
+}
+ROLE_LIBRARY_PRESET = {
+    "researcher": "researcher", "lead": "analyst", "designer": "recruiter", "analyst": "analyst",
+}
+
 SCHEDULES = {
     "reconcile": {
         "name": "reconcile-interviews",
@@ -116,6 +128,10 @@ def render_schedules(keys: list[str], tz: str) -> str:
     return "\n".join(out)
 
 
+def render_library_skills(role: str) -> str:
+    return "\n".join(f"  - {s}" for s in LIBRARY_PRESETS[ROLE_LIBRARY_PRESET[role]])
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
@@ -152,6 +168,7 @@ def main() -> int:
         "EXPOSE": str(role["expose"]).lower(),
         "CONSUME": str(role["consume"]).lower(),
         "SCHEDULES": render_schedules(role["schedules"], a.timezone),
+        "LIBRARY_SKILLS": render_library_skills(a.role),
         "METRICS": render_metrics(ROLE_METRICS[a.role]),
         "ROLE_SECTION": role_section,
         "SKILLS_SECTION": skills_section,
@@ -172,6 +189,7 @@ def main() -> int:
     (out / "template.yaml").write_text(fill((TEMPLATES / "template.yaml").read_text()))
     (out / "CLAUDE.md").write_text(fill((TEMPLATES / "CLAUDE.md").read_text()))
     (out / "README.md").write_text(fill((TEMPLATES / "README.md").read_text()))
+    (out / "ARCHITECTURE.md").write_text(fill((TEMPLATES / "ARCHITECTURE.md").read_text()))
     (out / "dashboard.yaml").write_text(render_dashboard(a.display_name, ROLE_METRICS[a.role]))
     shutil.copy(TEMPLATES / ".mcp.json.template", out / ".mcp.json.template")
     shutil.copy(TEMPLATES / ".env.example", out / ".env.example")

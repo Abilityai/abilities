@@ -63,6 +63,11 @@ plugins:
   installed:
     - trinity@abilityai
 
+# Deutero's skills from the Trinity skills library (source deutero-ai/agent-skill).
+# Trinity assigns them when the agent is created and delivers them once it is up.
+library_skills:
+{{LIBRARY_SKILLS}}
+
 # Both schedules start disabled: they spend Deutero credits only through the
 # agent's own actions, but turn them on deliberately. Agent autonomy must also
 # be on (Trinity UI) for any schedule to fire.

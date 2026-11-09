@@ -1,7 +1,7 @@
 {
   "name": "deutero-research",
   "description": "User research agents on Trinity, powered by Deutero (AI-conducted interviews): give an existing agent Deutero, or create a research agent or a lead + designer + analyst research team",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "Ability.ai",
     "email": "support@ability.ai"
