@@ -1,0 +1,75 @@
+name: {{AGENT_NAME}}
+display_name: {{DISPLAY_NAME}}
+description: >-
+  {{DESCRIPTION}}
+version: "1.0.0"
+author: {{AUTHOR}}
+avatar_prompt: >-
+  A calm, attentive user researcher with a notebook and headphones, seated at a
+  tidy desk with interview notes and sticky-note clusters on the wall behind,
+  warm natural light, curious and friendly expression
+
+resources:
+  cpu: "1"
+  memory: "2g"
+
+capabilities:
+  - User research on Deutero (AI-conducted interviews)
+  - Study design, screening and recruitment links
+  - Reading transcripts, quotes and themes
+
+use_cases:
+  - "Find out why trial users drop off before they finish onboarding"
+  - "Draft a 10-minute interview about how teams choose a reporting tool"
+  - "What did participants say about pricing in last week's interviews?"
+  - "Summarise this month's research findings for the product team"
+
+metrics:
+{{METRICS}}
+
+credentials:
+  env_file: [DEUTERO_API_KEY]
+  mcp_servers:
+    deutero:
+      env_vars: [DEUTERO_API_KEY]
+
+credential_setup:
+  - name: DEUTERO_API_KEY
+    title: Deutero API key
+    description: >-
+      Lets this agent use Deutero's interview tools. Use a key made for this
+      agent only (Deutero: Settings -> Generate API Key), so it can be revoked
+      on its own.
+    required: true
+    secret: true
+    format: secret
+    setup_url: https://dashboard.deutero.ai
+
+mcp_servers:
+  - name: deutero
+    description: Deutero interview platform (projects, studies, recruitment, transcripts, quotes, clustering)
+
+shared_folders:
+  expose: {{EXPOSE}}
+  consume: {{CONSUME}}
+
+data_paths:
+  - data/**
+
+plugins:
+  marketplaces:
+    - name: abilityai
+      source: abilityai/abilities
+  installed:
+    - trinity@abilityai
+
+# Deutero's skills from the Trinity skills library (source deutero-ai/agent-skill).
+# Trinity assigns them when the agent is created and delivers them once it is up.
+library_skills:
+{{LIBRARY_SKILLS}}
+
+# Both schedules start disabled: they spend Deutero credits only through the
+# agent's own actions, but turn them on deliberately. Agent autonomy must also
+# be on (Trinity UI) for any schedule to fire.
+schedules:
+{{SCHEDULES}}
