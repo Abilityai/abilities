@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__create_agent, mcp__trinity__deploy_local_agent, mcp__trinity__get_agent, mcp__trinity__inject_credentials, mcp__trinity__get_agent_github_pat_status, mcp__trinity__set_agent_github_pat, mcp__trinity__initialize_github_sync, mcp__trinity__git_pull, mcp__trinity__get_git_sync_state, mcp__trinity__list_agent_schedules, mcp__trinity__create_agent_schedule, mcp__trinity__update_agent_schedule, mcp__trinity__toggle_agent_schedule, mcp__trinity__get_agent_compatibility_report, mcp__trinity__git_sync
 metadata:
-  version: "6.8"
+  version: "6.9"
   created: 2025-02-05
   author: Ability.ai
   changelog:
+    - "6.9: Step 3e .gitignore scaffold gains the `.trinity/*` runtime block with the platform's eight authored-path re-includes, `!.env.example` / `!.mcp.json.template`, `.tmp/` and `.trinity-clone-tmp/` — without the block a scaffolded agent failed HARD compatibility check S-005 (.trinity/ not excluded); now matches Trinity's _GITIGNORE_PATTERNS and the create-agent custom wizard"
     - "6.8: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — an agent ends its own moot pending ask with `withdraw_ask` (ent#901; `ask_ended` = the answer stands; never `replaces` as a close-out); install menu adds Marketplace images (DigitalOcean 1-Click, AWS, Vultr) and names AWS; the self-change grant lives in the agent's Settings → Guardrails → Permissions to change itself; a peer calling a library-assigned skill is refused `skill_not_granted` (ent#662); voice chat runs from the Workspace call button and is on by default (`VOICE_ENABLED` defaults true, only a Gemini key is needed)"
     - "6.7: Trinity dev 6434ff935, 1.0.0-rc1 truth sync — Asking a Person: an agent can replace its own pending ask with `replaces` (ends cancelled by agent, reason replaced; 409 replaces_ended when the person answered first), repeating a pending approval's proposal is refused 409 already_pending, and disposed_by gains `agent` (trinity#3247)"
     - "6.6: Trinity dev ed5904906 truth sync — Path-B archive is built from deploy_local_agent's `archive` parameter recipe (manifest required: MANIFEST_REQUIRED / MANIFEST_DRIFT rows; .env is moved aside, not tar-excluded; oversized archives go to `trinity deploy .`); agent keys need the agents.manage grant to create/deploy (ent#164, agent_management_not_permitted row); asks end answered/cancelled/dismissed/expired with `(something else)` and the atomic-ask caps (title 120, 5 options of 60); gated-skill results pending_approval/refused; depth refusal also from run_agent_loop/trigger_agent_schedule/emit_event; event payload values arrive framed in ⟦ ⟧ and clamped; get_execution_result takes agent_name + execution_id; async needs parallel=true; compatibility report param is agent_name; repo agents pull on their own (ent#703); inject_credentials allowlist named"
@@ -582,9 +583,26 @@ Ensure these exclusions exist:
 .mcp.json
 .env
 .env.*
+!.env.example
+!.mcp.json.template
 *.pem
 *.key
 credentials.json
+
+# Trinity runtime state — star form, so the authored hooks below stay tracked
+# (git cannot re-include a path under a dir-form `.trinity/` exclusion, #2070).
+# Required: compatibility check S-005 is HARD and fails without it.
+.trinity/*
+!.trinity/pre-check
+!.trinity/post-check
+!.trinity/pre-snapshot
+!.trinity/setup.sh
+!.trinity/persistent-processes.allow
+!.trinity/brain-orb/
+!.trinity/pipelines/
+!.trinity/plugins.yaml
+.tmp/
+.trinity-clone-tmp/
 
 # Claude Code internals
 .claude.json
