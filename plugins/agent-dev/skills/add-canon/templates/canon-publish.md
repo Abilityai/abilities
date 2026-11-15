@@ -4,10 +4,11 @@ description: "Publish this agent's canonical data — freshen the shared canon r
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__chat_with_agent
 user-invocable: true
 metadata:
-  version: "1.7"
+  version: "1.8"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.8: Platform-truth sync (Trinity dev 7820af28, 1.0.5-rc2; worded to hold on v1.0.0 too) — the deployed GH_TOKEN fix names the agent's owner: inject_credentials is refused for agent keys (ent#719)"
     - "1.7: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — on a deployed fleet the hub's `/propagate-change` usually reaches it through the skills library, and since ent#662 a permission edge covers only the skills a target declares itself: each publisher → hub call is refused `skill_not_granted` (nothing ran) until an admin grants that one skill to that publisher. The refusal now names the exact grant under **Propagation due** instead of hiding behind a generic refusal"
     - "1.6: Publishing a change starts its propagation (protocols/change-propagation.md §1, operator direction 2026-10-11: one single way for a change in one agent to reach the agents that depend on it). New Step 5b: after the push, the canon linter's --changed-domains mode says which domains this folder owns that consumers keep a copy of (propagation: copied in domains.yaml) changed in content — a markdown body, a file under the domain path, a fact value under its key_prefixes; re-stamps never count. For each, the skill moves the anchor (a canon-native domain to canon@<the publish commit>; an upstream anchor such as trinity@<sha> is the owner's to move, and a content change without it is reported) and sends the hub one line, /propagate-change --domain <id> --source <repo@sha>, skipping a domain whose notice already exists. Off Trinity, the line is printed for the operator to send. A copied domain with no anchor is seeded at its last content commit without starting a run. Before this, starting a run was an owner obligation nobody's playbook carried, so 18 of 21 domains never propagated"
     - "1.5: Shared projects (projects/<slug>/ at the canon root — CONVENTIONS.md § Projects, rulings R21 + 2026-09-22) are a third class beside IN and OUT: SHARED — published directly by any agent (the one carve-out from own-folder-only), linted per project (--scope projects/<slug>) before the push, committed as canon(projects/<slug>): … by <name>. Stamping follows their own envelopes at Step 4: project.md is the charter — on change set updated: today, push review_by: forward when missing/past, keep status: in the registry epic's vocabulary (active|blocked|needs-decision|paused|pending-verification|done — never canonical/draft), epic: as owner/repo#N and owner: as the steward (never rewrite someone else's stewardship to yourself); decisions.md is the append-only ledger — bump updated: only when a decision was appended, never add a review_by:, never rewrite earlier entries; nothing else in a slug folder is stamped (it is the project's workspace, unlinted). A project still under the earlier agents/<name>/projects/ placement is IN like the rest of the folder and its project-placement lint warning is reported; a missing charter is /project-init --canon's job, not a stamp"
@@ -181,7 +182,7 @@ Propagation: <domain> → /propagate-change … sent to <hub> (<execution id>) |
 |---|---|
 | No `x-canon:` | Stop → `/add-canon` |
 | Clone missing at `clone_path` (fresh deploy) | Self-heal: re-clone from `x-canon.repo` (auth-aware — gh / env-token helper / plain https); stop only if the clone itself fails |
-| Clone or push denied (auth) | Context-aware fix: workstation → `gh auth login`; deployed → `GH_TOKEN` via `.env` + `inject_credentials`; `/canon-doctor` diagnoses the full ladder |
+| Clone or push denied (auth) | Context-aware fix: workstation → `gh auth login`; deployed → `GH_TOKEN` in `.env`, injected by the agent's owner (`inject_credentials` takes a person — an agent key is refused on newer builds); `/canon-doctor` diagnoses the full ladder |
 | `pull --ff-only` fails (diverged) | Stop, show status + divergent commits — operator resolves |
 | Push rejected twice | Report the error verbatim; the commit is local — say so |
 | OUT change with no remote/`gh` | Branch committed locally; print manual PR steps |

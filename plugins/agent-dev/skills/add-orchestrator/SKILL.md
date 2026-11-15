@@ -5,10 +5,11 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 argument-hint: "[--check]"
 metadata:
-  version: "1.38"
+  version: "1.39"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.39: Platform-truth sync (Trinity dev 7820af28, 1.0.5-rc2; worded to hold on v1.0.0 too) — the clone token's real UI path (Settings → MCP Keys → Personal GitHub Token; instance PAT under Settings → Integrations). Bundled runtime skills: orchestrate 1.22 (wake on ending, same-turn replay, bare /name refusal, rooms, template-source refusal), compose-system 1.8 (apply_system), discover-agents 1.12 (get_agent_permissions), sync-fleet-to-head 1.10 (tag pins), profile-fleet 1.9"
     - "1.38: installs orchestrate 1.21 — model floor on dispatch (operator ruling 2026-10-20, dispatch only): chat_with_agent(parallel=true) and fan_out name a full model ID at or above the floor (Opus 5 minimum, Fable 5 for knowledge work, Sonnet 5 only for trivial mechanical calls, never Haiku); a sequential chat_with_agent cannot carry model, so playbook dispatches go parallel=true; set_reminder, create_agent_schedule and run_skill are outside the floor"
     - "1.37: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — ver/vcmp helpers use braced ${1}/${2}; installs discover-agents 1.11 (an agent key lists only its reach, trinity#3810: an unlisted repo agent is deployed: unknown / reach: none, never deployed: false), orchestrate 1.20 (peer skill grants ent#662: prefer repo-declared playbooks; skill_not_granted + peer_surface_unavailable rows; never roll out a deployed: unknown entry; @mention wakes agents only), sync-fleet-to-head 1.9 (under an agent key git reach = permission edges; a narrative agent missing from list_agents is out of reach, not down), compose-system 1.7 (list_systems is reach-scoped; deploy_system renames on a taken member name, so its warning is the stop signal); the self-change toggles live in the agent Settings → Guardrails pane"
     - "1.36: Platform-truth refresh (Trinity dev 6434ff935, 1.0.0-rc1) — bundled orchestrate 1.19 (agent_busy = nothing ran; new rate_limited result is never re-sent, trinity#3244)"
@@ -467,7 +468,7 @@ Print:
  injected by /trinity:onboard Step 5e via inject_credentials — same convention as /add-canon Step 6b)>
 
 ### Two different GitHub tokens — don't conflate them
-- **The instance token** (Trinity UI → Settings → GitHub token): what *Trinity* clones with. It's what makes
+- **The clone token** (Trinity UI → Settings → MCP Keys → Personal GitHub Token for a person; Settings → Integrations for the instance PAT, admin): what *Trinity* clones with. It's what makes
   the default deploy path work — `create_agent(template: github:Org/repo)` and every `github:` member in a
   `deploy_system` manifest. Required for private repos; public ones clone without it. Clone token order: the
   agent's own PAT, then its owner's personal PAT, then the instance token. From an agent key both calls also

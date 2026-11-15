@@ -5,10 +5,12 @@ allowed-tools: Bash, Read, Write, Edit
 user-invocable: true
 argument-hint: "[description of what to process]"
 metadata:
-  version: "1.0"
+  version: "1.1"
   created: 2026-03-26
+  updated: 2026-11-15
   author: Ability.ai
   changelog:
+    - "1.1: On Trinity note — this skill is for a local workstation only; a deployed Trinity agent must not start nested coding-agent CLIs (platform prompt, ent#643; refused outright on agents with gated skills, ent#1002) and fans out with chat_with_agent(parallel=true) or fan_out instead"
     - "1.0: Initial version — orchestrate batch headless Claude Code calls, looping over inputs with clean context per iteration and structured result collection."
 ---
 
@@ -19,6 +21,8 @@ metadata:
 ## Purpose
 
 Orchestrate multiple headless Claude Code invocations in a loop — each with clean context, different input, and structured output collection. This skill builds and executes the batch script; individual worker calls run independently via `claude -p`.
+
+> **On Trinity:** local workstation only. Never run this inside a deployed Trinity agent: the platform tells agents not to start nested coding-agent CLIs (`claude`, `codex`, `gemini`) — that work escapes the execution record — and refuses them outright on agents with gated skills. There, fan out with `mcp__trinity__chat_with_agent(parallel=true)` or `mcp__trinity__fan_out`.
 
 ## Process
 

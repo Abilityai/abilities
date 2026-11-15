@@ -5,10 +5,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, AskUserQuestion
 metadata:
-  version: "1.8"
+  version: "1.9"
   created: 2026-05-27
   author: Ability.ai
   changelog:
+    - "1.9: External MCP access gate: on a fresh Trinity 1.0.5+ install every off-box MCP client is refused `403 external_mcp_access_off` until an admin turns on Settings → MCP Keys → External MCP access — Phase 6 stops there instead of falling back to `:8080` (refused the same way), `503 external_mcp_access_unverified` retries once, both in the error table; a keyed MCP session survives an instance restart from 1.0.5, so `/mcp` only when still disconnected; the personal GitHub token lives under Settings → MCP Keys → Personal GitHub Token (there is no 'GitHub token' tab)"
     - "1.8: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — platform role `user` is Workspace-only (ent#837): a whitelisted email defaults to `user`, so the no-code advice says grant `operator`+, Phase 0 treats `role: user` as unusable for MCP, Phase 4 handles `403 workspace_only`; Phase 1 reads `email_delivery_available` (#3655) and `email_code_login_enabled`; Phase 2 adds `403 email_code_disabled` (ent#849); re-login + reconnect after a backend upgrade"
     - "1.7: Key provisioning notes that /api/mcp/keys and ensure-default take a signed-in (JWT) session only — any key-authenticated caller gets 403 since #2996; the OTP flow already uses the JWT, so the flow itself is unchanged"
     - "1.6: No managed hosting — Trinity is self-hosted only. The no-instance fallback now hands off to /trinity:deploy-new-instance (DigitalOcean guided installer, SSH server, or local Docker) instead of ending the flow at a request-access email; example URLs are self-hosted forms, no *.abilityai.dev tenants"
@@ -208,7 +209,9 @@ chmod 600 ~/.trinity/config.json
 
 Derive MCP endpoint URL:
 - Try `{INSTANCE_URL}/mcp` first — the frontend's nginx routes it to the MCP server (trinity#2475), and it is the only path on 80/443-only or firewall-hardened installs
-- Fall back to the `:8080` host port (`https://host:8080/mcp`; if the instance URL carries `:8000`, replace it with `:8080`) only if a `tools/list` probe on the first URL fails
+- Fall back to the `:8080` host port (`https://host:8080/mcp`; if the instance URL carries `:8000`, replace it with `:8080`) only if a `tools/list` probe on the first URL fails for a reason other than the two below
+- If the probe answers `403` with `X-Trinity-Refusal: external_mcp_access_off` (the default on fresh installs from Trinity 1.0.5; upgraded installs keep access on), **stop**: an admin must turn on **Settings → MCP Keys → External MCP access**. `:8080` is refused the same way and answers only on the server itself on such installs — do not fall back to it
+- On `503 external_mcp_access_unverified`, wait about 5 seconds and retry once
 
 Example: `https://trinity.yourcompany.com` → `https://trinity.yourcompany.com/mcp` (fallback `https://trinity.yourcompany.com:8080/mcp`)
 
@@ -251,7 +254,7 @@ MCP: Configured in .mcp.json
 
 Next steps:
 1. Restart Claude Code to load the MCP server
-2. Add your GitHub token on the instance (Settings → GitHub token — fine-grained
+2. Add your GitHub token on the instance (Settings → MCP Keys → Personal GitHub Token — fine-grained
    PAT, Contents: Read). Agents deploy by cloning their GitHub repo; private
    repos need this, public repos don't.
 3. Run /trinity:onboard from an agent directory to deploy it from its repo
@@ -267,6 +270,8 @@ Next steps:
 | Invalid code | "Code invalid or expired. Would you like a new code?" |
 | `403 workspace_only` | "This account works in the Workspace only (role `user`). An admin must raise it to `operator` before it can use MCP." |
 | `403 email_code_disabled` | "Email-code sign-in is off by policy — sign in with SSO in the web UI and mint a key under Settings → MCP Keys." |
+| `403 external_mcp_access_off` on the MCP URL | "External MCP access is off on this instance (the default on fresh Trinity 1.0.5+ installs). An admin turns it on under Settings → MCP Keys → External MCP access — then re-run `/trinity:connect`." |
+| `503 external_mcp_access_unverified` | Wait ~5 s and retry once; if it persists, report it — the instance cannot read its own setting. |
 | MCP key failed | "Logged in but couldn't provision MCP key — mint one under Settings → MCP Keys and re-run `/trinity:connect --force`." |
 | Config write failed | "Couldn't write to ~/.trinity/config.json. Check permissions." |
 
@@ -274,5 +279,5 @@ Next steps:
 
 - Credentials are stored in `~/.trinity/config.json`
 - The JWT token expires (check `exp` claim) but MCP API key is long-lived
-- After the instance upgrades (e.g. to Trinity 1.0) and its backend restarts, sign in again in the browser and reconnect MCP clients (`/mcp` in Claude Code) — the release notes ask for both
+- After the instance upgrades (e.g. to Trinity 1.0) and its backend restarts, sign in again in the browser. From Trinity 1.0.5 a keyed MCP session survives the restart (revived for up to 30 days), so run `/mcp` in Claude Code only if the client still shows disconnected; on older instances always reconnect
 - Multiple profiles are supported - run again with a different URL to add another instance

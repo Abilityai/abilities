@@ -4,10 +4,11 @@ description: "Scheduled freshness pass over this agent's own folder in the share
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, mcp__trinity__report
 user-invocable: true
 metadata:
-  version: "1.5"
+  version: "1.6"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.6: Platform-truth sync (Trinity dev 7820af28, 1.0.5-rc2; worded to hold on v1.0.0 too) — the headless auth fix names the agent's owner: inject_credentials is refused for agent keys (ent#719)"
     - "1.5: Internal tracking (ent#673, PM standard §16): a charter whose mode is internal (`tracking: internal`, or no tracking and no real epic) is self-sourced like a relation doc — no epic to verify and never \"not registered\"; on the worklist it is verified by recent activity (newest of the charter's updated:, any tasks/T-*.md updated:, the last log.md entry within 30 days → push review_by +30d), otherwise a NEEDS-REVIEW row; its status, tasks and log are the managing agent's registry and are never edited. External charters: unchanged"
     - "1.4: Shared projects (rulings R21 + 2026-09-22, CONVENTIONS.md § Projects) — the steward reconciles its charters: projects/<slug>/project.md at the canon root whose owner: is this agent (plus any still under the earlier agents/<name>/projects/ placement) is treated like a doc for staleness — linted per project (--scope projects/<slug>), the linter's project-envelope + staleness findings feed the worklist, and a charter on it is verified against its registry epic (`epic:` in the envelope — open/closed and the status:* label, via gh when available): epic agrees → re-stamp review_by; epic moved (closed, or a different status:* label) → `changed` (mirror the status, updated: today, review_by forward); epic unreachable → NEEDS-REVIEW row; paused/done charters are never on the worklist. decisions.md is append-only and is NEVER re-stamped by this pass — a ledger envelope failure is a NEEDS-REVIEW row, not a repair; the workspace files beside the charter are never read; projects stewarded by other agents are never touched. Step 3 publishes the stewarded charters directly (the projects/ carve-out), one commit per project"
     - "1.3: Relation docs (docs/relations/*.md, CONVENTIONS.md § Relations) reconcile mechanically — they are self-sourced (the owner's log IS the record; no external source to re-verify): enforce the 10-event cap (fold overflow into Earlier:), flag any Open-threads item older than 30 days as a NEEDS-REVIEW row — the dropped-thread alarm the convention exists for — and treat a rel doc past review_by: with no new events as dormant, not wrong (push review_by: forward, content untouched); report gains a relations line when threads have aged"
@@ -110,7 +111,7 @@ Then publish a guarded Trinity report: `mcp__trinity__report(report_type: "<agen
 |---|---|
 | No `x-canon:` | One-line stop — run `/add-canon` (never hang a scheduled run) |
 | Clone missing at `clone_path` (fresh deploy) | Self-heal: re-clone from `x-canon.repo` (auth-aware); only a failed clone stops the run |
-| Clone/pull/push auth failure | Report names the headless fix — `GH_TOKEN` into `.env` via `inject_credentials` — and `/canon-doctor`; never an interactive `gh auth login` |
+| Clone/pull/push auth failure | Report names the headless fix — `GH_TOKEN` into `.env`, injected by the agent's owner (`inject_credentials` takes a person — an agent key is refused on newer builds) — and `/canon-doctor`; never an interactive `gh auth login` |
 | `pull --ff-only` fails (diverged) | Report and stop — no force, no rebase of shared history |
 | Source unreachable | Flag in NEEDS-REVIEW.md; keep the published fact and its stamps |
 | Lint FAIL that needs judgment (key conflict, reachability) | NEEDS-REVIEW.md row — a headless run never resolves a dispute |

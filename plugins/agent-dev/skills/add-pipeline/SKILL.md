@@ -4,11 +4,12 @@ description: Scaffold a Trinity-compatible long-running pipeline inside any agen
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.10"
+  version: "1.11"
   created: 2026-05-23
-  updated: 2026-10-20
+  updated: 2026-11-15
   author: Ability.ai
   changelog:
+    - "1.11: Platform-truth sync (Trinity dev 7820af28, 1.0.5-rc2; worded to hold on v1.0.0 too) — the pre-check hook is told which schedule fires on newer builds (TRINITY_SCHEDULE_ID/_NAME/_MESSAGE, trinity#3966); pipeline skip logic still lives in pipeline-tick and the legacy block is still removed"
     - "1.10: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — installs pipeline-tick 1.6 (a remote stage refused skill_not_granted escalates with the exact per-skill grant, ent#662) and pipeline-recover 1.3 (a pending escalation made moot by the recovery is withdrawn with withdraw_ask, ent#901)"
     - "1.9.1: Fix — the runtime replaces every dollar-digit placeholder in a skill body with the words the skill was invoked with, so dollar-digit text here was rewritten on runs with arguments. Shell positionals are now ${0}/${1}, intended placeholders $ARGUMENTS[0], and prices are written in USD (library validator rule arg-substitution, 2026-10-10)"
     - "1.9: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — bundled pipeline-tick 1.5 (ask title cap 120, dismissed disposition, gate results hold or escalate a remote stage, two-argument get_execution_result) and pipeline-recover 1.2 (dismissed disposition)"
@@ -179,13 +180,13 @@ date -u +%Y-%m-%dT%H:%M:%SZ > "$HOME/.trinity/pipelines/$SLUG.last_synced"
 
 ### Step 6: Remove any legacy pre-check hook (migration)
 
-Versions ≤1.2 of this skill installed a managed block in `~/.trinity/pre-check`. **All three block versions are harmful and must be removed — this skill no longer touches pre-check at all.** The verified platform contract (Trinity scheduler → pre-check hook): the hook is **agent-global** (consulted before *every* schedule on the agent, with zero schedule context), and there is **no `fire`/`skip` token vocabulary**:
+Versions ≤1.2 of this skill installed a managed block in `~/.trinity/pre-check`. **All three block versions are harmful and must be removed — this skill no longer touches pre-check at all.** The verified platform contract (Trinity scheduler → pre-check hook): the hook is **agent-global** (consulted before *every* schedule on the agent; older builds pass it no schedule context, newer ones — Trinity 1.0.5+ — export `TRINITY_SCHEDULE_ID` / `TRINITY_SCHEDULE_NAME` / `TRINITY_SCHEDULE_MESSAGE` to it), and there is **no `fire`/`skip` token vocabulary**:
 
 - exit 0 + **empty stdout** → the run is **skipped**
 - exit 0 + **any stdout** → that stdout **replaces the calling schedule's configured message**
 - non-zero exit → fail-open (runs with the configured message)
 
-So v1 (empty when idle) silenced every schedule on the agent; v2 (message emit) hijacked them into running pipeline-tick; and v3 (`echo "fire"`) rewrote **every schedule's prompt to the literal word `fire`**. There is no way to express a correct per-schedule gate through this hook today — skip / work-detection logic lives inside `pipeline-tick` itself, which exits cheaply when nothing needs attention.
+So v1 (empty when idle) silenced every schedule on the agent; v2 (message emit) hijacked them into running pipeline-tick; and v3 (`echo "fire"`) rewrote **every schedule's prompt to the literal word `fire`**. None of the three blocks expressed a correct per-schedule gate, and on builds that pass no schedule context none can — so skip / work-detection logic stays inside `pipeline-tick` itself, which exits cheaply when nothing needs attention, on every build.
 
 ```bash
 PRE_CHECK="$HOME/.trinity/pre-check"

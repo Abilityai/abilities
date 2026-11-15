@@ -1,13 +1,14 @@
 ---
 name: discover-agents
 description: Discover the fleet — from live Trinity (list_agents), a curated repo list (local paths + github:Org/repo), or both — scan each source repo for Trinity specs (template.yaml, system.yaml, projects/*/pipeline.yaml), cross-reference repo-first, and assemble a descriptive fleet/system-map.yaml — the system-aware list. Read-only; works on any agent or fleet.
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_info, mcp__trinity__get_agent_tags, mcp__trinity__list_tags, mcp__trinity__report
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_agents, mcp__trinity__get_agent, mcp__trinity__get_agent_info, mcp__trinity__get_agent_permissions, mcp__trinity__get_agent_tags, mcp__trinity__list_tags, mcp__trinity__report
 user-invocable: true
 metadata:
-  version: "1.11"
+  version: "1.12"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.12: Platform-truth sync (Trinity dev 7820af28, 1.0.5-rc2; worded to hold on v1.0.0 too) — live permission edges are read with get_agent_permissions where the tool exists (observed_within: an unseen edge is unobserved, never removed); older builds keep the not-live-verified label"
     - "1.11: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — shell helpers use braced ${1}/${2} (bare dollar-digits are substituted with invocation args); under an agent key (a deployed orchestrator's own session) `list_agents` returns only the key's reach: itself, its permission edges and the agents it spawned (MCP filter, now also every backend fleet route — trinity#3810). The live option no longer claims to find everything deployed; Step 5 records a repo agent missing from an agent-key roster as `deployed: unknown`, `reach: none` — never `deployed: false`, which would let /orchestrate roll out a duplicate; new error-table row: map smaller than expected → reach, not absence"
     - "1.10: ent#411 shipped — trinity@abilityai is pre-installed at image build and the #1704 boot hook is default-ON; the spec-less-repo ladder no longer needs a CLI bootstrap (opt-out TRINITY_PLATFORM_PLUGINS=0)"
     - "1.9: Spec-less catalog repos get the fix, not just the note — a repo with no template.yaml is reported under a new `no spec:` line with the ladder that makes it a real member: create it as-is (create_agent tolerates a missing template.yaml), dispatch `/trinity:onboard in-place` to it (the trinity plugin's v6.0 in-place mode writes template.yaml + plugins:, pushes back, verifies via the platform compat report), then re-scan. Notes the ent#411 bootstrap caveat (the trinity plugin must be present in the container; a one-line CLI install until the platform pre-installs it)"
@@ -264,7 +265,7 @@ Rewrite strictly between the HTML-comment markers (replace text between `<!-- BE
 - **`GENERATED:topology`** → a Mermaid `graph LR`:
   - **nodes** = the discovered agents (label with role).
   - **edges** = the **declared** permission topology: read `fleet/system.yaml`'s `permissions` (preset or explicit map) if `/compose-system` has produced one; else translate `orchestration.md` §5's allow statements. Render `caller --> callee` per declared edge and stamp the block with `%% edges = declared intent (system.yaml / §5) — not live-verified`.
-  - **Live `agent_permissions` are not readable over MCP** — no tool exposes them (`get_agent_auth` is subscription auth status, not permissions). They live behind REST `GET /api/agents/{name}/permissions` and are set by `deploy_system` at deploy time. Never present these edges as live-verified; drift since the last deploy is invisible from here.
+  - **Live `agent_permissions`:** where `mcp__trinity__get_agent_permissions` exists (Trinity 1.0.5+), read the live edges for each agent in reach — self, edges, spawned — and mark an edge live-verified only when the read returned it; the answer carries `observed_within`, so an edge the read did not see is *unobserved*, never "removed". Where the tool is absent (older builds), live permissions are not readable over MCP (`get_agent_auth` is subscription auth status, not permissions) — they live behind REST `GET /api/agents/{name}/permissions` and are set by `deploy_system` at deploy time; label the edges not-live-verified and say drift since the last deploy is invisible from here.
   - No manifest and an empty §5 → render **nodes only** with `%% edges unknown — no system.yaml and §5 not yet authored`.
 
 Example of a refreshed topology block (shape only — note the outer fence is 4 backticks so the inner mermaid fence nests cleanly):

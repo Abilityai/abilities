@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.8"
+  version: "1.9"
   created: 2026-04-30
   author: Ability.ai
   changelog:
+    - "1.9: Version-neutral notes for Trinity 1.0.5 (pins stay on v1.0.0 until the final tag): installers from v1.0.5 ask for no admin password — the admin account is created in the browser; fresh 1.0.5+ installs refuse off-box MCP clients until an admin turns on Settings → MCP Keys → External MCP access, and the raw MCP port is loopback-only (`MCP_BIND_ADDRESS`); SQLite is refused at boot from 1.0.5 (bundled PostgreSQL on every layout, `python -m db.sqlite_to_postgres`); the install carries `scripts/deploy/update.sh` (`trinity update`)"
     - "1.8: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — the guided DigitalOcean installer is fetched from the v1.0.0 tag and no longer asks for a Claude credential (Connect Claude happens at first sign-in, ent#582), so the token step is gone; new Marketplace-image path (DigitalOcean 1-Click, AWS Marketplace AMI with the EC2 instance-ID claim, Vultr) that continues as an existing install; the remote path names AWS; prebuilt-image fast path pins v1.0.0 and notes the bundled PostgreSQL; the ops-agent Anthropic key question no longer claims agents won't run without it"
     - "1.7: Positioning (ADR-0011, ent#803) — the 'what you'll get' line names Trinity as your own self-hosted operating system for the AI-native company replacing the retired pre-ADR-0011 wording; no procedural change"
     - "1.6: Aligned with Trinity v0.9.5 (released 2026-09-17) — the Cloud (ability.ai) path is gone (Trinity is self-hosted; there is no managed hosting offering) and PATH A is now the DigitalOcean guided installer (scripts/deploy/trinity-do-create.sh — run in the user's own terminal, secrets never pass through this session), continuing into the ops-agent scaffold with the Droplet values (root, /opt/trinity, hosted compose, FRONTEND_PORT 8081); first-run wording corrected — after login the Dashboard opens first-run setup (Connect Claude is the one required step; the GitHub token goes in Other keys, later Settings → Integrations); the MCP key lives under Settings → MCP Keys (the tab was never called API Keys); hosted fast path pins TRINITY_IMAGE_TAG=v0.9.5 and the ops agent gets COMPOSE_FILE=docker-compose.hosted.yml so /update pulls instead of building"
@@ -52,7 +53,7 @@ Use AskUserQuestion:
 
 Trinity ships its own installer for this (`scripts/deploy/trinity-do-create.sh`): it creates a stock Ubuntu Droplet (`s-4vcpu-8gb`, about **$48/month** until the Droplet is deleted), installs Trinity from prebuilt images on first boot, and serves it over HTTPS with a real certificate for the IP address. There is no managed Trinity hosting — this is the least-infrastructure path.
 
-**The installer asks for the admin password in the user's own terminal. Never run it from this session and never ask for the password here** — the script is built to keep it off the screen and out of shell history. It does not ask for a Claude credential: the first sign-in opens a setup overlay whose **Connect Claude** step takes a subscription token or an API key.
+**The v1.0.0 installer asks for the admin password in the user's own terminal. Never run it from this session and never ask for the password here** — the script is built to keep it off the screen and out of shell history. Installers from v1.0.5 ask for no password at all: the admin account (email and password) is created in the browser when the install is ready. It does not ask for a Claude credential: the first sign-in opens a setup overlay whose **Connect Claude** step takes a subscription token or an API key.
 
 Display:
 
@@ -67,7 +68,9 @@ Run these in your own terminal (on Windows: inside WSL):
 
    bash <(curl -fsSL https://raw.githubusercontent.com/abilityai/trinity/v1.0.0/scripts/deploy/trinity-do-create.sh)
 
-   (newer release? swap the tag — https://github.com/abilityai/trinity/releases)
+   (newer release? swap the tag — https://github.com/abilityai/trinity/releases.
+   Installers from v1.0.5 ask for no password: skip step 2, and at step 4 create
+   your admin account — email and password — in the browser instead of signing in.)
    It asks for the password, a region and a Droplet name, shows the cost,
    and asks before creating anything. About six minutes end to end.
 4. When it prints "Trinity is ready", open https://<droplet-ip> and sign in as admin.
@@ -249,7 +252,7 @@ If they say "Skip", note that the web UI and MCP server will not be reachable un
 
 #### Run deployment
 
-Inform the user: "Deploying Trinity — first run takes 10-15 minutes to build the base Docker image." (Optional fast path: `TRINITY_IMAGE_TAG=v1.0.0 ./scripts/deploy/start.sh --hosted` pulls prebuilt GHCR images instead of building — since 1.0 a fresh `--hosted` install runs on the bundled PostgreSQL, and `start.sh` generates `POSTGRES_PASSWORD` and `DATABASE_URL` itself; pin the tag, `latest` turns the next run into an upgrade; upgrades = re-run `start.sh --hosted`, never `docker compose pull`. If you take it, set `COMPOSE_FILE=docker-compose.hosted.yml` for STEP 3 so the ops agent's `/update` pulls instead of building.)
+Inform the user: "Deploying Trinity — first run takes 10-15 minutes to build the base Docker image." (Optional fast path: `TRINITY_IMAGE_TAG=v1.0.0 ./scripts/deploy/start.sh --hosted` pulls prebuilt GHCR images instead of building — since 1.0 a fresh `--hosted` install (every layout from 1.0.5, where SQLite is refused at boot) runs on the bundled PostgreSQL, and `start.sh` generates `POSTGRES_PASSWORD` and `DATABASE_URL` itself; pin the tag, `latest` turns the next run into an upgrade; upgrades = re-run `start.sh --hosted`, never `docker compose pull`. If you take it, set `COMPOSE_FILE=docker-compose.hosted.yml` for STEP 3 so the ops agent's `/update` pulls instead of building.)
 
 **Step 1: Verify / install Docker**
 ```bash
@@ -586,7 +589,7 @@ For a hosted (pull-only) install and for a DigitalOcean Droplet — only when th
 [ -n '{COMPOSE_FILE}' ] && perl -i -pe 's|^COMPOSE_FILE=.*|COMPOSE_FILE={COMPOSE_FILE}|' {DEST}/.env || true
 [ -n '{TRINITY_PATH}' ] && perl -i -pe 's|^TRINITY_PATH=.*|TRINITY_PATH={TRINITY_PATH}|' {DEST}/.env || true
 ```
-`COMPOSE_FILE` decides whether the ops agent's `/update` builds images or runs `start.sh --hosted` — wrong here means a rebuild-from-source on an install that has no build context.
+`COMPOSE_FILE` decides whether the ops agent's `/update` builds images or runs `start.sh --hosted` — wrong here means a rebuild-from-source on an install that has no build context. From Trinity 1.0.5 the install also carries its own `scripts/deploy/update.sh` (`trinity update`): preflight, pre-update backup, verification, recorded rollback — the ops agent's `/update` stays the default here.
 
 For local Docker (no SSH): leave `SSH_HOST` empty (the `.env.example` default).
 
@@ -666,13 +669,20 @@ Agent:    {DEST}
   /telemetry     — view aggregated logs and metrics
   /provision     — provisioning guides for cloud providers
   /migrate-to-postgres — move the instance from SQLite to PostgreSQL
+                         (from 1.0.5 the platform also ships `python -m db.sqlite_to_postgres`,
+                         see docs/migrations/SQLITE_TO_POSTGRES.md)
   /sync-ops-knowledge  — refresh the agent's Trinity reference docs from upstream
 
 ### Access Trinity
 
+  On a fresh Trinity 1.0.5+ install an admin must first turn on
+  Settings → MCP Keys → External MCP access — until then every off-box MCP
+  client (this session, /trinity:connect, the ops agent) is refused. The raw
+  MCP port then answers only on the server itself unless MCP_BIND_ADDRESS is changed.
+
   Web UI:     http://{SSH_HOST}:{FRONTEND_PORT}
   Backend:    http://{SSH_HOST}:{BACKEND_PORT}
-  MCP Server: http://{SSH_HOST}:{FRONTEND_PORT}/mcp  (raw port: http://{SSH_HOST}:{MCP_PORT}/mcp)
+  MCP Server: http://{SSH_HOST}:{FRONTEND_PORT}/mcp  (raw port, older installs: http://{SSH_HOST}:{MCP_PORT}/mcp)
 
 Credentials are in {DEST}/.env — keep this file secret.
 ```

@@ -1,13 +1,14 @@
 ---
 name: compose-system
 description: Turn fleet/system-map.yaml into a Trinity SystemManifest (fleet/system.yaml) — pick members, choose a permissions topology, validate with a dry-run deploy, and deploy_system on approval. Emits Trinity's native manifest format; no parallel schema.
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__deploy_system, mcp__trinity__list_systems, mcp__trinity__get_system_manifest, mcp__trinity__restart_system, mcp__trinity__list_templates
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__deploy_system, mcp__trinity__list_systems, mcp__trinity__get_system_manifest, mcp__trinity__restart_system, mcp__trinity__apply_system, mcp__trinity__list_templates
 user-invocable: true
 metadata:
-  version: "1.7"
+  version: "1.8"
   created: 2026-07-01
   author: orchestrator
   changelog:
+    - "1.8: Platform-truth sync (Trinity dev 7820af28, 1.0.5-rc2; worded to hold on v1.0.0 too) — an existing system is reconciled with apply_system (a person's session, dry run first), restart_system only restarts members and never applied a manifest; the GitHub token path is Settings → MCP Keys → Personal GitHub Token (instance PAT under Settings → Integrations); a manifest prompt is applied for admin callers only"
     - "1.7: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — under an agent key `list_systems` shows only systems inside the key's reach (trinity#3810), so a free-looking name may be taken outside it: the existing-system check says so, and the dry run's `already exists, will create …-2` warning is the stop signal (deploy_system renames rather than refuses); the agents.manage toggle lives in the agent's Settings → Guardrails pane"
     - "1.6: Platform-truth refresh (Trinity dev ed5904906, 1.0.0-aws.2) — a manifest prompt OVERWRITES the instance-wide Trinity Prompt for every agent, not just members (Q3 reworded); custom permissions use explicit:, not map: (which was ignored — no permissions applied); deploy_system from an agent key needs agents.manage even for the dry run (ent#164); restart_system is a person's session only; members may declare kind: deployment"
     - "1.5: ent#411 shipped — the base image pre-installs the trinity plugin and the #1704 boot hook is default-ON, so a spec-less member runs /trinity:onboard in-place directly; the CLI-bootstrap caveat is gone (opt-out TRINITY_PLATFORM_PLUGINS=0)"
@@ -78,7 +79,7 @@ Resolve from the map's `source`/`ref`:
 
 Don't drop un-deployable members silently — include them commented/flagged so the manifest is a complete picture, and list them in the Step 6 report.
 
-**Prerequisite for private members:** Trinity clones each `github:` member itself, so it needs a token that can read those repos — a fine-grained PAT with *Contents: Read* under **Settings → GitHub token** on the instance (it beats the shared admin token, and it's what a private-repo fleet depends on). Public repos clone without one. A member whose repo the resolved token can't read fails the deploy loudly at creation, naming the repo — check the token before a fan-out deploy rather than reading it out of a half-built system.
+**Prerequisite for private members:** Trinity clones each `github:` member itself, so it needs a token that can read those repos — a fine-grained PAT with *Contents: Read*, saved as the creator's **Personal GitHub Token (Settings → MCP Keys)** — it beats the instance PAT an admin sets under **Settings → Integrations**, and it's what a private-repo fleet depends on. Public repos clone without one. A member whose repo the resolved token can't read fails the deploy loudly at creation, naming the repo — check the token before a fan-out deploy rather than reading it out of a half-built system.
 
 ### Step 4: Build the manifest
 
@@ -87,7 +88,7 @@ Assemble `fleet/system.yaml` in Trinity `SystemManifest` shape:
 ```yaml
 name: <system_name from map, or "<agent>-fleet">
 description: "<one line describing this system>"
-prompt: "<from Q3, or omit>"          # OVERWRITES the instance-wide Trinity Prompt for every agent — omit unless intended
+prompt: "<from Q3, or omit>"          # OVERWRITES the instance-wide Trinity Prompt for every agent — omit unless intended; newer builds apply it for an admin caller only (others get a `prompt_requires_admin` warning and no change)
 
 agents:
   prospector:
@@ -136,7 +137,7 @@ Deploying creates/starts real agents and is outward-facing and not trivially rev
 mcp__trinity__deploy_system with the manifest YAML (dry_run: false)
 ```
 
-If a system with this `name` already exists (`mcp__trinity__list_systems`), tell the user and offer: `restart_system` to apply changes (a person's session only — agent keys are refused), deploy under a new name, or cancel. Do not blindly redeploy over a running system. Under an agent key the list shows only systems inside this key's reach (trinity#3810), so "not listed" does not mean the name is free: an agent name already taken outside reach is not refused: `deploy_system` names each member `<system>-<member>` and, when that is taken, creates `<system>-<member>-2` beside it, saying so in its warnings (`Agent '<system>-<member>' already exists, will create '<system>-<member>-2'`). Read the dry run's warnings for that line — when it appears, stop and ask the operator rather than deploy a renamed member the map does not know.
+If a system with this `name` already exists (`mcp__trinity__list_systems`), tell the user and offer: `apply_system` to reconcile the running system to this manifest (Trinity 1.0.5+; a person's session only, dry run first — it creates what is absent, updates members in place and deletes nothing), deploy under a new name, or cancel. On a build without it (`not_available`) or under an agent key (the tool is not offered), the choice is a new name or cancel — never fall back to `deploy_system` over the same name. `restart_system` (a person's session only) just stops and starts the members; it applies no manifest change. Do not blindly redeploy over a running system. Under an agent key the list shows only systems inside this key's reach (trinity#3810), so "not listed" does not mean the name is free: an agent name already taken outside reach is not refused: `deploy_system` names each member `<system>-<member>` and, when that is taken, creates `<system>-<member>-2` beside it, saying so in its warnings (`Agent '<system>-<member>' already exists, will create '<system>-<member>-2'`). Read the dry run's warnings for that line — when it appears, stop and ask the operator rather than deploy a renamed member the map does not know.
 
 ### Step 7: Report
 

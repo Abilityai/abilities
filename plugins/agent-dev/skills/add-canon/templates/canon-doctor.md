@@ -4,10 +4,11 @@ description: "Verify this agent's canon-layer setup end-to-end — declaration, 
 allowed-tools: Read, Bash, Glob, Grep
 user-invocable: true
 metadata:
-  version: "1.1"
+  version: "1.2"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.2: Platform-truth sync (Trinity dev 7820af28, 1.0.5-rc2; worded to hold on v1.0.0 too) — the deployed GH_TOKEN fix is the owner's act: inject_credentials takes a person's session or user key, an agent key is refused (ent#719)"
     - "1.1: Tenth check — lint: when the canon repo carries tools/canon-lint (seeded by /add-canon-lint), run it scoped to this agent's folder — PASS clean, WARN warnings-only or python3 missing, FAIL on failures (the next /canon-publish will refuse to push until they're fixed); linter absent → INFO pointing at /add-canon-lint; the verdict line now counts lint state so fleet-wide dispatch sees red folders, not just broken plumbing"
     - "1.0: Initial version — nine-check ladder (declaration → tooling/credentials → clone with self-heal attempt → remote matches declaration → pull --ff-only → push --dry-run write probe → git identity → PR tooling → CODEOWNERS filled), context-aware remediation (workstation: gh auth login / setup-git · deployed: GH_TOKEN via .env + inject_credentials), one-line verdict suitable for fleet-wide dispatch"
 ---
@@ -78,11 +79,11 @@ Canon doctor — <agent> · repo <x-canon.repo> · context <workstation | headle
 
 | Failure | Workstation | Deployed Trinity instance |
 |---|---|---|
-| No credentials (2) · clone auth (3) · pull auth (5) | `gh auth login` | Put `GH_TOKEN=<fine-grained PAT — canon repo ONLY, Contents: Read and write>` in the agent's `.env` and inject it via `mcp__trinity__inject_credentials` (see `/trinity:onboard` Step 5e), then re-run |
+| No credentials (2) · clone auth (3) · pull auth (5) | `gh auth login` | Put `GH_TOKEN=<fine-grained PAT — canon repo ONLY, Contents: Read and write>` in the agent's `.env` — the agent's **owner** injects it with `inject_credentials` from their own session or user key (`/trinity:onboard` Step 5e); an agent key is refused on newer builds, so this skill never calls it itself — then re-run |
 | Push denied (6) | Grant repo write (collaborator / org role); if `gh` is logged in but plain `git push` still fails, run `gh auth setup-git` | Same PAT — verify it has **write** on Contents and actually covers the canon repo |
 | PR tooling (8) | `gh auth login` | Add **Pull requests: Read and write** to the PAT and install `gh`; until then cross-folder changes print manual PR steps |
 
-Never present an interactive fix (`gh auth login`) as the remediation for a headless context — it cannot be executed there; the `.env` + `inject_credentials` path is the deployed answer.
+Never present an interactive fix (`gh auth login`) as the remediation for a headless context — it cannot be executed there; the deployed answer is `GH_TOKEN` in `.env`, injected by the agent's owner (`inject_credentials` takes a person; the agent's own key is refused on newer builds).
 
 ## Error handling
 

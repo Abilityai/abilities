@@ -53,7 +53,7 @@ Run `/trinity:connect` to authenticate with your Trinity instance:
 
 ### 2. Add your GitHub token (One-time)
 
-In the Trinity UI: **Settings → GitHub token** — a fine-grained PAT with **Contents: Read** on the repos your agents live in. This is what lets Trinity clone an agent straight from its repository, which is how agents are meant to be deployed (next step). Public repos work without it; private repos don't.
+In the Trinity UI: **Settings → MCP Keys → Personal GitHub Token** — a fine-grained PAT with **Contents: Read** on the repos your agents live in. This is what lets Trinity clone an agent straight from its repository, which is how agents are meant to be deployed (next step). Public repos work without it; private repos don't.
 
 ### 3. Onboard (Per-agent)
 
@@ -109,7 +109,7 @@ Once connected, Trinity MCP tools are available directly:
 | `mcp__trinity__create_room` | Open a shared multi-agent thread (`post_to_room`, `read_room`, `list_rooms`, `close_room`) — the substrate for several agents working one problem; a human can follow and tag agents in, but an `@mention` wakes agent participants only (agents cannot tag people), and every participant's access is re-checked when it wakes |
 | `mcp__trinity__call_a2a_agent` | Call an **operator-registered external A2A agent** by name (`get_a2a_task` polls the task) — default **OFF** (`A2A_OUTBOUND_ENABLED`), endpoints are admin-managed; inbound exposure is per-agent opt-in (`set_agent_a2a_exposure`, `get_agent_a2a_card`, `set_a2a_inbound_allowlist`) |
 | `mcp__trinity__list_skill_gates` | Which of an agent's skills need a person's approval before they run (`set_skill_gate` / `clear_skill_gate` — the agent's owner or an admin, or with an agent key the skill-management permission on another agent, never on itself; the approver is `primary`, `approver` or a canon role `role:<id>` from the agent's roster; a gated call answers `pending_approval`. A peer calling a skill the target got from the library rather than declaring it is refused `skill_not_granted` until an admin grants it) |
-| `mcp__trinity__ask_trinity` | Ask Trinity's own grounded documentation Q&A — the live answer channel for "how does Trinity do X" |
+| `mcp__trinity__ask_trinity` | Ask Trinity's own grounded documentation Q&A — the live answer channel for "how does Trinity do X" (from Trinity 1.0.5 absent when the operator turned it off — `DO_NOT_TRACK` / `ASK_TRINITY_ENABLED=false`) |
 | `mcp__trinity__set_canvas` | Publish/patch a live canvas the Workspace renders (`patch_canvas`, `get_canvas`, `list_canvases`, `clear_canvas`; ≤100 per agent, pinning is human-only) — no skill needed: the platform prompt teaches every agent the canvas |
 
 ### Schedules are declarative
@@ -133,7 +133,7 @@ A deployed agent publishes results by calling one MCP tool: **`mcp__trinity__rep
 | `period_start` / `period_end` | optional | ISO-8601, for reports covering a window |
 | `to` | optional | The role the report is for — `primary` / `approver` / `viewer` / `operator`; the platform resolves the person. Omit for operator-only. `audience_email` is deprecated (trinity-enterprise#606) |
 
-**Business metrics — declare, record, read (trinity-enterprise#476):** an agent declares its KPIs once in `template.yaml metrics:` (name, type, `cadence`, optional `direction` / `aggregation` / `dimensions`; Trinity reads the block into a per-agent registry), its `/update-dashboard` playbook records the numbers it writes to `dashboard.yaml` as points via the `record_metrics` MCP tool (the only write path — validated against the declaration, idempotent, all-or-nothing), and the platform reads them back with one stale rule (no point within 2× cadence) on the agent's tiles, `get_metrics`, and any dashboard widget bound with `metric: <name>`. `/create-agent` and `/trinity:create-dashboard` scaffold all three halves; the Dashboard tab's *Update Dashboard* button calls the playbook by that exact name.
+**Business metrics — declare, record, read (trinity-enterprise#476):** an agent declares its KPIs once in `template.yaml metrics:` (name, type, `cadence`, optional `direction` / `aggregation` / `dimensions`; Trinity reads the block into a per-agent registry; from Trinity 1.0.5 the owner can also declare, edit or retire an entry from the agent's Dashboard tab, which writes the same block), its `/update-dashboard` playbook records the numbers it writes to `dashboard.yaml` as points via the `record_metrics` MCP tool (the only write path — validated against the declaration, idempotent, all-or-nothing), and the platform reads them back with one stale rule (no point within 2× cadence) on the agent's tiles, `get_metrics`, and any dashboard widget bound with `metric: <name>`. `/create-agent` and `/trinity:create-dashboard` scaffold all three halves; the Dashboard tab's *Update Dashboard* button calls the playbook by that exact name.
 
 **Reports complement `dashboard.yaml`:** the dashboard is the *current* snapshot (overwritten each refresh); reports are an *append-only history* of what the agent accomplished (rolling — pruned past `agent_reports_retention_days`, default 90 days). The convention `/create-agent` bakes into every generated agent is: **result-producing and scheduled skills end with a guarded `report` call** — guarded so it's skipped silently when the tool is absent (running locally, off Trinity) or refuses because the key `requires a key that carries an agent identity` (a user/admin-key session, #2975) — never retried. Reporting is an upgrade, never a requirement.
 
@@ -157,7 +157,7 @@ A **scheduled/headless** execution is a single agent turn, and it cannot host a 
 
 ## Building multi-agent systems
 
-A *system* is a coordinated group of agents. Declare one as a Trinity **`SystemManifest`** and deploy it in a single shot with the `deploy_system` MCP tool (`list_systems`, `get_system_manifest`, and `restart_system` round out the set). Trinity supplies the substrate — agent-to-agent messaging, shared folders, permissions, cron — but runs **no central DAG engine**: orchestration is owned by the agents themselves.
+A *system* is a coordinated group of agents. Declare one as a Trinity **`SystemManifest`** and deploy it in a single shot with the `deploy_system` MCP tool (`list_systems`, `get_system_manifest`, `restart_system` and `teardown_system` round out the set; from Trinity 1.0.5 a person's key can also reconcile a live system to its manifest with `apply_system` — dry run first, agent keys refused). Trinity supplies the substrate — agent-to-agent messaging, shared folders, permissions, cron — but runs **no central DAG engine**: orchestration is owned by the agents themselves.
 
 To make an agent that *discovers*, *composes*, and *drives* such a system, install **`/agent-dev:add-orchestrator`**. It adds `/discover-agents` (scan a repo list — local or `github:Org/repo` — into a system map), `/compose-system` (system map → `SystemManifest` → `deploy_system`), and `/orchestrate` (route work, fan out, or roll a catalog agent out ephemerally). It's the agent-side counterpart to these platform primitives.
 

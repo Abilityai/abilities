@@ -4,10 +4,11 @@ description: Give any agent a shared canonical-data layer — installs /canon-pu
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 metadata:
-  version: "1.12"
+  version: "1.13"
   created: 2026-07-28
   author: Ability.ai
   changelog:
+    - "1.13: Platform-truth sync (Trinity dev 7820af28, 1.0.5-rc2; worded to hold on v1.0.0 too) — inject_credentials and initialize_github_sync are a person's calls (agent keys refused, ent#719). Bundled runtime skills: canon-doctor 1.2, canon-publish 1.8, canon-reconcile 1.6"
     - "1.12: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — installs canon-publish 1.7: a hub call refused skill_not_granted (ent#662 — the hub got /propagate-change from the skills library, and an edge covers only declared skills) prints the exact per-publisher grant under Propagation due"
     - "1.11: The installed canon-publish (1.6) starts propagation itself — after a push that changed the content of a domain other agents keep a copy of (domains.yaml propagation: copied), it moves the domain's anchor and sends the hub one line, /propagate-change --domain <id> --source <repo@sha>, or prints that line when Trinity is not reachable. The trigger is the canon linter's deterministic --changed-domains check, so re-stamps never wake the fleet. Installs nothing new: an agent that publishes now propagates (protocols/change-propagation.md §1)"
     - "1.10: Consumers are found, not asked (new Step 8b) — when the canon carries a domain map, the installer greps the agent's own repo for every domain's subject (id, key_prefixes, retired phrases from change notices), proposes the missing `consumers:` lines to the map's steward in one PR, and has the agent rebuild once against each anchored domain so it starts current instead of waiting to be noticed. Before this, a newly enrolled agent was invisible to every propagation run until someone remembered to add it. Fleet enrollment (Step 9) runs the same pass per target and folds every proposal into one map PR; the summary gains a Consumes block"
@@ -288,7 +289,7 @@ Fold the outcome into Step 10's summary:
   live delivery:     <synced now via /sync-fleet-to-head | pull messaged to <n> running agents |
                      deferred — converges via next session, scheduled fleet sync, or the
                      pull-first reconcile run (Step 8 failsafe)>
-  undeliverable:     <names — no git sync on Trinity (needs initialize_github_sync) |
+  undeliverable:     <names — no git sync on Trinity (needs initialize_github_sync — a person's call) |
                      local-only container HEAD (needs manual rebase)> — or none
   credentials:       GH_TOKEN= seeded in each target's .env.example — the operator fills it per
                      deployed instance (a token cannot be verified from here); each member proves
@@ -355,7 +356,7 @@ Print:
 | `gh` missing and Q1 = create-new github | Offer local-path mode or stop with install instructions |
 | Write probe fails (no or read-only access to an existing `github:` canon) | Hard-stop before seeding — fix access (collaborator / org role / PAT scope) and re-run; nothing has been written |
 | Clone fails (auth, no access) | Stop with the exact remote + context-appropriate fix (workstation: `gh auth login` · deployed: `GH_TOKEN` per Step 6b); nothing else is written |
-| Deployed instance can't clone/push | `/canon-doctor` on the instance diagnoses; fix = `GH_TOKEN` into `.env` + `inject_credentials` (Step 6b) — never interactive `gh auth login` there |
+| Deployed instance can't clone/push | `/canon-doctor` on the instance diagnoses; fix = `GH_TOKEN` into `.env`, injected by the agent's owner with `inject_credentials` from a person's session or user key (Step 6b; an agent key is refused on newer builds) — never interactive `gh auth login` there |
 | `agents/<name>/` exists, owned by another agent | Ask for a different folder name — never adopt someone else's folder |
 | `canon/` exists but points at a different remote | Stop and show both remotes — never silently switch a clone |
 | A target skill dir already exists | Ask per-skill: overwrite / skip / cancel |
@@ -363,7 +364,7 @@ Print:
 | Seed push fails (no remote / rejected) | Commit stays local; say so — the layer works, sharing waits for a remote |
 | Enrollment target unreachable (no repo ref, clone failed) | Count as skipped with the reason; never block the rest of the batch |
 | Enrollment landed at repo HEAD but running containers are stale | Expected, not broken — offer activation now (Step 9.5: `/sync-fleet-to-head` or per-agent pull via Trinity MCP); the pull-first reconcile message self-delivers on the first scheduled run regardless |
-| Enrollment target has no git sync on Trinity | Undeliverable to its live instance — name it in the summary; it receives the rollout only after `initialize_github_sync` or a redeploy |
+| Enrollment target has no git sync on Trinity | Undeliverable to its live instance — name it in the summary; it receives the rollout only after `initialize_github_sync` (a person's call — an agent key is refused on newer builds) or a redeploy |
 | Enrollment target already declares `x-canon:` | Already enrolled — skip idempotently, count it |
 | Enrollment target has no `template.yaml` | Install the repo artifacts anyway; warn its declaration can't be recorded (same caveat as Step 6) |
 

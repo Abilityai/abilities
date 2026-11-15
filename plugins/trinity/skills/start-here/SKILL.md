@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Bash, AskUserQuestion, Skill, mcp__trinity__list_agents, mcp__trinity__get_fleet_health, mcp__trinity__ask_trinity, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result
 metadata:
-  version: "1.7"
+  version: "1.8"
   created: 2026-08-06
   author: Ability.ai
   changelog:
+    - "1.8: The personal GitHub token path is Settings → MCP Keys → Personal GitHub Token; `ask_trinity` can be switched off by the operator from Trinity 1.0.5 (`DO_NOT_TRACK` / `ASK_TRINITY_ENABLED=false`) — the smoke test marks it SKIP, not FAIL, and falls back to the public docs channel"
     - "1.7: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — the no-instance branch names all four install routes (DigitalOcean guided installer, Marketplace images on DigitalOcean / AWS / Vultr, an existing server, local Docker); \"What is Trinity\" no longer says Claude Code only — runtimes are Claude Code, Codex and Gemini CLI"
     - "1.6: Trinity dev ed5904906 — the queued_timeout note calls get_execution_result with both agent_name and execution_id and gives the platform's current reason not to re-send (an identical repeat is answered with the original; a reworded one can run twice)"
     - "1.5: Trinity v0.9.5 — the instance options are DigitalOcean (guided installer), your own server, or local Docker; the cloud (ability.ai) managed-hosting option is gone — Trinity is self-hosted"
@@ -49,7 +50,7 @@ The front door to Trinity. One command walks a newcomer from *"what is this?"* t
 
 2. **The user-docs index** — fetch `https://raw.githubusercontent.com/abilityai/trinity/main/docs/user-docs/README.md` to see the current documentation map, and deep-link the user to specific pages as `https://github.com/abilityai/trinity/blob/main/docs/user-docs/<path>`.
 
-**Post-connect:** prefer `mcp__trinity__ask_trinity` (the instance's own docs tool — same grounded corpus, plus it lives where the user's fleet lives). The public endpoint remains the fallback whenever the instance is unreachable.
+**Post-connect:** prefer `mcp__trinity__ask_trinity` (the instance's own docs tool — same grounded corpus, plus it lives where the user's fleet lives). The public endpoint remains the fallback whenever the instance is unreachable — or when the tool is absent: from Trinity 1.0.5 an operator can switch it off (`DO_NOT_TRACK` / `ASK_TRINITY_ENABLED=false`), and if they chose `DO_NOT_TRACK` for privacy, use only the user-docs on GitHub.
 
 **Channel routine:** any time the user asks anything about Trinity — at any stage — answer through whichever channel is available, quote the grounded answer, and offer the relevant user-docs deep link when one exists.
 
@@ -142,7 +143,7 @@ This is the moment the session becomes a control plane.
    |-------|------|-----------------|
    | Fleet visible | `mcp__trinity__list_agents` | A list returns. A fresh install is **not** empty — it seeds the `acme` system (`scout`, `sage`, `scribe`) plus Cornelius, so expect ~4 agents (ent#124). An empty list is still a pass; it just means the seed was disabled or this instance isn't fresh |
    | Instance healthy | `mcp__trinity__get_fleet_health` | Health summary returns, no critical agents |
-   | Live docs online | `mcp__trinity__ask_trinity` | Grounded answer returns |
+   | Live docs online | `mcp__trinity__ask_trinity` | Grounded answer returns. Tool absent → the operator switched it off (Trinity 1.0.5+): mark **SKIP**, not FAIL |
 
    For the `ask_trinity` check, ask something the user actually wants to know (or default to *"What can agents do on a schedule?"*), show the answer, and tell them explicitly: **this is the documentation channel from now on — any question about how Trinity works gets a live, doc-backed answer from your own instance.**
 
@@ -156,7 +157,7 @@ Goal — the user exchanges a real message with an agent running on *their* inst
 
 - **They built an agent locally** (door "build"): deployment is **repository-first**, so set that up before deploying — it's two small steps and it's how every later update reaches the agent:
   1. **Push the agent to GitHub** (`gh repo create <name> --private --source=. --push` from its directory) — Trinity deploys by cloning the repo, so the repo is the deliverable.
-  2. **Add a GitHub token** in the instance UI under **Settings → GitHub token** (a fine-grained PAT, *Contents: Read*) — required for private repos, recommended for public ones.
+  2. **Add a GitHub token** in the instance UI under **Settings → MCP Keys → Personal GitHub Token** (a fine-grained PAT, *Contents: Read*) — required for private repos, recommended for public ones.
 
   Then, from the agent's directory, `/trinity:onboard` deploys it from that repo and reports which commit landed. (No repo, or GitHub unreachable? onboard falls back to a local-file deploy — fine to get moving, and it offers to put the agent on the repo path afterwards.) Then, from here, `mcp__trinity__chat_with_agent` — send a short real task, show the reply.
 - **The instance already has agents** (seeded fleet or door "bring" after migration): pick one from `list_agents` and `chat_with_agent` it with a hello-task.
