@@ -6,10 +6,11 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 metadata:
-  version: "1.9"
+  version: "1.10"
   created: 2026-04-30
   author: Ability.ai
   changelog:
+    - "1.10: Trinity 1.0.5 truth sync (v1.0.5) — the DigitalOcean guided installer is fetched from the v1.0.5 tag: it asks for no admin password (a region and a Droplet name only), and the admin account is created in the browser when the install is ready, so open the address at once — the first visitor claims it; the prebuilt-image example pins v1.0.5; after any update, restart the fleet — agents keep their old base image until restarted, and from 1.0.5 one operator-queue alert names the agents still behind (trinity#4483)"
     - "1.9: Version-neutral notes for Trinity 1.0.5 (pins stay on v1.0.0 until the final tag): installers from v1.0.5 ask for no admin password — the admin account is created in the browser; fresh 1.0.5+ installs refuse off-box MCP clients until an admin turns on Settings → MCP Keys → External MCP access, and the raw MCP port is loopback-only (`MCP_BIND_ADDRESS`); SQLite is refused at boot from 1.0.5 (bundled PostgreSQL on every layout, `python -m db.sqlite_to_postgres`); the install carries `scripts/deploy/update.sh` (`trinity update`)"
     - "1.8: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — the guided DigitalOcean installer is fetched from the v1.0.0 tag and no longer asks for a Claude credential (Connect Claude happens at first sign-in, ent#582), so the token step is gone; new Marketplace-image path (DigitalOcean 1-Click, AWS Marketplace AMI with the EC2 instance-ID claim, Vultr) that continues as an existing install; the remote path names AWS; prebuilt-image fast path pins v1.0.0 and notes the bundled PostgreSQL; the ops-agent Anthropic key question no longer claims agents won't run without it"
     - "1.7: Positioning (ADR-0011, ent#803) — the 'what you'll get' line names Trinity as your own self-hosted operating system for the AI-native company replacing the retired pre-ADR-0011 wording; no procedural change"
@@ -53,7 +54,7 @@ Use AskUserQuestion:
 
 Trinity ships its own installer for this (`scripts/deploy/trinity-do-create.sh`): it creates a stock Ubuntu Droplet (`s-4vcpu-8gb`, about **$48/month** until the Droplet is deleted), installs Trinity from prebuilt images on first boot, and serves it over HTTPS with a real certificate for the IP address. There is no managed Trinity hosting — this is the least-infrastructure path.
 
-**The v1.0.0 installer asks for the admin password in the user's own terminal. Never run it from this session and never ask for the password here** — the script is built to keep it off the screen and out of shell history. Installers from v1.0.5 ask for no password at all: the admin account (email and password) is created in the browser when the install is ready. It does not ask for a Claude credential: the first sign-in opens a setup overlay whose **Connect Claude** step takes a subscription token or an API key.
+**The installer runs in the user's own terminal, never from this session** — it uses their DigitalOcean login and creates a billed Droplet. It asks for no admin password: the admin account (email and password) is created in the browser when the install is ready, and **the first visitor to the address claims it**, so the user opens it as soon as the installer prints it. (The v1.0.0 installer asked for an admin password in the terminal; never ask for one here.) It does not ask for a Claude credential: the first sign-in opens a setup overlay whose **Connect Claude** step takes a subscription token or an API key.
 
 Display:
 
@@ -63,19 +64,17 @@ Display:
 Run these in your own terminal (on Windows: inside WSL):
 
 1. Install DigitalOcean's CLI (doctl) and authorise it:   doctl auth init
-2. Pick an admin password: 12+ characters with upper/lowercase, a digit and a symbol.
-3. Run the installer — it installs the release it was fetched from:
+2. Run the installer — it installs the release it was fetched from:
 
-   bash <(curl -fsSL https://raw.githubusercontent.com/abilityai/trinity/v1.0.0/scripts/deploy/trinity-do-create.sh)
+   bash <(curl -fsSL https://raw.githubusercontent.com/abilityai/trinity/v1.0.5/scripts/deploy/trinity-do-create.sh)
 
-   (newer release? swap the tag — https://github.com/abilityai/trinity/releases.
-   Installers from v1.0.5 ask for no password: skip step 2, and at step 4 create
-   your admin account — email and password — in the browser instead of signing in.)
-   It asks for the password, a region and a Droplet name, shows the cost,
-   and asks before creating anything. About six minutes end to end.
-4. When it prints "Trinity is ready", open https://<droplet-ip> and sign in as admin.
-   First-run setup opens: connect Claude (subscription token or API key) there —
-   "Secure this instance" is the other step worth doing now.
+   (newer release? swap the tag — https://github.com/abilityai/trinity/releases.)
+   It asks for a region and a Droplet name, shows the cost, and asks before
+   creating anything. No password is asked for. About six minutes end to end.
+3. When it prints the address, open https://<droplet-ip> straight away and create
+   your admin account (email and password) — whoever opens it first claims the
+   instance. First-run setup then opens: connect Claude (subscription token or
+   API key) there — "Secure this instance" is the other step worth doing now.
 
 Full guide: https://docs.ability.ai/getting-started/deploying/digitalocean
 ```
@@ -252,7 +251,7 @@ If they say "Skip", note that the web UI and MCP server will not be reachable un
 
 #### Run deployment
 
-Inform the user: "Deploying Trinity — first run takes 10-15 minutes to build the base Docker image." (Optional fast path: `TRINITY_IMAGE_TAG=v1.0.0 ./scripts/deploy/start.sh --hosted` pulls prebuilt GHCR images instead of building — since 1.0 a fresh `--hosted` install (every layout from 1.0.5, where SQLite is refused at boot) runs on the bundled PostgreSQL, and `start.sh` generates `POSTGRES_PASSWORD` and `DATABASE_URL` itself; pin the tag, `latest` turns the next run into an upgrade; upgrades = re-run `start.sh --hosted`, never `docker compose pull`. If you take it, set `COMPOSE_FILE=docker-compose.hosted.yml` for STEP 3 so the ops agent's `/update` pulls instead of building.)
+Inform the user: "Deploying Trinity — first run takes 10-15 minutes to build the base Docker image." (Optional fast path: `TRINITY_IMAGE_TAG=v1.0.5 ./scripts/deploy/start.sh --hosted` pulls prebuilt GHCR images instead of building — since 1.0 a fresh `--hosted` install (every layout from 1.0.5, where SQLite is refused at boot) runs on the bundled PostgreSQL, and `start.sh` generates `POSTGRES_PASSWORD` and `DATABASE_URL` itself; pin the tag, `latest` turns the next run into an upgrade; upgrades = re-run `start.sh --hosted`, never `docker compose pull`. If you take it, set `COMPOSE_FILE=docker-compose.hosted.yml` for STEP 3 so the ops agent's `/update` pulls instead of building.)
 
 **Step 1: Verify / install Docker**
 ```bash
@@ -589,7 +588,7 @@ For a hosted (pull-only) install and for a DigitalOcean Droplet — only when th
 [ -n '{COMPOSE_FILE}' ] && perl -i -pe 's|^COMPOSE_FILE=.*|COMPOSE_FILE={COMPOSE_FILE}|' {DEST}/.env || true
 [ -n '{TRINITY_PATH}' ] && perl -i -pe 's|^TRINITY_PATH=.*|TRINITY_PATH={TRINITY_PATH}|' {DEST}/.env || true
 ```
-`COMPOSE_FILE` decides whether the ops agent's `/update` builds images or runs `start.sh --hosted` — wrong here means a rebuild-from-source on an install that has no build context. From Trinity 1.0.5 the install also carries its own `scripts/deploy/update.sh` (`trinity update`): preflight, pre-update backup, verification, recorded rollback — the ops agent's `/update` stays the default here.
+`COMPOSE_FILE` decides whether the ops agent's `/update` builds images or runs `start.sh --hosted` — wrong here means a rebuild-from-source on an install that has no build context. From Trinity 1.0.5 the install also carries its own `scripts/deploy/update.sh` (`trinity update`): preflight, pre-update backup, verification, recorded rollback — the ops agent's `/update` stays the default here. **After any update, restart the fleet** (or stop and start each agent): an agent keeps the base image it was started from, so the release's agent-side fixes, security fixes included, do not reach it until it restarts. From Trinity 1.0.5 one operator-queue alert names the agents still on an older image and ends by itself when none are left.
 
 For local Docker (no SSH): leave `SSH_HOST` empty (the `.env.example` default).
 
