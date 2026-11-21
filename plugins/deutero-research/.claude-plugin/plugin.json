@@ -1,0 +1,16 @@
+{
+  "name": "deutero-research",
+  "description": "User research agents on Trinity, powered by Deutero (AI-conducted interviews): give an existing agent Deutero, or create a research agent or a lead + designer + analyst research team",
+  "version": "1.1.0",
+  "author": {
+    "name": "Ability.ai",
+    "email": "support@ability.ai"
+  },
+  "homepage": "https://github.com/abilityai/abilities",
+  "repository": "https://github.com/abilityai/abilities",
+  "license": "MIT",
+  "keywords": [
+    "deutero", "user-research", "interviews", "qualitative", "research",
+    "trinity", "agent", "team", "mcp"
+  ]
+}

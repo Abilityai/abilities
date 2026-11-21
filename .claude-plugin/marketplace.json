@@ -120,6 +120,18 @@
       ]
     },
     {
+      "name": "deutero-research",
+      "source": "./plugins/deutero-research",
+      "description": "User research agents on Trinity, powered by Deutero (AI-conducted interviews): add Deutero to an existing agent, or create a research agent or a lead + designer + analyst research team.",
+      "category": "deployment",
+      "tags": ["deutero", "user-research", "interviews", "research", "trinity", "team"],
+      "skills": [
+        "./skills/add-deutero",
+        "./skills/create-researcher",
+        "./skills/create-research-team"
+      ]
+    },
+    {
       "name": "add-project-management",
       "source": "./plugins/add-project-management",
       "description": "DEPRECATED — moved into the agent-dev plugin; run /agent-dev:add-project-management instead. Pointer stub kept for one release so existing installs do not break; it installs nothing.",

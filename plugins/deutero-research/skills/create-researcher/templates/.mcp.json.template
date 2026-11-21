@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "deutero": {
+      "type": "http",
+      "url": "https://dashboard.deutero.ai/mcp",
+      "headers": {
+        "X-API-Key": "${DEUTERO_API_KEY}"
+      }
+    }
+  }
+}

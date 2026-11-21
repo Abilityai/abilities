@@ -195,6 +195,20 @@ General-purpose ops and productivity skills.
 | `/utilities:sync-ops-knowledge` | Update ops docs from commits |
 | `/utilities:batch-claude-loop` | Batch headless Claude Code calls |
 
+### deutero-research
+
+User research agents on Trinity, powered by [Deutero](https://deutero.ai) (AI-conducted interviews).
+
+```bash
+/plugin install deutero-research@abilityai
+```
+
+| Skill | Description |
+|-------|-------------|
+| `/deutero-research:add-deutero` | Give an existing agent Deutero: its own key, the MCP server and the Deutero skills |
+| `/deutero-research:create-researcher` | Create and deploy a single research agent |
+| `/deutero-research:create-research-team` | Create and deploy a lead + designer + analyst research team |
+
 ---
 
 ## The Agent Development Workflow

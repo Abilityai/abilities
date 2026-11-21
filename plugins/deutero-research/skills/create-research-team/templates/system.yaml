@@ -1,0 +1,49 @@
+# Deutero research team — deploy with mcp__trinity__deploy_system (dry_run first).
+# Agents are created as {{SYSTEM}}-lead, {{SYSTEM}}-designer, {{SYSTEM}}-analyst.
+# No top-level `prompt:` on purpose: it would overwrite the platform-wide prompt for every agent.
+
+name: {{SYSTEM}}
+description: {{DESCRIPTION}}
+
+agents:
+  lead:
+    template: github:{{OWNER}}/{{SYSTEM}}-lead
+    resources: {cpu: "1", memory: "2g"}
+    folders: {expose: false, consume: true}     # reads the analyst's shared-out
+    tags: [research, lead]
+
+  designer:
+    template: github:{{OWNER}}/{{SYSTEM}}-designer
+    resources: {cpu: "1", memory: "2g"}
+    folders: {expose: false, consume: false}
+    tags: [research]
+
+  analyst:
+    template: github:{{OWNER}}/{{SYSTEM}}-analyst
+    resources: {cpu: "1", memory: "2g"}
+    folders: {expose: true, consume: false}     # findings for the lead
+    tags: [research]
+    schedules:
+      - name: reconcile-interviews
+        cron: "0 7 * * *"
+        message: "/reconcile-interviews"
+        timezone: {{TIMEZONE}}
+        enabled: false
+      - name: research-digest
+        cron: "0 8 * * 1"
+        message: "/research-digest 7"
+        timezone: {{TIMEZONE}}
+        enabled: false
+
+# The lead delegates to both specialists; each can only answer the lead.
+# (`orchestrator-workers` would need an agent literally named `orchestrator`.)
+permissions:
+  explicit:
+    lead: [designer, analyst]
+    designer: [lead]
+    analyst: [lead]
+
+system_view:
+  name: {{DISPLAY_NAME}}
+  icon: "🔎"
+  color: "#5B8DEF"
