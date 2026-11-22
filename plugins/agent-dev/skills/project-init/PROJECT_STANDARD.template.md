@@ -2,14 +2,14 @@
 
 > The standardized approach for managing projects in this deployment.
 > Every managed project follows this standard; `/project-init` creates projects that conform to it,
-> `/project-task` creates tasks, `/project-intake` routes work in headlessly, `/project-steward` manages
+> `/project-plan` plans a project and keeps the plan true (§35), `/project-task` creates tasks, `/project-intake` routes work in headlessly, `/project-steward` manages
 > them autonomously, `/project-reconcile` syncs projections against the registry, and `/project-status`
 > reports one project's progress and projected finish to the operator.
 > **{{AGENT_NAME}}** is the managing agent; **{{OPERATOR}}** is the operator (the human this standard escalates to).
 >
 > **On a Trinity instance with Projects, read §28–§37 first: they govern there.** A project lives in the platform only — no registry epic, no task files, no labels, no projection, no two-way sync — and development issues are the one exception, linked from tasks (§28). §1–§17 are the **offline mode**, frozen as written for agents without Projects: kept working, developed no further.
 >
-> Version: 3.0 ({{DATE}}) — rev 3 §28–§37: on Trinity Projects the platform is the only home of a project (rulings P1–P11, 2026-11-11); the steward is woken by the platform, runs inside the project's mode (Track / Propose / Auto) and starts work only through `start_project_task`; the kickoff kit and the plan live in the project's file space; an epic is turned into a project by its steward; §1–§17 frozen as the offline mode. 2.0 — rev 2 operating rules §18–§26 (two machines, kickoff kit, participation contract, build/dispatch/record rules) and six §0 keys (`kickoff`, `participation_check`, `chain.ledger`, `chain.stall_minutes`, `metrics`, `brief.evening_utc`); derived from a 2026-11 multi-agent project retrospective. 1.4 — §17 Platform mode: on a Trinity instance with Projects enabled the platform holds the project record and the same skills work against it (ruling R38); §0 gains `platform:`. 1.3 — §0 Configuration, one skill set for stand-alone agents and fleet orchestrators alike
+> Version: 3.1 ({{DATE}}) — 3.1: the planner `/project-plan` joins the set — §35 names it for the kickoff plan and gains **Re-planning**; three optional §0 keys (`replan`, `replan_max_slip_days`, `plan_max_tasks`). 3.0 — rev 3 §28–§37: on Trinity Projects the platform is the only home of a project (rulings P1–P11, 2026-11-11); the steward is woken by the platform, runs inside the project's mode (Track / Propose / Auto) and starts work only through `start_project_task`; the kickoff kit and the plan live in the project's file space; an epic is turned into a project by its steward; §1–§17 frozen as the offline mode. 2.0 — rev 2 operating rules §18–§26 (two machines, kickoff kit, participation contract, build/dispatch/record rules) and six §0 keys (`kickoff`, `participation_check`, `chain.ledger`, `chain.stall_minutes`, `metrics`, `brief.evening_utc`); derived from a 2026-11 multi-agent project retrospective. 1.4 — §17 Platform mode: on a Trinity instance with Projects enabled the platform holds the project record and the same skills work against it (ruling R38); §0 gains `platform:`. 1.3 — §0 Configuration, one skill set for stand-alone agents and fleet orchestrators alike
 
 ## 0. Configuration
 
@@ -45,6 +45,10 @@ chain.ledger: run-log.md                      # the engineering executor's run l
 chain.stall_minutes: 30                       # a dispatch queued longer than this is a stall line in status and digest (§24.5)
 metrics: on                                   # on | off — record the declared project metrics of §24.4 with record_metrics (needs them declared in template.yaml)
 brief.evening_utc: "18:00"                    # the two-half evening brief in the steward digest (§23.2); empty = no evening brief
+# plan keys (standard 3.1) — read by project-plan ≥ 2.0 and project-steward ≥ 2.1; absent = the defaults shown (§35 Re-planning)
+replan: manual                                # manual | propose | auto — who approves a revised plan: a person calls revise · the steward may, and it waits as one ask · applied when inside the boundary of §35
+replan_max_slip_days: 5                       # with replan: auto — a revision that moves the projected finish further than this is asked, never applied
+plan_max_tasks: 40                            # open tasks a plan may hold; past it, later milestones are planned as one placeholder task each
 ```
 
 **Label roles, not label names.** Every skill refers to a label by its role — *the needs-operator label*, *the blocked label* — and resolves the name from this block (`$L_NEEDS_OPERATOR`, `$L_BLOCKED`, … in their bash). The tables below document the **default** vocabulary; a deployment that rides an existing tracker's vocabulary (e.g. `status-needs-operator`, `priority-p1`) changes the values here and nothing else. `status:*` / `priority:*` in the prose below mean "whichever status / priority labels this block names".
@@ -655,7 +659,7 @@ Every project ends with a readout: the metrics of §24.4, the rulings file with 
 | Start, stop, archive the project | **only** | — | — |
 | Set the mode (Track / Propose / Auto) | **only** | — | — |
 | Members, agents on the project, steward, visibility | decides | proposes (`propose_project_changes`) | — |
-| Plan: milestones and tasks | approves once | writes (§35) | — |
+| Plan: milestones and tasks | approves the kickoff plan once; revisions as `replan:` says (§35) | writes, with `/project-plan` (§35) | — |
 | Which agent runs a task | — | **decides** (P6); the platform only checks the agent is on the project | — |
 | Start a task's run | Track: always; Propose: approves | Propose: proposes; Auto: starts — only with `start_project_task` (§32) | — |
 | Priority | **only** (an agent states the wanted priority in the task's context) | — | — |
@@ -720,9 +724,13 @@ The §5 anatomy maps onto task fields:
 
 1. **The kickoff kit (§19) is written to the project's file space**, not to a folder: `intent.md`, `charter.md` (with the delegation boundary and, for engineering work, `chains:`), `rulings.md`, `setup.md`, `participation.md`. `kickoff: blocking` → nothing is offered to start until each exists; `advisory` → the gaps are listed in the log.
 2. **People and agents** the project needs are requested in one `propose_project_changes`.
-3. **The plan** (P10): the steward writes `plan.md` — the goal as milestones, each with what "reached" means as a metric and a target, and the tasks under each — creates the tasks in `todo` with their `blocked_by` links, and raises **one** approval ask for the plan, whose request id it writes as the first line of `plan.md` (`approval_ask: <id>`) so any later run can read the answer with `get_my_ask`. Until the person approves it, the steward proposes and starts nothing, in any mode. Re-planning is not automatic.
+3. **The plan** (P10): the steward runs `/project-plan <project> kickoff`, which writes `plan.md` — the goal as milestones, each with what "reached" means as a metric and a target, and the tasks under each — creates the tasks in `todo` with their `blocked_by` links, and raises **one** approval ask for the plan, whose request id it writes as the first line of `plan.md` (`approval_ask: <id>`) so any later run can read the answer with `get_my_ask`. Until the person approves it, the steward proposes and starts nothing, in any mode. Re-planning follows **Re-planning**, below.
 4. **Milestone numbers** are recorded where the deployment declares them (`record_metrics` with a `project` dimension) and restated in `plan.md`; the platform's own milestone field replaces this when it ships.
 5. The person starts the project, starts waking the steward, and picks the mode. The steward never does these.
+
+**Re-planning.** A plan is revised with `/project-plan <project> revise`, never by reshaping tasks one at a time. A revision changes only what a named finding no longer supports — a task blocked for good, a new ruling or answered ask, a milestone its tasks would not reach, a slip past a committed date, an open task no milestone needs. Done and in-flight tasks are left as they are, a task the plan no longer needs is paused with a note and never deleted, and the revision ends in one `decision` log entry saying what changed and why. `/project-plan <project> check` says whether the plan still holds and writes nothing.
+
+Who approves a revision is `replan:` in §0. `manual` (the default) — a person calls it. `propose` — the steward may call it when a wake shows a finding, and the revision waits as one ask beside the current plan. `auto` — a revision is applied and logged when it stays inside the boundary: the goal and every milestone target unchanged, no person's task added, changed or retired, no agent added, the projected finish moved by at most `replan_max_slip_days`, and the charter's delegation boundary allows it; anything outside is asked. The steward calls it at most once per project per day, only on a finding, and keeps working what can still be worked. The planner never starts, dispatches or verifies work, so a revised plan moves forward only through the project's mode (§32).
 
 **Moving a project from GitHub onto the platform** (the agent path; a person may instead use Workspace → Import → From a GitHub epic):
 

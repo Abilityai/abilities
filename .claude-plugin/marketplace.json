@@ -60,7 +60,8 @@
         "./skills/close",
         "./skills/sprint",
         "./skills/work-loop",
-        "./skills/plan"
+        "./skills/project-plan",
+        "./skills/project-plan-v1"
       ]
     },
     {

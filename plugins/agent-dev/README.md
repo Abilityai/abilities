@@ -123,7 +123,8 @@ Standalone skills — usable directly as `/agent-dev:<name>`, copied into an age
 
 | Skill | Description |
 |-------|-------------|
-| **plan** | Plan large multi-session projects with scope analysis and approval gates |
+| **project-plan** | Plan a managed project and keep the plan true — milestones → tasks → subtasks with dependencies, written to the `plan.md` ledger and the task list behind one approval; `revise` re-plans after a change and logs what changed and why; `check` writes nothing. Part of the project-management family |
+| **project-plan-v1** | Frozen v1 planner for local single-agent use — splits one large job into sessions tracked in `project_plan.yaml` |
 
 ### Memory Systems
 
@@ -209,4 +210,4 @@ This plugin consolidates:
 - playbook-builder (create-playbook, adjust-playbook)
 - file-indexing, brain-memory, json-memory, workspace-kit (memory templates)
 - github-backlog (backlog workflow)
-- project-planner (plan)
+- project-planner (project-plan — rewritten 2.0 as the planner of the project-management family; the original is frozen as project-plan-v1)
