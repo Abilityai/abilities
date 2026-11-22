@@ -1,13 +1,13 @@
 ---
 name: project-steward
-description: Autonomous sweep of all managed projects per the project standard (PROJECT_STANDARD.md at the repo root, or fleet/project-standard.md on an orchestrator — its §0 block configures registry, label vocabulary, state directory and fleet hooks) — external projects tracked in GitHub Issues and internal projects tracked in their own workspace files (standard §16), with the same policy for both. Verifies pending-verification claims against Definition of Done, dispatches next work to explicitly-labeled owner agents that passed the participation check (Trinity when available; triage-only when not), reads each project's build-chain ledgers and owns the record for the engineering issues they run (status, stalls, parked questions — never dispatching into a chain), escalates stalls per the staleness policy, sweeps open loops (ages every waiting-on item and the chain's own asks, drafts the operator's follow-ups), writes the two-half evening brief once a day, runs the quarantine classification pass, and writes a digest that closes the loop with the operator. Never asks a human anything mid-run.
+description: "On a Trinity instance with Projects (standard 3.0, §28–§37), stewards a project in the platform only. Runs when the platform wakes the steward — the turn begins `[Trinity: project steward wake]` and names one project — or on a manual /project-steward over every stewarded project, or /project-steward --brief for the evening brief. Verifies done claims, investigates stuck and stale tasks, reads the project's build-chain ledgers, starts or proposes the next ready task with start_project_task within the project's mode (Track / Propose / Auto), sets health, writes one log entry per outcome and raises one ask per decision; never starts work any other way, never writes to GitHub. Without Trinity Projects, runs the frozen offline sweep of GitHub-epic and folder projects (standard 2.x §1–§26). Never asks a human anything mid-run."
 automation: autonomous
-schedule: "0 7-19/2 * * 1-5"   # default: every 2h, weekdays UTC — adjust, or delete this line for manual-only (the installer substitutes your choice)
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__list_agents, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result, mcp__trinity__get_chat_history, mcp__trinity__send_notification, mcp__trinity__list_reports, mcp__trinity__get_report, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__list_project_tasks, mcp__trinity__get_project_log, mcp__trinity__update_project_task, mcp__trinity__add_project_task_note, mcp__trinity__add_project_log_entry, mcp__trinity__get_steward_digest, mcp__trinity__set_project_health
+schedule: "0 7-19/2 * * 1-5"   # offline mode only (no Trinity Projects). On Trinity Projects the platform wakes the steward (standard §31): retire this cron in the same change that starts wakes for the projects; only a /project-steward --brief schedule stays
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__list_agents, mcp__trinity__get_agent_health, mcp__trinity__chat_with_agent, mcp__trinity__get_execution_result, mcp__trinity__get_chat_history, mcp__trinity__send_notification, mcp__trinity__list_reports, mcp__trinity__get_report, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__list_project_tasks, mcp__trinity__get_project_log, mcp__trinity__update_project_task, mcp__trinity__add_project_task_note, mcp__trinity__add_project_log_entry, mcp__trinity__get_steward_digest, mcp__trinity__set_project_health, mcp__trinity__start_project_task, mcp__trinity__propose_project_changes, mcp__trinity__list_platform_files, mcp__trinity__read_platform_file, mcp__trinity__write_platform_file, mcp__trinity__link_to_project, mcp__trinity__list_project_executions, mcp__trinity__get_my_ask, mcp__trinity__ask_operator, mcp__trinity__record_metrics, mcp__trinity__create_project_task
 effort: high
 user-invocable: true
 metadata:
-  version: "1.11"
+  version: "2.0"
   created: 2026-07-30
   author: add-project-management
   changelog:
@@ -28,7 +28,104 @@ metadata:
 
 # Project Steward
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-steward v1.9.1 — recent: arguments no longer break the config resolver`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-steward v2.0 — recent: on Trinity Projects the platform wakes the steward and the mode decides what it may start`. Then proceed.
+
+## On Trinity Projects — the only mode there (standard 3.0, §28–§37)
+
+On a Trinity instance with Projects a project is its platform record and nothing else (§28). This section is the whole procedure there. It reads no registry epic, no `tasks/` folder, no `log.md`, no labels, and it syncs nothing to or from GitHub. Engineering issues stay in their repo and are linked from tasks with `refs` (§28); this skill never writes to them.
+
+### Step 0: Detect
+
+Call `list_projects` once.
+- `enabled: true` → run this section.
+- `enabled: false`, no such tool, or `platform: off` in §0 → go to **Offline mode** below.
+- Refused with `external_audience` or `turn_unknown` → this turn is not an internal one. Stop. Use nothing from the platform and repeat no project detail in the reply.
+
+Resolve §0 with the resolver in the offline section's **Runtime resolution** block. Read only these keys: `state_dir`, `pv_max_age_hours`, `chain.ledger`, `chain.stall_minutes`, `participation_check`, `metrics`, `brief.evening_utc`, `kickoff`. `registry`, `labels.*`, `quarantine`, `member_repos` and `platform` are not read (§28). No standard file → use the resolver's defaults; do not stop.
+
+### Entry shapes
+
+| Turn | What runs |
+|---|---|
+| **A wake**: the message begins `[Trinity: project steward wake]`, names one project id, why it woke, and the mode line | the per-project loop for **that project only** |
+| **`/project-steward`** with no wake frame | the per-project loop for every project in `get_steward_digest` — for an interactive session, a migration, or projects whose wakes are not started yet (§31) |
+| **`/project-steward --brief`** | the evening brief only (below); writes nothing on any project |
+
+The steward sets **no schedule and no reminder** for a project (§31). The platform wakes it. A wake carries no task or ask text: read the state from `get_steward_digest` and `get_project`, never from the message. A deployment that starts wakes for its projects retires its `/project-steward` cron in the same change (see the `schedule:` note in the frontmatter); the only scheduled run that stays is `/project-steward --brief`.
+
+### Per-project loop
+
+Start with `get_steward_digest` (health due, awaiting verification, stuck, stale, open asks, quiet), then `get_project` (goal, status, mode, members, `agents`, steward, latest log) and `list_project_tasks`. If the project is not started, stopped, done or archived, record nothing and move on. Then, in order:
+
+**1. Verify done claims (§34).** For each task in `awaiting_verification`, oldest first; a claim older than `pv_max_age_hours` comes first.
+- Read the task's `done_definition`, its `Validation:` line in `context`, and the claim note. Check the evidence a stranger can verify: a commit on a pushed branch, a merged PR, a path, a record id. A ref's state is evidence, not the claim.
+- All met → `update_project_task` `status: done` with a `[Verified]` note naming what was checked.
+- Something missing → `update_project_task` `status: active` with a `[Verification failed]` note naming exactly what is missing.
+- The second rejection (the task's `rejections` count reaches 2) → `status: needs-decision` and **one** ask to the task's `owner`, else the steward's primary contact.
+- Never verify your own run. Check with `list_project_executions`: if the run behind the claim was this agent's, add a note that a person must verify it and leave the task in `pending-verification`.
+- A task the digest shows `closed_without_claim`: read its note. If the output is missing, say so in one `add_project_log_entry` (`note`). Do not reopen it; reopening is a person's.
+
+**2. Stuck, stale, quiet, open loops (§33).** Investigate each stuck or stale task: read its notes, its `refs`, and its runs with `list_project_executions`. Write what you found with `add_project_task_note`. Anything that waits on a person — a grant, a seat, a send, a merge — is a person's task (`create_project_task` with `for_person: true` and a person `owner`) or a `waiting_on` on the task it blocks (`update_project_task`). Never keep an open loop only in the state dir. A wait on another task is a `blocked_by` link, never a status.
+
+**3. The engineering executor (§18, §24.3).** Read `charter.md` from the file space (`read_platform_file`, space `project:<id>`). For each folder it lists under `chains:`, read the chain's state:
+- the folder itself if this run can see it: the `chain.ledger` file (default `run-log.md`, last ~60 lines) and `ledger-entry.yaml`;
+- else the chain's latest `trinity_pm.build_chain` report (`list_reports`, `get_report`), and say in the digest it was read from the report.
+
+Post **one** `add_project_log_entry` per new outcome: PR opened → `deliverable`; validation APPROVE → `deliverable`; REQUEST CHANGES → `blocker`; run parked at `needs-operator` → `blocker` with the question verbatim; an execution queued longer than `chain.stall_minutes` without a start → `blocker`; `ahead > 0` or a dirty tree → `blocker` ("work only in the engineer's container"). An outcome is new when the project log has no entry for the same ref and event. A run parked at `needs-operator` is the project's ask: it goes in the digest's **Waits on a person** and in the health. Never dispatch into a chain, never edit a chain folder, never re-send a stalled step.
+
+**4. Next work, by mode (§32).** Read the mode from `get_project` (the wake's mode line is a hint, not the source).
+
+First the gates, all of which must pass before any proposal or start:
+- **Kickoff (§35.1).** With `kickoff: blocking`, `intent.md`, `charter.md`, `rulings.md`, `setup.md` and `participation.md` exist in the file space (`list_platform_files`). Missing → list the gap in the digest; propose and start nothing.
+- **Plan approved (§35.3).** `plan.md` exists and its approval ask was answered approve: read the ask with `get_my_ask`. The ask's request id is kept on the line `approval_ask: <id>` in `plan.md`. Approved means the answer is `Approve plan`. Not answered, or any other answer → propose and start nothing, in any mode.
+- **Participation (§20, `participation_check: on`).** Read `participation.md`. An agent that has a FAIL row, or no row, gets no start. Note the task once (`add_project_task_note`) naming the agent and the rows, and list it in the digest.
+
+Then pick from `list_project_tasks` with `view: next` (open, unblocked, not a parent with open subtasks). Skip tasks for a person, engineering issues the charter's chains run, and tasks with a live run.
+
+| Mode | The steward does |
+|---|---|
+| **Track** | Lists the ready tasks in the digest. Starts nothing. |
+| **Propose** | For the next ready tasks, picks the agent (P6) and calls `start_project_task(project_id, task_id, agent)`. The platform turns it into a proposal for the person. |
+| **Auto** | Same call. The platform starts the run. A task held for a person's go waits for them. |
+
+- The agent must be in `get_project`.`agents`. If it is not, call `propose_project_changes` (`agents`) first and start nothing for that task this run (§33).
+- At most 3 proposals or starts per project per run.
+- `start_project_task` is the only way the steward starts task work. Never send project task work with `chat_with_agent` or `fan_out`.
+- A refusal is recorded on the task as a note with its code, never worked around. Codes include `mode_track`, `project_not_started`, `project_stopped`, `project_done`, `only_the_steward_starts`, `task_is_for_a_person`, `task_run_live`, the agent not on the project, `agent_consent_predates_runs`, `auto_origin_unavailable`.
+- Moving to a higher mode is the person's act. The steward may recommend it once, with the reason, as a `note` log entry.
+
+**5. Health (§29).** Set `set_project_health` when the state changed this run, or when the digest says `health_due`:
+- `on-track` — nothing blocked, nothing waiting on a decision, nothing stale;
+- `at-risk` — a task blocked, waiting on a decision, stale, or a claim past `pv_max_age_hours`, or a chain parked;
+- `off-track` — a milestone or a committed date can no longer be met without a decision.
+
+The note is one line saying why.
+
+**6. Log.** One `add_project_log_entry` per outcome (`decision`, `deliverable`, `blocker`, `handoff`, `note`), never one per run and never "nothing changed". Status changes are logged by the platform; do not repeat them.
+
+**7. Asks.** One decision per ask (`ask_operator`), following the agent's own ask rules. Link each ask raised about the project to it with `link_to_project` (kind `ask`). Before raising one, check the digest's open asks: never raise a second ask for the same decision.
+
+**Metrics** (`metrics: on`): record with `record_metrics`, with a `project` dimension, the milestone numbers `plan.md` names (§35.4) and `project_operator_asks` for each ask this run raised (§24.4). Record nothing on a run that produced nothing.
+
+### The evening brief (`--brief`, §31, §23.2)
+
+Cross-project, for every project in `get_steward_digest`. It writes nothing on any project. Two halves:
+1. **Decisions and tonight's defaults** — each open decision (needs-decision tasks, parked chains, claims past `pv_max_age_hours`, an unanswered plan approval), one line each, with a recommendation and what happens overnight if nothing is said.
+2. **Access needed tonight** — every token, grant, vault item, unlock, merge or by-hand `setup.md` row the queued work needs: what, for which task, who provides it. Empty is written "nothing — the night needs no access from you".
+
+Write it into the day's digest under `## Evening brief YYYY-MM-DD` and send it with `send_notification`.
+
+### Digest
+
+Write material runs only, to `<state_dir>/digests/YYYY-MM-DD.md` (one file a day, a `## Run HH:MM UTC` section per run, the project id in the heading of a wake run). Open with three lines: what is now true, what waits on a person, what happens next. Then: verified, started or proposed (task, agent, or the refusal code), waits on a person, chains, stalls, health changes. Commit and push only the state dir, as in the offline Step 7.3. A run that changed nothing writes nothing and pushes nothing. Notify with `send_notification` only when something now waits on a person, or for the brief.
+
+### Never
+
+Create a project. Change the mode. Start, stop or archive a project. Change members, agents, visibility, the steward or priority (propose with `propose_project_changes`; priority is stated in a task's `context` for a person). Reopen a done task or mark a person's task done. Write to GitHub, edit labels or epics. Set a schedule or a reminder for a project.
+
+## Offline mode (frozen — agents without Trinity Projects)
+
+Runs only when `list_projects` is not enabled (standard §28). Written for standard 2.x; developed no further. Its §17 'linked project' passages are unreachable on Trinity.
 
 ## Purpose
 

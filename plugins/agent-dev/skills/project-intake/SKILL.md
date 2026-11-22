@@ -1,14 +1,15 @@
 ---
 name: project-intake
-description: Headless intake primitive — routes actionable items from any source (meetings, email, Slack, issue trackers) into the project's registry — GitHub Issues for an external project, the project's own tasks/ folder for an internal one (standard §16). Dedupes by meaning (not exact title), creates tasks with full anatomy (Objective / Definition of Done / Context / Validation), or records one-line state news (epic comment / log.md). Returns the task reference. Never interactive — called by other skills and crons.
-argument-hint: "--project=<slug> --title=\"...\" --source=\"<url-or-note>\" [--owner=<actor>] [--priority=p2] [--agent=<name>] [--waiting-on=<actor>] [--dod=\"item1|item2\"] [--objective=\"...\"] [--context=\"...\"] [--state-news]"
-allowed-tools: Bash, Read, Grep, mcp__trinity__list_projects, mcp__trinity__list_project_tasks, mcp__trinity__create_project_task, mcp__trinity__add_project_task_note, mcp__trinity__add_project_log_entry
+description: "Headless intake primitive. On a Trinity instance with Projects (standard 3.0, §28–§37) it routes an item into a platform project only — picks the project (explicit id or name, else by goal; none → NO_PROJECT, nothing created), dedupes by meaning over every task, then creates a task with the §33 anatomy, adds a note to an existing task, or writes one project log entry per outcome; a GitHub development issue is linked with refs, never copied. Returns T-NNN. Without Trinity Projects, runs the frozen offline mode (standard 2.x): GitHub Issues for an external project, the project's tasks/ folder for an internal one. Never interactive — called by other skills and crons."
+argument-hint: "[--project=<id|name|slug>] --title=\"...\" --source=\"<url-or-note>\" [--owner=<actor>] [--priority=p2] [--agent=<name>] [--waiting-on=<actor>] [--dod=\"item1|item2\"] [--objective=\"...\"] [--context=\"...\"] [--state-news [--kind=note]] [--task=T-NNN] [--refs=owner/repo#N]"
+allowed-tools: Bash, Read, Grep, mcp__trinity__list_projects, mcp__trinity__list_project_tasks, mcp__trinity__create_project_task, mcp__trinity__add_project_task_note, mcp__trinity__add_project_log_entry, mcp__trinity__get_project, mcp__trinity__get_project_log, mcp__trinity__update_project_task, mcp__trinity__list_platform_files, mcp__trinity__read_platform_file, mcp__trinity__propose_project_changes
 user-invocable: false
 metadata:
-  version: "1.6.1"
+  version: "2.0.0"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "2.0.0: Standard 3.0 (operator rulings P1–P11, 2026-11-11). On Trinity Projects intake writes only to the platform project: a new first section picks the project (explicit, or by goal — none fits → NO_PROJECT, nothing created), dedupes by meaning over every task, and routes new work to create_project_task (as /project-task --headless), news about a task to add_project_task_note, and project news to one add_project_log_entry per outcome. A GitHub development issue is linked with refs, never copied; nothing is written to GitHub. Outputs T-NNN, NOTE:T-NNN, LOG:<id>, DUPLICATE:…, NO_PROJECT:…. The old body is kept unchanged as the frozen offline mode"
     - "1.6.1: Fix — the skill runner replaces every dollar-digit placeholder in a skill body with the invocation's arguments, so a run with arguments (project-init platform <slug>, project-status <slug>, --headless task/intake) broke the §0 resolver and the awk field reads: every config key resolved empty. Shell positionals are now ${1}/${2}, awk fields $(0)/$(2). Found 2026-10-10 by the deployed trinity-pm on the first platform import"
     - "1.6: Platform mode (ent#788, ruling R38): for a platform-tracked project on a Trinity instance with Projects enabled intake dedupes against the platform's task list and creates the task there, and state news lands in the project's shared log (linked projects: the epic comment plus one log entry). Without Trinity nothing changes"
     - "1.5: One lineage (ent#789): the standard is resolved at the repo root or at fleet/project-standard.md and its §0 Configuration supplies the label vocabulary by role — owner and priority labels are ${L_OWNER}<owner> / ${L_PRIORITY}pN (defaults unchanged); the epic's owner/priority defaults are read through the same prefixes"
@@ -21,7 +22,82 @@ metadata:
 
 # Project Intake
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-intake v1.6.1 — recent: arguments no longer break the config resolver`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-intake v2.0.0 — recent: on Trinity Projects intake writes only to the platform project`. Then proceed.
+
+## On Trinity Projects — the only mode there (standard 3.0, §28–§37)
+
+On a Trinity instance with Projects, a project lives in the platform and nowhere else (§28). Intake routes an item into a platform project: a new task, a note on an existing task, or one log entry. No epic, no labels, no `tasks/` folder, no `log.md`. A GitHub development issue is linked with `refs`, never copied, and nothing is written to GitHub. This skill stays headless: it never asks. The standard's §29 and §33 are the contract; this section is the procedure.
+
+### Step 0: Detect
+
+Resolve §0 with the resolver in the offline mode's Step 1. Read only `agent` and `platform`. No standard file → use the defaults; do not stop. Then call `mcp__trinity__list_projects` once.
+
+- `enabled: true` → run this section.
+- `enabled: false`, no such tool, or `platform: off` in §0 → go to **Offline mode** below.
+- Refused with `external_audience` or `turn_unknown` → this turn is not an internal one. Print `ERROR: not an internal turn` and exit. Repeat no project detail.
+
+### Arguments
+
+The offline arguments, read this way:
+
+| Argument | On the platform |
+|---|---|
+| `--project=<id or name>` | optional — without it the project is matched by goal (Step 1) |
+| `--title`, `--source` | required, as offline |
+| `--objective`, `--dod`, `--context` | as offline; defaults: the title, and one item `<title> completed and verified against the source` |
+| `--agent`, `--owner`, `--waiting-on`, `--priority` | as `/project-task --headless` on the platform |
+| `--refs="owner/repo#N,..."`, `--milestone=M<n>`, `--parent=T-NNN`, `--blocked-by="T-NNN,..."` | as `/project-task --headless` on the platform |
+| `--task=T-NNN` | the item is news about this task |
+| `--state-news` | the item is news about the project as a whole |
+| `--kind=decision\|deliverable\|blocker\|handoff\|note` | the log entry kind for `--state-news`; default `note` |
+
+A missing `--title` or `--source` → `ERROR: --<field> is required` and exit.
+
+### Step 1: Pick the project
+
+- `--project` given → match it against the `list_projects` result: exact id first, then the name (case-insensitive). No match → print `NO_PROJECT: <value>` and exit.
+- Not given → compare the item (title, objective, source) with each listed project's name and goal (`get_project` for the goal when the list does not carry it). Exactly one project clearly fits → use it. None, or more than one → print `NO_PROJECT: <the candidates, or "none fits">` and exit. Create nothing.
+
+Call `mcp__trinity__get_project` for the chosen project. Keep its `agents` and steward.
+
+### Step 2: Classify and dedupe
+
+Call `mcp__trinity__list_project_tasks(project_id, status: all)`.
+
+- `--task` given → the item is task news: Step 3b.
+- `--state-news` → project news: Step 3c.
+- Otherwise compare the title and objective with every task, by meaning, not by exact words (the offline Step 4 tests are a floor, not the rule):
+  - same work, and the item adds nothing the task does not already hold → print `DUPLICATE:T-NNN` and exit;
+  - same work, and the item adds a fact, a date or a source → task news on that task: Step 3b;
+  - new work → Step 3a.
+
+### Step 3a: New work → a task
+
+Create it exactly as `/project-task --headless` does on the platform (its Steps 3–4): the §33 anatomy, `Validation:` in `context`, `Milestone: M<n>` when `plan.md` has milestones, `Requested priority: pN` for a priority, an assignee only from the project's `agents`. Add `Source: <source>` to `context`.
+
+When the source is a GitHub development issue or PR (engineering work on a code base), put it in `refs`. The task's objective says what the project needs from it. Do not copy the issue's body, labels or state.
+
+Print the new task id `T-NNN` and exit.
+
+### Step 3b: News about a task → a note
+
+One `mcp__trinity__add_project_task_note(project_id, task_id, body)`. The body is one or two plain lines: the news and `Source: <source>`. A waiting-on actor named by the item → `mcp__trinity__update_project_task` with `waiting_on` as well.
+
+Print `NOTE:T-NNN` and exit.
+
+### Step 3c: News about the project → one log entry
+
+Read the recent log with `mcp__trinity__get_project_log`. If an entry already records the same outcome, write nothing and print `DUPLICATE:LOG`. Otherwise one `mcp__trinity__add_project_log_entry(project_id, kind, body)` — the kind from `--kind`, the body one line with the source. One entry per outcome, never one per run (§29). Add `task_id` when the outcome belongs to a task.
+
+Print `LOG:<project id>` and exit.
+
+### Refusals
+
+A refusal is printed as `ERROR: <code> <message>` and the run exits. Never work around it, and never fall back to a file or an issue.
+
+## Offline mode (frozen — agents without Trinity Projects)
+
+Runs only when `list_projects` is not enabled (standard §28). Written for standard 2.x; developed no further. Its §17 'linked project' passages are unreachable on Trinity.
 
 ## Purpose
 

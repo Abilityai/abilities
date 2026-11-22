@@ -1,14 +1,15 @@
 ---
 name: project-init
-description: Create or adopt a long-term managed project per the project standard (PROJECT_STANDARD.md at the repo root, or fleet/project-standard.md on an orchestrator — its §0 block configures registry, label vocabulary, fleet hooks and the kickoff mode) — the day-zero kickoff kit first (one page of intent, a charter with a delegation boundary, rulings.md, a probed setup manifest, the participation table for every owner agent, declared project metrics; blocking by default, standard §19–§20), then the GitHub epic issue with idempotent label creation and a workspace carrying the project.md charter, at agent level (project_files/<slug>/) or, with --canon, as a shared project in the fleet's canon repo (projects/<slug>/ at the canon root — same charter, same epic, same steward; canon placement only decides who can read it). On Trinity the platform project is created once by the deployed managing agent. Use when starting a new multi-session project or bringing an existing project folder under management.
-argument-hint: "[project name | adopt <existing-folder> | platform <slug>] [--canon] [--internal] [--no-platform] [--dry-run] [--strict]"
-allowed-tools: Bash, Read, Write, Edit, AskUserQuestion, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__create_project, mcp__trinity__import_project, mcp__trinity__chat_with_agent, mcp__trinity__get_credential_status, mcp__trinity__get_agent_permissions, mcp__trinity__get_agent_info, mcp__trinity__get_agent_skills, mcp__trinity__get_git_status
+description: "On a Trinity instance with Projects (standard 3.0, §28–§37) — create a project on Trinity Projects with its kickoff kit (intent, charter with a delegation boundary, rulings, probed setup, participation) and its plan (milestones with metrics, tasks with refs and blocked_by, one approval ask) in the project's file space, or move a GitHub epic onto the platform (adopt owner/repo#N — read with gh, one task per open sub-issue with refs, nothing written to GitHub). Without Projects, the frozen offline mode of standard 2.x runs unchanged — the day-zero kickoff kit, then a GitHub epic issue with idempotent labels and a project.md workspace at agent level (project_files/<slug>/) or, with --canon, in the fleet's canon repo (projects/<slug>/), or --internal with tasks in the workspace. Use when starting a new multi-session project or bringing an existing project under management."
+argument-hint: "[project name | adopt <owner/repo#N> [--dry-run] | adopt <existing-folder> | platform <slug>] [--canon] [--internal] [--no-platform] [--dry-run] [--strict]"
+allowed-tools: Bash, Read, Write, Edit, AskUserQuestion, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__create_project, mcp__trinity__import_project, mcp__trinity__chat_with_agent, mcp__trinity__get_credential_status, mcp__trinity__get_agent_permissions, mcp__trinity__get_agent_info, mcp__trinity__get_agent_skills, mcp__trinity__get_git_status, mcp__trinity__create_project_task, mcp__trinity__update_project_task, mcp__trinity__list_project_tasks, mcp__trinity__add_project_log_entry, mcp__trinity__propose_project_changes, mcp__trinity__list_platform_files, mcp__trinity__read_platform_file, mcp__trinity__write_platform_file, mcp__trinity__link_to_project, mcp__trinity__ask_operator
 user-invocable: true
 metadata:
-  version: "1.6.0"
+  version: "2.0.0"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "2.0.0: Standard 3.0 (rulings P1–P11, §28–§37): on Trinity Projects the project lives in the platform only — /project-init creates it with the kickoff kit and plan in the file space project:<id>, one proposal, one plan approval; adopt <owner/repo#N> moves a GitHub epic onto the platform with gh (no import endpoint, ruling 2026-11-13), idempotent by ref, nothing written to GitHub. The 1.x body is kept unchanged as the frozen offline mode"
     - "1.6.0: Standard rev 2 (from a 2026-11 multi-agent project retrospective — §18 two machines, §19 kickoff kit, §20 participation contract, §27 adoption). New Step 4b runs the day-zero kit before anything is created: intent.md, the charter's Delegation boundary (ruling D1), rulings.md with a provisional flag, a machine-probed setup manifest (setup.md), the eleven-row participation table per owner agent, the record created once, the declared project_* metrics, and the critique flag (ruling D2). §0 `kickoff: blocking` (ruling R-b) stops the run on a missing item; `advisory` lists the gaps under ## Setup; an owner failing a machine-checkable participation row is written FAIL and receives no dispatch until it passes (`participation_check`). The epic body gains ## Delegation boundary, ## Setup, ## Participation and ## Engineering issues; ## Workspace may list the chain folders after the project folder; the charter envelope gains `chains:`. In platform mode a session whose key has no agent identity (`agent_key_required`) no longer creates the platform project itself: it dispatches `/project-init platform <slug>` to the deployed managing agent and records the receipt (ruling R-c). `adopt` runs the kit and reports gaps instead of refusing unless --strict"
     - "1.5.2: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — the projects.manage toggle lives in the agent Settings → Guardrails pane (Permissions to change itself) since the one-Settings-home redesign (ent#887–#891)"
     - "1.5.1: Fix — the skill runner replaces every dollar-digit placeholder in a skill body with the invocation's arguments, so a run with arguments (project-init platform <slug>, project-status <slug>, --headless task/intake) broke the §0 resolver and the awk field reads: every config key resolved empty. Shell positionals are now ${1}/${2}, awk fields $(0)/$(2). Found 2026-10-10 by the deployed trinity-pm on the first platform import"
@@ -22,7 +23,153 @@ metadata:
 
 # Project Init
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-init v1.6.0 — recent: the kickoff kit runs before anything is created`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-init v2.0.0 — recent: on Trinity Projects the project lives on the platform only`. Then proceed.
+
+## On Trinity Projects — the only mode there (standard 3.0, §28–§37)
+
+On a Trinity instance with Projects, a project lives in the platform and nowhere else (rulings P1–P11). No epic, no labels, no `project_files/` folder, no `log.md`. The one exception is engineering work: it stays in its repo's issues and PRs, and tasks link to them with `refs` (§28). The standard's §28–§37 are the contract; this section is the procedure.
+
+### Detect the mode (§28)
+
+Read the standard (Step 1 of the offline mode resolves and materializes it). Then call `mcp__trinity__list_projects` once.
+
+- `enabled: true` → **this section runs**. The offline mode below is not used.
+- `enabled: false`, no such tool, or `platform: off` in §0 → skip this section and run **Offline mode** below.
+- A refusal coded `external_audience` or `turn_unknown` → use nothing from the platform, repeat no project detail, and stop.
+
+### Modes
+
+| argument | does |
+|---|---|
+| `<slug-or-name>` | start a new project (§35 "Starting a project") |
+| `adopt <owner/repo#N>` | move a GitHub epic onto the platform (§35 "Moving a project") |
+| `adopt <owner/repo#N> --dry-run` | print the plan of creates; write nothing anywhere |
+
+Agents have no import endpoint for epics (operator ruling 2026-11-13, ent#1163). This skill reads GitHub with `gh` and creates every task itself. A person may use Workspace → Import → From a GitHub epic instead.
+
+### New project — `/project-init <slug-or-name>`
+
+**1. Dedupe.** Look through the `list_projects` result. A project with the same name or the same goal → stop, report its id and name, create nothing.
+
+**2. Create.** Gather the name, the goal (at most 2,000 characters), success criteria, the delegation boundary, the engineering issues and the setup rows exactly as in Step 3 of the offline mode. Then call `mcp__trinity__create_project(name, goal)`. Never set `tracker_url`: there is no outside tracker. This agent becomes the steward; its owner becomes the creator.
+
+- `project_management_not_permitted`, or no `create_project` tool → say: *"An instance admin must grant this agent projects.manage (agent Settings → Guardrails → Permissions to change itself)."* Create nothing elsewhere: no epic, no folder. Stop.
+- `agent_key_required` → this session runs on a person's key. Dispatch `/project-init <slug>` to the deployed managing agent with `chat_with_agent` (async), report the execution id, and stop (§19 item 6).
+
+Set `SPACE=project:<id>` for the rest of the run.
+
+**3. Kickoff kit (§19, §35.1).** Write each file with `mcp__trinity__write_platform_file(space, name, content, if_revision: 0)`. A `file_exists` reply means a file is already there: read it with `read_platform_file` and keep it, never overwrite blind.
+
+| file | content |
+|---|---|
+| `intent.md` | `## Target`, `## Creates`, `## Retires` — the picture after the project, what it creates, what it retires (§19.1) |
+| `charter.md` | goal, success criteria, owners, cadence, the `## Delegation boundary` with its three lists (§19.2), and `chains:` listing the chain folders when there is engineering work (§18) |
+| `rulings.md` | one line per ruling: `R<n> <YYYY-MM-DD> <confirmed\|provisional>: <text>`; the critique line in its header (§19.3, §19.8). May hold no rulings; must exist |
+| `setup.md` | the setup table, every row probed as in Step 4b item 4 of the offline mode (§19.4). Where this agent can read the Tandem standard, start from `manifests/setup-manifest.reference.md` there |
+| `participation.md` | the §20 eleven rows for each agent the project needs; machine rows probed as in Step 4b item 5 |
+
+Then the **declared metrics** check (§24.4): the same `project_*` grep as Step 4b item 7. A missing name is a gap.
+
+`KICKOFF=$(cfg kickoff blocking)`:
+
+- `blocking` → if any of the five files is missing or a metric is missing, list each gap with the one line that would fix it, and stop here. The plan is not offered until every file exists.
+- `advisory` → write every gap into **one** `mcp__trinity__add_project_log_entry(kind: note)` and go on.
+
+**4. People and agents (§35.2).** Read `get_project`. If it has no `pending_proposal`, send **one** `mcp__trinity__propose_project_changes(project_id, members, agents, note)` with every member and agent the project needs. `already_pending` or `proposal_pending` → note it in the summary, send nothing else. `primary_unassigned` and the other `primary_*` refusals → name the refusal in the summary; a person must fix the seat first.
+
+**5. The plan (§35.3, P9, P10).** Write `plan.md` to the space:
+
+```
+# <name> — plan
+## M1 <milestone>
+Reached when: <metric> <target>
+- T-??? <task title>
+## M2 …
+```
+
+Then create each task with `mcp__trinity__create_project_task`:
+
+- `project_id`, `title`, `objective`, `done_definition` (a markdown checklist)
+- `context` carrying two lines: `Validation: <how a stranger checks the done claim>` and `Milestone: M<n>` (§33)
+- `assignee` only when that agent is already on the project (`get_project` → agents). Otherwise leave it empty; the steward sets it once the proposal of step 4 is applied (§33)
+- `refs` for the engineering issues the task's work happens in (at most 10)
+- `parent` for a subtask (one level only); `blocked_by` with task ids already created
+- status stays `todo`
+
+Create parents before their subtasks and blockers before what waits on them. When an order is not possible, create first and add links after with `update_project_task(blocked_by_add)`. Refusals are recorded, never worked around: `owner_not_on_project` (drop `owner`), `parent_is_subtask` (attach to the top task), `blocker_cycle` (drop the link, name the path), `too_many_blockers` (keep 20), `refs_refused` (drop that ref, name it). Rewrite `plan.md` with the real task ids (pass the `if_revision` you read).
+
+**6. One approval for the plan.** Raise **one** `mcp__trinity__ask_operator`:
+
+- `type: approval`, `to: primary`, `request_id: plan-<project_id>`
+- `title`: "Approve the plan for <name>?"
+- `options`: `Approve plan`, `Revise plan`
+- `proposal`: `Approve plan → I record the plan as approved; tasks start under the mode you pick`; `Revise plan → I rewrite plan.md and ask again`
+- `context`: milestones, task count, where `plan.md` lives
+
+Write the request id as the first line of `plan.md` (`approval_ask: plan-<project_id>`, passing the `if_revision` you read) so the steward finds it (§35.3). Link it: `mcp__trinity__link_to_project(project_id, kind: ask, target_id: <the receipt id>)`. Until it is approved, nothing is proposed or started, in any mode (§35.3).
+
+**7. Tell the person.** End with what only they can do (§30, §35.5):
+
+1. Start the project.
+2. Press **Start** on the project's Steward card, so the platform wakes the steward.
+3. Pick the mode: Track (default), Propose or Auto.
+
+Add: wakes also need this agent's autonomy switch on (§31). The steward sets no schedule or reminder for the project.
+
+### Move a GitHub epic — `/project-init adopt <owner/repo#N>`
+
+**1. Read GitHub.** Split the argument into owner, repo and number. Read the epic with `gh issue view <N> --repo <owner/repo> --json title,body,state,url`. Read its sub-issues, and theirs one level down:
+
+```bash
+gh api graphql -F o="<owner>" -F r="<repo>" -F n=<N> -f query='
+query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){issue(number:$n){
+  subIssues(first:100){nodes{number title state url body repository{nameWithOwner}
+    subIssues(first:50){nodes{number title state url body repository{nameWithOwner}}}}}}}}'
+```
+
+Dependencies: a `depends on` / `blocked by` line naming another sub-issue in its body.
+
+**2. Find or create the project.** A project in `list_projects` whose `tracker_url` is the epic's URL is reused (§35, "a project already linked to its epic"). Else `create_project(name, goal)` from the epic's title and its Goal paragraph. Refusals as in "New project" step 2.
+
+**3. Dedupe (idempotent).** Read `list_project_tasks` for the project. A sub-issue is already moved when a task carries it in `refs`, or its `context` holds `Was <owner/repo#N>`. Moved ones are skipped. A reused project's task that matches by title or `Was` line, but has no ref yet, keeps its id and gains the ref: `update_project_task(task_id, refs_add: [<the issue>])`. Running adopt twice creates nothing twice.
+
+**4. Create the tasks (§35 step 3).** One `create_project_task` per **open** sub-issue not yet moved:
+
+- `title` from the issue; `objective`, `done_definition` from its body sections when it has them (the §5 anatomy), else one line each
+- `context`: `Was <owner/repo#N>`, its `Validation:` line, its `Milestone:` line if any
+- `refs: [<the sub-issue>]`
+- a nested sub-issue → `parent` = the task of its parent; a deeper level flattens to that same parent (one level only)
+- dependencies → `blocked_by`, added after all tasks exist with `blocked_by_add` (at most 20)
+
+Closed sub-issues are not copied; count them. Caps: at most 10 refs per task, one subtask level, at most 20 blockers.
+
+**5. Engineering issues stay open (§28, §35.4).** A sub-issue listed in the epic's `## Engineering issues`, or living in a code repo rather than the epic's own tracker, is an engineering issue. Its task links it; the issue stays open in its repo.
+
+**6. Never write to GitHub.** Build a list of the closing comments a person could send: one per non-engineering sub-issue and one for the epic, each `Moved to Trinity project <name> (<id>), task T-NNN.` Print the list and stop there. Nothing is sent without a person's go.
+
+**7. One log entry.** `add_project_log_entry(kind: decision)`: "Moved from <owner/repo#N>: <n> open tasks created, <k> existing tasks linked, <m> closed items left in GitHub, <e> engineering issues stay open."
+
+**8. Copy the kickoff files (§35 step 6).** When a local `project_files/<slug>/` exists, copy into the space: `project.md` → `charter.md`, plus `intent.md`, `rulings.md`, `setup.md` and `plan.md` when present. Use `if_revision: 0`; a `file_exists` keeps the platform copy and names it. Never delete the folder. Only when the folder is in this agent's own repo, append one line to its `project.md`: `Moved to Trinity project <id> on <YYYY-MM-DD>; this folder is no longer the record.` Then run the kickoff check of "New project" step 3 on the space and report its gaps the same way.
+
+**`--dry-run`.** Do steps 1–3 read-only, then print: the project (reused id, or "would create"), every task it would create with its title, refs, parent and blockers, every `refs_add`, the closed count, the engineering issues, and the files it would copy. Write nothing.
+
+### Summary
+
+```
+## Project on Trinity: <name> (<id>)
+Kit:       <5/5 files | gaps: …>   (kickoff: <blocking|advisory>)
+Plan:      <n> milestones, <t> tasks — approval ask <request_id>  (new)
+Moved:     <n> created, <k> linked, <m> closed left, <e> engineering open  (adopt)
+Proposal:  <members/agents requested | pending | refused: <code>>
+For you:   start the project · Start on the Steward card · pick the mode
+Closing comments (need your go): <list or none>
+```
+
+---
+
+## Offline mode (frozen — agents without Trinity Projects)
+
+Runs only when `list_projects` is not enabled (standard §28). Written for standard 2.x; developed no further. Its §17 'linked project' and `platform <slug>` import passages are unreachable on Trinity.
 
 ## Purpose
 

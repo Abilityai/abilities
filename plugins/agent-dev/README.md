@@ -106,7 +106,7 @@ Standalone skills — usable directly as `/agent-dev:<name>`, copied into an age
 
 ### Project Management (cross-actor)
 
-> **On Trinity with Projects enabled** the same skills work against the platform's project record (standard §17): the project people see in the Workspace is the one the skills manage, the steward's outcomes land in its shared log, and `/project-init platform <slug>` brings an existing folder project over in one import. Off Trinity nothing changes.
+> **On Trinity with Projects** (standard 3.0, §28–§37) a project lives in the platform only: no epic, no task files, no labels, no sync. A person starts the project and picks its mode (Track / Propose / Auto); the platform wakes the steward, which plans once at kickoff, verifies done claims and starts work only with `start_project_task` as the mode allows. Development issues stay in their repo and are linked from tasks. `/project-init adopt <owner/repo#N>` moves a GitHub epic onto the platform. Off Trinity the earlier GitHub/folder mode runs as it was, frozen.
 
 Standalone skills — usable directly as `/agent-dev:<name>`, copied into an agent by `/add-project-management` (which also renders `PROJECT_STANDARD.md` from the template shipped in `project-init/`), and mirrored into the `trinity-skills` library. All five read `PROJECT_STANDARD.md` as their configuration; `/project-init` materializes it from the template when it is missing, so the set works when assigned from the library without the installer.
 

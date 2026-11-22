@@ -1,14 +1,15 @@
 ---
 name: project-reconcile
-description: Sync projection adapters against the registry per the project standard (PROJECT_STANDARD.md, or fleet/project-standard.md on an orchestrator) — GitHub Issues for external projects, task files for internal ones (standard §16). Processes projection gestures (check/date-push/delete) back into the registry with correct reversibility typing. Ships with Google Tasks adapter v1 (notes-field [#NN] key). Other adapters are per-deployment extensions. Reconciler is idempotent; refuses unkeyed items with a sync-gap alert.
+description: "On a Trinity instance with Projects (standard 3.0, §28) there is no projection — the platform is a project's only home — so this skill says so, syncs nothing and exits 0. Without Trinity Projects, runs the frozen offline mode (standard 2.x): sync projection adapters against the registry (GitHub Issues for external projects, task files for internal ones, standard §16), process projection gestures (check / date-push / delete) back into the registry with correct reversibility typing; ships with Google Tasks adapter v1 (notes-field [#NN] key), other adapters are per-deployment extensions; idempotent; refuses unkeyed items with a sync-gap alert."
 argument-hint: "[adapter] — default: google-tasks"
 allowed-tools: Bash, Read, Write, AskUserQuestion, mcp__trinity__list_projects, mcp__trinity__list_project_tasks, mcp__trinity__update_project_task
 user-invocable: true
 metadata:
-  version: "1.4.1"
+  version: "1.5.0"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "1.5.0: Standard 3.0 (operator rulings P1–P11, 2026-11-11). On Trinity Projects a project lives in the platform only and nothing is synced with an outside tracker (P1, §28): a new first section detects it, prints that there is no projection, syncs nothing and exits 0. The old body is kept unchanged as the frozen offline mode for agents without Projects"
     - "1.4.1: Fix — the skill runner replaces every dollar-digit placeholder in a skill body with the invocation's arguments, so a run with arguments (project-init platform <slug>, project-status <slug>, --headless task/intake) broke the §0 resolver and the awk field reads: every config key resolved empty. Shell positionals are now ${1}/${2}, awk fields $(0)/$(2). Found 2026-10-10 by the deployed trinity-pm on the first platform import"
     - "1.4: Platform mode (ent#788, ruling R38): on a Trinity instance with Projects enabled, platform-tracked projects feed the registry map from the platform's task list (keyed <slug>/T-NNN) and a completion gesture is written with update_project_task under the platform's lattice. Without Trinity nothing changes"
     - "1.3: One lineage (ent#789): the standard is resolved at the repo root or at fleet/project-standard.md; its §0 Configuration supplies the label vocabulary by role and the state directory — the reconcile log lives under $STATE_DIR/reconcile-log/ (project-steward/ by default, fleet/project-steward/ on an orchestrator); with the done label unset, closing the issue is the done marker; with the pending-verification label unset, an agent-owned completion gesture is verified against the Definition of Done right away instead of parked"
@@ -19,7 +20,20 @@ metadata:
 
 # Project Reconcile
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-reconcile v1.4.1 — recent: arguments no longer break the config resolver`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-reconcile v1.5.0 — recent: refuses on Trinity Projects, where nothing is synced`. Then proceed.
+
+## On Trinity Projects — the only mode there (standard 3.0, §28–§37)
+
+A projection is a two-way sync with an outside tracker. On Trinity Projects a project lives in the platform only and nothing is synced (§28, ruling P1).
+
+**Step 0: Detect.** Call `mcp__trinity__list_projects` once.
+- `enabled: true` → print exactly: "On Trinity Projects there is no projection: the platform is the only home (standard §28). Nothing was synced." Then exit 0. Read and write nothing else.
+- `enabled: false`, no such tool, or `platform: off` in §0 → go to **Offline mode** below.
+- Refused with `external_audience` or `turn_unknown` → stop. Use nothing from the platform and repeat no project detail.
+
+## Offline mode (frozen — agents without Trinity Projects)
+
+Runs only when `list_projects` is not enabled (standard §28). Written for standard 2.x; developed no further. Its §17 'linked project' passages are unreachable on Trinity.
 
 ## Purpose
 

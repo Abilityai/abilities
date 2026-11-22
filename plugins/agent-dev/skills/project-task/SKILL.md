@@ -1,14 +1,15 @@
 ---
 name: project-task
-description: Create a task in the uniform format per the project standard (PROJECT_STANDARD.md, or fleet/project-standard.md on an orchestrator; §0 configures the label vocabulary) — the ONLY sanctioned task-creation path. A GitHub task issue for an external project, a tasks/T-NNN.md file for an internal one (standard §16). Enforces full anatomy (Objective / Definition of Done / Context / Validation) and adds the task to the project's Tasks checklist. Approval-ready from day one. Supports --headless for cron/compose use.
-argument-hint: "[project-slug | --headless --project=<slug> --title=\"...\" --objective=\"...\" --dod=\"item1|item2\" --owner=<actor> [--priority=p2] [--agent=<name>] [--waiting-on=<actor>] [--context=\"...\"]]"
-allowed-tools: Bash, Read, AskUserQuestion, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__create_project_task, mcp__trinity__add_project_task_note
+description: "On a Trinity instance with Projects (standard 3.0, §28–§37), creates a task in the platform project only — create_project_task with the §33 anatomy (objective, done_definition checklist, context with Validation: and Milestone: lines), refs to engineering issues (never copied, never written), parent / blocked_by, an assignee only from the project's agents, priority stated in context for a person; dedupes by meaning first. Interactive, or --headless for composed use (prints T-NNN). Without Trinity Projects, runs the frozen offline mode (standard 2.x): a GitHub task issue for an external project or a tasks/T-NNN.md file for an internal one, with full anatomy and the epic's Tasks checklist."
+argument-hint: "[project id or name | project-slug | --headless --project=<slug> --title=\"...\" --objective=\"...\" --dod=\"item1|item2\" --owner=<actor> [--priority=p2] [--agent=<name>] [--waiting-on=<actor>] [--context=\"...\"]]"
+allowed-tools: Bash, Read, AskUserQuestion, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__create_project_task, mcp__trinity__add_project_task_note, mcp__trinity__list_project_tasks, mcp__trinity__list_platform_files, mcp__trinity__read_platform_file, mcp__trinity__propose_project_changes
 user-invocable: true
 metadata:
-  version: "1.7.1"
+  version: "2.0.0"
   created: 2026-07-30
   author: add-project-management
   changelog:
+    - "2.0.0: Standard 3.0 (operator rulings P1–P11, 2026-11-11). On Trinity Projects a task is a platform task only: a new first section creates it with create_project_task and the §33 anatomy (Validation: and Milestone: lines in context, refs to engineering issues, parent / blocked_by, assignee only from the project's agents — else a proposal by the steward, owner only creator / member / role, for_person only by the steward, priority written into context for a person), after a dedupe by meaning over every task. Never writes to GitHub. The old body is kept unchanged as the frozen offline mode for agents without Projects"
     - "1.7.1: Fix — the skill runner replaces every dollar-digit placeholder in a skill body with the invocation's arguments, so a run with arguments (project-init platform <slug>, project-status <slug>, --headless task/intake) broke the §0 resolver and the awk field reads: every config key resolved empty. Shell positionals are now ${1}/${2}, awk fields $(0)/$(2). Found 2026-10-10 by the deployed trinity-pm on the first platform import"
     - "1.7: Platform mode (ent#788, ruling R38): for a platform-tracked project on a Trinity instance with Projects enabled the task is created in the platform's task list (create_project_task — same anatomy, the platform allocates T-NNN, priority stays a person's); linked projects keep their GitHub task issues. Without Trinity nothing changes"
     - "1.6: One lineage (ent#789): the standard is resolved at the repo root or at fleet/project-standard.md and its §0 Configuration supplies the label vocabulary by role — the task carries ${L_OWNER}<owner> and ${L_PRIORITY}pN (owner: / priority: by default; agent: / priority- on a fleet riding its tracker's labels) instead of hard-coded names"
@@ -22,7 +23,103 @@ metadata:
 
 # Project Task
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — e.g. `project-task v1.7.1 — recent: arguments no longer break the config resolver`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-task v2.0.0 — recent: on Trinity Projects a task is a platform task only`. Then proceed.
+
+## On Trinity Projects — the only mode there (standard 3.0, §28–§37)
+
+On a Trinity instance with Projects, a project lives in the platform and nowhere else (§28). A task is a platform task. No epic, no labels, no `tasks/` folder, no `log.md`. Engineering issues stay in their repo; a task links to them with `refs`. This skill never writes to GitHub. The standard's §29, §30 and §33 are the contract; this section is the procedure.
+
+### Step 0: Detect
+
+Resolve §0 with the resolver in the offline mode's Step 1. Read only `agent` and `platform`. No standard file → use the defaults; do not stop. Then call `mcp__trinity__list_projects` once.
+
+- `enabled: true` → run this section.
+- `enabled: false`, no such tool, or `platform: off` in §0 → go to **Offline mode** below.
+- Refused with `external_audience` or `turn_unknown` → this turn is not an internal one. Stop. Use nothing from the platform and repeat no project detail.
+
+### Arguments
+
+Interactive: `/project-task [<project id or name>]`. Missing fields are asked with AskUserQuestion.
+
+Headless (`--headless`): every field is an argument; never ask.
+
+| Argument | Required | Field |
+|---|---|---|
+| `--project=<id or name>` | yes | the project |
+| `--title="..."` | yes | `title` — a plain imperative sentence |
+| `--objective="..."` | yes | `objective` |
+| `--dod="item1\|item2"` | yes | `done_definition` — one `- [ ]` line per item |
+| `--validation="..."` | no | the `Validation:` line; default below |
+| `--milestone=M<n>` | no | the `Milestone:` line |
+| `--context="..."` | no | the rest of `context` |
+| `--refs="owner/repo#N,..."` | no | `refs` — engineering issues or PRs, at most 10 |
+| `--parent=T-NNN` | no | `parent` — one level only |
+| `--blocked-by="T-NNN,..."` | no | `blocked_by` — at most 20 |
+| `--agent=<name>` | no | `assignee` |
+| `--owner=<person or role:<id>>` | no | `owner` |
+| `--for-person` | no | `for_person: true` (needs a person `--owner`, no `--agent`) |
+| `--waiting-on=<actor>` | no | `waiting_on` |
+| `--priority=pN` | no | written into `context` (priority is a person's) |
+
+A missing required argument in headless mode → print `ERROR: --<field> is required in headless mode` and exit.
+
+### Step 1: Resolve the project
+
+Match `--project` against the `list_projects` result: an exact id first, then the name (case-insensitive). Interactive with no argument: list the projects by name and ask which. No match, or more than one → interactive: ask; headless: `ERROR: no project <value>`.
+
+Call `mcp__trinity__get_project`. Keep its `agents`, `members`, steward, status and mode. A stopped, done or archived project still takes tasks; say its status in the output.
+
+### Step 2: Dedupe by meaning
+
+Call `mcp__trinity__list_project_tasks(project_id, status: all)`. Compare the new title and objective with each task's title and objective, by meaning, not by exact words.
+
+- An open task means the same thing → create nothing. Interactive: show it and offer to add the new detail as a note (`add_project_task_note`). Headless: print `DUPLICATE:T-NNN` and exit.
+- A done task means the same thing → say so. Interactive: ask whether this is new work. Headless: print `DUPLICATE:T-NNN` and exit.
+
+### Step 3: Build the fields (§33)
+
+- `title`, `objective`, `done_definition` (a markdown checklist of 2–5 checkable items).
+- `context`: the free text, then the line `Validation: <how a stranger checks the done claim>`. Default: `Validation: the steward checks each Definition of Done item against the evidence named in the done claim (§34)`.
+- **Milestone.** List the space `project:<id>` with `list_platform_files`. If `plan.md` is there, read it with `read_platform_file`. When it has milestones (`## M<n> …` headings), add `Milestone: M<n>` to `context`. Interactive: ask which milestone. Headless: use `--milestone`; without it, add no line and say so in stderr.
+- **Priority.** Priority is a person's (§30). A wanted priority goes into `context` as `Requested priority: pN`. Say in the output that a person sets it on the project page.
+- **`refs`.** The engineering issues or PRs the work happens in, at most 10. Trinity reads their state; nothing is written to GitHub. Never copy an issue's body into the task.
+- **`parent` and `blocked_by`.** Only ids from Step 2's list. One level of subtasks. At most 20 blockers. A link that closes a circle is refused.
+- **`assignee`.** Only an agent in `get_project`.`agents`. An agent that is not on the project gets no assignee (§33):
+  - this agent is the project's steward → call `mcp__trinity__propose_project_changes` with `agents` adding it (one proposal; `already_pending` or `proposal_pending` → send nothing more);
+  - else → say the steward must propose adding the agent.
+  - Either way, add `Wanted assignee: <agent>` to `context`. The steward sets `assignee` once the change is applied.
+- **`owner`.** The accountable person: the creator, a member, or `role:<id>`. Anyone else is refused `owner_not_on_project`. Leave it empty when no one was named.
+- **`for_person`.** Only the steward assigns a task to a person (`only_the_steward_assigns_people`). It needs a person `owner` and no `assignee`. Only a person marks it done.
+- **`waiting_on`.** The actor the task waits on. Anything that waits on a person is a person's task or a `waiting_on`, never only a line elsewhere (§33).
+- `status`: leave it; a new task starts `todo`.
+
+### Step 4: Create
+
+One call: `mcp__trinity__create_project_task(project_id, title, objective, done_definition, context, assignee, owner, for_person, parent, blocked_by, refs, waiting_on)`. Leave out the fields that are empty.
+
+A refusal is reported as it came, with its code, and never worked around. For a code that names one field (`owner_not_on_project`, `parent_is_subtask`, `blocker_cycle`, `too_many_blockers`, `refs_refused`, `only_the_steward_assigns_people`): interactive → show it and ask how to fix it; headless → print `ERROR: <code> <message>` and exit. Never fall back to a file or an issue.
+
+### Step 5: Output
+
+Headless: print exactly one line, the new task id `T-NNN`, and exit.
+
+Interactive:
+```
+Task created: T-NNN — <title>
+Project:      <name> (<id>, <status>, mode <mode>)
+Assignee:     <agent> | none — wanted <agent>, proposal <sent | the steward's to send>
+Owner:        <person or role> | none
+Milestone:    M<n> | none
+Refs:         <refs> | none
+Blocked by:   <ids> | nothing
+
+Waiting on you: <the priority to set, the proposal to approve, or "nothing">
+Next without you: <the steward picks it up on its next wake — under the project's mode>
+```
+
+## Offline mode (frozen — agents without Trinity Projects)
+
+Runs only when `list_projects` is not enabled (standard §28). Written for standard 2.x; developed no further. Its §17 'linked project' passages are unreachable on Trinity.
 
 ## Purpose
 
