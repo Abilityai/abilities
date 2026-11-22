@@ -1,13 +1,15 @@
 ---
 name: add-project-management
-description: Install cross-actor project management into this agent — one registry per project (GitHub Issues, or the project's own task files for an internal project), uniform task anatomy with approval-ready completion lattice (open → pending-verification → done), loop closure in both directions (the agent closes loops with the user; the user is handed the loops only they can close with other people or agents), autonomous project steward, and projection sync with Google Tasks adapter v1. Writes PROJECT_STANDARD.md + six runtime skills. No dependency on fleet infrastructure.
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+description: "Install cross-actor project management into this agent — PROJECT_STANDARD.md (3.0) + seven runtime skills, copied from this plugin. On an agent that runs on a Trinity instance with Projects the skills keep every project in the platform only (standard §28–§37): the installer creates no steward or per-project status schedule (the platform wakes the steward, §31), no labels, and tells the user the person-only acts (start the project, Start on the Steward card, pick the mode, turn the agent's autonomy on) and that the agent needs the projects.manage grant. Without Trinity Projects it installs the frozen offline mode: one registry per project (GitHub Issues, or the project's own task files), uniform task anatomy with the open → pending-verification → done lattice, loop closure, a scheduled autonomous steward, and projection sync with Google Tasks adapter v1. No dependency on fleet infrastructure."
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, mcp__trinity__list_projects
 user-invocable: true
 metadata:
-  version: "2.3"
+  version: "3.1"
   created: 2026-07-30
   author: Ability.ai
   changelog:
+    - "3.1: Seven skills: project-plan joins the set (2.0 — plans a managed project as milestones → tasks → subtasks with dependencies, writes the plan.md ledger /project-status reads, `revise` re-plans after a change, `check` writes nothing). Copied from the plugin like the other six; the standard gains three optional §0 keys it reads with defaults — replan (manual · propose · auto), replan_max_slip_days, plan_max_tasks"
+    - "3.0: Standard 3.0 (operator rulings P1–P11, 2026-11-11). New section for agents on a Trinity instance with Projects: the installer still copies the six skills and the 3.0 standard, but creates no /project-steward cron and no per-project /project-status schedule (the platform wakes the steward, §31; status is on demand, §36), skips the labels, and tells the user the person-only acts (start the project, Start on the Steward card, pick the mode, autonomy on) and the projects.manage grant. Detected in Step 1 (list_projects enabled, else one question). The schedule question, the steward schedule line and the template.yaml schedule are now offline-only"
     - "2.3: Six skills, one lineage (ent#789): project-status joins the set (daily per-project status + projected finish date), and PROJECT_STANDARD.template.md 1.3 gains §0 Configuration — the machine-read block every project skill resolves first (registry, agent, operator, state_dir, label roles, fleet hooks). The same six skills now also serve fleet orchestrators (/add-orchestrator copies them instead of embedding its own pair), so a stand-alone install and a fleet install run identical files and differ only in that block. Installs that keep an existing PROJECT_STANDARD.md at Step 3 should paste §0 in by hand — without it the skills run with the defaults, which equal pre-1.3 behaviour"
     - "2.2: Internal tracking (ent#673, operator ruling 2026-09-22): a project may track its tasks in its own folder instead of GitHub — PROJECT_STANDARD.template.md 1.2 gains §16 Tracking modes (the charter's `tracking:` decides; omitted = external when the charter names a real epic, so every existing project is untouched; one task file per task, tasks/T-NNN.md, front matter for what labels hold and an append-only ## Log for what comments hold; log.md for the epic's thread; a registry of `none` = no GitHub at all), and Invariant 1 becomes one registry per project. Runtime skills copied by Step 6: project-init 1.3 (`--internal`), project-task 1.5, project-intake 1.4, project-steward 1.4 (sweeps both modes; writes canon task files for its own internal projects and publishes them), project-reconcile 1.2 (`[<slug>/T-NNN]` keys). An internal-only deployment may skip gh auth. Installs that keep an existing PROJECT_STANDARD.md at Step 3 should paste §16 in by hand"
     - "2.1: Shared projects (operator rulings R21, 2026-09-10 — one PM standard, two visibility levels — and 2026-09-22 — shared projects at the canon root; ent#588): PROJECT_STANDARD.template.md gains §15 Visibility (same charter, same registry epic, same steward, same intake, same decision ledger at agent level and at canon level; placement decides only who can read the definition; company projects are shared by design and live in canon; Tandem is the reference instance) and the §15 workspace resolver every project skill now uses — the epic body's Workspace field, `canon:` paths through the x-canon clone, never a path derived from the slug. Runtime skills copied by Step 6: project-init 1.2 (`--canon` creates the workspace at the canon root's projects/<slug>/ with this agent as steward, the linted charter envelope + ledger, `adopt --canon` (moves an earlier-placement project of this agent's to the root), `--dry-run`), project-steward 1.4 (reads the charter wherever the epic points; quarantine never scans the canon; writes nothing into the canon), project-intake 1.3 / project-task 1.4 (path resolution through §15). Installs that keep an existing PROJECT_STANDARD.md at Step 3 should paste §15 in by hand"
@@ -21,7 +23,7 @@ metadata:
 
 # Add Project Management
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `add-project-management v2.0 — recent: runtime skills copied from the plugin, not embedded`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `add-project-management v3.1 — recent: project-plan joins the set (seven skills)`. Then proceed.
 
 Install a cross-actor project management standard into this agent. GitHub Issues become the single source of truth for all project and task state; humans, this agent, and fleet agents interact through a shared vocabulary of labels, task anatomy, and an approval-ready completion lattice.
 
@@ -29,23 +31,37 @@ It also installs a **loop-closure discipline** (standard §14), because tracked 
 
 **Altitude note:** this skill governs *cross-actor* work (humans + multiple agents collaborating on projects). For a single agent's own dev-loop task backlog, use its sibling `/agent-dev:add-backlog` instead.
 
-**What gets installed** (the six skills are copied from this plugin's own `skills/project-*` directories — the same files Trinity instances assign from the `trinity-skills` library; the installer embeds nothing):
+**What gets installed** (the seven skills are copied from this plugin's own `skills/project-*` directories — the same files Trinity instances assign from the `trinity-skills` library; the installer embeds nothing):
 
 | Artifact | Location | Purpose |
 |---|---|---|
-| `PROJECT_STANDARD.md` | repo root | Convention doc — the deployer's config surface, rendered from `skills/project-init/PROJECT_STANDARD.template.md`. All six skills read it at runtime, starting with its §0 Configuration block (registry, label roles, state directory, fleet hooks). Edit this file to change behavior; don't edit the skills. |
+| `PROJECT_STANDARD.md` | repo root | Convention doc — the deployer's config surface, rendered from `skills/project-init/PROJECT_STANDARD.template.md`. All seven skills read it at runtime, starting with its §0 Configuration block (registry, label roles, state directory, fleet hooks). Edit this file to change behavior; don't edit the skills. |
 | `/project-init` | `.claude/skills/project-init/SKILL.md` | Create or adopt a project: GitHub epic + idempotent labels + workspace stub |
+| `/project-plan` | `.claude/skills/project-plan/SKILL.md` | Plan a project and keep the plan true: milestones → tasks → subtasks with dependencies, the `plan.md` ledger, one approval; `revise` re-plans after a change, `check` writes nothing. Plans only — never starts or dispatches work |
 | `/project-task` | `.claude/skills/project-task/SKILL.md` | The only sanctioned interactive task-creation path — enforces full anatomy including the Validation section; supports `--headless` for cron/compose use |
 | `/project-steward` | `.claude/skills/project-steward/SKILL.md` | Autonomous sweep: verify pending-verification claims, dispatch, escalate, digest |
 | `/project-reconcile` | `.claude/skills/project-reconcile/SKILL.md` | Projection sync — Google Tasks adapter v1 + adapter contract for other surfaces |
 | `/project-intake` | `.claude/skills/project-intake/SKILL.md` | Headless intake primitive: route actionable items from any source into the registry, dedupe by meaning, return issue number. Called by other skills and crons — never interactive. |
 | `/project-status` | `.claude/skills/project-status/SKILL.md` | Daily status for one project — what moved, what waits on the operator (Trinity asks), projected finish date from the project's `plan.md` ledger |
 
+## On a Trinity instance with Projects (standard 3.0, §28–§37)
+
+On Trinity Projects a project lives in the platform only (§28). The installer still copies the seven skills and writes `PROJECT_STANDARD.md` (3.0); the skills detect the platform themselves at run time. What changes is what the installer sets up around them:
+
+- **No steward schedule.** On Trinity the platform wakes the steward (§31). The installer creates no `/project-steward` cron, removes the default `schedule:` line from the steward copy, and creates no per-project `/project-status` schedule (status runs on demand, §36). The one scheduled run the standard allows is the evening brief (`/project-steward --brief`, `brief.evening_utc`); add it only if the user asks for it.
+- **No labels and no registry.** Labels and the registry epic are not read on the platform (§28). Step 7 is skipped; the registry in Step 2 may be `none`. Engineering issues stay in their repos and are linked from tasks.
+- **The agent needs the `projects.manage` grant** to create projects. An instance admin grants it in the agent's Settings → Guardrails → Permissions to change itself.
+- **The person-only acts.** Tell the user that, for each project, only a person can: start the project; press **Start** on the project's Steward card so the platform wakes the steward; pick the mode (Track by default, Propose or Auto); and turn the steward agent's autonomy switch on. Until all four are done the steward is not woken.
+
+**Detect it in Step 1.** If `mcp__trinity__list_projects` answers `enabled: true`, set `ON_PLATFORM=yes`. Otherwise ask one question: "Will this agent run on a Trinity instance with Projects (Enterprise)?" Yes → `ON_PLATFORM=yes`; no → `ON_PLATFORM=no`. A local session on a person's key often reads `enabled: false` even where the instance has Projects, so the answer decides.
+
 ---
 
 ## Process
 
 ### Step 1: Verify environment
+
+First set `ON_PLATFORM` as the section **On a Trinity instance with Projects** above says.
 
 Check git:
 ```bash
@@ -82,7 +98,7 @@ Set:
 - `$PV_MAX_AGE` = pending-verification max age in hours (default 48)
 - `$DATE` = today's date (e.g. `2026-07-30`)
 
-Ask one more question about the steward schedule:
+Ask one more question about the steward schedule — **offline only**. With `ON_PLATFORM=yes` skip it and leave `$SCHEDULE` empty: the platform wakes the steward (§31).
 
 - **Header:** "Steward Schedule"
 - **Question:** "How often should the autonomous project steward sweep?"
@@ -103,6 +119,7 @@ ls .claude/skills/project-steward 2>/dev/null && echo "project-steward: EXISTS" 
 ls .claude/skills/project-reconcile 2>/dev/null && echo "project-reconcile: EXISTS" || echo "project-reconcile: missing"
 ls .claude/skills/project-intake 2>/dev/null && echo "project-intake: EXISTS" || echo "project-intake: missing"
 ls .claude/skills/project-status 2>/dev/null && echo "project-status: EXISTS" || echo "project-status: missing"
+ls .claude/skills/project-plan 2>/dev/null && echo "project-plan: EXISTS" || echo "project-plan: missing"
 ls PROJECT_STANDARD.md 2>/dev/null && echo "PROJECT_STANDARD.md: EXISTS" || echo "PROJECT_STANDARD.md: missing"
 ```
 
@@ -148,12 +165,12 @@ sed -e "s|{{REGISTRY}}|$REGISTRY|g" -e "s|{{OPERATOR}}|$OPERATOR|g" -e "s|{{AGEN
 grep -c '{{' PROJECT_STANDARD.md   # must print 0 — every placeholder substituted
 ```
 
-### Step 6: Copy the six runtime skills from the plugin
+### Step 6: Copy the seven runtime skills from the plugin
 
-The runtime skills are authored **once**, as standalone skills in this plugin (`/agent-dev:project-init`, `project-task`, `project-steward`, `project-reconcile`, `project-intake`, `project-status`) and mirrored into the public `trinity-skills` library, where Trinity instances assign them to agents and re-inject updates automatically. This installer copies the same files — it never carries its own versions, so an install and a library assignment always agree:
+The runtime skills are authored **once**, as standalone skills in this plugin (`/agent-dev:project-init`, `project-task`, `project-steward`, `project-reconcile`, `project-intake`, `project-status`, `project-plan`) and mirrored into the public `trinity-skills` library, where Trinity instances assign them to agents and re-inject updates automatically. This installer copies the same files — it never carries its own versions, so an install and a library assignment always agree:
 
 ```bash
-for s in project-init project-task project-steward project-reconcile project-intake project-status; do
+for s in project-init project-task project-steward project-reconcile project-intake project-status project-plan; do
   SRC="${CLAUDE_PLUGIN_ROOT}/skills/$s"
   [ -d "$SRC" ] || { echo "missing $SRC — is the agent-dev plugin installed?"; exit 1; }
   rm -rf ".claude/skills/$s" && cp -R "$SRC" ".claude/skills/$s"
@@ -163,7 +180,7 @@ ls .claude/skills/project-*/SKILL.md
 
 Respect the Step 3 answer: with **skip existing**, only copy the missing ones.
 
-Apply the Step 2 schedule choice to the steward copy — the standalone skill ships a default `schedule:`; replace it with the chosen cron, or delete the line for manual-only:
+Apply the Step 2 schedule choice to the steward copy — the standalone skill ships a default `schedule:`; replace it with the chosen cron, or delete the line for manual-only. With `ON_PLATFORM=yes` `$SCHEDULE` is empty, so the line is deleted:
 
 ```bash
 if [ -n "$SCHEDULE" ]; then
@@ -178,6 +195,8 @@ rm -f .claude/skills/project-steward/SKILL.md.bak
 
 
 ### Step 7: Create GitHub labels
+
+With `ON_PLATFORM=yes` skip this step: labels are not read on the platform (§28).
 
 Create all labels needed by the standard. All operations are idempotent (`2>/dev/null || true`):
 
@@ -200,7 +219,7 @@ Note: `owner:*`, `agent:*`, `waiting-on:*`, and `project:<slug>` labels are per-
 
 ### Step 8: Update CLAUDE.md
 
-Read the current CLAUDE.md and append a Project Management section if it doesn't already exist:
+Read the current CLAUDE.md and append a Project Management section if it doesn't already exist. With `ON_PLATFORM=yes`, write its first paragraph as: "This agent manages projects on Trinity Projects. A project lives in the platform only (PROJECT_STANDARD.md §28–§37); engineering issues stay in their repos and are linked from tasks. The platform wakes the steward; no schedule is set." Leave out the label taxonomy line.
 
 ```markdown
 ## Project Management
@@ -211,6 +230,7 @@ This agent manages projects via GitHub Issues in `$REGISTRY`. Issues are the sin
 | Skill | Purpose |
 |---|---|
 | `/project-init` | Create or adopt a managed project (epic + labels + workspace stub) |
+| `/project-plan` | Plan a project (`kickoff`), re-plan after a change (`revise`), or check the plan still holds (`check`) |
 | `/project-task` | Create task issues interactively — the sanctioned interactive task-creation path; use `--headless` for composed/cron use |
 | `/project-intake` | Headless intake primitive — route actionable items from any source into the registry, dedupe by meaning, return issue number |
 | `/project-steward` | Autonomous sweep: verify completions, dispatch work, escalate stalls, write digest |
@@ -243,7 +263,7 @@ git add project-steward && git commit -m "chore: scaffold project-steward state 
 
 ### Step 10: Register steward schedule (if scheduled)
 
-If `$SCHEDULE` was chosen (not manual-only), add the schedule to `template.yaml` if it exists:
+**Offline only.** With `ON_PLATFORM=yes` skip this step: no `/project-steward` cron and no per-project `/project-status` schedule (§31, §36). Otherwise, if `$SCHEDULE` was chosen (not manual-only), add the schedule to `template.yaml` if it exists:
 
 ```bash
 if [ -f template.yaml ]; then
@@ -311,6 +331,8 @@ Nothing in this system ends in silence, in either direction:
 
 Your agent now manages cross-actor projects with an approval-ready completion lattice.
 ```
+
+With `ON_PLATFORM=yes`, replace the Labels and Next steps parts with: "Projects live in Trinity. Ask an instance admin to grant this agent `projects.manage`. Then run `/project-init <name>` on the deployed agent. For each project, a person starts it, presses **Start** on its Steward card, picks the mode (Track, Propose or Auto) and turns the agent's autonomy on. No schedule was set: the platform wakes the steward." Show `Steward schedule: none — the platform wakes the steward`.
 
 ---
 

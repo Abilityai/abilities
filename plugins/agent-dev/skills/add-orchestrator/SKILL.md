@@ -5,10 +5,11 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 argument-hint: "[--check]"
 metadata:
-  version: "1.39"
+  version: "1.40"
   created: 2026-07-01
   author: Ability.ai
   changelog:
+    - "1.40: The project layer (Q3) copies seven skills: project-plan 2.0 joins the set — the planner (kickoff · revise · check) that writes the plan.md ledger /project-status reads and never starts work. No change to the orchestration skills"
     - "1.39: Platform-truth sync (Trinity dev 7820af28, 1.0.5-rc2; worded to hold on v1.0.0 too) — the clone token's real UI path (Settings → MCP Keys → Personal GitHub Token; instance PAT under Settings → Integrations). Bundled runtime skills: orchestrate 1.22 (wake on ending, same-turn replay, bare /name refusal, rooms, template-source refusal), compose-system 1.8 (apply_system), discover-agents 1.12 (get_agent_permissions), sync-fleet-to-head 1.10 (tag pins), profile-fleet 1.9"
     - "1.38: installs orchestrate 1.21 — model floor on dispatch (operator ruling 2026-10-20, dispatch only): chat_with_agent(parallel=true) and fan_out name a full model ID at or above the floor (Opus 5 minimum, Fable 5 for knowledge work, Sonnet 5 only for trivial mechanical calls, never Haiku); a sequential chat_with_agent cannot carry model, so playbook dispatches go parallel=true; set_reminder, create_agent_schedule and run_skill are outside the floor"
     - "1.37: Trinity 1.0.0 truth sync (v1.0.0 ef8112ee8) — ver/vcmp helpers use braced ${1}/${2}; installs discover-agents 1.11 (an agent key lists only its reach, trinity#3810: an unlisted repo agent is deployed: unknown / reach: none, never deployed: false), orchestrate 1.20 (peer skill grants ent#662: prefer repo-declared playbooks; skill_not_granted + peer_surface_unavailable rows; never roll out a deployed: unknown entry; @mention wakes agents only), sync-fleet-to-head 1.9 (under an agent key git reach = permission edges; a narrative agent missing from list_agents is out of reach, not down), compose-system 1.7 (list_systems is reach-scoped; deploy_system renames on a taken member name, so its warning is the stop signal); the self-change toggles live in the agent Settings → Guardrails pane"
@@ -82,7 +83,7 @@ Maintenance (keep the fleet + its narrative honest over time):
   /reconcile-skill-map  diff fleet/skill-map.yaml (declared intent) vs live get_agent_skills, apply
                         approved additions, never auto-remove drift (ent#646 governance surface)
 
-Drive (opt-in project-management layer — Q3 at install; the six standalone agent-dev project skills,
+Drive (opt-in project-management layer — Q3 at install; the seven standalone agent-dev project skills,
        configured for the fleet by fleet/project-standard.md §0 — nothing orchestrator-specific is embedded here):
   /project-init         create/adopt a managed project (epic + workspace) per fleet/project-standard.md
   /project-task · /project-intake   create tasks (interactive / headless) in the uniform anatomy
@@ -90,6 +91,7 @@ Drive (opt-in project-management layer — Q3 at install; the six standalone age
                         fleet map, escalate stalls, age the operator's open loops, write a daily digest — never asks mid-run
   /project-reconcile    sync projection surfaces (Google Tasks adapter) against the registry
   /project-status       daily per-project status + projected finish date for the operator
+  /project-plan         plan a project, re-plan after a change, check the plan still holds
 ```
 
 **Loop closure (standard §12) runs through the whole bundle.** Silence is a failure mode, not an outcome, in both directions. Inbound: `/orchestrate` isn't done until the requester has actually been told the outcome — including when the run failed — and the steward's digest opens with what's now true, what's waiting on the operator, and what happens next unprompted. Outbound: work parked on somebody the fleet can't dispatch to — a client, a vendor, a colleague, an agent in another fleet — is labeled `waiting-on:<actor>`, aged in every digest under **Your open loops**, and handed to the operator with a drafted follow-up. **The agent drafts; the human sends** — nothing in this bundle contacts a third party on the operator's behalf.
@@ -111,7 +113,7 @@ Drive (opt-in project-management layer — Q3 at install; the six standalone age
 | `.claude/skills/profile-fleet/SKILL.md` | agent repo | interview + introspect agents; reconcile reality and correct the `orchestration.md` narrative |
 | `.claude/skills/fleet-reconcile/SKILL.md` | agent repo | fold already-verified deltas into the doc surfaces (narrative, dossiers, CLAUDE.md, memory) behind one gate — no new evidence |
 | `.claude/skills/reconcile-skill-map/SKILL.md` | agent repo | diff `fleet/skill-map.yaml` (declared intent) vs live `get_agent_skills`, apply approved additions via `assign_skill_to_agent`, never auto-remove drift |
-| `.claude/skills/project-{init,task,intake,steward,reconcile,status}/` | agent repo (opt-in, Q3) | the six standalone agent-dev project skills, copied from the plugin's `skills/` (never embedded here) — the same files the `trinity-skills` library assigns |
+| `.claude/skills/project-{init,plan,task,intake,steward,reconcile,status}/` | agent repo (opt-in, Q3) | the seven standalone agent-dev project skills, copied from the plugin's `skills/` (never embedded here) — the same files the `trinity-skills` library assigns |
 | `fleet/project-standard.md` | agent repo (opt-in, Q3) | project-management conventions every project skill reads at runtime — rendered from `skills/project-init/PROJECT_STANDARD.template.md` with the fleet values in its §0 Configuration (`state_dir: fleet/project-steward`, `fleet.system_map`, `fleet.orchestration`) |
 | steward schedule | `template.yaml` `schedules:` + Trinity MCP (opt-in, Q3) | `project-steward-sweep`, default cron `0 7-19/2 * * 1-5` |
 | `fleet/sources.yaml` | agent repo | the repo list you edit (local paths + `github:Org/repo`) |
@@ -154,7 +156,7 @@ So every bundled skill that is both `automation: gated` **and** designed to run 
 
 Invoked as `/add-orchestrator --check`: a **read-only** report of how this agent's *installed* runtime skills compare to the *bundled* templates they were copied from. Nothing is written, no files are touched. The same per-skill comparison is called inline by **Step 4**'s overwrite prompt, so the warning reaches the operator *at the moment of the overwrite decision*, not after it (issue #8). When `--check` is the invocation, run this section and stop — skip the install steps.
 
-**Scope is deliberate and stateless.** This compares only the skills add-orchestrator itself installs (`discover-agents`, `compose-system`, `orchestrate`, `sync-fleet-to-head`, `profile-fleet`, `fleet-reconcile`, `reconcile-skill-map`) against *this bundle's* `templates/`, and the Q3 project set (`project-init` / `project-task` / `project-intake` / `project-steward` / `project-reconcile` / `project-status`) against the plugin's own `skills/<skill>/SKILL.md` — the project skills are not templates of this bundle. It is **not** a general skill-registry inventory and keeps **no state on disk** — the bundle is the reference, the installed copy is the subject. The plugin-framework-wide version (every plugin that copies skills into agent repos) is a separate, larger call filed as a follow-up.
+**Scope is deliberate and stateless.** This compares only the skills add-orchestrator itself installs (`discover-agents`, `compose-system`, `orchestrate`, `sync-fleet-to-head`, `profile-fleet`, `fleet-reconcile`, `reconcile-skill-map`) against *this bundle's* `templates/`, and the Q3 project set (`project-init` / `project-task` / `project-intake` / `project-steward` / `project-reconcile` / `project-status` / `project-plan`) against the plugin's own `skills/<skill>/SKILL.md` — the project skills are not templates of this bundle. It is **not** a general skill-registry inventory and keeps **no state on disk** — the bundle is the reference, the installed copy is the subject. The plugin-framework-wide version (every plugin that copies skills into agent repos) is a separate, larger call filed as a follow-up.
 
 **Per skill, resolve two version stamps and compare content:**
 - `installed` = `metadata.version` in the agent's `.claude/skills/<skill>/SKILL.md`
@@ -183,7 +185,7 @@ vcmp() { awk -v a="${1}" -v b="${2}" 'BEGIN{
   for(i=1;i<=L;i++){u=x[i]+0; v=y[i]+0; if(u<v){print "<";exit} if(u>v){print ">";exit}}
   print "=" }'; }
 
-for skill in discover-agents compose-system orchestrate sync-fleet-to-head profile-fleet fleet-reconcile reconcile-skill-map project-init project-task project-intake project-steward project-reconcile project-status; do
+for skill in discover-agents compose-system orchestrate sync-fleet-to-head profile-fleet fleet-reconcile reconcile-skill-map project-init project-task project-intake project-steward project-reconcile project-status project-plan; do
   inst=".claude/skills/$skill/SKILL.md"; bund="$SKILL_DIR/templates/$skill.md"
   case "$skill" in project-*) bund="${CLAUDE_PLUGIN_ROOT:-$SKILL_DIR/..}/skills/$skill/SKILL.md";; esac   # the project set lives in the plugin's skills/, not in this bundle"
   [ -f "$inst" ] || { echo "$skill: — not installed"; continue; }
@@ -254,7 +256,7 @@ If any target skill directory already exists under `.claude/skills/`, ask per-sk
 
 **Q3 — Add the project-management layer?** (opt-in — this installs an *autonomous, scheduled* driver, so it is never bundled silently)
 - `No` — skip; re-run this skill later to add it.
-- `Yes` — install the six standalone project skills (`/project-init`, `/project-task`, `/project-intake`, `/project-steward`, `/project-reconcile`, `/project-status` — the same files the `trinity-skills` library carries; on a Trinity instance you may **assign them from the library instead of copying**, which is the library-first default) and seed `fleet/project-standard.md` (which carries the §14 loop-closure discipline: the steward reports back to the operator rather than only filing on issues, and ages the operator's `waiting-on:<actor>` loops with drafted-but-unsent follow-ups). Then gather three parameters:
+- `Yes` — install the seven standalone project skills (`/project-init`, `/project-task`, `/project-intake`, `/project-steward`, `/project-reconcile`, `/project-status`, `/project-plan` — the same files the `trinity-skills` library carries; on a Trinity instance you may **assign them from the library instead of copying**, which is the library-first default) and seed `fleet/project-standard.md` (which carries the §14 loop-closure discipline: the steward reports back to the operator rather than only filing on issues, and ages the operator's `waiting-on:<actor>` loops with drafted-but-unsent follow-ups). Then gather three parameters:
   - **Registry repo** — which GitHub repo hosts the project epics (default: this agent's own origin repo).
   - **Operator** — the human name the needs-operator label escalates to.
   - **Steward cadence** — cron for the sweep (default `0 7-19/2 * * 1-5`, i.e. every 2h, weekdays). **Times are UTC unless you say otherwise** — `create_agent_schedule` and a declared `schedules:` entry both default `timezone` to `UTC`, and the agent container's own clock is UTC. If "working hours" should mean the operator's clock, ask for a timezone and pass it (`timezone: "Europe/London"`); never a legacy IANA alias (`Europe/Kiev`, `Asia/Calcutta`) — those no longer resolve and the schedule 500s on create.
@@ -333,12 +335,12 @@ for skill in discover-agents compose-system orchestrate sync-fleet-to-head profi
   cp "$SKILL_DIR/templates/$skill.md" ".claude/skills/$skill/SKILL.md"
 done
 
-# Project layer (Q3) — the six standalone project skills, copied whole from the plugin's own skills/
+# Project layer (Q3) — the seven standalone project skills, copied whole from the plugin's own skills/
 # directories (never from this bundle's templates/ — there are none); same overwrite prompt rules.
 # On a Trinity instance prefer assigning them from the trinity-skills library and skip this copy.
 if project_layer_selected; then
   PLUGIN="${CLAUDE_PLUGIN_ROOT:-$SKILL_DIR/..}"
-  for skill in project-init project-task project-intake project-steward project-reconcile project-status; do
+  for skill in project-init project-task project-intake project-steward project-reconcile project-status project-plan; do
     SRC="$PLUGIN/skills/$skill"; [ -d "$SRC" ] || { echo "missing $SRC — is the agent-dev plugin installed?"; exit 1; }
     rm -rf ".claude/skills/$skill" && cp -R "$SRC" ".claude/skills/$skill"
   done
@@ -448,8 +450,8 @@ Print:
 - /profile-fleet      → interview + introspect agents, correct the orchestration.md narrative
 - /fleet-reconcile    → fold already-verified deltas into the doc surfaces — no new evidence
 - /reconcile-skill-map → diff fleet/skill-map.yaml vs live get_agent_skills, apply approved additions
-- /project-init · /project-task · /project-intake · /project-steward · /project-reconcile · /project-status
-                      → the project-management layer (the six standalone agent-dev project skills, configured by
+- /project-init · /project-task · /project-intake · /project-steward · /project-reconcile · /project-status · /project-plan
+                      → the project-management layer (the seven standalone agent-dev project skills, configured by
                         fleet/project-standard.md §0 — same files as the trinity-skills library)   [if Q3 = yes]
 
 ### Files

@@ -1,21 +1,22 @@
 ---
-name: project-plan
-description: Plan and execute large multi-session projects. Analyzes scope, splits into ordered sessions, executes session-by-session with approval gates and state tracking.
+name: project-plan-v1
+description: Frozen v1 of project-plan, kept for local single-agent use — plan and execute large multi-session projects in one workspace. Analyzes scope, splits into ordered sessions, executes session-by-session with approval gates and state tracking.
 automation: gated
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, AskUserQuestion
 user-invocable: true
 argument-hint: "[project-name] [--plan <input> | --status | --session N | --skip N | --abandon | --add \"change\"]"
 metadata:
-  version: "1.0"
+  version: "1.0.1"
   created: 2026-03-09
   author: Ability.ai
   changelog:
+    - "1.0.1: Archived as project-plan-v1 (frozen) — /project-plan 2.0 is now the planner of the project-management family; behaviour here is unchanged, only the name and the command spelling moved"
     - "1.0: Initial version — plans and executes large multi-session projects, splitting scope into ordered sessions with approval gates and state tracking"
 ---
 
 # Project Planner
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-plan vX.Y — recent: <summary>`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-plan-v1 vX.Y — recent: <summary>`. Then proceed.
 
 ## Purpose
 
@@ -291,13 +292,13 @@ When all sessions are `completed` or `skipped`:
 
 | Command | Action |
 |---------|--------|
-| `/project-plan [name]` | Auto-detect mode (plan or execute next) |
-| `/project-plan [name] --status` | Show project progress without executing |
-| `/project-plan [name] --plan [input]` | Force new plan creation |
-| `/project-plan [name] --session N` | Jump to specific session |
-| `/project-plan [name] --skip N` | Skip session N |
-| `/project-plan [name] --abandon` | Mark project abandoned |
-| `/project-plan [name] --add "[change]"` | Add a change to the backlog (creates new session or appends) |
+| `/project-plan-v1 [name]` | Auto-detect mode (plan or execute next) |
+| `/project-plan-v1 [name] --status` | Show project progress without executing |
+| `/project-plan-v1 [name] --plan [input]` | Force new plan creation |
+| `/project-plan-v1 [name] --session N` | Jump to specific session |
+| `/project-plan-v1 [name] --skip N` | Skip session N |
+| `/project-plan-v1 [name] --abandon` | Mark project abandoned |
+| `/project-plan-v1 [name] --add "[change]"` | Add a change to the backlog (creates new session or appends) |
 
 ---
 

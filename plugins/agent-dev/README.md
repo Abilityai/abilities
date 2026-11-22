@@ -106,7 +106,7 @@ Standalone skills — usable directly as `/agent-dev:<name>`, copied into an age
 
 ### Project Management (cross-actor)
 
-> **On Trinity with Projects enabled** the same skills work against the platform's project record (standard §17): the project people see in the Workspace is the one the skills manage, the steward's outcomes land in its shared log, and `/project-init platform <slug>` brings an existing folder project over in one import. Off Trinity nothing changes.
+> **On Trinity with Projects** (standard 3.0, §28–§37) a project lives in the platform only: no epic, no task files, no labels, no sync. A person starts the project and picks its mode (Track / Propose / Auto); the platform wakes the steward, which plans once at kickoff, verifies done claims and starts work only with `start_project_task` as the mode allows. Development issues stay in their repo and are linked from tasks. `/project-init adopt <owner/repo#N>` moves a GitHub epic onto the platform. Off Trinity the earlier GitHub/folder mode runs as it was, frozen.
 
 Standalone skills — usable directly as `/agent-dev:<name>`, copied into an agent by `/add-project-management` (which also renders `PROJECT_STANDARD.md` from the template shipped in `project-init/`), and mirrored into the `trinity-skills` library. All five read `PROJECT_STANDARD.md` as their configuration; `/project-init` materializes it from the template when it is missing, so the set works when assigned from the library without the installer.
 
@@ -123,7 +123,8 @@ Standalone skills — usable directly as `/agent-dev:<name>`, copied into an age
 
 | Skill | Description |
 |-------|-------------|
-| **plan** | Plan large multi-session projects with scope analysis and approval gates |
+| **project-plan** | Plan a managed project and keep the plan true — milestones → tasks → subtasks with dependencies, written to the `plan.md` ledger and the task list behind one approval; `revise` re-plans after a change and logs what changed and why; `check` writes nothing. Part of the project-management family |
+| **project-plan-v1** | Frozen v1 planner for local single-agent use — splits one large job into sessions tracked in `project_plan.yaml` |
 
 ### Memory Systems
 
@@ -149,7 +150,7 @@ The `/add-memory` skill copies memory skills directly into the agent (no plugin 
 | **profile-fleet** | Interview + introspect the agents, reconcile reality vs declared config, and correct the `orchestration.md` narrative behind a gate |
 | **fleet-reconcile** | Fold already-verified deltas (session fixes, audit corrections) into every doc surface behind one gate — no new evidence |
 | **reconcile-skill-map** | Diff the declared-intent `fleet/skill-map.yaml` against live `get_agent_skills`, apply approved additions via `assign_skill_to_agent`, report drift and never-reviewed agents — never auto-remove (ent#646 governance surface) |
-| **project-\*** *(opt-in)* | The six standalone project skills above, copied from this plugin (not embedded) and configured for the fleet by `fleet/project-standard.md` §0 — owners resolve through the fleet map, dispatch respects the narrative's §5 edges |
+| **project-\*** *(opt-in)* | The seven standalone project skills above, copied from this plugin (not embedded) and configured for the fleet by `fleet/project-standard.md` §0 — owners resolve through the fleet map, dispatch respects the narrative's §5 edges |
 
 **Nothing ends in silence (standard §12).** The bundle treats an unclosed loop as a defect in both directions. Inbound: `/orchestrate` isn't finished until the person who asked has actually been told the outcome — successes *and* failures — and every report ends with *your open loops / waiting on you / next without you*; the steward's digest opens the same way. Outbound: work parked on somebody the fleet can't dispatch to (a client, a vendor, a colleague, an agent in another fleet) is labeled `waiting-on:<actor>`, aged in every digest, and handed over with a follow-up drafted at 3 days and weekly after — **the agent drafts it, the human sends it.** Nothing in the bundle contacts a third party on the operator's behalf.
 
@@ -209,4 +210,4 @@ This plugin consolidates:
 - playbook-builder (create-playbook, adjust-playbook)
 - file-indexing, brain-memory, json-memory, workspace-kit (memory templates)
 - github-backlog (backlog workflow)
-- project-planner (plan)
+- project-planner (project-plan — rewritten 2.0 as the planner of the project-management family; the original is frozen as project-plan-v1)

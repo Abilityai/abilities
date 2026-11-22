@@ -2,12 +2,14 @@
 
 > The standardized approach for managing projects in this deployment.
 > Every managed project follows this standard; `/project-init` creates projects that conform to it,
-> `/project-task` creates tasks, `/project-intake` routes work in headlessly, `/project-steward` manages
+> `/project-plan` plans a project and keeps the plan true (§35), `/project-task` creates tasks, `/project-intake` routes work in headlessly, `/project-steward` manages
 > them autonomously, `/project-reconcile` syncs projections against the registry, and `/project-status`
 > reports one project's progress and projected finish to the operator.
 > **{{AGENT_NAME}}** is the managing agent; **{{OPERATOR}}** is the operator (the human this standard escalates to).
 >
-> Version: 2.0 ({{DATE}}) — rev 2 operating rules §18–§26 (two machines, kickoff kit, participation contract, build/dispatch/record rules) and six §0 keys (`kickoff`, `participation_check`, `chain.ledger`, `chain.stall_minutes`, `metrics`, `brief.evening_utc`); derived from a 2026-11 multi-agent project retrospective. 1.4 — §17 Platform mode: on a Trinity instance with Projects enabled the platform holds the project record and the same skills work against it (ruling R38); §0 gains `platform:`. 1.3 — §0 Configuration, one skill set for stand-alone agents and fleet orchestrators alike
+> **On a Trinity instance with Projects, read §28–§37 first: they govern there.** A project lives in the platform only — no registry epic, no task files, no labels, no projection, no two-way sync — and development issues are the one exception, linked from tasks (§28). §1–§17 are the **offline mode**, frozen as written for agents without Projects: kept working, developed no further.
+>
+> Version: 3.1 ({{DATE}}) — 3.1: the planner `/project-plan` joins the set — §35 names it for the kickoff plan and gains **Re-planning**; three optional §0 keys (`replan`, `replan_max_slip_days`, `plan_max_tasks`). 3.0 — rev 3 §28–§37: on Trinity Projects the platform is the only home of a project (rulings P1–P11, 2026-11-11); the steward is woken by the platform, runs inside the project's mode (Track / Propose / Auto) and starts work only through `start_project_task`; the kickoff kit and the plan live in the project's file space; an epic is turned into a project by its steward; §1–§17 frozen as the offline mode. 2.0 — rev 2 operating rules §18–§26 (two machines, kickoff kit, participation contract, build/dispatch/record rules) and six §0 keys (`kickoff`, `participation_check`, `chain.ledger`, `chain.stall_minutes`, `metrics`, `brief.evening_utc`); derived from a 2026-11 multi-agent project retrospective. 1.4 — §17 Platform mode: on a Trinity instance with Projects enabled the platform holds the project record and the same skills work against it (ruling R38); §0 gains `platform:`. 1.3 — §0 Configuration, one skill set for stand-alone agents and fleet orchestrators alike
 
 ## 0. Configuration
 
@@ -43,6 +45,10 @@ chain.ledger: run-log.md                      # the engineering executor's run l
 chain.stall_minutes: 30                       # a dispatch queued longer than this is a stall line in status and digest (§24.5)
 metrics: on                                   # on | off — record the declared project metrics of §24.4 with record_metrics (needs them declared in template.yaml)
 brief.evening_utc: "18:00"                    # the two-half evening brief in the steward digest (§23.2); empty = no evening brief
+# plan keys (standard 3.1) — read by project-plan ≥ 2.0 and project-steward ≥ 2.1; absent = the defaults shown (§35 Re-planning)
+replan: manual                                # manual | propose | auto — who approves a revised plan: a person calls revise · the steward may, and it waits as one ask · applied when inside the boundary of §35
+replan_max_slip_days: 5                       # with replan: auto — a revision that moves the projected finish further than this is asked, never applied
+plan_max_tasks: 40                            # open tasks a plan may hold; past it, later milestones are planned as one placeholder task each
 ```
 
 **Label roles, not label names.** Every skill refers to a label by its role — *the needs-operator label*, *the blocked label* — and resolves the name from this block (`$L_NEEDS_OPERATOR`, `$L_BLOCKED`, … in their bash). The tables below document the **default** vocabulary; a deployment that rides an existing tracker's vocabulary (e.g. `status-needs-operator`, `priority-p1`) changes the values here and nothing else. `status:*` / `priority:*` in the prose below mean "whichever status / priority labels this block names".
@@ -467,6 +473,8 @@ The completion lattice is the task's `status:` read as a lattice: **open** is an
 
 ## 17. Platform mode — the project record on Trinity (operator ruling R38, 2026-09-29)
 
+> **Superseded by §28–§37 (standard 3.0).** The *linked* kind below (a registry epic as the task list, the platform as a report of it) is no longer a mode on Trinity: a project lives in the platform only. This section is kept as the history of how 2.x projects were linked; §35 says how a linked project is brought fully onto the platform.
+
 On a Trinity instance with **Projects** enabled, the platform owns the project record: its name and goal, who is on it, who can see it, the chats and rooms where the work happens, the shared log, the task list and the health. The six project skills stay the process and work against that record. Everything in §1–§16 is the **offline mode** and stays valid — Trinity is the upgrade, never the gate. Without Trinity, on an install without Projects, or with `platform: off` in §0, this section does nothing.
 
 **Detecting it** (every project skill, once per run): the `list_projects` tool answering `enabled: true`. `enabled: false`, or no such tool, means folder + GitHub mode. A refusal coded `external_audience` or `turn_unknown` means the conversation is not an internal one — the skills then use nothing from the platform and repeat no project detail.
@@ -610,3 +618,146 @@ Binding on every caller: the steward, the executor, any agent that dispatches.
 ## 26. The retrospective is built in
 
 Every project ends with a readout: the metrics of §24.4, the rulings file with its reversals, the participation table's end state, the cost ledger per agent per day, and the record itself — collected by the managing agent at close, not by hand.
+
+---
+
+# Rev 3 — projects on Trinity (standard 3.0)
+
+> Sections §28–§37 govern on a Trinity instance with **Projects** (an Enterprise capability). They come from the operator's rulings P1–P11 of 2026-11-11 and the platform parts that shipped for them: tasks with subtasks and "blocked by" links, a per-project mode, a steward the platform wakes, a file space per project, links from tasks to GitHub issues, and the project's runs. Where §1–§26 say something else, these sections win on Trinity. §18–§26 still bind with the substitutions named in §37.
+
+## 28. One home
+
+**Detecting it.** Every project skill calls `list_projects` once per run. `enabled: true` → **platform mode**, the only mode this deployment uses on Trinity. `enabled: false`, no such tool, or `platform: off` in §0 → the offline mode of §1–§17, unchanged. A refusal coded `external_audience` or `turn_unknown` → the turn is not an internal one: use nothing from the platform and repeat no project detail.
+
+**In platform mode a project is its platform record and nothing else.** No registry epic holds its tasks, no `tasks/` folder or `log.md` is written, no labels are read or written, no projection is synced, and nothing is mirrored between the platform and an outside tracker. The §0 keys `registry`, `labels.*`, `quarantine`, `member_repos` and `platform` are not read.
+
+**The one exception: development issues.** Engineering work on a code base stays in that repo's issues and pull requests. A project task links to them with `refs` (at most 10 per task); Trinity reads their title and state and never writes to GitHub. A closed issue or a merged PR is evidence for a done claim, never the claim itself.
+
+**The offline mode is frozen.** §1–§17 keep working as written for agents without Projects and get nothing new.
+
+## 29. The record — where each thing lives
+
+| Concept | On the platform |
+|---|---|
+| Project: name, goal, status, steward, members, agents, mode | `get_project`; `create_project` |
+| What needs the steward | `get_steward_digest` — health due, awaiting verification, stuck, stale, open asks, quiet |
+| Task | `create_project_task` / `update_project_task` / `list_project_tasks` (`view: next` = open, unblocked, not a parent with open subtasks) |
+| Task thread (done claim, verification, hand-off, waiting-on) | `add_project_task_note`; a `note` with a move to `pending-verification` is the done claim |
+| Project log | `add_project_log_entry` — `decision`, `deliverable`, `blocker`, `handoff`, `note`; one entry per outcome, never one per run; status changes are logged by the platform |
+| Health | `set_project_health` — `on-track`, `at-risk`, `off-track`, one line why |
+| Files (kickoff kit, plan, deliverables) | `list_platform_files` / `read_platform_file` / `write_platform_file` on the space `project:<id>`; text only, flat names, 512 KB a file; a write that replaces names the revision read |
+| Briefs people prepared | `get_project` → `context`; `read_project_context` |
+| Runs behind the project | `list_project_executions` |
+| A report, file, decision or ask on the project | `link_to_project`; a worker's ask with `to: project` reaches the steward |
+| People, agents, steward, visibility, task owners | `propose_project_changes` — one Inbox decision for the steward's primary contact |
+| Engineering issue | the repo's issue, linked from a task's `refs`; the executor's ledger (§18) |
+
+## 30. Who does what
+
+| | Person | Steward agent | Worker agent |
+|---|---|---|---|
+| Start, stop, archive the project | **only** | — | — |
+| Set the mode (Track / Propose / Auto) | **only** | — | — |
+| Members, agents on the project, steward, visibility | decides | proposes (`propose_project_changes`) | — |
+| Plan: milestones and tasks | approves the kickoff plan once; revisions as `replan:` says (§35) | writes, with `/project-plan` (§35) | — |
+| Which agent runs a task | — | **decides** (P6); the platform only checks the agent is on the project | — |
+| Start a task's run | Track: always; Propose: approves | Propose: proposes; Auto: starts — only with `start_project_task` (§32) | — |
+| Priority | **only** (an agent states the wanted priority in the task's context) | — | — |
+| Done claim | — | for its own tasks | `pending-verification` + evidence |
+| Verify a done claim | may | does, never on its own work | — |
+| Reopen a done task; mark a person's task done | **only** | — | — |
+| Health, log | reads | writes | reads, logs its own outcomes |
+
+## 31. Waking — the platform runs the steward
+
+The steward is woken by the platform (P3, P5). A wake is a turn whose message begins `[Trinity: project steward wake]` and names the project's id, why it was woken (a task change by someone else, an answered ask, or the daily check finding open work) and the project's mode line. It carries no task or ask text: the steward reads the project's state from `get_steward_digest` / `get_project`.
+
+A wake happens only when all of these hold: the steward is an agent, on the project and active; the project is started; a person pressed **Start** on the project's Steward card; the steward agent's autonomy switch is on. At most six wakes an hour per project; the steward's own writes never wake it.
+
+**The steward sets no schedule and no reminder for a project.** A deployment that turns wakes on for its projects retires, in the same change, any cron that runs `/project-steward` over them and any per-project `/project-status` schedule. A manual `/project-steward` (no wake frame) sweeps every project the agent stewards; it is for an interactive session, a migration, or a project whose wakes are not started yet. One scheduled cross-project run stays allowed: the evening brief (`brief.evening_utc`), which writes nothing on any project.
+
+## 32. Modes — what the steward may start
+
+| Mode | The steward | A task run starts when |
+|---|---|---|
+| **Track** (default) | keeps the record: verifies, records health, writes the log, raises asks, lists what is ready | a person starts it from the project page |
+| **Propose** | also picks the next ready task and its agent and calls `start_project_task` — the platform turns it into a proposal | the person approves it |
+| **Auto** | starts ready tasks with `start_project_task`; asks only at a real decision | the steward starts it; a task held for a person's go waits for them |
+
+- **`start_project_task` is the only way the steward starts a task's work**, in every mode. It never sends project task work with `chat_with_agent` or `fan_out`: that would step around the mode the person set. A refusal (`mode_track`, `project_not_started`, `project_stopped`, `task_run_live`, the agent not on the project, …) is recorded on the task, never worked around.
+- At most three proposals or starts per project per run, so a person is never handed a flood.
+- Moving to a higher mode is the person's act; the steward may recommend it once, with the reason, in the log.
+- **The engineering executor is outside the modes.** Engineering issues run through the executor (§18) under its own gates; the steward reads its ledger and never dispatches into it.
+- A run ends one of two ways: the worker moves the task to `pending-verification` with its evidence, or raises an ask carrying the run. Controls underneath still apply: a gated skill still asks its approver, a read-only agent stays read-only.
+
+## 33. Tasks
+
+The §5 anatomy maps onto task fields:
+
+| §5 | field |
+|---|---|
+| Objective | `objective` |
+| Definition of Done | `done_definition` — a markdown checklist |
+| Context | `context` — and two lines in it: `Validation: <how a stranger checks the done claim>` and, when the plan has milestones, `Milestone: M<n>` |
+| owner label | `assignee` = the agent doing it (must be on the project); `owner` = the accountable person (the creator, a member, or `role:<id>`) |
+| — | `refs` — the engineering issues or PRs the work happens in |
+| — | `parent` (one level of subtasks), `blocked_by` (a circle is refused) |
+| a task for a person | `for_person: true` with a person `owner` and no agent; only the steward assigns one, only a person marks it done |
+
+- **Statuses:** `todo` → `active` → `pending-verification` → `done`, with `blocked` (an outside blocker, set by hand), `needs-decision` and `paused` on the side. Waiting on another task is derived from `blocked_by`, never a status.
+- **An agent that is not on the project gets no task.** The steward first proposes adding it (`propose_project_changes` `agents`) and records the task's assignee once it is applied.
+- **Open loops are tasks.** Anything waiting on a person — a grant, a seat, a send — is a person's task or a `waiting_on` on the task it blocks, never only a line in the steward's private state.
+- Finishing every subtask does not finish the parent; the steward closes the parent.
+
+## 34. Verification
+
+1. A done claim is the move to `pending-verification` with a `note` naming evidence a stranger can verify (§20 row 4): a commit on a pushed branch, a merged PR, a path, a record id. A ref's state is evidence, not the claim.
+2. The steward checks each claim against the task's `done_definition` and its `Validation:` line and sets `done`, or sets it back to `active` with a note naming what is missing.
+3. **A second rejection** (the task's `rejections` count reaches 2) moves it to `needs-decision` and raises one ask to the task's owner or the steward's primary contact.
+4. The steward never verifies its own work: a task whose run was the steward's own goes to a person.
+5. A task set `done` without its agent's claim is flagged `closed_without_claim`; the steward reads the note and, if the output is missing, says so in the log. A task waiting on it still unblocks.
+6. `pv_max_age_hours` still applies: a claim older than that is verified first.
+
+## 35. Kickoff, plan, and moving a project onto the platform
+
+**Starting a project.** The steward agent calls `create_project` (it needs the `projects.manage` grant; refused → say who can grant it, create nothing elsewhere). It does not set `tracker_url` — there is no outside tracker. Then:
+
+1. **The kickoff kit (§19) is written to the project's file space**, not to a folder: `intent.md`, `charter.md` (with the delegation boundary and, for engineering work, `chains:`), `rulings.md`, `setup.md`, `participation.md`. `kickoff: blocking` → nothing is offered to start until each exists; `advisory` → the gaps are listed in the log.
+2. **People and agents** the project needs are requested in one `propose_project_changes`.
+3. **The plan** (P10): the steward runs `/project-plan <project> kickoff`, which writes `plan.md` — the goal as milestones, each with what "reached" means as a metric and a target, and the tasks under each — creates the tasks in `todo` with their `blocked_by` links, and raises **one** approval ask for the plan, whose request id it writes as the first line of `plan.md` (`approval_ask: <id>`) so any later run can read the answer with `get_my_ask`. Until the person approves it, the steward proposes and starts nothing, in any mode. Re-planning follows **Re-planning**, below.
+4. **Milestone numbers** are recorded where the deployment declares them (`record_metrics` with a `project` dimension) and restated in `plan.md`; the platform's own milestone field replaces this when it ships.
+5. The person starts the project, starts waking the steward, and picks the mode. The steward never does these.
+
+**Re-planning.** A plan is revised with `/project-plan <project> revise`, never by reshaping tasks one at a time. A revision changes only what a named finding no longer supports — a task blocked for good, a new ruling or answered ask, a milestone its tasks would not reach, a slip past a committed date, an open task no milestone needs. Done and in-flight tasks are left as they are, a task the plan no longer needs is paused with a note and never deleted, and the revision ends in one `decision` log entry saying what changed and why. `/project-plan <project> check` says whether the plan still holds and writes nothing.
+
+Who approves a revision is `replan:` in §0. `manual` (the default) — a person calls it. `propose` — the steward may call it when a wake shows a finding, and the revision waits as one ask beside the current plan. `auto` — a revision is applied and logged when it stays inside the boundary: the goal and every milestone target unchanged, no person's task added, changed or retired, no agent added, the projected finish moved by at most `replan_max_slip_days`, and the charter's delegation boundary allows it; anything outside is asked. The steward calls it at most once per project per day, only on a finding, and keeps working what can still be worked. The planner never starts, dispatches or verifies work, so a revised plan moves forward only through the project's mode (§32).
+
+**Moving a project from GitHub onto the platform** (the agent path; a person may instead use Workspace → Import → From a GitHub epic):
+
+1. Read the epic and its sub-issues with the GitHub CLI.
+2. Use the project's existing platform record if one is linked to that epic; else `create_project` with the epic's goal.
+3. One `create_project_task` per **open** sub-issue, with the anatomy of §33 and `refs: [<the sub-issue>]`; child sub-issues become subtasks, one level deep; dependencies become `blocked_by`. Closed sub-issues are not copied — the log entry of step 5 counts them and links the epic.
+4. Engineering sub-issues stay open in their repo (§28). Every other sub-issue, and the epic itself, gets a closing comment pointing at the project — **only on a person's go**, because it is a write to GitHub; until then they are left as they are and nobody edits them.
+5. One `add_project_log_entry` (`decision`): moved from `<epic>`, N open tasks created, M closed items left in GitHub.
+6. The kickoff kit files the project kept in a workspace folder are copied into the file space; the folder keeps a one-line pointer to the project.
+
+**A project already linked to its epic (standard 2.x)** is moved the same way into its existing record; its existing platform tasks keep their ids and gain `refs` to the issue each one came from.
+
+## 36. Status and reports
+
+`/project-status <project>` runs on demand. On the platform it reads `get_project`, the tasks, `list_project_executions` and the executor ledgers, and projects the finish date from the open critical path (`blocked_by` plus the plan's order). The steward's daily wake keeps health current, so no per-project status schedule is kept. Reports go to the platform's report store and, where they concern the project, onto it with `link_to_project`.
+
+## 37. What changes in §18–§26 on the platform
+
+| § | on Trinity Projects |
+|---|---|
+| 18 | unchanged: two machines, the steward owns the record, the executor runs engineering issues. "Dispatch" for task work means `start_project_task` under the mode (§32) |
+| 19 item 6 | the record is the platform project, created by the deployed managing agent; no epic |
+| 19 items 1–4 | written to the project's file space (§35) |
+| 20 | checked against the project's `agents`; row 3 is the platform's wake on ending |
+| 22.6 | the steward is woken by the platform (§31); the executor still waits on its callee's ending |
+| 23.2 | the evening brief is one cross-project run (§31) |
+| 23.5 | open loops are tasks (§33) |
+| 24.1 | **one record**: the platform project; the executor's ledger for builds |
+| 24.2–24.3 | the executor writes one platform log entry per outcome on the project; the steward reads its ledger and posts status to the project only |
+| 7, 10, 11, 14 | replaced by task notes, the log and `start_project_task`; no comment conventions, no projection |

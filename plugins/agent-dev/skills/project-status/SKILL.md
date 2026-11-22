@@ -1,16 +1,17 @@
 ---
 name: project-status
-description: Daily operator status for ONE managed project per the project standard — what moved since yesterday, what is done, what waits on the operator (raised as Trinity asks when the platform is there, merges due included), and the projected finish date computed from the remaining critical path in the project's build ledger (plan.md) and its build-chain ledgers. Read-only against the registry and the chain; delivers a Trinity report plus one notification, or just the committed status file when Trinity is absent. Use when the operator wants a per-project daily "how is it going and when will it be done".
-argument-hint: "<slug>"
+description: "Status for ONE managed project. On a Trinity instance with Projects (standard 3.0, §28–§37) it runs on demand only (/project-status <project id or name>) — reads get_project, every task, list_project_executions, plan.md and charter.md chains: from the project's file space and the build-chain ledgers it can see; reports what moved since the last status, done and remaining, what waits on a person, and the projected finish from the open critical path (blocked_by plus plan order); publishes a Trinity report, links it to the project and sends one notification; writes nothing else on the project. Without Trinity Projects, runs the frozen offline mode (standard 2.x): the daily status of a GitHub-epic or folder project with Trinity asks for what waits on the operator."
+argument-hint: "<project id or name | slug>"
 automation: autonomous
 disable-model-invocation: false
 user-invocable: true
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__report, mcp__trinity__send_notification, mcp__trinity__list_reports, mcp__trinity__ask_operator, mcp__trinity__get_my_ask, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__list_project_tasks, mcp__trinity__get_project_log, mcp__trinity__add_project_task_note, mcp__trinity__update_project_task, mcp__trinity__link_to_project
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__trinity__report, mcp__trinity__send_notification, mcp__trinity__list_reports, mcp__trinity__ask_operator, mcp__trinity__get_my_ask, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__list_project_tasks, mcp__trinity__get_project_log, mcp__trinity__add_project_task_note, mcp__trinity__update_project_task, mcp__trinity__link_to_project, mcp__trinity__list_project_executions, mcp__trinity__get_steward_digest, mcp__trinity__list_platform_files, mcp__trinity__read_platform_file, mcp__trinity__get_report
 metadata:
-  version: "1.5"
+  version: "2.0"
   created: 2026-10-02
   author: trinity-pm
   changelog:
+    - "2.0: Standard 3.0 (operator rulings P1–P11, 2026-11-11; §36). On Trinity Projects status runs on demand only — per-project status schedules are retired there, the steward's wake keeps health current. A new first section reads the platform project (get_project, every task, list_project_executions, the steward digest, the log, plan.md and charter.md chains: from the file space, the chain ledgers it can see), computes what moved since the last status (kept in state_dir/outputs/<id>/status/), done and remaining per milestone, what waits on a person, and the projected finish from the open critical path (blocked_by plus plan order); publishes a report, links it with link_to_project kind report, one notification. Read-only on the project otherwise: no asks, no task writes. The old body is kept unchanged as the frozen offline mode"
     - "1.5: Reads the build chain (project standard rev 2 §24.3, ruling R-a 2026-11-04: the steward owns every project's record and the chain is its engineering executor). Step 1 resolves `chain.ledger` and `chain.stall_minutes`; Step 2 reads each chain folder the charter lists under `chains:` (or the epic's `## Engineering issues`) — the committed `ledger-entry.yaml` mirror and the run-log tail, else the latest build_chain report; Moved lists chain steps closed, PRs opened and validations decided; Waiting on you lists the chain's parked needs-operator questions with age and the **merges due** (validated, no longer draft, still open — merges are the operator's, §21.7, and an early merge gets post-merge validation by rule), raised as asks on the deployed agent like every other waiting-on-you item; the projection counts the chain's remaining steps × the observed median step duration; Risks lists stalls (§24.5) and container-only state"
     - "1.4.1: Fix — the skill runner replaces every dollar-digit placeholder in a skill body with the invocation's arguments, so a run with arguments (project-init platform <slug>, project-status <slug>, --headless task/intake) broke the §0 resolver and the awk field reads: every config key resolved empty. Shell positionals are now ${1}/${2}, awk fields $(0)/$(2). Found 2026-10-10 by the deployed trinity-pm on the first platform import"
     - "1.4: Platform mode (ent#788, ruling R38): on a Trinity instance with Projects enabled the daily report and the asks it raises are put on the platform project (link_to_project) so its members find them there; a platform-tracked project is read from the platform's task list and log instead of an epic. Without Trinity nothing changes"
@@ -22,7 +23,60 @@ metadata:
 
 # Project Status
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-status v1.5 — recent: reads the build chain, merges due become asks`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-status v2.0 — recent: on Trinity Projects status is read from the platform, on demand only`. Then proceed.
+
+## On Trinity Projects — the only mode there (standard 3.0, §28–§37)
+
+On a Trinity instance with Projects, a project lives in the platform and nowhere else (§28), and `/project-status <project>` runs **on demand only** (§36). The steward's daily wake keeps health current, so no per-project status schedule is kept (§31): a deployment that starts wakes for a project retires that project's `/project-status` schedule in the same change. Any `/project-status` schedule applies to the offline mode only.
+
+This section is read-only on the project. Its one write there is the link to its own report. It writes no task, no note, no health and no log entry, raises no ask, and writes nothing to GitHub. Asks belong to the steward (§34) and to the engineering executor.
+
+### Step 0: Detect
+
+Resolve §0 with the resolver in the offline mode's Step 1. Read only `agent`, `state_dir`, `chain.ledger`, `chain.stall_minutes` and `platform`. No standard file → use the defaults; do not stop. Then call `mcp__trinity__list_projects` once.
+
+- `enabled: true` → run this section.
+- `enabled: false`, no such tool, or `platform: off` in §0 → go to **Offline mode** below.
+- Refused with `external_audience` or `turn_unknown` → this turn is not an internal one. Stop. Use nothing from the platform and repeat no project detail.
+
+### Step 1: Resolve the project
+
+Match the argument against the `list_projects` result: an exact id first, then the name (case-insensitive). No argument, no match, or more than one → list the projects by name and stop. Set `SPACE=project:<id>` and `OUT=$STATE_DIR/outputs/<id>/status`.
+
+### Step 2: Read (read-only)
+
+- `mcp__trinity__get_project` — goal, status, mode, health, members, agents, steward, any pending proposal.
+- `mcp__trinity__list_project_tasks(project_id, status: all)` — every task with its status, assignee, owner, `for_person`, `parent`, `blocked_by`, `refs`, `waiting_on`, `rejections`.
+- `mcp__trinity__list_project_executions(project_id)` — the runs behind the project, their duration and cost.
+- `mcp__trinity__get_steward_digest` — the open asks on this project, and what waits on verification.
+- `mcp__trinity__get_project_log` — the entries since the last status.
+- From the file space (`list_platform_files`, `read_platform_file` on `SPACE`): `plan.md` (milestones, their targets, task order, any `Estimate (d)`), and `charter.md` for its `chains:` list.
+- **Chain ledgers.** For each folder `chains:` names, read what this run can see, exactly as the offline Step 2 **Chain evidence** says: the folder's `ledger-entry.yaml` and the run-log tail, else the newest `<agent>.build_chain` report (`list_reports`, `get_report`). Read the PRs it names with `gh pr view` (read only). Nothing visible → write `chain ledger not readable from here` under Risks.
+- **The last status.** The newest file in `$OUT/`. None → this is the first status; everything open counts as current, nothing as moved.
+
+### Step 3: Compute
+
+- **Moved since the last status:** tasks whose status changed (by the task list against the last file), new tasks, new log entries (`deliverable`, `decision`, `blocker`, `handoff`), chain steps that advanced, PRs opened or merged, runs finished and their cost.
+- **Done / remaining:** done tasks over all tasks, parents counted once; the same per milestone when `plan.md` has milestones.
+- **Waits on a person:** open tasks with `for_person: true`; tasks in `needs-decision`; tasks with a `waiting_on`; claims in `pending-verification` that only a person may verify (§34.4); a pending proposal on the project; open asks from the steward digest; the chain's parked questions and merges due (as the offline Step 4b defines them, listed only). Each with its age in days.
+- **Projected finish.** Walk the open critical path: a task starts when all its `blocked_by` tasks are done, and tasks with no link follow the order of `plan.md`. A task's duration is its `Estimate (d)` from `plan.md` when there is one; else the median wall-clock of the project's finished task runs; else 2 working days, flagged. Chain issues take the chain projection of the offline Step 4. A task that waits on a person counts from today: the clock is on that person, so say so. The projected finish is the latest end date. Compare with the last status: the slip or gain in days, and the one task that caused it.
+- **Risks** (at most 3): a stall over `chain.stall_minutes`, `ahead > 0` or a dirty tree in a chain, a task stale for a week, a health of `at-risk` or `off-track` and its line.
+
+### Step 4: Write and deliver
+
+Write `$OUT/<YYYY-MM-DD>.md` with the offline Step 5 layout (Projected done · Progress · Moved since the last status · Waiting on you · Next · Risks). Add a `Runs:` line (count and cost since the last status) and, with milestones, one line per milestone (`M<n>: <done>/<total>, <metric> target <target>`). A quiet project still gets a short file. Commit and push only the state dir.
+
+Then, guarded (a local session or a refusal → skip silently; the file is the record):
+
+1. `mcp__trinity__report` — `report_type: <agent_name_with_underscores>.project_status`, `title: "<Project> — <done>/<total>, done by <date>"`, `display_hint: markdown`, `payload: {markdown, project_id, projected_done, done, total}`.
+2. `mcp__trinity__link_to_project(project_id, kind: report, target_id: <the report id from the receipt>)`. A refusal is ignored; the report stands.
+3. One `mcp__trinity__send_notification` — title = the report title; message = the "Waiting on you" lines, or "Nothing needs you today."; `priority: high` only when something has waited on a person for 2 days or more.
+
+When the project's status is done, title the report `"<Project> — done <date>"`.
+
+## Offline mode (frozen — agents without Trinity Projects)
+
+Runs only when `list_projects` is not enabled (standard §28). Written for standard 2.x; developed no further. Its §17 'linked project' passages are unreachable on Trinity.
 
 ## Purpose
 
