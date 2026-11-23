@@ -4,20 +4,21 @@ description: Plan a managed project and keep the plan true per the project stand
 argument-hint: "<project-slug> [kickoff | revise [--because=\"what changed\"] | check] [--headless]"
 automation: gated
 effort: high
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__list_project_tasks, mcp__trinity__get_project_log, mcp__trinity__read_project_context, mcp__trinity__list_project_executions, mcp__trinity__update_project_task, mcp__trinity__link_to_project, mcp__trinity__add_project_task_note, mcp__trinity__add_project_log_entry, mcp__trinity__list_platform_files, mcp__trinity__read_platform_file, mcp__trinity__write_platform_file, mcp__trinity__ask_operator, mcp__trinity__get_my_ask
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, Skill, mcp__trinity__list_projects, mcp__trinity__get_project, mcp__trinity__list_project_tasks, mcp__trinity__get_project_log, mcp__trinity__read_project_context, mcp__trinity__list_project_executions, mcp__trinity__update_project_task, mcp__trinity__link_to_project, mcp__trinity__add_project_task_note, mcp__trinity__add_project_log_entry, mcp__trinity__list_platform_files, mcp__trinity__read_platform_file, mcp__trinity__write_platform_file, mcp__trinity__ask_operator, mcp__trinity__get_my_ask, mcp__trinity__report
 user-invocable: true
 metadata:
-  version: "2.0"
+  version: "2.1"
   created: 2026-03-09
   author: Ability.ai
   changelog:
+    - "2.1: The approval ask now shows the plan itself. Its question lists every milestone with what reached means and every task under it by title, owner and what it waits on; the full ledger is also published as a report linked to the project and named in the ask. A milestone whose only measure is that its tasks are done is refused, kept tasks that cannot be worked yet are set back to todo at kickoff, and an owner that is not a person on the project is listed under Needs before start."
     - "2.0: Rewritten as the planner of the project-management family. It reads the project standard's §0 like its siblings, plans a managed project as milestones → tasks → subtasks with dependencies, writes the plan.md ledger /project-status reads, creates tasks only through /project-task, and works on Trinity Projects (standard 3.0 — the plan in the project file space, platform tasks with parent and blocked_by, one approval ask) as well as on GitHub-epic and folder projects. New `revise` mode re-plans after a change and logs what changed and why; `check` reports whether the plan still holds. It no longer executes work or splits a job into sessions — the 1.0 behaviour is frozen as /project-plan-v1. Directory renamed plan → project-plan (name now equals directory)"
     - "1.0: Initial version — plans and executes large multi-session projects, splitting scope into ordered sessions with approval gates and state tracking"
 ---
 
 # Project Plan
 
-> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-plan v2.0 — recent: now the planner of the project-management family (kickoff · revise · check)`. Then proceed.
+> ℹ️ **First, set expectations:** before anything else, print one short line with this skill's version and its most recent change — the top entry of `metadata.changelog` above — e.g. `project-plan v2.1 — recent: the approval ask now shows the plan itself`. Then proceed.
 
 ## Purpose
 
@@ -153,11 +154,13 @@ Go through the plan row by row against Step 3 and mark each finding:
 
 For `kickoff`, build all of it. For `revise`, rebuild **only the part the findings touch** and leave every other row byte-for-byte.
 
-1. **Milestones** — two to seven. Each has a one-line name, what "reached" means as a metric with a target a stranger can read off, and no date unless a person committed one. `revise` never changes a milestone's target inside the boundary.
+1. **Milestones** — two to seven. Each has a one-line name, what "reached" means as a metric with a target a stranger can read off, and no date unless a person committed one. The metric is an outcome that can be observed outside the task list (a document exists and says X, a number reads Y, a person ruled); "its tasks are done" is not a metric, and a milestone that has only that is rewritten before the gate. `revise` never changes a milestone's target inside the boundary.
 2. **Tasks under each milestone** — each with the uniform anatomy: a plain imperative title, an Objective, a Definition of Done of 2–5 checkable items, and a `Validation:` line saying how a stranger checks the done claim. Each names an accountable owner, the agent that does it (only an agent on the project; otherwise it goes under **Needs before start**), an estimate in working days, and the tasks it waits on.
 3. **Subtasks** — only where a task is really several hand-offs; one level. If a subtask wants subtasks, the parent is a milestone.
 4. **Tasks for a person** — every grant, seat, credential, send or decision the plan needs from a person is its own task for that person, placed so the tasks that need it wait on it. An open loop that is only a sentence in the plan is a defect.
-5. **Order** — dependencies only where the work truly cannot start. Aim for at least two tasks that can be worked at once; a plan that is one long chain stalls on its first block.
+5. **Owners are people on the project.** An owner that is a handle, a name or anyone who is not the project's creator or a member reaches nobody. `kickoff` lists each such task under **Needs before start** with the person to add, and says so in the ask.
+6. **Statuses say what can be worked.** At `kickoff`, a kept task that is `active` with no run, no note and no evidence, and that waits on an open task, is set to `todo` with the note `Plan rev 1: not started, waits on <refs>`. Work a person or agent has really begun is never touched.
+7. **Order** — dependencies only where the work truly cannot start. Aim for at least two tasks that can be worked at once; a plan that is one long chain stalls on its first block.
 
 **Rules a revision keeps:**
 
@@ -185,9 +188,32 @@ Risks:     <provisional rulings, single points of failure> | none
 ```
 
 - **Interactive** (a person called it): show the summary and the changed rows, ask once — approve, change, or drop. Apply on approve.
-- **Headless `kickoff`:** apply Step 7 (tasks are created in `todo`, nothing can start), then raise the one approval ask — title `Approve the plan for <project>?`, options `Approve plan` · `Revise plan`, context: the milestones, the task count, where `plan.md` lives — and record its id as the first line of `plan.md`. An answer of `Revise plan` is a call for `revise` by a person, with what they want changed.
-- **Headless `revise`, `replan: propose`, or `auto` outside the boundary:** write the whole revised ledger to `plan-proposed.md`, raise **one** ask whose title is the decision (`Approve the revised plan for <project>?`), whose body is the summary above in at most five lines, and whose options are `Approve plan` · `Keep the current plan` (each with its one-line "what I do next"); record `proposed_ask: <id>` as the first line of `plan-proposed.md`. Apply nothing. A later run that finds the ask answered `Approve plan` applies the proposal (Step 7) and removes the file; `Keep the current plan` removes the file and logs the decision. Never raise a second ask while one is pending — replace the proposal file and say so in a note on the same ask's thread.
+- **Headless `kickoff`:** apply Step 7 (tasks are created in `todo`, nothing can start), then raise the one approval ask in the shape of **The approval ask** below, and record its id as the first line of `plan.md`. An answer of `Revise plan` is a call for `revise` by a person, with what they want changed.
+- **Headless `revise`, `replan: propose`, or `auto` outside the boundary:** write the whole revised ledger to `plan-proposed.md`, raise **one** ask whose title is the decision (`Approve the revised plan for <project>?`), whose body follows **The approval ask** below (the plan as proposed, with each changed row marked `new`, `changed` or `retired`), and whose options are `Approve plan` · `Keep the current plan` (each with its one-line "what I do next"); record `proposed_ask: <id>` as the first line of `plan-proposed.md`. Apply nothing. A later run that finds the ask answered `Approve plan` applies the proposal (Step 7) and removes the file; `Keep the current plan` removes the file and logs the decision. Never raise a second ask while one is pending — replace the proposal file and say so in a note on the same ask's thread.
 - **Headless `revise`, `replan: auto`, inside the boundary:** apply Step 7.
+
+#### The approval ask
+
+A person approves from the ask alone. They must never have to open a file, a task list or an execution to see what they are approving. An ask that names task ids without titles, or milestones without what "reached" means, is a defect: fix it before raising it.
+
+1. **Publish the ledger as a report first**, where the tool exists: `mcp__trinity__report` with `report_type: <agent>.project_plan`, `title: Plan for <project> — rev N`, `display_hint: markdown`, payload `{project_id, revision, markdown: <the full plan.md text>}`, then link it to the project (`mcp__trinity__link_to_project`). Keep the report id. No report tool, or a refusal: carry on and say `full plan: plan.md in the project's files` instead.
+2. **`title`** — `Approve the plan for <project>?` (`Approve the revised plan for <project>?` for a revision).
+3. **`question`** — the plan, in plain lines, nothing a reader has to decode:
+
+   ```
+   From: /project-plan <slug> <mode>, <date>. Finish <date>. <n> tasks, <m> milestones.
+   M1 <name> — reached when <metric and target>
+     T-001 <title> · <owner> · can start now
+     T-002 <title> · <owner> · after T-001
+   M2 <name> — reached when …
+     …
+   Yours: <each task for the approver, by title> | nothing
+   Before start: <what is missing, one line each> | nothing
+   ```
+
+   One line per task, titles cut at 70 characters, never an id alone. A plan too long for the ask's size limit keeps every milestone line and the tasks of the first open milestone in full, then `M<n>: <k> tasks, see the full plan` for the rest.
+4. **`options`** — `Approve plan` · `Revise plan` (`Keep the current plan` for a revision); **`proposal`** — one line each: what happens next and where it lands.
+5. **`context`** — at most four facts: `Full plan` (the report's title and id, or the file), `Projected finish`, `Risks` (provisional rulings, single points of failure), `Changed since rev N-1` (revisions only).
 
 ### Step 7: Apply
 
